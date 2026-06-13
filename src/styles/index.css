@@ -1,0 +1,217 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+@source "..";
+
+/* Set base styles to leverage theme variables */
+body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-family);
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  height: 100vh;
+  width: 100vw;
+  transition: background-color 0.3s ease, color 0.3s ease, font-family 0.3s ease;
+}
+
+/* Hide auto-quotes in Tailwind Typography blockquotes */
+.prose blockquote p:first-of-type::before {
+    content: none !important;
+}
+.prose blockquote p:last-of-type::after {
+    content: none !important;
+}
+
+/* Custom Scrollbar Styles mapped to Theme variables */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 2px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(var(--accent-color-rgb), 0.6);
+}
+
+/* Theme specific border layouts */
+.themed-border {
+  border-width: 1px;
+  border-color: var(--border-color);
+  border-style: var(--border-style);
+}
+
+/* Glow effects and animation frames */
+.glow-accent {
+  box-shadow: var(--glow-effect);
+}
+
+.text-glow {
+  text-shadow: 0 0 8px var(--accent-color);
+}
+
+/* Cyberpunk terminal horizontal scanline animation */
+@keyframes scanline {
+  0% {
+    transform: translateY(-100%);
+  }
+  100% {
+    transform: translateY(100%);
+  }
+}
+
+.scanline-effect::after {
+  content: " ";
+  display: block;
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  right: 0;
+  background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+  z-index: 20;
+  background-size: 100% 2px, 3px 100%;
+  pointer-events: none;
+}
+
+/* Custom transitions */
+.transition-all-theme {
+  transition: background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Grid overlay pattern */
+.matrix-grid {
+  background-image: linear-gradient(rgba(0, 255, 0, 0.03) 1px, transparent 1px),
+                    linear-gradient(90deg, rgba(0, 255, 0, 0.03) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+.pixel-grid {
+  background-image: radial-gradient(rgba(242, 166, 90, 0.05) 2px, transparent 2px);
+  background-size: 16px 16px;
+}
+
+/* Resizer handle visual hover */
+.resizer-hover::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 1.5px;
+  background-color: var(--border-color);
+  transition: background-color 0.2s, box-shadow 0.2s;
+}
+.resizer-hover:hover::after {
+  background-color: var(--accent-color);
+  box-shadow: 0 0 4px var(--accent-color);
+}
+
+/* Global inputs range slider dynamic thumb coloring */
+input[type="range"] {
+  accent-color: var(--accent-color) !important;
+}
+
+/* Dropdown focus & option custom colors */
+select:focus {
+  border-color: var(--accent-color) !important;
+  box-shadow: 0 0 0 1px var(--accent-color) !important;
+}
+
+/* Dynamic accent utility classes */
+.border-accent {
+  border-color: var(--accent-color) !important;
+}
+.border-accent-50 {
+  border-color: rgba(var(--accent-color-rgb), 0.5) !important;
+}
+.bg-accent-10 {
+  background-color: rgba(var(--accent-color-rgb), 0.1) !important;
+}
+.bg-accent-5 {
+  background-color: rgba(var(--accent-color-rgb), 0.05) !important;
+}
+.text-accent {
+  color: var(--accent-color) !important;
+}
+.ring-accent {
+  box-shadow: 0 0 0 2px black, 0 0 0 4px var(--accent-color) !important;
+}
+.shadow-accent-glow {
+  box-shadow: 0 0 10px rgba(var(--accent-color-rgb), 0.45) !important;
+}
+.shadow-accent-active {
+  box-shadow: 0 0 8px rgba(var(--accent-color-rgb), 0.4) !important;
+}
+
+/* Custom Cursor active utility - hides OS native cursor globally */
+.custom-cursor-active, .custom-cursor-active * {
+  cursor: none !important;
+}
+
+/* Utility to hide scrollbar but maintain scrollability */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+/* Tiptap Table Styles */
+.tiptap .tableWrapper {
+  overflow-x: auto;
+  margin: 1.5rem 0;
+  padding-bottom: 0.5rem;
+}
+
+.tiptap table {
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: 100%;
+  min-width: 100%;
+  margin: 0;
+}
+
+.tiptap table td,
+.tiptap table th {
+  min-width: 1em;
+  border: 1px solid var(--border-color);
+  padding: 8px 12px;
+  vertical-align: top;
+  box-sizing: border-box;
+  position: relative;
+  word-wrap: break-word;
+}
+
+.tiptap table th {
+  font-weight: bold;
+  text-align: left;
+  background-color: var(--bg-secondary);
+}
+
+.tiptap .column-resize-handle {
+  position: absolute;
+  right: -2px;
+  top: 0;
+  bottom: -2px;
+  width: 4px;
+  background-color: var(--accent-color);
+  pointer-events: none;
+}
+
+.tiptap .resize-cursor {
+  cursor: ew-resize;
+  cursor: col-resize;
+}

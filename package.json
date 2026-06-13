@@ -1,0 +1,40 @@
+{
+  "name": "@cluaizd/gui",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev:web": "npm run dev -w shell-web",
+    "build:web": "npm run build -w shell-web",
+    "dev:desktop": "npm run tauri dev -w shell-desktop",
+    "build:desktop": "npm run build -w shell-desktop"
+  },
+  "dependencies": {
+    "@tiptap/core": "^2.27.2",
+    "@tiptap/extension-code-block-lowlight": "^2.27.2",
+    "@tiptap/extension-document": "^2.27.2",
+    "@tiptap/extension-table": "^2.27.2",
+    "@tiptap/extension-table-cell": "^2.27.2",
+    "@tiptap/extension-table-header": "^2.27.2",
+    "@tiptap/extension-table-row": "^2.27.2",
+    "@tiptap/react": "^2.27.2",
+    "d3-force-3d": "^3.0.6",
+    "framer-motion": "^12.40.0",
+    "highlight.js": "^11.11.1",
+    "lowlight": "^3.3.0",
+    "lucide-react": "^1.17.0",
+    "prosemirror-state": "^1.4.4",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
+    "react-force-graph-3d": "^1.29.1",
+    "react-icons": "^5.6.0",
+    "three": "^0.184.0",
+    "three-spritetext": "^1.10.0",
+    "zustand": "^5.0.14"
+  }
+}
