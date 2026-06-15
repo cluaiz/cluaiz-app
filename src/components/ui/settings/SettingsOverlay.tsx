@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Settings, Shield, Palette, Bell, HelpCircle, User, ExternalLink, Keyboard } from 'lucide-react';
+import { X, Settings, Shield, Palette, Bell, HelpCircle, User, ExternalLink, Keyboard, Cpu } from 'lucide-react';
 import { GeneralSettings } from './GeneralSettings';
 import { SecuritySettings } from './SecuritySettings';
 import { ChatsSettings } from './ChatsSettings';
 import { NotificationsSettings } from './NotificationsSettings';
 import { ShortcutsSettings } from './ShortcutsSettings';
+import { EngineSettings } from './EngineSettings';
 
 interface SettingsOverlayProps {
     isOpen: boolean;
@@ -13,7 +14,7 @@ interface SettingsOverlayProps {
     onClose: () => void;
 }
 
-type TabId = 'general' | 'security' | 'theme' | 'notifications' | 'shortcuts' | 'help';
+type TabId = 'general' | 'engine' | 'security' | 'theme' | 'notifications' | 'shortcuts' | 'help';
 
 export function SettingsOverlay({ isOpen, initialTab = 'general', onClose }: SettingsOverlayProps) {
     const [activeTab, setActiveTab] = useState<TabId>(initialTab);
@@ -28,6 +29,7 @@ export function SettingsOverlay({ isOpen, initialTab = 'general', onClose }: Set
 
     const navItems = [
         { id: 'general' as const, label: 'General', icon: Settings, desc: 'Startup options, language & timezone' },
+        { id: 'engine' as const, label: 'Engine & Models', icon: Cpu, desc: 'Lifecycle and model loading' },
         { id: 'security' as const, label: 'Security & Access', icon: Shield, desc: 'SSO, credentials & permissions' },
         { id: 'theme' as const, label: 'Theme', icon: Palette, desc: 'Themes, scaling, bubbles & fonts' },
         { id: 'notifications' as const, label: 'Notifications', icon: Bell, desc: 'Chimes, volume & email digests' },
@@ -38,6 +40,8 @@ export function SettingsOverlay({ isOpen, initialTab = 'general', onClose }: Set
         switch (activeTab) {
             case 'general':
                 return <GeneralSettings />;
+            case 'engine':
+                return <EngineSettings />;
             case 'security':
                 return <SecuritySettings />;
             case 'theme':
@@ -57,18 +61,18 @@ export function SettingsOverlay({ isOpen, initialTab = 'general', onClose }: Set
                                 </p>
                             </div>
                             <div className="flex gap-4">
-                                <a 
-                                    href="https://github.com" 
-                                    target="_blank" 
-                                    rel="noreferrer" 
+                                <a
+                                    href="https://github.com"
+                                    target="_blank"
+                                    rel="noreferrer"
                                     className="flex items-center gap-2 bg-[var(--accent-color)] hover:opacity-95 text-[var(--bg-primary)] text-xs font-black uppercase tracking-wider px-5 py-3 rounded-xl transition-all cursor-pointer shadow-md"
                                 >
                                     Documentation <ExternalLink size={14} />
                                 </a>
-                                <a 
-                                    href="https://github.com" 
-                                    target="_blank" 
-                                    rel="noreferrer" 
+                                <a
+                                    href="https://github.com"
+                                    target="_blank"
+                                    rel="noreferrer"
                                     className="flex items-center gap-2 bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] text-[var(--text-primary)] text-xs font-black uppercase tracking-wider px-5 py-3 border border-[var(--border-color)] rounded-xl transition-all cursor-pointer"
                                 >
                                     Report Bug
@@ -128,7 +132,7 @@ export function SettingsOverlay({ isOpen, initialTab = 'general', onClose }: Set
                     animate={{ scale: 1, opacity: 1, y: 0 }}
                     exit={{ scale: 0.95, opacity: 0, y: 20 }}
                     transition={{ type: 'spring', damping: 25, stiffness: 350 }}
-                    className="relative bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-[2rem] w-full max-w-5xl h-[85vh] flex overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.5)] z-10 text-[var(--text-primary)]"
+                    className="relative bg-[var(--bg-primary)] w-screen h-screen flex overflow-hidden z-10 text-[var(--text-primary)]"
                 >
                     {/* Left Sidebar Panel */}
                     <div className="w-72 border-r border-[var(--border-color)] bg-[var(--bg-secondary)]/30 p-6 flex flex-col justify-between shrink-0 select-none">
@@ -157,11 +161,10 @@ export function SettingsOverlay({ isOpen, initialTab = 'general', onClose }: Set
                                         <button
                                             key={item.id}
                                             onClick={() => setActiveTab(item.id)}
-                                            className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-xl transition-all text-left cursor-pointer group ${
-                                                isActive 
-                                                    ? 'bg-[var(--accent-color)]/10 text-[var(--accent-color)] border border-[var(--accent-color)]/20' 
+                                            className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-xl transition-all text-left cursor-pointer group ${isActive
+                                                    ? 'bg-[var(--accent-color)]/10 text-[var(--accent-color)] border border-[var(--accent-color)]/20'
                                                     : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--text-primary)]/5 border border-transparent'
-                                            }`}
+                                                }`}
                                         >
                                             <Icon size={18} className={isActive ? 'text-[var(--accent-color)]' : 'text-[var(--text-muted)] group-hover:text-[var(--text-secondary)]'} />
                                             <div className="flex flex-col">
@@ -179,11 +182,10 @@ export function SettingsOverlay({ isOpen, initialTab = 'general', onClose }: Set
                             <div className="h-[1px] bg-[var(--border-color)]" />
                             <button
                                 onClick={() => setActiveTab('help')}
-                                className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-xl transition-all text-left cursor-pointer group ${
-                                    activeTab === 'help' 
-                                        ? 'bg-[var(--accent-color)]/10 text-[var(--accent-color)] border border-[var(--accent-color)]/20' 
+                                className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-xl transition-all text-left cursor-pointer group ${activeTab === 'help'
+                                        ? 'bg-[var(--accent-color)]/10 text-[var(--accent-color)] border border-[var(--accent-color)]/20'
                                         : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--text-primary)]/5 border border-transparent'
-                                }`}
+                                    }`}
                             >
                                 <HelpCircle size={18} className={activeTab === 'help' ? 'text-[var(--accent-color)]' : 'text-[var(--text-muted)] group-hover:text-[var(--text-secondary)]'} />
                                 <div className="flex flex-col">
@@ -203,10 +205,11 @@ export function SettingsOverlay({ isOpen, initialTab = 'general', onClose }: Set
                         <div className="px-8 py-6 border-b border-[var(--border-color)] flex items-center justify-between shrink-0 select-none">
                             <div>
                                 <h2 className="text-lg font-black text-[var(--text-primary)] uppercase tracking-wider">
-                                    {activeTab === 'help' ? 'Help & Support' : activeTab === 'security' ? 'Security & Access' : activeTab === 'shortcuts' ? 'Keyboard Shortcuts' : activeTab}
+                                    {activeTab === 'help' ? 'Help & Support' : activeTab === 'engine' ? 'Engine & Models' : activeTab === 'security' ? 'Security & Access' : activeTab === 'shortcuts' ? 'Keyboard Shortcuts' : activeTab}
                                 </h2>
                                 <p className="text-xs text-[var(--text-muted)] mt-1">
                                     {activeTab === 'general' && 'Configure Cluaiz startup options, system languages, and timezone settings.'}
+                                    {activeTab === 'engine' && 'Control engine background lifecycle, model loading strategies, and memory limits.'}
                                     {activeTab === 'security' && 'Manage user access, biometric integrations, active SSO options, and credentials.'}
                                     {activeTab === 'theme' && 'Personalize visual theme colors, interface scaling, and chat fonts.'}
                                     {activeTab === 'notifications' && 'Tailor sound effects volume, desktop push updates, and inbox digest frequencies.'}

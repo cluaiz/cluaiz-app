@@ -132,3 +132,31 @@ npm run build:desktop
 ---
 
 **Cluaizd Technology © 2026** — _CLUAIZD Visual Matrix_
+
+
+
+
+
+ 
+ 
+<!-- background-image: url("https://www.transparenttextures.com/patterns/cubes.png"); 
+ 
+background-image: url("https://www.transparenttextures.com/patterns/stardust.png");
+ 
+background-image: url("https://www.transparenttextures.com/patterns/wavecut.png"); 
+
+ 
+background-image: url("https://www.transparenttextures.com/patterns/xv.png"); 
+
+
+ 
+background-image: url("https://www.transparenttextures.com/patterns/otis-redding.png"); 
+
+ 
+background-image: url("https://www.transparenttextures.com/patterns/low-contrast-linen.png"); 
+
+ 
+background-image: url("https://www.transparenttextures.com/patterns/inspiration-geometry.png"); 
+
+ 
+background-image: url("https://www.transparenttextures.com/patterns/food.png");  -->

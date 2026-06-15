@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useLayoutStore } from '../../store/ui/useLayoutStore';
 import { useThemeStore } from '../../store/ui/useThemeStore';
+import { useChatStore } from '../../store/chat/useChatStore';
 import { Tooltip } from '../ui/tooltip';
 import {
     Plus,
@@ -94,110 +95,87 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
     const calendarBtnRef = useRef<HTMLButtonElement>(null);
 
     // 💬 Dynamic interactive chats state matching screenshot visual layouts
-    const [chats, setChats] = useState<MockChat[]>([
-        {
-            id: '1',
-            name: 'Aryan Sharma',
-            avatar: '👨‍💻',
-            time: '03:21 PM',
-            message: 'Hey, I need help with the API integr...',
-            tags: ['VIP:success'],
-            unread: 2,
-            pinned: true,
-            favourite: false,
-            status: 'online',
-            sent: false,
-            muted: false
-        },
-        {
-            id: '2',
-            name: 'Priya Singh',
-            avatar: '👩‍💻',
-            time: '02:21 PM',
-            message: 'Sure, let me check that for you.',
-            tags: ['AI ASSISTANT:success'],
-            unread: 0,
-            pinned: false,
-            favourite: false,
-            status: 'online',
-            sent: true,
-            muted: false
-        },
-        {
-            id: '3',
-            name: 'Tech Support Group',
-            avatar: '🛠️',
-            time: '11:05 AM',
-            message: 'New dashboard build successfully deployed.',
-            tags: ['SUPPORT:info'],
-            unread: 0,
-            pinned: false,
-            favourite: false,
-            status: 'online',
-            sent: false,
-            muted: false
-        },
-        {
-            id: '4',
-            name: 'John Doe',
-            avatar: '👨',
-            time: 'Yesterday',
-            message: 'Hello, glad to connect!',
-            tags: [],
-            unread: 0,
-            pinned: false,
-            favourite: false,
-            status: 'offline',
-            sent: false,
-            muted: false,
-            isNew: true
-        },
-        {
-            id: '5',
-            name: 'Spam Bot',
-            avatar: '🤖',
-            time: 'Yesterday',
-            message: 'Click link to win your special price!',
-            tags: ['SPAM:urgent'],
-            unread: 0,
-            pinned: false,
-            favourite: false,
-            status: 'offline',
-            sent: false,
-            muted: true,
-            blocked: true
-        },
-        {
-            id: '6',
-            name: '+91 9999999999',
-            avatar: '👤',
-            time: '01/06/2026',
-            message: 'Hi, are you free for a quick call?',
-            tags: [],
-            unread: 0,
-            pinned: false,
-            favourite: false,
-            status: 'offline',
-            sent: false,
-            muted: false,
-            isUnknown: true
-        },
-        {
-            id: '7',
-            name: 'Archived Project Chat',
-            avatar: '📁',
-            time: '12/05/2026',
-            message: 'Project milestones signed off.',
-            tags: [],
-            unread: 0,
-            pinned: false,
-            favourite: false,
-            status: 'offline',
-            sent: false,
-            muted: false,
-            archived: true
-        }
-    ]);
+    const { sessions, activeSessionId, switchSession, updateSession, deleteSession } = useChatStore();
+    
+    const chats = useMemo(() => {
+        return Object.values(sessions).map(session => {
+            const lastMsg = session.messages[session.messages.length - 1];
+            const msgDate = lastMsg?.date || (lastMsg as any)?.timestamp || session.createdAt || Date.now();
+            
+            // Format time string from timestamp
+            let timeStr = '';
+            if (msgDate) {
+               const d = new Date(msgDate);
+               if (!isNaN(d.getTime())) {
+                   timeStr = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+               }
+            }
+
+            return {
+                id: session.id,
+                name: session.title,
+                avatar: session.avatar || '🤖',
+                time: timeStr,
+                message: lastMsg ? lastMsg.text : 'New Chat...',
+                tags: session.tags || [],
+                unread: session.unread || 0,
+                pinned: session.pinned || false,
+                pinnedAt: session.pinnedAt,
+                favourite: session.favourite || false,
+                status: 'online',
+                sent: lastMsg?.sender === 'user',
+                muted: session.muted || false,
+                archived: session.archived || false
+            } as MockChat;
+        });
+    }, [sessions]);
+
+    // Update setters to write back to store
+    const setChats = (updater: (prev: MockChat[]) => MockChat[]) => {
+        // Find changes and dispatch to store
+        const prevChats = Object.values(sessions).map(session => ({
+            id: session.id,
+            name: session.title,
+            avatar: session.avatar,
+            tags: session.tags || [],
+            unread: session.unread || 0,
+            pinned: session.pinned || false,
+            pinnedAt: session.pinnedAt,
+            favourite: session.favourite || false,
+            muted: session.muted || false,
+            archived: session.archived || false
+        } as MockChat));
+
+        const nextChats = updater(prevChats);
+        
+        // Sync any mutations back to Zustand
+        nextChats.forEach(nextChat => {
+            const prevChat = prevChats.find(p => p.id === nextChat.id);
+            if (prevChat && JSON.stringify(prevChat) !== JSON.stringify(nextChat)) {
+                updateSession(nextChat.id, (s) => ({
+                    ...s,
+                    title: nextChat.name,
+                    avatar: nextChat.avatar,
+                    tags: nextChat.tags,
+                    unread: nextChat.unread,
+                    pinned: nextChat.pinned,
+                    pinnedAt: nextChat.pinnedAt,
+                    favourite: nextChat.favourite,
+                    muted: nextChat.muted,
+                    archived: nextChat.archived || false
+                }));
+            } else if (!prevChat) {
+                // If a chat was somehow created (unlikely here)
+            }
+        });
+
+        // Handle deleted chats
+        prevChats.forEach(prevChat => {
+            if (!nextChats.find(n => n.id === prevChat.id)) {
+                deleteSession(prevChat.id);
+            }
+        });
+    };
 
     // 🎀 Persistent Ribbon Pool State
     const [poolRibbons, setPoolRibbons] = useState<string[]>([
@@ -703,7 +681,7 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                                             </div>
                                         ) : (
                                             <>
-                                                {chat.avatar.startsWith('http') || chat.avatar.startsWith('/') ? (
+                                                {chat.avatar?.startsWith('http') || chat.avatar?.startsWith('/') ? (
                                                     <img
                                                         src={chat.avatar}
                                                         alt={chat.name}

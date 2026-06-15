@@ -10,17 +10,10 @@ const getEmojiCodepoint = (emoji: string) => {
         .join('_');
 };
 
+import { ChatMessage } from '../../../store/chat/useChatStore';
+
 interface MessageBubbleProps {
-    msg: {
-        sender: 'user' | 'assistant';
-        text: string;
-        time: string;
-        date: Date;
-        reactions?: string[];
-        pinned?: boolean;
-        isStarred?: boolean;
-        highlights?: string[];
-    };
+    msg: ChatMessage;
     index: number;
     handleMessageContextMenu: (e: React.MouseEvent, index: number) => void;
     onTextSelect?: (data: { x: number, y: number, text: string, messageIndex: number } | null) => void;

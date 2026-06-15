@@ -1,7 +1,9 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useLayoutStore } from '../../../store/ui/useLayoutStore';
 import { useThemeStore } from '../../../store/ui/useThemeStore';
-import { Terminal, FileCode, FileText, Play, Database, Maximize2, ChevronDown, Copy, Trash2, X, HatGlasses } from 'lucide-react';
+import { useEngineStore } from '../../../store/engine/useEngineStore';
+import { useChatStore } from '../../../store/chat/useChatStore';
+import { FileCode, FileText, Play, Database, Maximize2, ChevronDown, Copy, Trash2, X, HatGlasses } from 'lucide-react';
 import { MessageContextMenu } from '../../../components/ui/context-menu/MessageContextMenu';
 import { GlobalChatContextMenu } from '../../../components/ui/context-menu/GlobalChatContextMenu';
 import { DateDivider } from '../../../components/ui/DateDivider';
@@ -11,7 +13,6 @@ import { MessageBubble } from './MessageBubble';
 import { DateRange } from '../../../components/ui/dropdown/CalendarDropdown';
 import { useChatScroll } from '../hooks/useChatScroll';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Backlight } from '../../../components/ui/Backlight';
 import { Tooltip } from '../../../components/ui/tooltip';
 
 export function ChatWorkspace() {
@@ -19,32 +20,33 @@ export function ChatWorkspace() {
     const { chatBackground } = useThemeStore();
     const [isDragging, setIsDragging] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
-    const filterBtnRef = useRef<HTMLButtonElement>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [isFilterOpen, setIsFilterOpen] = useState(false);
     const [activeFilter, setActiveFilter] = useState('All');
     const [dateRange, setDateRange] = useState<DateRange | undefined>();
     const [isIncognito, setIsIncognito] = useState(false);
 
-    const [messages, setMessages] = useState<Array<{
-        sender: 'user' | 'assistant';
-        text: string;
-        time: string;
-        date: Date;
-        reactions?: string[];
-        pinned?: boolean;
-        isStarred?: boolean;
-        highlights?: string[];
-    }>>([]);
+    const {
+        activeSessionId,
+        sessions,
+        switchSession,
+        updateMessage,
+        deleteMessage
+    } = useChatStore();
+
+    // The active session's messages
+    const activeSession = activeSessionId ? sessions[activeSessionId] : null;
+    const messages = activeSession ? activeSession.messages : [];
+
     const [inputValue, setInputValue] = useState('');
 
     useEffect(() => {
         const handleNewChat = () => {
-            setMessages([]);
+            switchSession(null);
             setIsIncognito(false);
         };
         const handleNewPrivateChat = () => {
-            setMessages([]);
+            switchSession(null);
             setIsIncognito(true);
         };
         document.addEventListener('start-new-chat', handleNewChat);
@@ -53,7 +55,7 @@ export function ChatWorkspace() {
             document.removeEventListener('start-new-chat', handleNewChat);
             document.removeEventListener('start-new-private-chat', handleNewPrivateChat);
         };
-    }, []);
+    }, [switchSession]);
 
     const [msgMenu, setMsgMenu] = useState<{
         x: number;
@@ -113,19 +115,19 @@ export function ChatWorkspace() {
     };
 
     const handleMessageAction = (action: string, index: number) => {
+        if (!activeSessionId) return;
+
         if (action === 'delete') {
-            setMessages(prev => prev.filter((_, i) => i !== index));
+            deleteMessage(activeSessionId, index);
         } else if (action === 'pin') {
-            setMessages(prev => {
-                const msg = prev[index];
-                if (!msg.pinned && prev.filter(m => m.pinned).length >= 10) {
-                    alert('You can only pin up to 10 messages.');
-                    return prev;
-                }
-                return prev.map((m, i) => i === index ? { ...m, pinned: !m.pinned } : m);
-            });
+            const msg = messages[index];
+            if (!msg.pinned && messages.filter(m => m.pinned).length >= 10) {
+                alert('You can only pin up to 10 messages.');
+            } else {
+                updateMessage(activeSessionId, index, (m) => ({ ...m, pinned: !m.pinned }));
+            }
         } else if (action === 'star') {
-            setMessages(prev => prev.map((m, i) => i === index ? { ...m, isStarred: !m.isStarred } : m));
+            updateMessage(activeSessionId, index, (m) => ({ ...m, isStarred: !m.isStarred }));
         } else if (action === 'copy') {
             navigator.clipboard.writeText(messages[index].text);
         } else if (action === 'reply') {
@@ -138,35 +140,35 @@ export function ChatWorkspace() {
     };
 
     const handleMessageReact = (emoji: string, index: number) => {
-        setMessages(prev => prev.map((m, i) => {
-            if (i !== index) return m;
+        if (!activeSessionId) return;
+        updateMessage(activeSessionId, index, (m) => {
             const currentReactions = m.reactions || [];
             const newReactions = currentReactions.includes(emoji)
                 ? currentReactions.filter(r => r !== emoji)
                 : [...currentReactions, emoji];
             return { ...m, reactions: newReactions };
-        }));
+        });
     };
 
     const handleMessageHighlight = (index: number, text: string) => {
-        setMessages(prev => prev.map((m, i) => {
-            if (i !== index) return m;
+        if (!activeSessionId) return;
+        updateMessage(activeSessionId, index, (m) => {
             const currentHighlights = m.highlights || [];
             if (!currentHighlights.includes(text)) {
                 return { ...m, highlights: [...currentHighlights, text] };
             }
             return m;
-        }));
+        });
         setSelectionMenu(null);
         window.getSelection()?.removeAllRanges();
     };
 
     const handleMessageRemoveHighlight = (index: number, text: string) => {
-        setMessages(prev => prev.map((m, i) => {
-            if (i !== index) return m;
+        if (!activeSessionId) return;
+        updateMessage(activeSessionId, index, (m) => {
             const currentHighlights = m.highlights || [];
             return { ...m, highlights: currentHighlights.filter(h => h !== text) };
-        }));
+        });
         setUnhighlightMenu(null);
     };
 
@@ -201,28 +203,100 @@ async function main() {
 
 main().catch(console.error);`);
 
-    const handleSendMessage = () => {
+    const { launchOnStartup, loadModelOnSend } = useEngineStore();
+
+    useEffect(() => {
+        let unlistenToken: (() => void) | undefined;
+        let isUnmounted = false;
+
+        import('../../../core/engine').then(({ CluaizeEngine }) => {
+            // Conditionally boot the engine based on user settings
+            if (launchOnStartup) {
+                CluaizeEngine.boot().then(() => {
+                    useChatStore.getState().fetchSessionsFromEngine();
+                }).catch(console.error);
+            }
+
+            CluaizeEngine.onToken((token) => {
+                const store = useChatStore.getState();
+                if (!store.activeSessionId) return;
+
+                const session = store.sessions[store.activeSessionId];
+                const lastMsg = session?.messages[session.messages.length - 1];
+
+                if (!lastMsg || lastMsg.sender !== 'assistant') {
+                    const now = new Date();
+                    const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+                    store.addMessage(store.activeSessionId, {
+                        sender: 'assistant',
+                        text: token === '[DONE]' ? '' : token,
+                        time: timeStr,
+                        date: now.getTime()
+                    });
+                } else if (token !== '[DONE]') {
+                    store.appendTokenToLastMessage(store.activeSessionId, token);
+                }
+            }).then(unlisten => {
+                if (isUnmounted) {
+                    unlisten();
+                } else {
+                    unlistenToken = unlisten;
+                }
+            }).catch(console.error);
+        });
+
+        return () => {
+            isUnmounted = true;
+            if (unlistenToken) unlistenToken();
+        };
+    }, []);
+
+    const handleSendMessage = async () => {
         if (!inputValue.trim() && !replyingTo) return;
+        const messageText = inputValue || 'Replying to context...';
+
+        // Dynamically boot the engine on the first send if "Load Model on Send" is enabled
+        if (loadModelOnSend) {
+            import('../../../core/engine').then(({ CluaizeEngine }) => {
+                CluaizeEngine.boot().catch(console.error);
+            });
+        }
+
         const now = new Date();
         const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
-        const newMsg = {
-            sender: 'user' as const,
-            text: inputValue || 'Replying to context...',
+
+        const store = useChatStore.getState();
+        let sessionId = store.activeSessionId;
+
+        if (!sessionId) {
+            sessionId = store.createNewSession();
+        }
+
+        store.addMessage(sessionId, {
+            sender: 'user',
+            text: messageText,
             time: timeStr,
-            date: now
-        };
-        setMessages((prev) => [...prev, newMsg]);
+            date: now.getTime()
+        });
+
         setInputValue('');
         setReplyingTo(null);
 
-        setTimeout(() => {
-            setMessages((prev) => [...prev, {
-                sender: 'assistant',
-                text: `Directives received. Running index parsing... [OK]\nResult loaded to temporary buffer. Reference document updated.`,
-                time: timeStr,
-                date: now
-            }]);
-        }, 1000);
+        try {
+            const { CluaizeEngine } = await import('../../../core/engine');
+            await CluaizeEngine.send(messageText);
+        } catch (error) {
+            console.error("Engine connection error:", error);
+            const currentStore = useChatStore.getState();
+            if (currentStore.activeSessionId) {
+                currentStore.addMessage(currentStore.activeSessionId, {
+                    sender: 'system',
+                    text: `[System Error]: Failed to connect to Cluaize Engine via FFI.`,
+                    time: timeStr,
+                    date: now.getTime()
+                });
+            }
+        }
     };
 
     const filteredMessages = useMemo(() => {
@@ -289,8 +363,8 @@ main().catch(console.error);`);
                 {/* Top Right Incognito Toggle - Only on Landing Page */}
                 {messages.length === 0 && (
                     <div className="absolute top-4 right-4 z-40">
-                        <Tooltip 
-                            title={isIncognito ? 'Disable Private Mode' : 'Enable Private Mode'} 
+                        <Tooltip
+                            title={isIncognito ? 'Disable Private Mode' : 'Enable Private Mode'}
                             position="bottom-end"
                         >
                             <button
@@ -360,8 +434,9 @@ main().catch(console.error);`);
                         >
                             {(() => {
                                 let absoluteIndex = 0;
-                                const grouped = filteredMessages.reduce((groups, msg) => {
-                                    const dateStr = msg.date.toDateString();
+                                const grouped = (filteredMessages || []).reduce((groups, msg) => {
+                                    const safeDate = msg.date || (msg as any).timestamp || Date.now();
+                                    const dateStr = new Date(safeDate).toDateString();
                                     if (!groups[dateStr]) groups[dateStr] = [];
                                     groups[dateStr].push(msg);
                                     return groups;
@@ -371,11 +446,11 @@ main().catch(console.error);`);
                                     <div key={dateStr} className="relative flex flex-col">
                                         {!isIncognito && (
                                             <DateDivider
-                                                date={groupMsgs[0].date}
+                                                date={new Date(groupMsgs[0].date || (groupMsgs[0] as any).timestamp || Date.now())}
                                                 dateRange={dateRange}
                                                 onDateRangeChange={setDateRange}
-                                                bookedDates={messages.map(m => m.date)}
-                                                filteredMessagesCount={filteredMessages.length}
+                                                bookedDates={(messages || []).map(m => new Date(m.date || (m as any).timestamp || Date.now()))}
+                                                filteredMessagesCount={(filteredMessages || []).length}
                                             />
                                         )}
                                         <div className="flex flex-col gap-4">
@@ -456,7 +531,12 @@ main().catch(console.error);`);
                                         <button
                                             onClick={() => {
                                                 if (selectedMessageIndices.length === 0) return;
-                                                setMessages(prev => prev.filter((_, i) => !selectedMessageIndices.includes(i)));
+                                                if (activeSessionId) {
+                                                    // Delete them from highest index to lowest so indices don't shift
+                                                    [...selectedMessageIndices].sort((a, b) => b - a).forEach(i => {
+                                                        deleteMessage(activeSessionId, i);
+                                                    });
+                                                }
                                                 setIsSelectionMode(false);
                                                 setSelectedMessageIndices([]);
                                             }}

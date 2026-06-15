@@ -143,8 +143,8 @@ export function ChatsSettings() {
                                     onClick={() => setBgGlowOpacity(0)}
                                     className={cn(
                                         "px-2.5 py-1 text-[9px] font-black uppercase tracking-widest rounded border transition-colors cursor-pointer",
-                                        bgGlowOpacity === 0 
-                                            ? "bg-[var(--accent-color)]/10 border-[var(--accent-color)] text-[var(--accent-color)]" 
+                                        bgGlowOpacity === 0
+                                            ? "bg-[var(--accent-color)]/10 border-[var(--accent-color)] text-[var(--accent-color)]"
                                             : "border-white/5 text-zinc-500 hover:text-zinc-300"
                                     )}
                                 >
@@ -216,8 +216,8 @@ export function ChatsSettings() {
                             )}
                         >
                             {item.id !== 'none' && (
-                                <div 
-                                    className="absolute inset-0 opacity-30 pointer-events-none" 
+                                <div
+                                    className="absolute inset-0 opacity-30 pointer-events-none"
                                     style={{ backgroundImage: `url("${item.id}")`, backgroundSize: '120px' }}
                                 />
                             )}

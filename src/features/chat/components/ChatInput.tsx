@@ -469,7 +469,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     }, [inputValue]);
 
     return (
-        <div className={`p-3 pb-4 flex-shrink-0 z-10 relative ${isFloating ? 'bg-transparent' : 'bg-[var(--bg-primary)]'}`}>
+        <div className={`p-2 flex-shrink-0 z-10 relative ${isFloating ? 'bg-transparent' : 'bg-[var(--bg-primary)]'}`}>
             {/* Top Fade-Out Shadow Effect */}
             {!isFloating && (
                 <div className="absolute left-0 right-0 h-8 -top-8 bg-gradient-to-b from-transparent to-[var(--bg-primary)] pointer-events-none z-10" />

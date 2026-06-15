@@ -47,94 +47,6 @@ function MainAppContent() {
                 mainContent={
                     activeView === 'notebook' ? <NotebookEditor /> : <ChatWorkspace />
                 }
-                rightPanelContent={
-                    <div className="space-y-5 font-mono text-[11px] select-text">
-                        
-                        {/* Global Scale Control */}
-                        <div className="space-y-2.5 p-3 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded" style={{ borderStyle: 'var(--border-style)' }}>
-                            <div className="flex justify-between text-xs font-bold text-[var(--text-secondary)]">
-                                <span className="flex items-center gap-1.5 text-glow">
-                                    <Maximize2 className="w-3.5 h-3.5 text-[var(--accent-color)]" />
-                                    interface scaling
-                                </span>
-                                <span className="text-[var(--accent-color)] font-bold">{(textScale * 100).toFixed(0)}%</span>
-                            </div>
-                            <div className="pt-1">
-                                <ElasticSlider
-                                    min={0.8}
-                                    max={1.2}
-                                    step={0.05}
-                                    value={textScale}
-                                    onChange={setTextScale}
-                                />
-                            </div>
-                        </div>
-
-                        {/* CPU Load Gauge */}
-                        <div className="space-y-1.5 p-2.5 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded" style={{ borderStyle: 'var(--border-style)' }}>
-                            <div className="flex justify-between text-xs font-bold text-[var(--text-secondary)] text-glow">
-                                <span className="flex items-center gap-1.5">
-                                    <Cpu className="w-3.5 h-3.5 text-[var(--accent-color)]" />
-                                    core-cpu load
-                                </span>
-                                <span className="text-[var(--accent-color)] font-bold">14.8%</span>
-                            </div>
-                            <div className="h-1.5 w-full bg-[var(--bg-secondary)] rounded-full overflow-hidden border border-[var(--border-color)]" style={{ borderStyle: 'var(--border-style)' }}>
-                                <div className="h-full bg-[var(--accent-color)] transition-all duration-500 glow-accent" style={{ width: '14.8%' }}></div>
-                            </div>
-                        </div>
-
-                        {/* Database Memory Allocation Gauge */}
-                        <div className="space-y-1.5 p-2.5 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded" style={{ borderStyle: 'var(--border-style)' }}>
-                            <div className="flex justify-between text-xs font-bold text-[var(--text-secondary)]">
-                                <span className="flex items-center gap-1.5">
-                                    <Database className="w-3.5 h-3.5 text-[var(--accent-color)] text-glow" />
-                                    memory buffer
-                                </span>
-                                <span className="text-[var(--accent-color)] font-bold">128 MB</span>
-                            </div>
-                            <div className="h-1.5 w-full bg-[var(--bg-secondary)] rounded-full overflow-hidden border border-[var(--border-color)]" style={{ borderStyle: 'var(--border-style)' }}>
-                                <div className="h-full bg-[var(--accent-color)] transition-all duration-500 glow-accent" style={{ width: '25%' }}></div>
-                            </div>
-                            <p className="text-[10px] text-[var(--text-muted)] mt-1">Available Cache Allocation: 512 MB</p>
-                        </div>
-
-                        {/* Telemetry Logs */}
-                        <div className="space-y-2">
-                            <span className="text-[10px] font-bold tracking-widest text-[var(--text-muted)] uppercase">CONNECTION TELEMETRY</span>
-                            <div className="space-y-1.5 p-2.5 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded text-[10px] text-[var(--text-secondary)] font-medium" style={{ borderStyle: 'var(--border-style)' }}>
-                                <div className="flex justify-between border-b border-[var(--border-color)] pb-1" style={{ borderStyle: 'var(--border-style)' }}>
-                                    <span>IPC Pipeline</span>
-                                    <span className="text-emerald-500 font-bold">CONNECTED</span>
-                                </div>
-                                <div className="flex justify-between border-b border-[var(--border-color)] pb-1" style={{ borderStyle: 'var(--border-style)' }}>
-                                    <span>Core Server</span>
-                                    <span className="text-emerald-500 font-bold">ACTIVE</span>
-                                </div>
-                                <div className="flex justify-between">
-                                    <span>Latency</span>
-                                    <span className="text-[var(--accent-color)] font-bold">2 ms</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Agent Stats */}
-                        <div className="space-y-2">
-                            <span className="text-[10px] font-bold tracking-widest text-[var(--text-muted)] uppercase">AGENT STATS</span>
-                            <div className="space-y-1.5 p-2.5 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded text-[10px] text-[var(--text-secondary)] font-medium" style={{ borderStyle: 'var(--border-style)' }}>
-                                <div className="flex justify-between">
-                                    <span>Tokens Remaining</span>
-                                    <span className="font-bold">7852 / 8192</span>
-                                </div>
-                                <div className="flex justify-between">
-                                    <span>Model Instance</span>
-                                    <span className="text-[var(--accent-color)] font-bold">qwen3.5:4b</span>
-                                </div>
-                            </div>
-                        </div>
-
-                    </div>
-                }
             />
 
             {/* Launcher overlay containing the staggered bubbles and aesthetic controls */}
@@ -160,11 +72,39 @@ function MainAppContent() {
     );
 }
 
+import React from 'react';
+
+class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasError: boolean, error: Error | null}> {
+  constructor(props: {children: React.ReactNode}) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ padding: 20, color: 'red', background: '#fff', height: '100vh' }}>
+          <h2>React Runtime Crash:</h2>
+          <pre style={{ whiteSpace: 'pre-wrap' }}>{this.state.error?.toString()}</pre>
+          <pre style={{ whiteSpace: 'pre-wrap' }}>{this.state.error?.stack}</pre>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export default function App() {
     return (
-        <ThemeProvider>
-            <MainAppContent />
-        </ThemeProvider>
+        <ErrorBoundary>
+            <ThemeProvider>
+                <MainAppContent />
+            </ThemeProvider>
+        </ErrorBoundary>
     );
 }
 
