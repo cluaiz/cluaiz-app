@@ -1,0 +1,31 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Cluaize App",
+  "version": "0.1.0",
+  "identifier": "com.aryan.shell-desktop",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Cluaize App",
+        "width": 1100,
+        "height": 700
+      }
+    ],
+    "security": {
+      "csp": null 
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "../../public/logo.ico"
+    ]
+  }
+}

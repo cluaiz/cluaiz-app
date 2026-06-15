@@ -6,13 +6,17 @@
   "main": "src/index.ts",
   "types": "src/index.ts",
   "workspaces": [
-    "apps/*"
+    "app"
   ],
   "scripts": {
-    "dev:web": "npm run dev -w shell-web",
-    "build:web": "npm run build -w shell-web",
-    "dev:desktop": "npm run tauri dev -w shell-desktop",
-    "build:desktop": "npm run build -w shell-desktop"
+    "dev:web": "npm run dev -w app",
+    "build:web": "npm run build -w app",
+    "dev:desktop": "npm run tauri dev -w app",
+    "build:desktop": "npm run tauri build -w app",
+    "dev:android": "npm run tauri android dev -w app",
+    "build:android": "npm run tauri android build -w app",
+    "dev:ios": "npm run tauri ios dev -w app",
+    "build:ios": "npm run tauri ios build -w app"
   },
   "dependencies": {
     "@tiptap/core": "^2.27.2",
