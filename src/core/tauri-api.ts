@@ -1,25 +1,67 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 
 /**
  * Checks if the app is currently running in a Tauri desktop environment.
  */
 export const isTauri = (): boolean => {
-    return '__TAURI_INTERNALS__' in window;
+    return typeof window !== 'undefined' && ('__TAURI_INTERNALS__' in window || '__TAURI__' in window || '__TAURI_IPC__' in window);
 };
 
 /**
- * Sends a chat message to the Rust backend engine.
- * @param content The text content of the message
- * @returns A promise that resolves when the message is accepted
+ * Sends a CDQL query directly through the Rust FFI Named Pipe.
+ * @param query The CDQL query string
+ * @returns A promise resolving to the JSON string response from the database
  */
-export async function sendChatMessage(content: string): Promise<string> {
+export async function executeCDQLFFI(query: string): Promise<string> {
     if (!isTauri()) {
-        console.warn("sendChatMessage: Not in Tauri environment. Simulating behavior.");
-        return new Promise((resolve) => setTimeout(() => resolve("Simulated response"), 500));
+        throw new Error("Cannot execute FFI command in a non-Tauri environment.");
     }
     
-    return await invoke<string>('send_chat_message', { content });
+    // We will hook this up to the CDQL WASM engine in the future
+    // For now, we simulate an empty response or call a placeholder
+    try {
+        return await invoke<string>('ffi_fetch_history'); // using history as a placeholder for CDQL
+    } catch {
+        return "[]";
+    }
+}
+
+/**
+ * Boots the Cluaiz Engine in the background.
+ */
+export async function bootCluaizEngine(): Promise<string> {
+    if (!isTauri()) return "Web Mode (No Engine)";
+    return await invoke<string>('boot_cluaiz_engine');
+}
+
+/**
+ * Sends a chat message prompt directly to the engine.
+ * @param message The prompt string
+ */
+export async function sendFFIMessage(message: string): Promise<void> {
+    if (!isTauri()) {
+        console.warn("Cannot send FFI message in non-Tauri environment: ", message);
+        return;
+    }
+    await invoke('ffi_send_message', { message });
+}
+
+/**
+ * Fetches the entire chat history.
+ */
+export async function fetchFFIHistory(): Promise<string> {
+    if (!isTauri()) return "[]";
+    return await invoke<string>('ffi_fetch_history');
+}
+
+/**
+ * Deletes a session history.
+ */
+export async function deleteFFISession(sessionId: string): Promise<void> {
+    if (!isTauri()) return;
+    await invoke('ffi_delete_session', { sessionId });
 }
 
 /**
@@ -27,14 +69,47 @@ export async function sendChatMessage(content: string): Promise<string> {
  * @param callback Function to call when a new token arrives
  * @returns An unlisten function to clean up the event listener
  */
-export async function listenToChatTokens(callback: (token: string) => void): Promise<UnlistenFn> {
+export async function listenToEngineStream(callback: (token: string) => void): Promise<UnlistenFn> {
     if (!isTauri()) {
         return () => {}; // Dummy unlisten for web
     }
     
-    const unlisten = await listen<string>('chat_token', (event) => {
+    // The backend emits "engine_stream_token"
+    const unlisten = await listen<string>('engine_stream_token', (event) => {
         callback(event.payload);
     });
     
     return unlisten;
+}
+
+/**
+ * Minimizes the current window.
+ */
+export async function minimizeWindow(): Promise<void> {
+    if (isTauri()) {
+        await getCurrentWindow().minimize();
+    }
+}
+
+/**
+ * Toggles the maximization state of the current window.
+ */
+export async function toggleMaximizeWindow(): Promise<void> {
+    if (isTauri()) {
+        const win = getCurrentWindow();
+        if (await win.isMaximized()) {
+            await win.unmaximize();
+        } else {
+            await win.maximize();
+        }
+    }
+}
+
+/**
+ * Closes the current window and exits the application.
+ */
+export async function closeWindow(): Promise<void> {
+    if (isTauri()) {
+        await getCurrentWindow().close();
+    }
 }

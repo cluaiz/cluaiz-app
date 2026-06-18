@@ -95,7 +95,7 @@ export function ResizableSidebar({ children }: ResizableSidebarProps) {
     const currentWidth = sidebarCollapsed ? 68 : sidebarWidth;
 
     const desktopClasses = sidebarPeeked
-        ? `fixed inset-y-0 ${
+        ? `absolute inset-y-0 ${
               sidebarPosition === 'left' ? 'left-0 border-r shadow-[5px_0_25px_rgba(0,0,0,0.5)]' : 'right-0 border-l shadow-[-5px_0_25px_rgba(0,0,0,0.5)]'
           } z-50 bg-[var(--bg-secondary)] text-[var(--text-primary)] flex flex-col overflow-hidden ${isResizing ? '' : 'transition-all duration-300 ease-in-out'}`
         : `relative h-full flex-shrink-0 bg-[var(--bg-secondary)] text-[var(--text-primary)] flex flex-col overflow-hidden ${isResizing ? '' : 'transition-all duration-300 ease-in-out'}`;

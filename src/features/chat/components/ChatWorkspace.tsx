@@ -203,7 +203,7 @@ async function main() {
 
 main().catch(console.error);`);
 
-    const { launchOnStartup, loadModelOnSend } = useEngineStore();
+    const { launchOnStartup } = useEngineStore();
 
     useEffect(() => {
         let unlistenToken: (() => void) | undefined;
@@ -256,10 +256,10 @@ main().catch(console.error);`);
         const messageText = inputValue || 'Replying to context...';
 
         // Dynamically boot the engine on the first send if "Load Model on Send" is enabled
-        if (loadModelOnSend) {
-            import('../../../core/engine').then(({ CluaizeEngine }) => {
-                CluaizeEngine.boot().catch(console.error);
-            });
+        const permissions = useEngineStore.getState().permissions;
+        if (permissions?.lazy_load_model) {
+            const { CluaizeEngine } = await import('../../../core/engine');
+            await CluaizeEngine.boot();
         }
 
         const now = new Date();
@@ -356,6 +356,7 @@ main().catch(console.error);`);
 
     return (
         <div ref={containerRef} className="flex-1 flex overflow-hidden relative themed-border border-0">
+
             <div
                 style={{ width: `${splitPaneWidth}%` }}
                 className="h-full flex flex-col bg-[var(--bg-primary)] overflow-hidden relative"
@@ -405,6 +406,7 @@ main().catch(console.error);`);
 
                 {messages.length === 0 ? (
                     <div className="flex-1 flex flex-col items-center justify-center p-8 z-20 relative">
+
                         <motion.h1
                             initial={{ opacity: 0, y: -20 }}
                             animate={{ opacity: 1, y: 0 }}

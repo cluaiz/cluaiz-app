@@ -14,17 +14,26 @@ export const SettingSection = ({ title, children }: { title: string, children: R
     </div>
 );
 
+export interface SelectOption {
+    label: string;
+    value: string;
+}
+
 interface SettingItemProps {
     label: string;
     description: string;
+    dynamicDescription?: string;
     toggle?: boolean;
     action?: string;
     active?: boolean;
     onToggle?: () => void;
     icon?: React.ComponentType<any>;
+    select?: string[] | SelectOption[];
+    value?: string;
+    onChange?: (v: string) => void;
 }
 
-export const SettingItem = ({ label, description, toggle = false, action, active = false, onToggle, icon: Icon }: SettingItemProps) => {
+export const SettingItem = ({ label, description, dynamicDescription, toggle = false, action, active = false, onToggle, icon: Icon, select, value, onChange }: SettingItemProps) => {
     const handleClick = (e: React.MouseEvent) => {
         if (toggle && onToggle) {
             e.preventDefault();
@@ -47,15 +56,34 @@ export const SettingItem = ({ label, description, toggle = false, action, active
                         <Icon size={20} />
                     </div>
                 )}
-                <div className="flex flex-col">
+                <div className="flex flex-col max-w-sm">
                     <span className="text-sm font-bold text-[var(--text-primary)]">{label}</span>
                     <span className="text-[11px] text-[var(--text-muted)] font-medium leading-relaxed">{description}</span>
+                    {dynamicDescription && (
+                        <span className="text-[10px] text-[var(--accent-color)] mt-1.5 font-medium italic opacity-90 leading-tight">
+                            ↳ {dynamicDescription}
+                        </span>
+                    )}
                 </div>
             </div>
             {toggle ? (
                 <button type="button" className={cn("w-10 h-5 rounded-full relative transition-all pointer-events-none", active ? "bg-[var(--accent-color)]" : "bg-[var(--border-color)]")}>
                     <div className={cn("absolute top-1 w-3 h-3 bg-white rounded-full transition-all", active ? "left-6" : "left-1")} />
                 </button>
+            ) : select ? (
+                <select
+                    value={value || ''}
+                    onChange={(e) => onChange && onChange(e.target.value)}
+                    className="bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-primary)] outline-none cursor-pointer"
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    {select.map((opt) => {
+                        const isObj = typeof opt === 'object';
+                        const val = isObj ? (opt as SelectOption).value : opt as string;
+                        const lbl = isObj ? (opt as SelectOption).label : opt as string;
+                        return <option key={val} value={val}>{lbl}</option>;
+                    })}
+                </select>
             ) : action ? (
                 <button type="button" className="text-[10px] font-black text-[var(--accent-color)] uppercase tracking-widest hover:opacity-80 transition-opacity">{action}</button>
             ) : (

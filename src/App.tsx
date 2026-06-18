@@ -18,15 +18,43 @@ import { AuraCursor } from './components/ui/cursor/AuraCursor';
 
 function MainAppContent() {
     const [isLauncherOpen, setIsLauncherOpen] = useState(false);
+    const [launcherCoords, setLauncherCoords] = useState<{x: number, y: number} | null>(null);
     const [settingsState, setSettingsState] = useState<{isOpen: boolean, tab: string}>({ isOpen: false, tab: 'general' });
     const { textScale, setTextScale, theme, darkAccent, lightAccent, cursorType } = useThemeStore();
     const { activeView } = useLayoutStore();
     const activeAccent = theme !== 'light' ? darkAccent : lightAccent;
 
     useEffect(() => {
-        const handleOpenLauncher = () => setIsLauncherOpen(true);
+        const handleOpenLauncher = (e: any) => {
+            if (e.detail && typeof e.detail.x === 'number') {
+                setLauncherCoords({ x: e.detail.x, y: e.detail.y });
+            } else {
+                setLauncherCoords(null);
+            }
+            setIsLauncherOpen(true);
+        };
         document.addEventListener('open-launcher', handleOpenLauncher);
-        return () => document.removeEventListener('open-launcher', handleOpenLauncher);
+
+        // Prevent default browser right-click menu
+        const handleContextMenu = (e: MouseEvent) => {
+            const target = e.target as HTMLElement;
+            // Allow right click on input fields, textareas, and contenteditable elements (like the editor)
+            if (
+                target.tagName === 'INPUT' || 
+                target.tagName === 'TEXTAREA' || 
+                target.isContentEditable ||
+                target.closest('.ProseMirror')
+            ) {
+                return;
+            }
+            e.preventDefault();
+        };
+        document.addEventListener('contextmenu', handleContextMenu);
+
+        return () => {
+            document.removeEventListener('open-launcher', handleOpenLauncher);
+            document.removeEventListener('contextmenu', handleContextMenu);
+        };
     }, []);
 
     return (
@@ -41,7 +69,15 @@ function MainAppContent() {
             <AppShell
                 sidebarContent={
                     <SidebarContent 
-                        onOpenLauncher={() => setIsLauncherOpen(true)} 
+                        onOpenLauncher={(e) => {
+                            if (e) {
+                                const rect = e.currentTarget.getBoundingClientRect();
+                                setLauncherCoords({ x: rect.left, y: rect.bottom + 8 });
+                            } else {
+                                setLauncherCoords(null);
+                            }
+                            setIsLauncherOpen(true);
+                        }} 
                     />
                 }
                 mainContent={
@@ -52,6 +88,7 @@ function MainAppContent() {
             {/* Launcher overlay containing the staggered bubbles and aesthetic controls */}
             <BubbleLauncher 
                 isOpen={isLauncherOpen} 
+                coords={launcherCoords}
                 onClose={() => setIsLauncherOpen(false)} 
                 onOpenSettings={(tab) => setSettingsState({ isOpen: true, tab: tab || 'general' })}
             />

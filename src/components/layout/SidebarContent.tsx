@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useLayoutStore } from '../../store/ui/useLayoutStore';
 import { useThemeStore } from '../../store/ui/useThemeStore';
 import { useChatStore } from '../../store/chat/useChatStore';
+import { isTauri } from '../../core/tauri-api';
 import { Tooltip } from '../ui/tooltip';
 import {
     Plus,
@@ -18,7 +19,8 @@ import {
     Trash2,
     MessageSquarePlus,
     FolderPlus,
-    NotebookPen
+    NotebookPen,
+    MessageCircleWarning
 } from 'lucide-react';
 import { Tag } from '../ui/Tag';
 import { ChatRibbon } from '../ui/ChatRibbon';
@@ -32,7 +34,7 @@ import { Search as AnimatedSearch } from '../animate-ui/icons/search';
 import { SlidersHorizontal as AnimatedSliders } from '../animate-ui/icons/sliders-horizontal';
 
 interface SidebarContentProps {
-    onOpenLauncher: () => void;
+    onOpenLauncher: (e?: React.MouseEvent) => void;
 }
 
 interface MockChat {
@@ -81,7 +83,12 @@ const getChatDate = (timeStr: string): Date => {
 export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
     const { sidebarPosition, toggleSidebar, sidebarCollapsed, setSidebarCollapsed, sidebarPeeked, setSidebarPeeked, setActiveChatData } = useLayoutStore();
     const { theme } = useThemeStore();
+    const [inTauri, setInTauri] = useState(false);
     const [isLogoHovered, setIsLogoHovered] = useState(false);
+
+    useEffect(() => {
+        setInTauri(isTauri());
+    }, []);
     const [activeCategory, setActiveCategory] = useState('All');
     const [searchQuery, setSearchQuery] = useState('');
     const [activeFilter, setActiveFilter] = useState('All');
@@ -391,62 +398,65 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
         <>
             <div className="flex flex-col h-full bg-[var(--bg-secondary)] overflow-hidden font-sans select-none relative">
 
-                {/* Header: Logo, Name, Toggle, More Menu */}
-                <div
-                    onMouseEnter={() => setIsLogoHovered(true)}
-                    onMouseLeave={() => setIsLogoHovered(false)}
-                    className={`p-4 flex items-center border-b border-[var(--border-color)] ${sidebarCollapsed ? 'justify-center' : 'justify-between'}`}
-                    style={{ borderStyle: 'var(--border-style)' }}
-                >
-                    <div className="flex items-center gap-2">
-                        <div className="w-10 h-10 flex items-center justify-center select-none flex-shrink-0">
-                            <Tooltip disabled={!sidebarCollapsed} title="Expand Sidebar">
-                                {sidebarCollapsed && isLogoHovered ? (
+                {/* Web-only Header: Logo, Name, Toggle, More Menu */}
+                {!inTauri && (
+                    <div
+                        onMouseEnter={() => setIsLogoHovered(true)}
+                        onMouseLeave={() => setIsLogoHovered(false)}
+                        className={`p-4 flex items-center border-b border-[var(--border-color)] ${sidebarCollapsed ? 'justify-center' : 'justify-between'}`}
+                        style={{ borderStyle: 'var(--border-style)' }}
+                    >
+                        <div className="flex items-center gap-2">
+                            <div className="w-10 h-10 flex items-center justify-center select-none flex-shrink-0">
+                                <Tooltip disabled={!sidebarCollapsed} title="Expand Sidebar" position="right">
+                                    {sidebarCollapsed && isLogoHovered ? (
+                                        <button
+                                            onClick={() => setSidebarCollapsed(false)}
+                                            className="w-10 h-10 rounded-xl hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-all duration-200 cursor-pointer flex items-center justify-center animate-scale-in"
+                                        >
+                                            {sidebarPosition === 'left' ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
+                                        </button>
+                                    ) : (
+                                        <img src="/logo.ico" alt="Cluaize Logo" className={`w-10 h-10 object-contain drop-shadow-sm transition-all duration-300 ${theme === 'light' ? 'brightness-0' : 'invert dark:invert-0'}`} />
+                                    )}
+                                </Tooltip>
+                            </div>
+                            {!sidebarCollapsed && <span className="font-extrabold text-lg tracking-widest text-[var(--text-primary)]">Cluaize</span>}
+                        </div>
+                        {!sidebarCollapsed && (
+                            <div className="flex items-center gap-1">
+                                <Tooltip title="Menu" position="bottom">
                                     <button
-                                        onClick={() => setSidebarCollapsed(false)}
-                                        className="w-10 h-10 rounded-xl hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-all duration-200 cursor-pointer flex items-center justify-center animate-scale-in"
+                                        onClick={(e) => onOpenLauncher(e)}
+                                        className="p-1.5 rounded hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
                                     >
-                                        {sidebarPosition === 'left' ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
+                                        <MoreVertical className="w-4 h-4" />
                                     </button>
-                                ) : (
-                                    <img src="/logo.ico" alt="Cluaize Logo" className={`w-10 h-10 object-contain drop-shadow-sm transition-all duration-300 ${theme === 'light' ? 'brightness-0' : 'invert dark:invert-0'}`} />
-                                )}
-                            </Tooltip>
-                        </div>
-                        {!sidebarCollapsed && <span className="font-extrabold text-lg tracking-widest text-[var(--text-primary)]">Cluaize</span>}
+                                </Tooltip>
+                                <Tooltip title="Close Sidebar" position="bottom">
+                                    <button
+                                        onClick={() => {
+                                            if (sidebarPeeked) {
+                                                setSidebarPeeked(false);
+                                            } else {
+                                                setSidebarCollapsed(true);
+                                            }
+                                        }}
+                                        className="p-1.5 rounded hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
+                                    >
+                                        {sidebarPosition === 'left' ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                                    </button>
+                                </Tooltip>
+                            </div>
+                        )}
                     </div>
-                    {!sidebarCollapsed && (
-                        <div className="flex items-center gap-1">
-                            <Tooltip title="Menu" position="bottom">
-                                <button
-                                    onClick={onOpenLauncher}
-                                    className="p-1.5 rounded hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
-                                >
-                                    <MoreVertical className="w-4 h-4" />
-                                </button>
-                            </Tooltip>
-                            <Tooltip title="Close Sidebar" position="bottom">
-                                <button
-                                    onClick={() => {
-                                        if (sidebarPeeked) {
-                                            setSidebarPeeked(false);
-                                        } else {
-                                            setSidebarCollapsed(true);
-                                        }
-                                    }}
-                                    className="p-1.5 rounded hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
-                                >
-                                    {sidebarPosition === 'left' ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-                                </button>
-                            </Tooltip>
-                        </div>
-                    )}
-                </div>
+                )}
 
-                {/* Chats Sub-Header: Title + Add Chat */}
+                {/* Chats Sub-Header: Title + Actions */}
                 {sidebarCollapsed ? (
-                    <div className="pt-3 flex flex-col items-center gap-3 relative">
-                        <Tooltip title="New Chat">
+                    <div className={`pt-4 pb-2 flex flex-col items-center gap-3 relative ${inTauri ? 'border-b border-[var(--border-color)]' : ''}`} style={{ borderStyle: 'var(--border-style)' }}>
+
+                        <Tooltip title="New Chat" position="right">
                             <button 
                                 onClick={() => {
                                     document.dispatchEvent(new CustomEvent('start-new-chat'));
@@ -457,34 +467,7 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                             </button>
                         </Tooltip>
 
-                        {/* Collapsed + Dropdown Menu */}
-                        {/* {isAddMenuOpen && createPortal(
-                            <>
-                                <div className="fixed inset-0 z-[9998]" onClick={() => setIsAddMenuOpen(false)} />
-                                <div 
-                                    className="fixed z-[9999] w-[180px] bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-xl shadow-2xl p-1 backdrop-blur-xl"
-                                    style={{ left: addMenuCoords.x, top: addMenuCoords.y }}
-                                >
-                                    {[
-                                        { icon: <MessageSquarePlus className="w-3.5 h-3.5 transition-colors group-hover:text-[var(--accent-color)]" />, label: 'New Chat', onClick: () => setIsAddMenuOpen(false) },
-                                        { icon: <FolderPlus className="w-3.5 h-3.5 transition-colors group-hover:text-[var(--accent-color)]" />, label: 'New Project', onClick: () => setIsAddMenuOpen(false) },
-                                        { icon: <NotebookPen className="w-3.5 h-3.5 transition-colors group-hover:text-[var(--accent-color)]" />, label: 'New Notebook', onClick: () => { setIsAddMenuOpen(false); useLayoutStore.getState().setActiveView('notebook'); } }
-                                    ].map(item => (
-                                        <button
-                                            key={item.label}
-                                            onClick={item.onClick}
-                                            className="w-full flex items-center gap-3 px-3 py-2 text-[12px] font-bold rounded-lg hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--accent-color)] transition-colors text-left cursor-pointer group"
-                                        >
-                                            {item.icon}
-                                            <span className="text-[var(--text-primary)] group-hover:text-[var(--accent-color)] transition-colors">{item.label}</span>
-                                        </button>
-                                    ))}
-                                </div>
-                            </>,
-                            document.body
-                        )} */}
-
-                        <Tooltip title="Search Chat">
+                        <Tooltip title="Search Chat" position="right">
                             <button
                                 onClick={() => setSidebarCollapsed(false)}
                                 className="p-1.5 rounded-full hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors active:scale-95 cursor-pointer"
@@ -494,43 +477,46 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                         </Tooltip>
                     </div>
                 ) : (
-                    <div className="px-4 pt-3 flex items-center justify-between">
+                    <div className={`px-4 ${inTauri ? 'py-3 border-b border-[var(--border-color)]' : 'py-2 pb-1'} flex items-center justify-between`} style={{ borderStyle: 'var(--border-style)' }}>
                         <h2 className="text-xl font-extrabold tracking-wide text-[var(--text-primary)]">Chats</h2>
-                        <div className="relative">
-                            <Tooltip title="New Chat">
+                        <div className="flex items-center gap-1">
+                            <Tooltip title="New Chat" position="bottom">
                                 <button
                                     ref={plusBtnRef}
                                     onClick={() => {
                                         document.dispatchEvent(new CustomEvent('start-new-chat'));
                                     }}
-                                    className="p-1.5 rounded-full hover:bg-[var(--bg-tertiary)] text-[var(--text-primary)] transition-colors active:scale-95 cursor-pointer"
+                                    className="p-1.5 rounded hover:bg-[var(--bg-tertiary)] text-[var(--text-primary)] transition-colors active:scale-95 cursor-pointer"
                                 >
-                                    <Plus className="w-4.5 h-4.5" />
+                                    <Plus className="w-4 h-4" />
                                 </button>
                             </Tooltip>
-
-                            {/* + Dropdown Menu */}
-                            {/* {isAddMenuOpen && (
+                            {inTauri && (
                                 <>
-                                    <div className="fixed inset-0 z-[9998]" onClick={() => setIsAddMenuOpen(false)} />
-                                    <div className="absolute right-0 top-full mt-1 z-[9999] w-[180px] bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-xl shadow-2xl p-1 backdrop-blur-xl">
-                                        {[
-                                            { icon: <MessageSquarePlus className="w-3.5 h-3.5 transition-colors group-hover:text-[var(--accent-color)]" />, label: 'New Chat', onClick: () => setIsAddMenuOpen(false) },
-                                            { icon: <FolderPlus className="w-3.5 h-3.5 transition-colors group-hover:text-[var(--accent-color)]" />, label: 'New Project', onClick: () => setIsAddMenuOpen(false) },
-                                            { icon: <NotebookPen className="w-3.5 h-3.5 transition-colors group-hover:text-[var(--accent-color)]" />, label: 'New Notebook', onClick: () => { setIsAddMenuOpen(false); useLayoutStore.getState().setActiveView('notebook'); } }
-                                        ].map(item => (
-                                            <button
-                                                key={item.label}
-                                                onClick={item.onClick}
-                                                className="w-full flex items-center gap-3 px-3 py-2 text-[12px] font-bold rounded-lg hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--accent-color)] transition-colors text-left cursor-pointer group"
-                                            >
-                                                {item.icon}
-                                                <span className="text-[var(--text-primary)] group-hover:text-[var(--accent-color)] transition-colors">{item.label}</span>
-                                            </button>
-                                        ))}
-                                    </div>
+                                    <Tooltip title="Menu" position="bottom">
+                                        <button
+                                            onClick={(e) => onOpenLauncher(e)}
+                                            className="p-1.5 rounded hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
+                                        >
+                                            <MoreVertical className="w-4 h-4" />
+                                        </button>
+                                    </Tooltip>
+                                    <Tooltip title="Close Sidebar" position="bottom">
+                                        <button
+                                            onClick={() => {
+                                                if (sidebarPeeked) {
+                                                    setSidebarPeeked(false);
+                                                } else {
+                                                    setSidebarCollapsed(true);
+                                                }
+                                            }}
+                                            className="p-1.5 rounded hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
+                                        >
+                                            {sidebarPosition === 'left' ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                                        </button>
+                                    </Tooltip>
                                 </>
-                            )} */}
+                            )}
                         </div>
                     </div>
                 )}
@@ -775,8 +761,15 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                     })}
 
                     {filteredChats.length === 0 && (
-                        <div className="py-8 text-center text-[11px] font-medium text-[var(--text-muted)] uppercase tracking-wider">
-                            No active chats found
+                        <div className={`py-8 flex flex-col items-center justify-center text-[var(--text-muted)] ${sidebarCollapsed ? 'px-2' : 'px-4'}`}>
+                            <Tooltip disabled={!sidebarCollapsed} title="No active chats" position="right">
+                                <MessageCircleWarning className={`w-8 h-8 opacity-20 mb-3`} />
+                            </Tooltip>
+                            {!sidebarCollapsed && (
+                                <span className="text-center text-[11px] font-medium uppercase tracking-wider opacity-60">
+                                    No active chats found
+                                </span>
+                            )}
                         </div>
                     )}
                 </div>

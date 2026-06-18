@@ -7,6 +7,7 @@ import { ChatsSettings } from './ChatsSettings';
 import { NotificationsSettings } from './NotificationsSettings';
 import { ShortcutsSettings } from './ShortcutsSettings';
 import { EngineSettings } from './EngineSettings';
+import { isTauri } from '../../../core/tauri-api';
 
 interface SettingsOverlayProps {
     isOpen: boolean;
@@ -18,8 +19,10 @@ type TabId = 'general' | 'engine' | 'security' | 'theme' | 'notifications' | 'sh
 
 export function SettingsOverlay({ isOpen, initialTab = 'general', onClose }: SettingsOverlayProps) {
     const [activeTab, setActiveTab] = useState<TabId>(initialTab);
+    const [inTauri, setInTauri] = useState(false);
 
     useEffect(() => {
+        setInTauri(isTauri());
         if (isOpen && initialTab) {
             setActiveTab(initialTab);
         }
@@ -115,7 +118,7 @@ export function SettingsOverlay({ isOpen, initialTab = 'general', onClose }: Set
 
     return (
         <AnimatePresence>
-            <div className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden font-[family-name:var(--font-family)]">
+            <div className={`fixed inset-0 z-50 flex items-center justify-center overflow-hidden font-[family-name:var(--font-family)] ${inTauri ? 'pt-[32px]' : ''}`}>
                 {/* Backdrop Blur overlay with Framer Motion */}
                 <motion.div
                     initial={{ opacity: 0 }}
@@ -132,7 +135,7 @@ export function SettingsOverlay({ isOpen, initialTab = 'general', onClose }: Set
                     animate={{ scale: 1, opacity: 1, y: 0 }}
                     exit={{ scale: 0.95, opacity: 0, y: 20 }}
                     transition={{ type: 'spring', damping: 25, stiffness: 350 }}
-                    className="relative bg-[var(--bg-primary)] w-screen h-screen flex overflow-hidden z-10 text-[var(--text-primary)]"
+                    className="relative bg-[var(--bg-primary)] w-full h-full flex overflow-hidden z-10 text-[var(--text-primary)]"
                 >
                     {/* Left Sidebar Panel */}
                     <div className="w-72 border-r border-[var(--border-color)] bg-[var(--bg-secondary)]/30 p-6 flex flex-col justify-between shrink-0 select-none">

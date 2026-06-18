@@ -1,8 +1,8 @@
 [package]
-name = "shell-desktop"
+name = "cluaize-app"
 version = "0.1.0"
 description = "A Tauri App"
-authors = ["you"]
+authors = ["cluaiz"]
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -23,3 +23,6 @@ tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 dirs = "5"
+tauri-plugin-shell = "2.3.5"
+windows-sys = { version = "0.61.2", features = ["Win32_System_JobObjects", "Win32_Foundation", "Win32_System_Threading"] }
+tokio = { version = "1", features = ["full"] }

@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { useLayoutStore } from '../../store/ui/useLayoutStore';
 import { useShortcutStore, bindingsMatch, parseKeyboardEvent } from '../../store/ui/useShortcutStore';
 import { ResizableSidebar } from './ResizableSidebar';
+import { TitleBar } from './TitleBar';
 
 interface AppShellProps {
     sidebarContent?: React.ReactNode;
@@ -42,6 +43,10 @@ export function AppShell({ sidebarContent, mainContent, rightPanelContent }: App
 
             if (bindingsMatch(currentBinding, getBinding('toggleSidebar'))) {
                 e.preventDefault();
+                if (!useLayoutStore.getState().sidebarOpen) {
+                    // If it was hidden via Ctrl+B, opening it via Ctrl+Shift+B should show it and toggle collapse
+                    useLayoutStore.setState({ sidebarOpen: true });
+                }
                 toggleSidebarCollapsed();
                 return;
             }
@@ -137,27 +142,30 @@ export function AppShell({ sidebarContent, mainContent, rightPanelContent }: App
     };
 
     return (
-        <div className="flex h-screen w-full overflow-hidden bg-[var(--bg-primary)] text-[var(--text-primary)] transition-all-theme font-[family-name:var(--font-family)] select-none relative">
-
-            {/* Conditional Layout Arrangement */}
-            {sidebarPosition === 'left' && renderSidebar()}
-            {sidebarPosition === 'right' && renderRightPanel()}
+        <div className="flex flex-col h-screen w-full overflow-hidden bg-[var(--bg-primary)] text-[var(--text-primary)] transition-all-theme font-[family-name:var(--font-family)] select-none relative">
+            <TitleBar />
+            
+            <div className="flex flex-1 w-full min-h-0 relative">
+                {/* Conditional Layout Arrangement */}
+                {sidebarPosition === 'left' && renderSidebar()}
+                {sidebarPosition === 'right' && renderRightPanel()}
 
             {/* Central Workspace Canvas */}
             <main className="flex-1 flex flex-col min-w-0 bg-[var(--bg-primary)] relative overflow-hidden">
                 {mainContent}
             </main>
 
-            {sidebarPosition === 'left' && renderRightPanel()}
-            {sidebarPosition === 'right' && renderSidebar()}
+                {sidebarPosition === 'left' && renderRightPanel()}
+                {sidebarPosition === 'right' && renderSidebar()}
 
-            {/* Ambient Background Glow Tint Overlay */}
-            <div
-                className="absolute inset-0 pointer-events-none z-10 transition-opacity duration-300"
-                style={{
-                    background: `radial-gradient(circle at 50% 50%, rgba(var(--accent-color-rgb, 99, 102, 241), calc(var(--bg-glow-opacity, 0.15) * 0.12)) 0%, transparent 75%)`
-                }}
-            />
+                {/* Ambient Background Glow Tint Overlay */}
+                <div
+                    className="absolute inset-0 pointer-events-none z-10 transition-opacity duration-300"
+                    style={{
+                        background: `radial-gradient(circle at 50% 50%, rgba(var(--accent-color-rgb, 99, 102, 241), calc(var(--bg-glow-opacity, 0.15) * 0.12)) 0%, transparent 75%)`
+                    }}
+                />
+            </div>
         </div>
     );
 }
