@@ -1,12 +1,13 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useEngineStore } from '../../../store/engine/useEngineStore';
 import { SettingSection, SettingItem, SelectOption } from './SharedComponents';
+import { validateSettings, getOverallHealth } from './SettingsHealthValidator';
 
 const TTL_OPTIONS: SelectOption[] = [
     { label: '12 Hours', value: '12' },
-    { label: '1 Day',    value: '24' },
-    { label: '3 Days',   value: '72' },
-    { label: '1 Week',   value: '168' },
+    { label: '1 Day', value: '24' },
+    { label: '3 Days', value: '72' },
+    { label: '1 Week', value: '168' },
 ];
 
 const DESC_GPU_LAYERS: Record<string, string> = {
@@ -55,7 +56,7 @@ const DESC_MOE: Record<string, string> = { 'Auto': 'System decides MoE expert ro
 
 
 export function EngineSettings() {
-    const { 
+    const {
         fetchStatus,
         permissions,
         booster,
@@ -64,7 +65,18 @@ export function EngineSettings() {
         updatePermission,
         updateBooster,
         setBrainMode,
+        resetBooster,
     } = useEngineStore();
+
+    const hardware = useEngineStore((s) => s.hardware);
+    const activeChatModel = useEngineStore((s) => s.activeChatModel);
+    const activeVectorModel = useEngineStore((s) => s.activeVectorModel);
+
+    const alerts = useMemo(() => {
+        if (!booster) return [];
+        return validateSettings(booster, hardware, activeChatModel, activeVectorModel);
+    }, [booster, hardware, activeChatModel, activeVectorModel]);
+    const overallHealth = getOverallHealth(alerts);
 
     useEffect(() => {
         if (fetchStatus === 'idle') {
@@ -109,8 +121,47 @@ export function EngineSettings() {
         ? permissions.available_vector_models
         : permissions.available_models ?? ['all-minilm-l6-v2'];
 
+    const healthColors = {
+        green: { bg: 'bg-emerald-500/10', border: 'border-emerald-500/30', text: 'text-emerald-400', dot: 'bg-emerald-400', label: 'All Systems Nominal' },
+        yellow: { bg: 'bg-amber-500/10', border: 'border-amber-500/30', text: 'text-amber-400', dot: 'bg-amber-400', label: 'Warnings Detected' },
+        red: { bg: 'bg-red-500/10', border: 'border-red-500/30', text: 'text-red-400', dot: 'bg-red-400', label: 'Critical Issues' },
+    };
+    const hc = healthColors[overallHealth];
+
     return (
         <div className="space-y-8 select-none pb-12">
+            {/* ─── Settings Health Status Banner ─── */}
+            <div className={`${hc.bg} border ${hc.border} rounded-xl p-4`}>
+                <div className="flex items-center gap-3 mb-2">
+                    <div className={`w-3 h-3 rounded-full ${hc.dot} ${overallHealth !== 'green' ? 'animate-pulse' : ''}`} />
+                    <span className={`font-semibold ${hc.text}`}>{hc.label}</span>
+                    {hardware && (
+                        <span className="ml-auto text-xs text-gray-500">
+                            {hardware.gpu_name?.trim() || 'No GPU'} • {hardware.vram_gb.toFixed(1)} GB VRAM • {hardware.ram_gb.toFixed(0)} GB RAM
+                        </span>
+                    )}
+                </div>
+                {alerts.length > 0 && (
+                    <div className="space-y-1.5 mt-3">
+                        {alerts.map((alert, i) => (
+                            <div key={i} className={`text-xs flex items-start gap-2 ${alert.level === 'red' ? 'text-red-400' : 'text-amber-400'
+                                }`}>
+                                <span className="mt-0.5">{alert.level === 'red' ? '🔴' : '🟡'}</span>
+                                <span>{alert.message}</span>
+                            </div>
+                        ))}
+                        <button
+                            onClick={resetBooster}
+                            className="mt-3 px-4 py-2 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 rounded-lg text-sm font-medium text-emerald-400 transition-all duration-200 hover:scale-[1.02] active:scale-95"
+                        >
+                            Reset Settings
+                        </button>
+                    </div>
+                )}
+                {alerts.length === 0 && (
+                    <p className="text-xs text-emerald-400/70">Your settings are optimally configured for your hardware.</p>
+                )}
+            </div>
             <SettingSection title="Engine Lifecycle">
                 <SettingItem
                     label="Pure Brain Mode (LLM OFF)"
@@ -204,7 +255,14 @@ export function EngineSettings() {
                 <SettingItem
                     label="Booster Engine Profile"
                     description="Pre-configured profiles determining how aggressively Cluaize reclaims system resources."
-                    select={['balance', 'multitasking', 'max_boost', 'ultra_max_boost', 'hyper_cluster', 'edge']}
+                    select={[
+                        { label: 'Edge (Low Power)', value: 'edge' },
+                        { label: 'Multitasking', value: 'multitasking' },
+                        { label: 'Balanced', value: 'balance' },
+                        { label: 'Max Boost', value: 'max_boost' },
+                        { label: 'Ultra Max Boost', value: 'ultra_max_boost' },
+                        { label: 'Hyper Cluster', value: 'hyper_cluster' }
+                    ]}
                     value={booster.mode_run}
                     onChange={(v) => updateBooster('mode_run', v)}
                     dynamicDescription={DESC_BOOSTER_PROFILE[booster.mode_run]}

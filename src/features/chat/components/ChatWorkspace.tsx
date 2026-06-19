@@ -405,7 +405,7 @@ main().catch(console.error);`);
                 )}
 
                 {messages.length === 0 ? (
-                    <div className="flex-1 flex flex-col items-center justify-center p-8 z-20 relative">
+                    <div className="flex-1 flex flex-col items-center justify-center p-2 sm:p-4 md:p-8 z-20 relative">
 
                         <motion.h1
                             initial={{ opacity: 0, y: -20 }}
@@ -414,9 +414,9 @@ main().catch(console.error);`);
                         >
                             Hi, User
                         </motion.h1>
-                        <motion.div layout layoutId="chat-input-wrapper" className="w-full max-w-2xl z-10">
+                        <motion.div layout layoutId="chat-input-wrapper" className="w-full max-w-2xl lg:max-w-3xl 2xl:max-w-4xl mx-auto z-10 px-2 sm:px-4 md:px-8">
                             <ChatInput
-                                inputValue={inputValue}
+                                inputValue={inputValue} 
                                 setInputValue={setInputValue}
                                 handleSendMessage={handleSendMessage}
                                 replyingTo={replyingTo}
@@ -550,7 +550,7 @@ main().catch(console.error);`);
                                     </div>
                                 </div>
                             ) : (
-                                <motion.div layout layoutId="chat-input-wrapper" className="relative z-10">
+                                <motion.div layout layoutId="chat-input-wrapper" className="relative w-full max-w-2xl lg:max-w-3xl 2xl:max-w-4xl mx-auto z-10 px-2 sm:px-4 md:px-8 pb-2 sm:pb-4">
                                     <ChatInput
                                         inputValue={inputValue}
                                         setInputValue={setInputValue}

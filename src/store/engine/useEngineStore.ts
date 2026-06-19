@@ -40,6 +40,20 @@ export interface BoosterControl {
     moe_vram_routing: string;
 }
 
+export interface HardwareInfo {
+    vram_gb: number;
+    ram_gb: number;
+    gpu_name: string;
+    cpu_cores: number;
+    has_gpu: boolean;
+}
+
+export type SettingHealth = 'green' | 'yellow' | 'red';
+export interface SettingAlert {
+    level: SettingHealth;
+    message: string;
+}
+
 interface EngineState {
     status: 'booting' | 'idle' | 'processing' | 'error';
     fetchStatus: 'idle' | 'loading' | 'success' | 'error';
@@ -50,6 +64,9 @@ interface EngineState {
     permissions: PermissionSchema | null;
     booster: BoosterControl | null;
     brainMode: boolean; // From system_control.json
+    hardware: HardwareInfo | null;
+    activeChatModel: any | null; // The loaded Chat ModelManifest
+    activeVectorModel: any | null; // The loaded Vector ModelManifest
     
     // UI-only setting
     launchOnStartup: boolean;
@@ -62,6 +79,7 @@ interface EngineState {
     updatePermission: (key: keyof PermissionSchema, value: any) => Promise<void>;
     updateBooster: (key: keyof BoosterControl, value: any) => Promise<void>;
     setBrainMode: (value: boolean) => Promise<void>;
+    resetBooster: () => Promise<void>;
     
     sendMessage: (text: string) => Promise<void>;
     appendStreamToken: (token: string) => void;
@@ -79,6 +97,9 @@ export const useEngineStore = create<EngineState>()((set, get) => ({
     permissions: null,
     booster: null,
     brainMode: false,
+    hardware: null,
+    activeChatModel: null,
+    activeVectorModel: null,
     launchOnStartup: true,
 
     setStatus: (status) => set({ status }),
@@ -101,35 +122,25 @@ export const useEngineStore = create<EngineState>()((set, get) => ({
                 }
             }
             
-            // Listen for the FFI response which comes over the stream pipe
-            const unlisten = await listen<string>('engine_stream_token', (event) => {
+            // Listen for the FFI response on the system response channel
+            // (spawner.rs routes system JSON like GET_SETTINGS to engine_sys_response)
+            const unlisten = await listen<string>('engine_sys_response', (event) => {
                 try {
-                    if (event.payload.includes('"permissions"')) {
-                        const data = JSON.parse(event.payload);
+                    const data = JSON.parse(event.payload);
+                    if (data.permissions && data.booster) {
                         set({ 
                             permissions: data.permissions,
-                            booster: data.booster || {
-                                mode_run: "balance",
-                                turbo_quant: "Auto",
-                                flash_attention: "Auto",
-                                speculative_decoding: "Auto",
-                                auto_round: "Auto",
-                                dflash: "Auto",
-                                kv_cache_quantization: "Auto",
-                                context_shifting: "Auto",
-                                force_vram_reclaim: "Auto",
-                                n_gpu_layers: 0,
-                                think_mode: "Auto",
-                                force_memory_lock: "Auto",
-                                moe_vram_routing: "Auto"
-                            },
+                            booster: data.booster,
+                            hardware: data.hardware || null,
+                            activeChatModel: data.active_chat_model || null,
+                            activeVectorModel: data.active_vector_model || null,
                             brainMode: data.brainMode === "on",
                             fetchStatus: 'success'
                         });
                         unlisten(); // Stop listening once we get the settings
                     }
                 } catch (e) {
-                    // Ignore non-JSON stream tokens
+                    // Ignore non-JSON responses
                 }
             });
 
@@ -185,6 +196,35 @@ export const useEngineStore = create<EngineState>()((set, get) => ({
             set({ brainMode: value });
         } catch (error) {
             console.error("Failed to update brain mode:", error);
+        }
+    },
+
+    resetBooster: async () => {
+        if (!isTauri()) return;
+        const { updateBooster, hardware } = get();
+
+        const hasGpu = hardware?.has_gpu ?? false;
+
+        // Safe universal defaults that adapt to basic hardware presence
+        const safeDefaults: Record<string, any> = {
+            mode_run: 'balance',
+            turbo_quant: 'Auto',
+            flash_attention: hasGpu ? 'On' : 'Auto', // FA is mostly a GPU optimization
+            speculative_decoding: 'Off',
+            auto_round: 'Auto',
+            dflash: 'Auto',
+            kv_cache_quantization: 'Auto',
+            context_shifting: 'Auto',
+            force_vram_reclaim: 'Off',
+            n_gpu_layers: hasGpu ? -1 : 0, // Fallback to CPU-only if no GPU detected
+            think_mode: 'Auto',
+            force_memory_lock: 'Off',
+            moe_vram_routing: 'Off',
+        };
+
+        // Apply each setting via existing UPDATE_BOOSTER IPC
+        for (const [key, value] of Object.entries(safeDefaults)) {
+            await updateBooster(key as any, value);
         }
     },
 

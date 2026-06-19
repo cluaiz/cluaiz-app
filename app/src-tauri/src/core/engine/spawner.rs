@@ -137,7 +137,19 @@ pub async fn boot_cluaiz_engine(app: AppHandle) -> Result<String, String> {
                                 }
                                 Ok(n) => {
                                     let chunk = String::from_utf8_lossy(&buf[..n]).to_string();
-                                    let _ = app_clone.emit("engine_stream_token", chunk);
+                                    
+                                    // 🛑 CRITICAL FIX: Filter out System JSON responses (Kachda) from the pure Token Stream
+                                    let is_system_json = chunk.trim().starts_with('{') && 
+                                        (chunk.contains("\"status\"") || 
+                                         chunk.contains("\"permissions\"") || 
+                                         chunk.contains("\"booster\"") ||
+                                         chunk.contains("\"hardware_snapshot\""));
+
+                                    if is_system_json {
+                                        let _ = app_clone.emit("engine_sys_response", chunk);
+                                    } else {
+                                        let _ = app_clone.emit("engine_stream_token", chunk);
+                                    }
                                 }
                                 Err(e) => {
                                     println!("❌ [FFI] IPC Read Error: {}", e);

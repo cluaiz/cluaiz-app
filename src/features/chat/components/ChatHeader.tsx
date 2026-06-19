@@ -58,7 +58,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                     <div className="flex items-center gap-2">
                         {/* Search Input Bar */}
                         <div
-                            className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-[var(--bg-primary)] themed-border rounded-lg focus-within:border-[var(--accent-color)] transition-all duration-200 relative w-64"
+                            className="hidden lg:flex items-center gap-2 px-3 py-1.5 bg-[var(--bg-primary)] themed-border rounded-lg focus-within:border-[var(--accent-color)] transition-all duration-200 relative w-64"
                             style={{ borderStyle: 'var(--border-style)' }}
                         >
                             <AnimatedSearch className="w-4 h-4 text-[var(--text-muted)] flex-shrink-0" size={16} />
@@ -95,7 +95,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                         </div>
 
                         {/* Mobile Search Icon */}
-                        <button className="md:hidden w-8 h-8 rounded-full flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-colors">
+                        <button className="lg:hidden w-8 h-8 rounded-full flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-colors">
                             <Search size={16} />
                         </button>
                     </div>

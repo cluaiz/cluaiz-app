@@ -16,25 +16,14 @@ export function ResizableSidebar({ children }: ResizableSidebarProps) {
         toggleSidebar 
     } = useLayoutStore();
     const [isResizing, setIsResizing] = useState(false);
-    const [isMobile, setIsMobile] = useState(false);
     const sidebarRef = useRef<HTMLDivElement>(null);
-
-    // Track width on resize to trigger mobile presentation
-    useEffect(() => {
-        const checkMobile = () => {
-            setIsMobile(window.innerWidth < 768);
-        };
-        checkMobile();
-        window.addEventListener('resize', checkMobile);
-        return () => window.removeEventListener('resize', checkMobile);
-    }, []);
 
     // Drag constraints: Min 200px, Max 30% of page width
     const minWidth = 200;
 
     useEffect(() => {
         const handleMouseMove = (e: MouseEvent) => {
-            if (!isResizing || isMobile || sidebarCollapsed) return;
+            if (!isResizing || sidebarCollapsed) return;
             
             let newWidth = 200;
             if (sidebarPosition === 'left') {
@@ -54,7 +43,7 @@ export function ResizableSidebar({ children }: ResizableSidebarProps) {
             document.body.style.cursor = 'default';
         };
 
-        if (isResizing && !isMobile && !sidebarCollapsed) {
+        if (isResizing && !sidebarCollapsed) {
             document.addEventListener('mousemove', handleMouseMove);
             document.addEventListener('mouseup', handleMouseUp);
             document.body.style.cursor = 'col-resize';
@@ -64,33 +53,9 @@ export function ResizableSidebar({ children }: ResizableSidebarProps) {
             document.removeEventListener('mousemove', handleMouseMove);
             document.removeEventListener('mouseup', handleMouseUp);
         };
-    }, [isResizing, isMobile, sidebarPosition, sidebarCollapsed, setSidebarWidth]);
+    }, [isResizing, sidebarPosition, sidebarCollapsed, setSidebarWidth]);
 
     if (!sidebarOpen && !sidebarPeeked) return null;
-
-    if (isMobile) {
-        return (
-            <>
-                {/* Overlay backdrop */}
-                <div 
-                    className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 transition-opacity duration-300 animate-fade-in"
-                    onClick={toggleSidebar}
-                />
-                {/* Mobile Slide Drawer */}
-                <div
-                    ref={sidebarRef}
-                    className={`fixed inset-y-0 ${
-                        sidebarPosition === 'left' ? 'left-0 border-r' : 'right-0 border-l'
-                    } w-[80vw] max-w-[320px] z-50 bg-[var(--bg-secondary)] border-[var(--border-color)] flex flex-col shadow-2xl transition-transform duration-300 ease-out`}
-                    style={{ borderStyle: 'var(--border-style)' }}
-                >
-                    <div className="flex-1 overflow-y-auto relative h-full flex flex-col">
-                        {children}
-                    </div>
-                </div>
-            </>
-        );
-    }
 
     const currentWidth = sidebarCollapsed ? 68 : sidebarWidth;
 
