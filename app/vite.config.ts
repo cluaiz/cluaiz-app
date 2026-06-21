@@ -17,7 +17,7 @@ export default defineConfig({
   server: {
     port: 1420,
     strictPort: true,
-    host: host || false,
+    host: "0.0.0.0", // Expose to all network interfaces so Emulator can connect
     hmr: host
       ? {
         protocol: "ws",

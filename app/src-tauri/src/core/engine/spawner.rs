@@ -128,7 +128,8 @@ pub async fn boot_cluaiz_engine(app: AppHandle) -> Result<String, String> {
                     // Spawn background listener to stream tokens
                     let app_clone = app.clone();
                     tokio::spawn(async move {
-                        let mut buf = vec![0; 4096];
+                        let mut buf = vec![0; 8192];
+                        let mut line_buffer = String::new();
                         loop {
                             match rx.read(&mut buf).await {
                                 Ok(0) => {
@@ -136,9 +137,11 @@ pub async fn boot_cluaiz_engine(app: AppHandle) -> Result<String, String> {
                                     break;
                                 }
                                 Ok(n) => {
-                                    let chunk = String::from_utf8_lossy(&buf[..n]).to_string();
-                                    
-                                    // 🛑 CRITICAL FIX: Filter out System JSON responses (Kachda) from the pure Token Stream
+                                    let chunk = String::from_utf8_lossy(&buf[..n]);
+
+                                    // 🛑 CRITICAL FIX: System JSON responses (like GET_SETTINGS) do not send '\n' over FFI.
+                                    // If we buffer them waiting for '\n', the UI hangs forever on "Connecting...".
+                                    // We bypass the line buffer and emit them immediately.
                                     let is_system_json = chunk.trim().starts_with('{') && 
                                         (chunk.contains("\"status\"") || 
                                          chunk.contains("\"permissions\"") || 
@@ -146,9 +149,45 @@ pub async fn boot_cluaiz_engine(app: AppHandle) -> Result<String, String> {
                                          chunk.contains("\"hardware_snapshot\""));
 
                                     if is_system_json {
-                                        let _ = app_clone.emit("engine_sys_response", chunk);
-                                    } else {
-                                        let _ = app_clone.emit("engine_stream_token", chunk);
+                                        let _ = app_clone.emit("engine_sys_response", chunk.to_string());
+                                        continue;
+                                    }
+
+                                    // 🧩 For the actual generation stream, we use the newline buffer to safely parse JSON token lines
+                                    line_buffer.push_str(&chunk);
+
+                                    while let Some(newline_idx) = line_buffer.find('\n') {
+                                        let line = line_buffer[..newline_idx].trim().to_string();
+                                        line_buffer.drain(..=newline_idx);
+
+                                        if line.is_empty() { continue; }
+
+                                        if let Ok(json) = serde_json::from_str::<serde_json::Value>(&line) {
+                                            if let Some(msg_type) = json.get("type").and_then(|t| t.as_str()) {
+                                                if msg_type == "token" {
+                                                    if let Some(thinking) = json.get("thinking").and_then(|t| t.as_str()) {
+                                                        let _ = app_clone.emit("engine_thinking", thinking.to_string());
+                                                    } else if let Some(content) = json.get("content").and_then(|c| c.as_str()) {
+                                                        let _ = app_clone.emit("engine_token", content.to_string());
+                                                    }
+                                                } else if msg_type == "done" {
+                                                    let _ = app_clone.emit("engine_done", "true".to_string());
+                                                } else if msg_type == "error" {
+                                                    let _ = app_clone.emit("engine_error", json.get("error").unwrap_or(&serde_json::Value::Null).to_string());
+                                                }
+                                            } else if json.get("status").is_some() || json.get("permissions").is_some() || json.get("booster").is_some() {
+                                                let _ = app_clone.emit("engine_sys_response", line);
+                                            } else {
+                                                let _ = app_clone.emit("engine_stream_token", line); // Fallback
+                                            }
+                                        } else {
+                                            // Fallback for non-JSON legacy output
+                                            if line.starts_with('{') {
+                                                let _ = app_clone.emit("engine_sys_response", line);
+                                            } else {
+                                                let _ = app_clone.emit("engine_stream_token", line);
+                                            }
+                                        }
                                     }
                                 }
                                 Err(e) => {
@@ -179,16 +218,24 @@ pub async fn boot_cluaiz_engine(app: AppHandle) -> Result<String, String> {
 pub async fn update_engine_settings(app: AppHandle, payload: serde_json::Value) -> Result<String, String> {
     let state = app.state::<EngineState>();
     
-    let mut tx_lock = state.pipe_tx.lock().await;
-    if let Some(tx) = tx_lock.as_mut() {
-        use tokio::io::AsyncWriteExt;
-        let command_str = serde_json::to_string(&payload).map_err(|e| e.to_string())?;
-        
-        match tx.write_all(command_str.as_bytes()).await {
-            Ok(_) => Ok("Settings command sent via FFI IPC".to_string()),
-            Err(e) => Err(format!("Failed to write to pipe: {}", e))
+    #[cfg(windows)]
+    {
+        let mut tx_lock = state.pipe_tx.lock().await;
+        if let Some(tx) = tx_lock.as_mut() {
+            use tokio::io::AsyncWriteExt;
+            let command_str = serde_json::to_string(&payload).map_err(|e| e.to_string())?;
+            
+            match tx.write_all(command_str.as_bytes()).await {
+                Ok(_) => Ok("Settings command sent via FFI IPC".to_string()),
+                Err(e) => Err(format!("Failed to write to pipe: {}", e))
+            }
+        } else {
+            Err("Engine FFI Pipe not connected".to_string())
         }
-    } else {
-        Err("Engine FFI Pipe not connected".to_string())
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = payload; // to avoid unused variable warning
+        Ok("Not implemented for non-Windows platforms".to_string())
     }
 }

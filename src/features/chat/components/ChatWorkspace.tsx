@@ -428,13 +428,14 @@ main().catch(console.error);`);
                 ) : (
                     <>
                         <div
-                            className="flex-1 overflow-y-auto p-4 space-y-4 font-sans text-[13px] leading-relaxed relative z-0 flex flex-col lg:px-14"
+                            className="flex-1 overflow-y-auto p-4 font-sans text-[13px] leading-relaxed relative z-0 lg:px-14"
                             style={{ backgroundImage: chatBackground !== 'none' ? `url("${chatBackground}")` : 'none', backgroundSize: '120px', backgroundBlendMode: 'overlay', backgroundColor: 'var(--bg-primary)' }}
                             onContextMenu={handleGlobalContextMenu}
                             ref={viewportRef}
                             onScroll={handleScroll}
                         >
-                            {(() => {
+                            <div className="flex flex-col space-y-4 w-full max-w-2xl lg:max-w-3xl 2xl:max-w-4xl mx-auto pb-4">
+                                {(() => {
                                 let absoluteIndex = 0;
                                 const grouped = (filteredMessages || []).reduce((groups, msg) => {
                                     const safeDate = msg.date || (msg as any).timestamp || Date.now();
@@ -483,9 +484,12 @@ main().catch(console.error);`);
                                 ));
                             })()}
                             <div ref={bottomRef} />
+                            </div>
                         </div>
 
                         <div className="relative">
+                            {/* Full-width bottom fade-out shadow */}
+                            <div className="absolute left-0 right-0 h-10 -top-10 bg-gradient-to-b from-transparent to-[var(--bg-primary)] pointer-events-none z-10" />
                             <AnimatePresence>
                                 {showScrollButton && (
                                     <motion.button

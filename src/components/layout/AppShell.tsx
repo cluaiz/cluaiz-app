@@ -142,7 +142,7 @@ export function AppShell({ sidebarContent, mainContent, rightPanelContent }: App
     };
 
     return (
-        <div className="flex flex-col h-screen w-full overflow-hidden bg-[var(--bg-primary)] text-[var(--text-primary)] transition-all-theme font-[family-name:var(--font-family)] select-none relative">
+        <div className="flex flex-col h-[100dvh] w-full overflow-hidden bg-[var(--bg-primary)] text-[var(--text-primary)] transition-all-theme font-[family-name:var(--font-family)] select-none relative">
             <TitleBar />
             
             <div className="flex flex-1 w-full min-h-0 relative">

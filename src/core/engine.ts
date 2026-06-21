@@ -192,4 +192,11 @@ export class CluaizeEngine {
         }
         return [];
     }
+
+    /**
+     * Deletes a chat session from the engine.
+     */
+    static async deleteSession(sessionId: string): Promise<void> {
+        await this.executeCDQL(`DELETE FROM sessions WHERE id = '${sessionId}'`);
+    }
 }
