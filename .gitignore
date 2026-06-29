@@ -33,3 +33,13 @@ src-tauri/target/
 # AI/Agent specific
 .agent/
 .gemini/
+ 
+# Native assets
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Cluaize engine state
+.cluaize/
+app/src-tauri/.cluaize/

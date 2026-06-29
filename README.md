@@ -1,162 +1,64 @@
 # 🏛️ CLUAIZ CLUAIZD: THE VISUAL MATRIX (FRONTEND MONOREPO)
 
-This is the self-contained, isolated frontend monorepo for the **Cluaizd Nervous System Database (CLUAIZD)**. It powers the cognitive visual console, featuring **Cluaizd-HEART** (real-time biomarker telemetry) and **Cluaizd-JUJU** (3D infinite synaptic mesh graph).
+![Cluaizd Visual Matrix Interface](./public/assets/app.png)
 
-The codebase is engineered around strict **DRY (Don't Repeat Yourself)** principles, a decoupled **Feature-Driven Architecture**, and a **Pixelated Voxel/Minecraft Neobrutalist design standard** matching the master `cluaiz.com` layout.
-
----
-
-## 🛰️ THE VISION: MODULAR Independent TELEMETRY
-
-Our absolute mission is to provide an identical, high-performance visual dashboard across all execution wrappers (Web, Desktop, Mobile) from a single shared codebase.
-
-### 1. 🌍 Core UI & Logic Isolation
-
-No shell wrappers contain any duplicate components, hooks, or stores. All operational UI code lives in the parent `src/` directory and is imported directly by platform wrappers.
-
-### 2. 🧱 Neobrutalist Minecraft Voxel Standard
-
-- **Sharp Corners:** Zero border-radius is enforced across all custom components (`border-radius: 0px !important`).
-- **Flat Voxel Shadows:** Hard flat drop shadows (`shadow-[4px_4px_0px_0px_var(--shadow)]`).
-- **Translate Hover Animations:** Components shift slightly on hover (`hover:-translate-x-0.5 hover:-translate-y-0.5`).
-- **Dynamic Colors:** Fully controlled via CSS variables supporting light/dark system dynamics.
+This is the Tauri-based frontend application for the Cluaize engine, directly connected via Native IPC. 
 
 ---
 
-## 📂 Deep Feature-Driven Folder Structure
+## 🚀 CORE USER FEATURES & FUNCTIONALITIES
 
-```text
-apps/gui/
-├── package.json                # Monorepo root (workspaces: ["apps/*"])
-├── package-lock.json
-│
-├── src/                        # The Shared Core (@cluaizd/gui)
-│   ├── index.ts                # Entrypoint (exports App component)
-│   ├── App.tsx                 # Master Bento Grid Dashboard Layout
-│   ├── App.css                 # Main dashboard layout styles
-│   │
-│   ├── components/
-│   │   └── ui/                 # Reusable Atomic UI Primitives (DRY Moat)
-│   │       ├── Card.tsx        # Minecraft/Voxel styled Card container
-│   │       └── Button.tsx      # Cyber-themed responsive Button
-│   │
-│   ├── features/               # Domain-Driven Functional Modules
-│   │   ├── telemetry/          # Cluaizd-HEART Telemetry Stream (BPM, BP, SpO2)
-│   │   │   ├── components/HeartPanel.tsx
-│   │   │   └── hooks/useWebSocket.ts
-│   │   │
-│   │   ├── database/           # Active Engine Management & Console Logs
-│   │   │   └── components/DbManager.tsx
-│   │   │
-│   │   ├── sandbox/            # Deep Archer Volatile Sandbox State
-│   │   │   └── components/ValidationGate.tsx
-│   │   │
-│   │   └── graph/              # Cluaizd-JUJU 3D Synaptic Mesh Renderer
-│   │       └── Geist/JujuCanvas.tsx
-│   │
-│   ├── store/                  # Unified State Management
-│   │   └── useDbStore.ts       # Global Zustand store
-│   │
-│   ├── types/                  # Global Type Declarations
-│   │   └── index.ts
-│   │
-│   └── styles/                 # Tailwind Config & Global Resets
-│       └── index.css           # Tailwind + Custom Scrollbar from cluaiz.com
-│
-└── apps/                       # Thin Platform Wrappers (Shells)
-    ├── shell-web/              # Vite Web Application Shell
-    │   ├── package.json        # Declares workspace dependency "@cluaizd/gui"
-    │   ├── tsconfig.json       # Includes shared parent "../../src"
-    │   ├── vite.config.ts      # Bypasses type definitions mapping
-    │   └── src/main.tsx        # Boots shared App and CSS
-    │
-    └── shell-desktop/          # Vite + Tauri Desktop Application Shell
-        ├── package.json        # Declares workspace dependency "@cluaizd/gui"
-        ├── src-tauri/          # Desktop compilation assets
-        ├── tsconfig.json       # Includes shared parent "../../src"
-        └── src/main.tsx        # Boots shared App and CSS
-```
+The Visual Matrix is a highly customizable, feature-rich interface giving users absolute control over their local AI and chat environment.
+
+### 1. 💬 Rich Conversational Interface
+- **New Chat & History:** Seamlessly spin up new conversations or browse through historical interactions directly within the workspace.
+- **Emoji & Formatting Support:** Full rendering of emojis, markdown, and formatted text directly inside the message bubbles.
+- **Fully Customizable:** Users can personalize their experience by dynamically changing UI themes and chat fonts (`ChatsSettings.tsx`).
+
+### 2. ⚙️ Engine & System Management
+- **Booster Settings:** Direct access to granular engine booster settings right from the interface (`EngineSettings.tsx`).
+- **Permission Control:** Hardened security features allowing users to toggle what native permissions the engine has access to.
+- **API & Server Control:** Spin up the API, manage the native backend server, and monitor engine status straight from the GUI.
+
+### 3. 🔒 Advanced Settings & Shortcuts
+- Comprehensive `SettingsOverlay` covering General, Security, Notifications, and Keyboard Shortcuts.
+- Granular control over the system without needing to touch a single configuration file.
 
 ---
 
-## 🏛️ Reusable Component Standards (DRY Law)
+## ⚙️ NATIVE ARCHITECTURE & FFI IPC
 
-To keep code clean and prevent system drift, never create inline custom containers or style buttons manually. Use the UI primitives under `src/components/ui/`:
+Unlike standard web apps, this dashboard does not use WebSockets or standard HTTP to communicate with its backend engine. It utilizes **deep OS-level native integration** via Tauri's Rust backend for absolute zero-latency telemetry stream.
 
-### 1. Card (`src/components/ui/Card.tsx`)
-
-A voxel-card container with a flat black shadow that animates to a neon blue shadow on hover.
-
-```tsx
-import { Card } from "../../components/ui/Card";
-
-<Card className="your-custom-styles">{children}</Card>;
+```mermaid
+graph TD
+    UI["Visual Matrix (React/App.tsx)"] --> Events["Tauri Event Emitter"]
+    Events --> Tauri["Tauri Backend (spawner.rs)"]
+    Tauri -- "Native Named Pipe" --> Pipe["\\\\.\\pipe\\cluaize_engine_pipe"]
+    Pipe -- "JSON Byte Stream" --> Engine["cluaize.exe (Production Engine)"]
+    
+    subgraph Windows OS
+        Tauri -. "Grouped under" .-> JobObject["Windows Job Object"]
+        Engine -. "Grouped under" .-> JobObject
+    end
 ```
 
-### 2. Button (`src/components/ui/Button.tsx`)
+### Deep Technical Breakdown: Engine Connection
 
-Supports multiple cyber variants (`primary`, `green`, `pink`, `secondary`) with translation animations.
+The communication between the visual UI and the Cluaize Engine is handled by `src/core/engine/spawner.rs`.
 
-```tsx
-import { Button } from "../../components/ui/Button";
-
-<Button variant="green" onClick={handleEvent}>
-	Adrenaline Shot
-</Button>;
-```
+1. **Windows Job Objects (`JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`)**
+   The Tauri app does not merely spawn the `cluaize.exe` engine; it rigidly groups the Engine process inside a Windows Job Object. This ensures that the OS treats both processes as a single atomic unit. If the Tauri shell dies, the OS guarantees the Engine dies with it, preventing zombie processes.
+   
+2. **Native Named Pipes (IPC)**
+   The Tauri backend connects to the Engine via a native Windows Named Pipe (`\\.\pipe\cluaize_engine_pipe`) using `tokio::net::windows::named_pipe`. This allows massive throughput of telemetry and AI token generation data at near zero-copy memory speeds, completely bypassing the OS network stack.
+   
+3. **Event Emitter Bridge**
+   The raw byte stream from the pipe is buffered, parsed as JSON lines, and immediately routed to the React frontend via Tauri Events (e.g., `engine_token`, `engine_sys_response`).
 
 ---
 
-## 🚀 Development & Build Workflows
+## 🛑 NATIVE FAILURE STATE & RECOVERY
 
-All npm commands must be run from this directory (`apps/gui/`):
-
-### 1. Install Workspace Dependencies
-
-```bash
-npm install
-```
-
-### 2. Build the Web Application Shell
-
-```bash
-npm run build:web
-```
-
-### 3. Build the Desktop Tauri Application Shell
-
-```bash
-npm run build:desktop
-```
-
----
-
-**Cluaizd Technology © 2026** — _CLUAIZD Visual Matrix_
-
-
-
-
-
- 
- 
-<!-- background-image: url("https://www.transparenttextures.com/patterns/cubes.png"); 
- 
-background-image: url("https://www.transparenttextures.com/patterns/stardust.png");
- 
-background-image: url("https://www.transparenttextures.com/patterns/wavecut.png"); 
-
- 
-background-image: url("https://www.transparenttextures.com/patterns/xv.png"); 
-
-
- 
-background-image: url("https://www.transparenttextures.com/patterns/otis-redding.png"); 
-
- 
-background-image: url("https://www.transparenttextures.com/patterns/low-contrast-linen.png"); 
-
- 
-background-image: url("https://www.transparenttextures.com/patterns/inspiration-geometry.png"); 
-
- 
-background-image: url("https://www.transparenttextures.com/patterns/food.png");  -->
+- **Critical Failure Point (Exit Code `4294967295`):** If the frontend triggers an unhandled memory panic or a catastrophic UI failure, the Tauri App shell will crash with `4294967295` (Generic `-1` Unsigned Error). Because of the Windows Job Object integration, the OS immediately detects the shell termination and forcefully kills `cluaize.exe`. The entire visual matrix safely collapses without leaking resources.
+- **IPC Disconnect Recovery:** If the IPC pipe breaks during normal operation without a panic, the frontend catches the disconnect event and transitions into an "Offline Monitor" state. It continuously polls the Named Pipe to reconnect, and synchronizes lost data via CDQL once the engine is resurrected.
