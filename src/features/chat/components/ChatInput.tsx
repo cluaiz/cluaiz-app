@@ -1,17 +1,16 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, FileCode, FileText, Plus, ChevronDown, Mic, Zap, Sparkles, Globe, Brain, Image as ImageIcon, Video, File, X, Clock, ChevronRight, UploadCloud, Link as LinkIcon, Layers, FolderUp, Database, BookOpen, ZapOff, Telescope, CornerDownRight, Check, AlignLeft, AlignJustify, Box, Server } from 'lucide-react';
+import { Send, FileCode, FileText, Plus, ChevronDown, Mic, Zap, Sparkles, Globe, Brain, Image as ImageIcon, Video, File, X, Clock, ChevronRight, UploadCloud, Link as LinkIcon, Layers, FolderUp, Database, BookOpen, ZapOff, Telescope, CornerDownRight, Check, AlignLeft, AlignJustify, Box, Server, Info, SlidersHorizontal } from 'lucide-react';
 import BorderGlow from '../../../components/ui/BorderGlow';
 import { Backlight } from '../../../components/ui/Backlight';
 import { useEngineStore } from '../../../store/engine/useEngineStore';
 import { useConnectionStore } from '../../../store/engine/useConnectionStore';
-import { ToggleSwitch } from '../../../components/ui/settings/SharedComponents';
 import { navigateTo } from '../../../core/router';
 
 const DynamicToolIcon: React.FC<{ iconSvg?: string | null; fallback: React.ReactNode; className?: string }> = ({ iconSvg, fallback, className = "w-3.5 h-3.5" }) => {
     if (iconSvg) {
         return (
             <span
-                className={`inline-flex items-center justify-center text-[var(--accent-color)] shrink-0 ${className} [&>svg]:w-full [&>svg]:h-full [&>svg]:fill-current`}
+                className={`inline-flex items-center justify-center shrink-0 ${className} [&>svg]:w-full [&>svg]:h-full [&>svg]:max-w-full [&>svg]:max-h-full`}
                 dangerouslySetInnerHTML={{ __html: iconSvg }}
             />
         );
@@ -73,7 +72,7 @@ const getSkillIcon = (skill: string) => {
 interface ChatInputProps {
     inputValue: string;
     setInputValue: (val: string) => void;
-    handleSendMessage: (customText?: string) => void;
+    handleSendMessage: (customText?: string, options?: import('../../../core/engine').SendChatOptions) => void;
     replyingTo?: { text: string; messageIndex: number; type?: 'message' | 'selection' } | null;
     setReplyingTo?: (val: { text: string; messageIndex: number; type?: 'message' | 'selection' } | null) => void;
     isFloating?: boolean;
@@ -91,7 +90,11 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     const [isModelOpen, setIsModelOpen] = useState(false);
     const [modelTextWidth, setModelTextWidth] = useState(200);
     const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
-    const [isThinkingMenuOpen, setIsThinkingMenuOpen] = useState(false);
+    const [isEffortMenuOpen, setIsEffortMenuOpen] = useState(false);
+    const [isResponseLengthMenuOpen, setIsResponseLengthMenuOpen] = useState(false);
+    const [thinkMode, setThinkMode] = useState<'auto' | 'on' | 'off'>('auto');
+    const [effort, setEffort] = useState<'auto' | 'low' | 'medium' | 'high' | 'max'>('auto');
+    const [responseLength, setResponseLength] = useState<'auto' | 'short' | 'standard' | 'long'>('auto');
     const [isRecentMenuOpen, setIsRecentMenuOpen] = useState(false);
     const [isSkillsMenuOpen, setIsSkillsMenuOpen] = useState(false);
     const [isPluginsMenuOpen, setIsPluginsMenuOpen] = useState(false);
@@ -211,7 +214,13 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             finalMsg = finalMsg ? `${finalMsg}\n\n${filesSummary}` : filesSummary;
         }
 
-        handleSendMessage(finalMsg);
+        const options: import('../../../core/engine').SendChatOptions = {
+            think_mode: thinkMode,
+            reasoning_effort: effort,
+            ...(responseLength !== 'auto' ? { response_length: responseLength } : {})
+        };
+
+        handleSendMessage(finalMsg, options);
         setInputValue('');
         setAttachedFiles([]);
     };
@@ -224,7 +233,6 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     const fetchStatus = useEngineStore(s => s.fetchStatus);
     const initEngineSettings = useEngineStore(s => s.initEngineSettings);
 
-    const isThinkModeOn = booster?.think_mode === 'On' || booster?.think_mode === 'Auto';
 
     // Auto-fetch settings if not already fetched
     useEffect(() => {
@@ -290,7 +298,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             const target = event.target as Node;
             if (attachRef.current && !attachRef.current.contains(target)) {
                 setIsAttachOpen(false);
-                setIsThinkingMenuOpen(false);
+                setIsEffortMenuOpen(false);
+                setIsResponseLengthMenuOpen(false);
                 setIsRecentMenuOpen(false);
                 setIsSkillsMenuOpen(false);
                 setIsPluginsMenuOpen(false);
@@ -340,17 +349,6 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         setIsAttachOpen(false);
     };
 
-    const handleThinkingSelect = (mode: string) => {
-        setSelectedSkills(prev => {
-            // Remove any existing generation/thinking modes
-            const filtered = prev.filter(s => !['Think Deep', 'Think Lite', 'Long Answer', 'Short Answer'].includes(s));
-            // Add new mode if it's not unselecting
-            if (!prev.includes(mode)) {
-                filtered.push(mode);
-            }
-            return filtered;
-        });
-    };
 
     const removeSkill = (skill: string) => {
         setSelectedSkills(prev => prev.filter(s => s !== skill));
@@ -358,14 +356,15 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
     const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    const openSubmenu = (menu: 'recent' | 'skills' | 'plugins' | 'mcp' | 'thinking') => {
+    const openSubmenu = (menu: 'recent' | 'skills' | 'plugins' | 'mcp' | 'effort' | 'response_length') => {
         if (timeoutRef.current) clearTimeout(timeoutRef.current);
         timeoutRef.current = setTimeout(() => {
             setIsRecentMenuOpen(menu === 'recent');
             setIsSkillsMenuOpen(menu === 'skills');
             setIsPluginsMenuOpen(menu === 'plugins');
             setIsMcpMenuOpen(menu === 'mcp');
-            setIsThinkingMenuOpen(menu === 'thinking');
+            setIsEffortMenuOpen(menu === 'effort');
+            setIsResponseLengthMenuOpen(menu === 'response_length');
         }, 120);
     };
 
@@ -376,7 +375,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             setIsSkillsMenuOpen(false);
             setIsPluginsMenuOpen(false);
             setIsMcpMenuOpen(false);
-            setIsThinkingMenuOpen(false);
+            setIsEffortMenuOpen(false);
+            setIsResponseLengthMenuOpen(false);
         }, 120);
     };
 
@@ -641,101 +641,163 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 )}
             </div>
 
-            {/* Real Thinking Mode Submenu */}
-            <div className={`relative ${isThinkingMenuOpen ? 'z-50' : ''}`} onMouseEnter={() => openSubmenu('thinking')}>
+            {/* Effort & Reasoning Submenu (Decoupled Claude Parity) */}
+            <div className={`relative ${isEffortMenuOpen ? 'z-50' : ''}`} onMouseEnter={() => openSubmenu('effort')}>
                 <button
+                    type="button"
                     className="w-full flex items-center justify-between px-2.5 py-2 text-[0.7rem] sm:text-xs font-medium hover:bg-[var(--bg-secondary)] text-[var(--text-primary)] hover:text-[var(--accent-color)] transition-colors text-left group rounded-md cursor-pointer"
                 >
                     <div className="flex items-center gap-3">
-                        <Zap className="w-4 h-4 text-[var(--text-muted)] group-hover:text-[var(--accent-color)] transition-colors" />
-                        Thinking
+                        <Brain className="w-4 h-4 text-[var(--text-muted)] group-hover:text-[var(--accent-color)] transition-colors" />
+                        <span>Effort</span>
                     </div>
-                    <ChevronRight className="w-3.5 h-3.5 text-[var(--text-muted)]" />
+                    <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] text-[var(--accent-color)] capitalize font-mono">
+                            {effort}
+                        </span>
+                        {thinkMode !== 'auto' && (
+                            <span className="text-[9px] px-1 py-0.2 rounded bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[var(--text-muted)] font-mono uppercase">
+                                {thinkMode}
+                            </span>
+                        )}
+                        <ChevronRight className="w-3.5 h-3.5 text-[var(--text-muted)]" />
+                    </div>
                 </button>
 
-                {isThinkingMenuOpen && (
+                {isEffortMenuOpen && (
                     <div className="absolute left-8 sm:left-[97%] bottom-0 pl-1 z-50">
-                        <div className="w-56 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-xl shadow-2xl p-2.5 flex flex-col gap-2.5">
-                            {/* Toggle Header */}
-                            <div className="flex items-center justify-between px-1">
-                                <span className="text-[0.7rem] sm:text-xs font-medium text-[var(--text-primary)] flex items-center gap-2">
-                                    <Zap className="w-3.5 h-3.5 text-[var(--accent-color)]" />
-                                    Thinking Mode
-                                </span>
-                                <ToggleSwitch
-                                    active={isThinkModeOn}
-                                    size="sm"
-                                    onToggle={() => {
-                                        const newMode = isThinkModeOn ? 'Off' : 'On';
-                                        if (updateBooster) updateBooster('think_mode', newMode);
-                                        setSelectedSkills(prev => prev.filter(s => !['Think Deep', 'Think Lite', 'Long Answer', 'Short Answer'].includes(s)));
-                                    }}
-                                />
+                        <div className="w-52 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-xl shadow-2xl p-1.5 flex flex-col gap-0.5">
+                            <div className="px-2 py-1 text-[10px] text-[var(--text-muted)] leading-tight">
+                                Deeper reasoning for complex tasks.
                             </div>
 
-                            <div className="h-px bg-[var(--border-color)] w-full" />
+                            <div className="flex flex-col gap-0.5">
+                                {[
+                                    { id: 'auto', label: 'Auto', badge: 'Default' },
+                                    { id: 'low', label: 'Low' },
+                                    { id: 'medium', label: 'Medium' },
+                                    { id: 'high', label: 'High' },
+                                    { id: 'max', label: 'Max', info: true },
+                                ].map(item => (
+                                    <button
+                                        key={item.id}
+                                        type="button"
+                                        onClick={() => {
+                                            setEffort(item.id as any);
+                                            if (updateBooster) updateBooster('think_mode', item.id);
+                                        }}
+                                        className={`group w-full flex items-center justify-between px-2 py-1.5 rounded-md text-xs font-medium transition-all cursor-pointer ${
+                                            effort === item.id
+                                                ? 'bg-[var(--bg-secondary)] text-[var(--accent-color)] font-semibold shadow-sm'
+                                                : 'text-[var(--text-primary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--accent-color)]'
+                                        }`}
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            <span>{item.label}</span>
+                                            {item.badge && (
+                                                <span className="text-[8px] px-1 py-0.2 rounded bg-[var(--accent-color)]/10 text-[var(--accent-color)] border border-[var(--accent-color)]/20 font-mono">
+                                                    {item.badge}
+                                                </span>
+                                            )}
+                                            {item.info && (
+                                                <Info className="w-3 h-3 text-[var(--text-muted)] opacity-70" />
+                                            )}
+                                        </div>
+                                        {effort === item.id && (
+                                            <Check className="w-3.5 h-3.5 text-[var(--accent-color)]" />
+                                        )}
+                                    </button>
+                                ))}
+                            </div>
 
-                            {/* Dynamic Options */}
-                            <div className="flex flex-col gap-1.5">
-                                {isThinkModeOn ? (
-                                    <>
+                            <div className="h-px bg-[var(--border-color)] my-1 mx-1" />
+
+                            {/* Thinking Mode Control (Auto / On / Off) */}
+                            <div className="px-1 py-0.5">
+                                <div className="flex items-center justify-between px-1 mb-1">
+                                    <div className="flex items-center gap-1.5">
+                                        <Brain className="w-3.5 h-3.5 text-[var(--accent-color)]" />
+                                        <span className="text-[11px] font-semibold text-[var(--text-primary)]">Thinking Mode</span>
+                                    </div>
+                                    <span className="text-[9px] text-[var(--accent-color)] font-mono uppercase font-bold">{thinkMode}</span>
+                                </div>
+                                <div className="grid grid-cols-3 gap-0.5 p-0.5 bg-[var(--bg-secondary)] rounded-md border border-[var(--border-color)]">
+                                    {(['auto', 'on', 'off'] as const).map(mode => (
                                         <button
-                                            onClick={() => handleThinkingSelect('Think Deep')}
-                                            className={`group w-full flex items-center justify-between px-2.5 py-2 rounded-md text-xs font-medium transition-all cursor-pointer ${selectedSkills.includes('Think Deep')
-                                                ? 'bg-[var(--bg-secondary)] text-[var(--accent-color)] border border-[var(--border-color)] shadow-sm'
-                                                : 'bg-transparent text-[var(--text-primary)] border border-transparent hover:bg-[var(--bg-secondary)] hover:text-[var(--accent-color)]'
-                                                }`}
+                                            key={mode}
+                                            type="button"
+                                            onClick={() => setThinkMode(mode)}
+                                            className={`py-1 text-[10px] font-semibold rounded capitalize transition-all cursor-pointer text-center ${
+                                                thinkMode === mode
+                                                    ? 'bg-[var(--accent-color)] text-[var(--bg-primary)] shadow-sm font-bold'
+                                                    : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                                            }`}
                                         >
-                                            <div className="flex items-center gap-2.5">
-                                                <Brain className={`w-3.5 h-3.5 transition-colors ${selectedSkills.includes('Think Deep') ? 'text-[var(--accent-color)]' : 'text-[var(--text-muted)] group-hover:text-[var(--accent-color)]'}`} />
-                                                <span>Think Deep</span>
-                                            </div>
-                                            {selectedSkills.includes('Think Deep') && <Check className="w-3.5 h-3.5" />}
+                                            {mode}
                                         </button>
-                                        <button
-                                            onClick={() => handleThinkingSelect('Think Lite')}
-                                            className={`group w-full flex items-center justify-between px-2.5 py-2 rounded-md text-xs font-medium transition-all cursor-pointer ${selectedSkills.includes('Think Lite')
-                                                ? 'bg-[var(--bg-secondary)] text-[var(--accent-color)] border border-[var(--border-color)] shadow-sm'
-                                                : 'bg-transparent text-[var(--text-primary)] border border-transparent hover:bg-[var(--bg-secondary)] hover:text-[var(--accent-color)]'
-                                                }`}
-                                        >
-                                            <div className="flex items-center gap-2.5">
-                                                <Zap className={`w-3.5 h-3.5 transition-colors ${selectedSkills.includes('Think Lite') ? 'text-[var(--accent-color)]' : 'text-[var(--text-muted)] group-hover:text-[var(--accent-color)]'}`} />
-                                                <span>Think Lite</span>
-                                            </div>
-                                            {selectedSkills.includes('Think Lite') && <Check className="w-3.5 h-3.5" />}
-                                        </button>
-                                    </>
-                                ) : (
-                                    <>
-                                        <button
-                                            onClick={() => handleThinkingSelect('Long Answer')}
-                                            className={`group w-full flex items-center justify-between px-2.5 py-2 rounded-md text-xs font-medium transition-all cursor-pointer ${selectedSkills.includes('Long Answer')
-                                                ? 'bg-[var(--bg-secondary)] text-[var(--accent-color)] border border-[var(--border-color)] shadow-sm'
-                                                : 'bg-transparent text-[var(--text-primary)] border border-transparent hover:bg-[var(--bg-secondary)] hover:text-[var(--accent-color)]'
-                                                }`}
-                                        >
-                                            <div className="flex items-center gap-2.5">
-                                                <AlignJustify className={`w-3.5 h-3.5 transition-colors ${selectedSkills.includes('Long Answer') ? 'text-[var(--accent-color)]' : 'text-[var(--text-muted)] group-hover:text-[var(--accent-color)]'}`} />
-                                                <span>Long Answer</span>
-                                            </div>
-                                            {selectedSkills.includes('Long Answer') && <Check className="w-3.5 h-3.5" />}
-                                        </button>
-                                        <button
-                                            onClick={() => handleThinkingSelect('Short Answer')}
-                                            className={`group w-full flex items-center justify-between px-2.5 py-2 rounded-md text-xs font-medium transition-all cursor-pointer ${selectedSkills.includes('Short Answer')
-                                                ? 'bg-[var(--bg-secondary)] text-[var(--accent-color)] border border-[var(--border-color)] shadow-sm'
-                                                : 'bg-transparent text-[var(--text-primary)] border border-transparent hover:bg-[var(--bg-secondary)] hover:text-[var(--accent-color)]'
-                                                }`}
-                                        >
-                                            <div className="flex items-center gap-2.5">
-                                                <AlignLeft className={`w-3.5 h-3.5 transition-colors ${selectedSkills.includes('Short Answer') ? 'text-[var(--accent-color)]' : 'text-[var(--text-muted)] group-hover:text-[var(--accent-color)]'}`} />
-                                                <span>Short Answer</span>
-                                            </div>
-                                            {selectedSkills.includes('Short Answer') && <Check className="w-3.5 h-3.5" />}
-                                        </button>
-                                    </>
-                                )}
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* Response Length Submenu */}
+            <div className={`relative ${isResponseLengthMenuOpen ? 'z-50' : ''}`} onMouseEnter={() => openSubmenu('response_length')}>
+                <button
+                    type="button"
+                    className="w-full flex items-center justify-between px-2.5 py-2 text-[0.7rem] sm:text-xs font-medium hover:bg-[var(--bg-secondary)] text-[var(--text-primary)] hover:text-[var(--accent-color)] transition-colors text-left group rounded-md cursor-pointer"
+                >
+                    <div className="flex items-center gap-3">
+                        <SlidersHorizontal className="w-4 h-4 text-[var(--text-muted)] group-hover:text-[var(--accent-color)] transition-colors" />
+                        <span>Response Length</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                        <span className="text-[10px] text-[var(--accent-color)] capitalize font-mono">
+                            {responseLength}
+                        </span>
+                        <ChevronRight className="w-3.5 h-3.5 text-[var(--text-muted)]" />
+                    </div>
+                </button>
+
+                {isResponseLengthMenuOpen && (
+                    <div className="absolute left-8 sm:left-[97%] bottom-0 pl-1 z-50">
+                        <div className="w-52 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-xl shadow-2xl p-1.5 flex flex-col gap-0.5">
+                            <div className="px-2 py-1 text-[10px] text-[var(--text-muted)] leading-tight">
+                                Controls length of AI output.
+                            </div>
+
+                            <div className="flex flex-col gap-0.5">
+                                {[
+                                    { id: 'auto', label: 'Auto', badge: 'Default' },
+                                    { id: 'short', label: 'Concise (Short)' },
+                                    { id: 'standard', label: 'Standard' },
+                                    { id: 'long', label: 'Detailed (Long)' },
+                                ].map(item => (
+                                    <button
+                                        key={item.id}
+                                        type="button"
+                                        onClick={() => setResponseLength(item.id as any)}
+                                        className={`group w-full flex items-center justify-between px-2 py-1.5 rounded-md text-xs font-medium transition-all cursor-pointer ${
+                                            responseLength === item.id
+                                                ? 'bg-[var(--bg-secondary)] text-[var(--accent-color)] font-semibold shadow-sm'
+                                                : 'text-[var(--text-primary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--accent-color)]'
+                                        }`}
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            <span>{item.label}</span>
+                                            {item.badge && (
+                                                <span className="text-[8px] px-1 py-0.2 rounded bg-[var(--accent-color)]/10 text-[var(--accent-color)] border border-[var(--accent-color)]/20 font-mono">
+                                                    {item.badge}
+                                                </span>
+                                            )}
+                                        </div>
+                                        {responseLength === item.id && (
+                                            <Check className="w-3.5 h-3.5 text-[var(--accent-color)]" />
+                                        )}
+                                    </button>
+                                ))}
                             </div>
                         </div>
                     </div>

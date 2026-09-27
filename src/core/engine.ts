@@ -23,6 +23,14 @@ export const isNative = (): boolean => {
  * - In Desktop/Mobile (Tauri), it delegates to Rust FFI for Zero-Latency memory access.
  * - In Web, it falls back to a WASM/HTTP bridge.
  */
+export interface SendChatOptions {
+    think_mode?: 'auto' | 'on' | 'off' | string;
+    reasoning_effort?: 'auto' | 'low' | 'medium' | 'high' | 'max' | string;
+    response_length?: 'auto' | 'short' | 'standard' | 'long' | string;
+    temperature?: number;
+    tools?: any[];
+}
+
 export class cluaizEngine {
     private static isBooted = false;
     
@@ -110,7 +118,7 @@ export class cluaizEngine {
      * Sends a chat message to the engine.
      * Dynamically uses Native C-Pointer or configured HTTP API port depending on user setting.
      */
-    static async send(message: string): Promise<void> {
+    static async send(message: string, options?: SendChatOptions): Promise<void> {
         const { protocol, getBaseUrl } = useConnectionStore.getState();
         const shouldUseFFI = protocol === 'ffi' && isNative();
 
@@ -120,15 +128,44 @@ export class cluaizEngine {
             await sendFFIMessage(message);
         } else {
             const baseUrl = getBaseUrl();
-            console.log(`[Engine Transport] Routing message via HTTP REST (${baseUrl})...`, message);
-            const res = await fetch(`${baseUrl}/chat`, {
+            console.log(`[Engine Transport] Routing message via HTTP REST (${baseUrl})...`, message, options);
+
+            const payload: any = {
+                messages: [{ role: 'user', content: message }],
+                stream: true
+            };
+            if (options?.think_mode) {
+                payload.think_mode = options.think_mode;
+            }
+            if (options?.reasoning_effort && options.reasoning_effort !== 'auto') {
+                payload.reasoning_effort = options.reasoning_effort;
+            }
+            if (options?.response_length && options.response_length !== 'auto') {
+                payload.response_length = options.response_length;
+            }
+            if (options?.temperature !== undefined) {
+                payload.temperature = options.temperature;
+            }
+            if (options?.tools && options.tools.length > 0) {
+                payload.tools = options.tools;
+            }
+
+            let endpoint = `${baseUrl}/v1/chat/completions`;
+            let res = await fetch(endpoint, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    messages: [{ role: 'user', content: message }],
-                    stream: true
-                })
-            });
+                body: JSON.stringify(payload)
+            }).catch(() => null);
+
+            if (!res || !res.ok) {
+                // Fallback to legacy /chat route if 404 or failed
+                endpoint = `${baseUrl}/chat`;
+                res = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+            }
             
             if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
             if (!res.body) throw new Error('No response body');
