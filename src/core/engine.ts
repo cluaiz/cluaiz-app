@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import { useEngineStore } from '../store/engine/useEngineStore';
+import { useConnectionStore } from '../store/engine/useConnectionStore';
 
 export interface EngineStatus {
     status: 'offline' | 'booting' | 'online' | 'error';
@@ -22,12 +23,12 @@ export const isNative = (): boolean => {
  * - In Desktop/Mobile (Tauri), it delegates to Rust FFI for Zero-Latency memory access.
  * - In Web, it falls back to a WASM/HTTP bridge.
  */
-export class CluaizeEngine {
+export class cluaizEngine {
     private static isBooted = false;
     
     /**
      * Initializes the Co-Execution architecture.
-     * Tells the native shell to spawn or link the `~/.cluaiz/bin/cluaize` engine via FFI.
+     * Tells the native shell to spawn or link the `~/.cluaiz/bin/cluaiz` engine via FFI.
      */
     static async boot(): Promise<void> {
         if (this.isBooted) return;
@@ -36,10 +37,10 @@ export class CluaizeEngine {
         useEngineStore.getState().setStatus('booting');
 
         if (isNative()) {
-            console.log("[CluaizeEngine] Native environment detected. Booting zero-latency FFI engine...");
+            console.log("[cluaizEngine] Native environment detected. Booting zero-latency FFI engine...");
             try {
                 await invoke('boot_cluaiz_engine');
-                console.log("[CluaizeEngine] Engine FFI Link Established.");
+                console.log("[cluaizEngine] Engine FFI Link Established.");
                 useEngineStore.getState().setStatus('idle');
                 
                 // If Lazy Load is OFF, trigger EAGER_LOAD
@@ -48,13 +49,13 @@ export class CluaizeEngine {
                     await this.sendEagerLoad();
                 }
             } catch (err) {
-                console.error("[CluaizeEngine] Failed to boot engine via FFI:", err);
+                console.error("[cluaizEngine] Failed to boot engine via FFI:", err);
                 this.isBooted = false; // Revert if failed
                 useEngineStore.getState().setStatus('error');
                 throw err;
             }
         } else {
-            console.log("[CluaizeEngine] Web environment detected. Falling back to WebAssembly/Gateway...");
+            console.log("[cluaizEngine] Web environment detected. Falling back to WebAssembly/Gateway...");
             // Simulate web boot
             setTimeout(() => {
                 this.isBooted = true;
@@ -68,30 +69,34 @@ export class CluaizeEngine {
      */
     static async sendEagerLoad(): Promise<void> {
         if (isNative()) {
-            console.log("[CluaizeEngine] Sending EAGER_LOAD to IPC Pipe...");
+            console.log("[cluaizEngine] Sending EAGER_LOAD to IPC Pipe...");
             try {
                 await invoke('update_engine_settings', {
                     payload: { action: "EAGER_LOAD" }
                 });
             } catch (err) {
-                console.error("[CluaizeEngine] EAGER_LOAD FFI error:", err);
+                console.error("[cluaizEngine] EAGER_LOAD FFI error:", err);
             }
         }
     }
 
     /**
      * Executes a CDQL query directly against the compute node database.
-     * Automatically routes between Native FFI and Web HTTP Gateway.
+     * Automatically routes dynamically based on user's active connection protocol.
      */
     static async executeCDQL(query: string): Promise<any> {
-        if (isNative()) {
-            console.log("[CDQL Native] Executing via FFI:", query);
+        const { protocol, getBaseUrl } = useConnectionStore.getState();
+        const shouldUseFFI = protocol === 'ffi' && isNative();
+
+        if (shouldUseFFI) {
+            console.log("[CDQL Transport] Executing via Native C-Pointer (FFI):", query);
             const { executeCDQLFFI } = await import('./tauri-api');
             const responseJson = await executeCDQLFFI(query);
             return JSON.parse(responseJson);
         } else {
-            console.log("[CDQL Web] Executing via HTTP Gateway:", query);
-            const res = await fetch('http://localhost:8000/v1/db/execute', {
+            const baseUrl = getBaseUrl();
+            console.log(`[CDQL Transport] Executing via HTTP REST (${baseUrl}):`, query);
+            const res = await fetch(`${baseUrl}/v1/db/execute`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ query })
@@ -103,14 +108,20 @@ export class CluaizeEngine {
 
     /**
      * Sends a chat message to the engine.
+     * Dynamically uses Native C-Pointer or configured HTTP API port depending on user setting.
      */
     static async send(message: string): Promise<void> {
-        if (isNative()) {
+        const { protocol, getBaseUrl } = useConnectionStore.getState();
+        const shouldUseFFI = protocol === 'ffi' && isNative();
+
+        if (shouldUseFFI) {
+            console.log("[Engine Transport] Routing message via Native C-Pointer (FFI)...");
             const { sendFFIMessage } = await import('./tauri-api');
             await sendFFIMessage(message);
         } else {
-            console.log("[Web] Sending message via HTTP:", message);
-            const res = await fetch('http://localhost:8000/chat', {
+            const baseUrl = getBaseUrl();
+            console.log(`[Engine Transport] Routing message via HTTP REST (${baseUrl})...`, message);
+            const res = await fetch(`${baseUrl}/chat`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

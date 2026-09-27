@@ -54,9 +54,9 @@ export const useChatStore = create<ChatStore>()(
         activeSessionId: null,
 
         fetchSessionsFromEngine: async () => {
-            const { CluaizeEngine } = await import('../../core/engine');
+            const { cluaizEngine } = await import('../../core/engine');
             try {
-                const sessionsArray = await CluaizeEngine.fetchHistory();
+                const sessionsArray = await cluaizEngine.fetchHistory();
                 const sessions: Record<string, ChatSession> = {};
                 sessionsArray.forEach(s => sessions[s.id] = s);
                 set({ sessions });
@@ -95,8 +95,8 @@ export const useChatStore = create<ChatStore>()(
 
         deleteSession: (sessionId) => {
             // Trigger FFI physical delete in background
-            import('../../core/engine').then(({ CluaizeEngine }) => {
-                CluaizeEngine.deleteSession(sessionId).catch(console.error);
+            import('../../core/engine').then(({ cluaizEngine }) => {
+                cluaizEngine.deleteSession(sessionId).catch(console.error);
             });
 
             set((state) => {

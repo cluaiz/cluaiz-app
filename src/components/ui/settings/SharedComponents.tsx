@@ -1,5 +1,7 @@
 import React from 'react';
 import { ChevronRight } from 'lucide-react';
+import { CustomDropdown, DropdownOption } from '../dropdown/CustomDropdown';
+import { ElasticSlider } from '../cursor/ElasticSlider';
 
 function cn(...classes: (string | boolean | undefined | null)[]) {
     return classes.filter(Boolean).join(' ');
@@ -8,16 +10,13 @@ function cn(...classes: (string | boolean | undefined | null)[]) {
 export const SettingSection = ({ title, children }: { title: string, children: React.ReactNode }) => (
     <div className="space-y-3">
         <h3 className="text-[10px] font-black text-[var(--text-muted)] uppercase tracking-[0.3em] ml-4">{title}</h3>
-        <div className="bg-[var(--bg-secondary)]/60 border border-[var(--border-color)] rounded-2xl overflow-hidden">
+        <div className="bg-[var(--bg-secondary)]/60 border border-[var(--border-color)] rounded-2xl">
             {children}
         </div>
     </div>
 );
 
-export interface SelectOption {
-    label: string;
-    value: string;
-}
+export type SelectOption = DropdownOption;
 
 interface SettingItemProps {
     label: string;
@@ -31,11 +30,60 @@ interface SettingItemProps {
     select?: string[] | SelectOption[];
     value?: string;
     onChange?: (v: string) => void;
+    children?: React.ReactNode;
+    onClick?: () => void;
 }
 
-export const SettingItem = ({ label, description, dynamicDescription, toggle = false, action, active = false, onToggle, icon: Icon, select, value, onChange }: SettingItemProps) => {
+export interface ToggleSwitchProps {
+    active: boolean;
+    onToggle?: () => void;
+    size?: 'sm' | 'md';
+    className?: string;
+}
+
+export const ToggleSwitch: React.FC<ToggleSwitchProps> = ({
+    active,
+    onToggle,
+    size = 'md',
+    className
+}) => {
+    const isSm = size === 'sm';
+    return (
+        <div
+            onClick={(e) => {
+                e.stopPropagation();
+                onToggle?.();
+            }}
+            className={cn(
+                isSm 
+                    ? "w-[34px] h-[19px] p-[2px]" 
+                    : "w-[44px] h-[24px] p-[3px]",
+                "rounded-full flex items-center transition-all duration-200 shrink-0 cursor-pointer select-none",
+                active
+                    ? "bg-[var(--accent-color)] border border-[var(--accent-color)]/30 shadow-[0_0_12px_var(--accent-color)]/20"
+                    : "bg-white/10 border border-white/10 hover:bg-white/15",
+                className
+            )}
+        >
+            <div
+                className={cn(
+                    isSm ? "w-[15px] h-[15px]" : "w-[18px] h-[18px]",
+                    "rounded-full shadow-md transition-transform duration-200",
+                    active 
+                        ? (isSm ? "translate-x-[15px] bg-[var(--bg-primary)]" : "translate-x-[20px] bg-[var(--bg-primary)]") 
+                        : "translate-x-0 bg-zinc-400"
+                )}
+            />
+        </div>
+    );
+};
+
+export const SettingItem = ({ label, description, dynamicDescription, toggle = false, action, active = false, onToggle, onClick, icon: Icon, select, value, onChange, children }: SettingItemProps) => {
     const handleClick = (e: React.MouseEvent) => {
-        if (toggle && onToggle) {
+        if (onClick) {
+            e.preventDefault();
+            onClick();
+        } else if (toggle && onToggle) {
             e.preventDefault();
             e.stopPropagation();
             onToggle();
@@ -46,7 +94,7 @@ export const SettingItem = ({ label, description, dynamicDescription, toggle = f
         <div
             onClick={handleClick}
             className={cn(
-                "flex items-center justify-between p-6 hover:bg-[var(--text-primary)]/5 transition-all group border-b border-[var(--border-color)] last:border-none cursor-default",
+                "flex items-center justify-between p-6 hover:bg-[var(--text-primary)]/5 transition-all group border-b border-[var(--border-color)] last:border-none cursor-default relative",
                 toggle && "cursor-pointer"
             )}
         >
@@ -67,23 +115,20 @@ export const SettingItem = ({ label, description, dynamicDescription, toggle = f
                 </div>
             </div>
             {toggle ? (
-                <button type="button" className={cn("w-10 h-5 rounded-full relative transition-all pointer-events-none", active ? "bg-[var(--accent-color)]" : "bg-[var(--border-color)]")}>
-                    <div className={cn("absolute top-1 w-3 h-3 bg-white rounded-full transition-all", active ? "left-6" : "left-1")} />
-                </button>
+                <ToggleSwitch active={active} onToggle={onToggle} />
+            ) : children ? (
+                <div className="w-[250px] shrink-0 flex justify-end">
+                    {children}
+                </div>
             ) : select ? (
-                <select
-                    value={value || ''}
-                    onChange={(e) => onChange && onChange(e.target.value)}
-                    className="bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-primary)] outline-none cursor-pointer"
-                    onClick={(e) => e.stopPropagation()}
-                >
-                    {select.map((opt) => {
-                        const isObj = typeof opt === 'object';
-                        const val = isObj ? (opt as SelectOption).value : opt as string;
-                        const lbl = isObj ? (opt as SelectOption).label : opt as string;
-                        return <option key={val} value={val}>{lbl}</option>;
-                    })}
-                </select>
+                <div className="w-[250px] shrink-0 flex justify-end">
+                    <CustomDropdown
+                        options={select}
+                        value={value}
+                        onChange={onChange}
+                        className="w-full"
+                    />
+                </div>
             ) : action ? (
                 <button type="button" className="text-[10px] font-black text-[var(--accent-color)] uppercase tracking-widest hover:opacity-80 transition-opacity">{action}</button>
             ) : (
@@ -118,3 +163,47 @@ export const InputGroup = ({ label, value }: { label: string, value: string }) =
         />
     </div>
 );
+
+export interface SettingSliderProps {
+    label: string;
+    description?: string;
+    min: number;
+    max: number;
+    step?: number;
+    value: number;
+    onChange: (v: number) => void;
+    formatValue?: (v: number) => string;
+}
+
+export const SettingSlider = ({
+    label,
+    description,
+    min,
+    max,
+    step = 1,
+    value,
+    onChange,
+    formatValue
+}: SettingSliderProps) => (
+    <div className="p-6 border-b border-[var(--border-color)] last:border-none group">
+        <div className="flex items-center justify-between mb-3">
+            <div className="flex flex-col max-w-sm">
+                <span className="text-sm font-bold text-[var(--text-primary)]">{label}</span>
+                {description && (
+                    <span className="text-[11px] text-[var(--text-muted)] font-medium leading-relaxed">{description}</span>
+                )}
+            </div>
+            <span className="text-xs font-mono text-[var(--accent-color)] font-bold px-2 py-0.5 rounded bg-[var(--accent-color)]/10 border border-[var(--accent-color)]/20">
+                {formatValue ? formatValue(value) : value}
+            </span>
+        </div>
+        <ElasticSlider
+            min={min}
+            max={max}
+            step={step}
+            value={value}
+            onChange={onChange}
+        />
+    </div>
+);
+

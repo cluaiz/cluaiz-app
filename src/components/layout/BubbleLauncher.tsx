@@ -1,5 +1,6 @@
-import { Settings, LayoutDashboard, Zap, MessageSquare } from 'lucide-react';
+import { Settings, LayoutDashboard, Wrench, Code2, Boxes, MessageSquare } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useLayoutStore } from '../../store/ui/useLayoutStore';
 
 interface BubbleLauncherProps {
     isOpen: boolean;
@@ -14,11 +15,20 @@ export function BubbleLauncher({ isOpen, coords, onClose, onOpenSettings }: Bubb
         if (action === 'settings') {
             onOpenSettings?.('general');
         } else if (action === 'dashboard') {
+            useLayoutStore.getState().setActiveView('dashboard');
             document.dispatchEvent(new CustomEvent('open-dashboard'));
         } else if (action === 'new_chat') {
+            useLayoutStore.getState().setActiveView('chat');
             document.dispatchEvent(new CustomEvent('start-new-chat'));
-        } else if (action === 'skills') {
-            console.log('Open skills');
+        } else if (action === 'tools') {
+            useLayoutStore.getState().setActiveView('tools');
+            document.dispatchEvent(new CustomEvent('open-tools'));
+        } else if (action === 'apis') {
+            useLayoutStore.getState().setActiveView('apis');
+            document.dispatchEvent(new CustomEvent('open-apis'));
+        } else if (action === 'toolkit') {
+            useLayoutStore.getState().setActiveView('toolkit');
+            document.dispatchEvent(new CustomEvent('open-toolkit'));
         }
     };
 
@@ -56,7 +66,9 @@ export function BubbleLauncher({ isOpen, coords, onClose, onOpenSettings }: Bubb
                     >
                         <MenuItem icon={MessageSquare} label="New Chat" onClick={() => handleSelect('new_chat')} />
                         <MenuItem icon={LayoutDashboard} label="Dashboard" onClick={() => handleSelect('dashboard')} />
-                        <MenuItem icon={Zap} label="Skills" onClick={() => handleSelect('skills')} />
+                        <MenuItem icon={Wrench} label="Tools" onClick={() => handleSelect('tools')} />
+                        <MenuItem icon={Code2} label="APIs" onClick={() => handleSelect('apis')} />
+                        <MenuItem icon={Boxes} label="Toolkit" onClick={() => handleSelect('toolkit')} />
                         
                         <div className="h-[1px] bg-[var(--border-color)] mx-2 my-1" />
                         

@@ -38,8 +38,8 @@ interface LayoutState {
     setDateRange: (range: DateRange | undefined) => void;
     activeChatData: ActiveChatData | null;
     setActiveChatData: (data: ActiveChatData | null) => void;
-    activeView: 'chat' | 'notebook' | 'settings';
-    setActiveView: (view: 'chat' | 'notebook' | 'settings') => void;
+    activeView: 'chat' | 'notebook' | 'settings' | 'dashboard' | 'tools' | 'apis' | 'toolkit';
+    setActiveView: (view: 'chat' | 'notebook' | 'settings' | 'dashboard' | 'tools' | 'apis' | 'toolkit') => void;
 }
 
 export const useLayoutStore = create<LayoutState>()(
@@ -70,7 +70,7 @@ export const useLayoutStore = create<LayoutState>()(
             setActiveView: (activeView) => set({ activeView }),
         }),
         {
-            name: 'cluaize-layout-storage',
+            name: 'cluaiz-layout-storage',
             partialize: (state) => ({
                 sidebarOpen: state.sidebarOpen,
                 sidebarWidth: state.sidebarWidth,

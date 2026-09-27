@@ -40,6 +40,6 @@ src-tauri/target/
 *.so
 *.dylib
 
-# Cluaize engine state
-.cluaize/
-app/src-tauri/.cluaize/
+# cluaiz engine state
+.cluaiz/
+app/src-tauri/.cluaiz/

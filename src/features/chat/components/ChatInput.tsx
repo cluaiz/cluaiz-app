@@ -1,8 +1,31 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, FileCode, FileText, Plus, ChevronDown, Mic, Zap, Sparkles, Globe, Brain, Image as ImageIcon, Video, File, X, Clock, ChevronRight, UploadCloud, Link as LinkIcon, Layers, FolderUp, Database, BookOpen, ZapOff, Telescope, CornerDownRight, Check, AlignLeft, AlignJustify } from 'lucide-react';
+import { Send, FileCode, FileText, Plus, ChevronDown, Mic, Zap, Sparkles, Globe, Brain, Image as ImageIcon, Video, File, X, Clock, ChevronRight, UploadCloud, Link as LinkIcon, Layers, FolderUp, Database, BookOpen, ZapOff, Telescope, CornerDownRight, Check, AlignLeft, AlignJustify, Box, Server } from 'lucide-react';
 import BorderGlow from '../../../components/ui/BorderGlow';
 import { Backlight } from '../../../components/ui/Backlight';
 import { useEngineStore } from '../../../store/engine/useEngineStore';
+import { useConnectionStore } from '../../../store/engine/useConnectionStore';
+import { ToggleSwitch } from '../../../components/ui/settings/SharedComponents';
+import { navigateTo } from '../../../core/router';
+
+const DynamicToolIcon: React.FC<{ iconSvg?: string | null; fallback: React.ReactNode; className?: string }> = ({ iconSvg, fallback, className = "w-3.5 h-3.5" }) => {
+    if (iconSvg) {
+        return (
+            <span
+                className={`inline-flex items-center justify-center text-[var(--accent-color)] shrink-0 ${className} [&>svg]:w-full [&>svg]:h-full [&>svg]:fill-current`}
+                dangerouslySetInnerHTML={{ __html: iconSvg }}
+            />
+        );
+    }
+    return <>{fallback}</>;
+};
+
+function formatBytes(bytes?: number | null) {
+    if (!bytes || bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
+}
 
 
 const formatModelName = (rawFilename: string) => {
@@ -41,8 +64,8 @@ const getSkillIcon = (skill: string) => {
         case 'Think Lite': return <Zap className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-[var(--accent-color)]" />;
         case 'Long Answer': return <AlignJustify className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-[var(--accent-color)]" />;
         case 'Short Answer': return <AlignLeft className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-[var(--accent-color)]" />;
-        case 'Web Search': return <Globe className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-[#3b82f6]" />;
-        case 'Deep Research': return <Telescope className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-[#f59e0b]" />;
+        case 'Web Search': return <Globe className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-[var(--accent-color)]" />;
+        case 'Deep Research': return <Telescope className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-[var(--accent-color)]" />;
         default: return <Sparkles className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-[var(--accent-color)]" />;
     }
 };
@@ -50,7 +73,7 @@ const getSkillIcon = (skill: string) => {
 interface ChatInputProps {
     inputValue: string;
     setInputValue: (val: string) => void;
-    handleSendMessage: () => void;
+    handleSendMessage: (customText?: string) => void;
     replyingTo?: { text: string; messageIndex: number; type?: 'message' | 'selection' } | null;
     setReplyingTo?: (val: { text: string; messageIndex: number; type?: 'message' | 'selection' } | null) => void;
     isFloating?: boolean;
@@ -70,10 +93,128 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
     const [isThinkingMenuOpen, setIsThinkingMenuOpen] = useState(false);
     const [isRecentMenuOpen, setIsRecentMenuOpen] = useState(false);
-    const [isMoreUploadsOpen, setIsMoreUploadsOpen] = useState(false);
     const [isSkillsMenuOpen, setIsSkillsMenuOpen] = useState(false);
+    const [isPluginsMenuOpen, setIsPluginsMenuOpen] = useState(false);
+    const [isMcpMenuOpen, setIsMcpMenuOpen] = useState(false);
     const [isExpanded, setIsExpanded] = useState(false);
     const [wrapThreshold, setWrapThreshold] = useState<number>(Number.MAX_SAFE_INTEGER);
+
+    // Real File Attachments State
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const [attachedFiles, setAttachedFiles] = useState<{ id: string; name: string; size: number; type: string }[]>([]);
+    const [recentFiles, setRecentFiles] = useState<{ name: string; size: number; timestamp: number }[]>([]);
+
+    // Real Dynamic Tools from Engine backend (/api/components/list)
+    const { getBaseUrl } = useConnectionStore();
+    const [backendTools, setBackendTools] = useState<{
+        skills: { id: string; name: string; icon_svg?: string | null }[];
+        plugins: { id: string; name: string; icon_svg?: string | null }[];
+        mcp: { id: string; name: string; icon_svg?: string | null }[];
+    }>({
+        skills: [],
+        plugins: [],
+        mcp: []
+    });
+
+    useEffect(() => {
+        try {
+            const stored = localStorage.getItem('cluaiz_recent_attached_files');
+            if (stored) setRecentFiles(JSON.parse(stored));
+        } catch (e) {}
+
+        const fetchTools = async () => {
+            try {
+                const res = await fetch(`${getBaseUrl()}/api/components/list`);
+                if (res.ok) {
+                    const data = await res.json();
+                    const rich = data.rich || {};
+                    const parseItems = (cat: string) => {
+                        const richItems = rich[cat] || [];
+                        if (richItems.length > 0) {
+                            return richItems.map((item: any) => ({
+                                id: item.id || item.name,
+                                name: item.name || item.id,
+                                icon_svg: item.icon_svg
+                            }));
+                        }
+                        const raw = data[cat] || [];
+                        return raw.map((id: string) => ({
+                            id,
+                            name: id.split('-').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
+                            icon_svg: null
+                        }));
+                    };
+
+                    setBackendTools({
+                        skills: parseItems('skill'),
+                        plugins: parseItems('plugin'),
+                        mcp: parseItems('mcp')
+                    });
+                }
+            } catch (err) {
+                // Silently fallback if engine is still booting
+            }
+        };
+        fetchTools();
+    }, [getBaseUrl]);
+
+    const isWebSearchInstalled = backendTools.plugins.some(p => p.id === 'web-search' || p.name.toLowerCase().includes('search')) || backendTools.skills.some(s => s.id === 'web-search');
+    const isDeepResearchInstalled = backendTools.plugins.some(p => p.id === 'deep-research' || p.name.toLowerCase().includes('deep')) || backendTools.skills.some(s => s.id === 'deep-research');
+
+    const getSelectedToolIcon = (name: string) => {
+        const allTools = [...backendTools.skills, ...backendTools.plugins, ...backendTools.mcp];
+        const found = allTools.find(t => t.name === name || t.id === name);
+        if (found?.icon_svg) {
+            return <DynamicToolIcon iconSvg={found.icon_svg} fallback={<Layers className="w-3.5 h-3.5 text-[var(--accent-color)] shrink-0" />} />;
+        }
+        return getSkillIcon(name);
+    };
+
+    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = e.target.files;
+        if (!files || files.length === 0) return;
+
+        const newFiles = Array.from(files).map(file => ({
+            id: `${file.name}-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+            name: file.name,
+            size: file.size,
+            type: file.type
+        }));
+
+        setAttachedFiles(prev => [...prev, ...newFiles]);
+
+        try {
+            const stored = localStorage.getItem('cluaiz_recent_attached_files');
+            const existing: { name: string; size: number; timestamp: number }[] = stored ? JSON.parse(stored) : [];
+            const updated = [
+                ...newFiles.map(f => ({ name: f.name, size: f.size, timestamp: Date.now() })),
+                ...existing.filter(e => !newFiles.some(n => n.name === e.name))
+            ].slice(0, 10);
+            localStorage.setItem('cluaiz_recent_attached_files', JSON.stringify(updated));
+            setRecentFiles(updated);
+        } catch (err) {}
+
+        e.target.value = '';
+        setIsAttachOpen(false);
+    };
+
+    const removeFile = (id: string) => {
+        setAttachedFiles(prev => prev.filter(f => f.id !== id));
+    };
+
+    const handleSendWithAttachments = () => {
+        if (!inputValue.trim() && attachedFiles.length === 0) return;
+
+        let finalMsg = inputValue.trim();
+        if (attachedFiles.length > 0) {
+            const filesSummary = `[Attached Files: ${attachedFiles.map(f => `${f.name} (${formatBytes(f.size)})`).join(', ')}]`;
+            finalMsg = finalMsg ? `${finalMsg}\n\n${filesSummary}` : filesSummary;
+        }
+
+        handleSendMessage(finalMsg);
+        setInputValue('');
+        setAttachedFiles([]);
+    };
 
     // Engine State for Think Mode
     const booster = useEngineStore(s => s.booster);
@@ -151,8 +292,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 setIsAttachOpen(false);
                 setIsThinkingMenuOpen(false);
                 setIsRecentMenuOpen(false);
-                setIsMoreUploadsOpen(false);
                 setIsSkillsMenuOpen(false);
+                setIsPluginsMenuOpen(false);
+                setIsMcpMenuOpen(false);
             }
             if (modelRef.current && !modelRef.current.contains(target)) {
                 setIsModelOpen(false);
@@ -216,35 +358,46 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
     const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    const openSubmenu = (menu: 'recent' | 'more' | 'skills' | 'thinking') => {
+    const openSubmenu = (menu: 'recent' | 'skills' | 'plugins' | 'mcp' | 'thinking') => {
         if (timeoutRef.current) clearTimeout(timeoutRef.current);
         timeoutRef.current = setTimeout(() => {
             setIsRecentMenuOpen(menu === 'recent');
-            setIsMoreUploadsOpen(menu === 'more');
             setIsSkillsMenuOpen(menu === 'skills');
+            setIsPluginsMenuOpen(menu === 'plugins');
+            setIsMcpMenuOpen(menu === 'mcp');
             setIsThinkingMenuOpen(menu === 'thinking');
-        }, 150);
+        }, 120);
     };
 
     const closeAllSubmenus = () => {
         if (timeoutRef.current) clearTimeout(timeoutRef.current);
         timeoutRef.current = setTimeout(() => {
             setIsRecentMenuOpen(false);
-            setIsMoreUploadsOpen(false);
             setIsSkillsMenuOpen(false);
+            setIsPluginsMenuOpen(false);
+            setIsMcpMenuOpen(false);
             setIsThinkingMenuOpen(false);
-        }, 150);
+        }, 120);
     };
 
     const attachmentMenu = (
         <div className="absolute bottom-full left-0 mb-2 w-56 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-xl shadow-2xl p-1 z-50 flex flex-col gap-0.5" onMouseLeave={closeAllSubmenus}>
-            <button className="w-full flex items-center gap-3 px-2.5 py-2 text-[0.7rem] sm:text-xs font-medium hover:bg-[var(--bg-secondary)] text-[var(--text-primary)] hover:text-[var(--accent-color)] transition-colors text-left group rounded-md">
+            {/* Real File Upload */}
+            <button
+                onClick={() => {
+                    fileInputRef.current?.click();
+                    setIsAttachOpen(false);
+                }}
+                className="w-full flex items-center gap-3 px-2.5 py-2 text-[0.7rem] sm:text-xs font-medium hover:bg-[var(--bg-secondary)] text-[var(--text-primary)] hover:text-[var(--accent-color)] transition-colors text-left group rounded-md cursor-pointer"
+            >
                 <UploadCloud className="w-4 h-4 text-[var(--text-muted)] group-hover:text-[var(--accent-color)] transition-colors" />
                 Upload File
             </button>
+
+            {/* Real Recent Files Submenu */}
             <div className={`relative ${isRecentMenuOpen ? 'z-50' : ''}`} onMouseEnter={() => openSubmenu('recent')}>
                 <button
-                    className="w-full flex items-center justify-between px-2.5 py-2 text-[0.7rem] sm:text-xs font-medium hover:bg-[var(--bg-secondary)] text-[var(--text-primary)] hover:text-[var(--accent-color)] transition-colors text-left group rounded-md"
+                    className="w-full flex items-center justify-between px-2.5 py-2 text-[0.7rem] sm:text-xs font-medium hover:bg-[var(--bg-secondary)] text-[var(--text-primary)] hover:text-[var(--accent-color)] transition-colors text-left group rounded-md cursor-pointer"
                 >
                     <div className="flex items-center gap-3">
                         <Clock className="w-4 h-4 text-[var(--text-muted)] group-hover:text-[var(--accent-color)] transition-colors" />
@@ -255,46 +408,27 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
                 {isRecentMenuOpen && (
                     <div className="absolute left-8 sm:left-[97%] top-0 pl-1 z-50">
-                        <div className="w-48 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-xl shadow-2xl p-1 flex flex-col gap-0.5">
-                            <button className="w-full flex items-center gap-3 px-2.5 py-2 text-xs font-medium hover:bg-[var(--bg-secondary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors text-left group rounded-md">
-                                <FileCode className="w-3.5 h-3.5" />
-                                <span className="truncate">main.ts</span>
-                            </button>
-                            <button className="w-full flex items-center gap-3 px-2.5 py-2 text-xs font-medium hover:bg-[var(--bg-secondary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors text-left group rounded-md">
-                                <FileText className="w-3.5 h-3.5" />
-                                <span className="truncate">engine_spec.pdf</span>
-                            </button>
-                        </div>
-                    </div>
-                )}
-            </div>
-
-            <div className={`relative ${isMoreUploadsOpen ? 'z-50' : ''}`} onMouseEnter={() => openSubmenu('more')}>
-                <button
-                    className="w-full flex items-center justify-between px-2.5 py-2 text-[0.7rem] sm:text-xs font-medium hover:bg-[var(--bg-secondary)] text-[var(--text-primary)] hover:text-[var(--accent-color)] transition-colors text-left group rounded-md"
-                >
-                    <div className="flex items-center gap-3">
-                        <FolderUp className="w-4 h-4 text-[var(--text-muted)] group-hover:text-[var(--accent-color)] transition-colors" />
-                        More Uploads
-                    </div>
-                    <ChevronRight className="w-3.5 h-3.5 text-[var(--text-muted)]" />
-                </button>
-
-                {isMoreUploadsOpen && (
-                    <div className="absolute left-8 sm:left-[97%] top-0 pl-1 z-50">
-                        <div className="w-48 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-xl shadow-2xl p-1 flex flex-col gap-0.5">
-                            <button className="w-full flex items-center gap-3 px-2.5 py-2 text-xs font-medium hover:bg-[var(--bg-secondary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors text-left group rounded-md">
-                                <ImageIcon className="w-4 h-4" />
-                                Gallery
-                            </button>
-                            <button className="w-full flex items-center gap-3 px-2.5 py-2 text-xs font-medium hover:bg-[var(--bg-secondary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors text-left group rounded-md">
-                                <Database className="w-4 h-4" />
-                                Database
-                            </button>
-                            <button className="w-full flex items-center gap-3 px-2.5 py-2 text-xs font-medium hover:bg-[var(--bg-secondary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors text-left group rounded-md">
-                                <BookOpen className="w-4 h-4" />
-                                Notebooks
-                            </button>
+                        <div className="w-52 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-xl shadow-2xl p-1 flex flex-col gap-0.5 max-h-56 overflow-y-auto custom-scrollbar">
+                            {recentFiles.length === 0 ? (
+                                <div className="p-2.5 text-[11px] text-[var(--text-muted)] text-center italic">No recent files</div>
+                            ) : (
+                                recentFiles.map((rf, idx) => (
+                                    <button
+                                        key={idx}
+                                        onClick={() => {
+                                            setAttachedFiles(prev => [...prev, { id: `${rf.name}-${Date.now()}`, name: rf.name, size: rf.size, type: '' }]);
+                                            setIsAttachOpen(false);
+                                        }}
+                                        className="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 text-xs font-medium hover:bg-[var(--bg-secondary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors text-left group rounded-md cursor-pointer"
+                                    >
+                                        <div className="flex items-center gap-2 truncate">
+                                            <FileText className="w-3.5 h-3.5 shrink-0 text-[var(--accent-color)]" />
+                                            <span className="truncate">{rf.name}</span>
+                                        </div>
+                                        <span className="text-[10px] text-[var(--text-muted)] font-mono shrink-0">{formatBytes(rf.size)}</span>
+                                    </button>
+                                ))
+                            )}
                         </div>
                     </div>
                 )}
@@ -302,9 +436,10 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
             <div className="h-px bg-[var(--border-color)] my-1 mx-2" />
 
+            {/* Real Dynamic Skills Submenu */}
             <div className={`relative ${isSkillsMenuOpen ? 'z-50' : ''}`} onMouseEnter={() => openSubmenu('skills')}>
                 <button
-                    className="w-full flex items-center justify-between px-2.5 py-2 text-[0.7rem] sm:text-xs font-medium hover:bg-[var(--bg-secondary)] text-[var(--text-primary)] hover:text-[var(--accent-color)] transition-colors text-left group rounded-md"
+                    className="w-full flex items-center justify-between px-2.5 py-2 text-[0.7rem] sm:text-xs font-medium hover:bg-[var(--bg-secondary)] text-[var(--text-primary)] hover:text-[var(--accent-color)] transition-colors text-left group rounded-md cursor-pointer"
                 >
                     <div className="flex items-center gap-3">
                         <Layers className="w-4 h-4 text-[var(--text-muted)] group-hover:text-[var(--accent-color)] transition-colors" />
@@ -315,36 +450,201 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
                 {isSkillsMenuOpen && (
                     <div className="absolute left-8 sm:left-[97%] bottom-0 pl-1 z-50">
-                        <div className="w-48 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-xl shadow-2xl p-1 flex flex-col gap-0.5">
+                        <div className="w-52 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-xl shadow-2xl p-1 flex flex-col gap-0.5 max-h-64 overflow-y-auto custom-scrollbar">
+                            {backendTools.skills.length === 0 ? (
+                                <div className="p-2.5 text-[11px] text-[var(--text-muted)] text-center italic">No skills installed</div>
+                            ) : (
+                                backendTools.skills.map(sk => (
+                                    <button
+                                        key={sk.id}
+                                        onClick={() => toggleSkill(sk.name)}
+                                        className="w-full flex items-center justify-between px-2.5 py-1.5 text-xs font-medium hover:bg-[var(--bg-secondary)] text-[var(--text-primary)] hover:text-[var(--accent-color)] transition-colors text-left group rounded-md cursor-pointer"
+                                    >
+                                        <div className="flex items-center gap-2.5 truncate">
+                                            <DynamicToolIcon iconSvg={sk.icon_svg} fallback={<Layers className="w-3.5 h-3.5 text-[var(--accent-color)] shrink-0" />} />
+                                            <span className="truncate">{sk.name}</span>
+                                        </div>
+                                        {selectedSkills.includes(sk.name) && <Check className="w-3.5 h-3.5 text-[var(--accent-color)]" />}
+                                    </button>
+                                ))
+                            )}
+
+                            <div className="h-px bg-[var(--border-color)] my-1 mx-1" />
                             <button
-                                onClick={() => toggleSkill('Web Search')}
-                                className="w-full flex items-center gap-3 px-2.5 py-2 text-xs font-medium hover:bg-[var(--bg-secondary)] text-[var(--text-primary)] hover:text-[var(--accent-color)] transition-colors text-left group rounded-md"
+                                onClick={() => {
+                                    setIsAttachOpen(false);
+                                    navigateTo({ isSettingsOpen: true, settingsTab: 'tools' });
+                                }}
+                                className="w-full flex items-center justify-between px-2 py-1.5 text-xs font-medium text-[var(--text-muted)] hover:text-[var(--accent-color)] hover:bg-[var(--bg-secondary)] transition-colors rounded-md text-left cursor-pointer"
                             >
-                                <Globe className="w-4 h-4 text-[var(--text-muted)] group-hover:text-[#3b82f6] transition-colors" />
-                                Web Search
-                                {selectedSkills.includes('Web Search') && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-[var(--accent-color)]" />}
-                            </button>
-                            <button
-                                onClick={() => toggleSkill('Deep Research')}
-                                className="w-full flex items-center gap-3 px-2.5 py-2 text-xs font-medium hover:bg-[var(--bg-secondary)] text-[var(--text-primary)] hover:text-[var(--accent-color)] transition-colors text-left group rounded-md"
-                            >
-                                <Telescope className="w-4 h-4 text-[var(--text-muted)] group-hover:text-[#f59e0b] transition-colors" />
-                                Deep Research
-                                {selectedSkills.includes('Deep Research') && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-[var(--accent-color)]" />}
-                            </button>
-                            <div className="h-px bg-[var(--border-color)] my-1 mx-2" />
-                            <button className="w-full flex items-center gap-3 px-2.5 py-2 text-xs font-medium hover:bg-[var(--bg-secondary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors text-left group rounded-md">
-                                <Plus className="w-4 h-4" />
-                                Install/Link Skills
+                                <div className="flex items-center gap-2">
+                                    <Plus className="w-3.5 h-3.5 text-[var(--accent-color)]" />
+                                    <span>Browse Skills</span>
+                                </div>
+                                <ChevronRight className="w-3 h-3 text-[var(--text-muted)]" />
                             </button>
                         </div>
                     </div>
                 )}
             </div>
 
+            {/* Real Dynamic Plugins Submenu */}
+            <div className={`relative ${isPluginsMenuOpen ? 'z-50' : ''}`} onMouseEnter={() => openSubmenu('plugins')}>
+                <button
+                    className="w-full flex items-center justify-between px-2.5 py-2 text-[0.7rem] sm:text-xs font-medium hover:bg-[var(--bg-secondary)] text-[var(--text-primary)] hover:text-[var(--accent-color)] transition-colors text-left group rounded-md cursor-pointer"
+                >
+                    <div className="flex items-center gap-3">
+                        <Box className="w-4 h-4 text-[var(--text-muted)] group-hover:text-[var(--accent-color)] transition-colors" />
+                        Plugins
+                    </div>
+                    <ChevronRight className="w-3.5 h-3.5 text-[var(--text-muted)]" />
+                </button>
+
+                {isPluginsMenuOpen && (
+                    <div className="absolute left-8 sm:left-[97%] bottom-0 pl-1 z-50">
+                        <div className="w-52 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-xl shadow-2xl p-1 flex flex-col gap-0.5 max-h-64 overflow-y-auto custom-scrollbar">
+                            {/* Web Search */}
+                            {isWebSearchInstalled ? (
+                                <button
+                                    onClick={() => toggleSkill('Web Search')}
+                                    className="w-full flex items-center justify-between px-2.5 py-1.5 text-xs font-medium hover:bg-[var(--bg-secondary)] text-[var(--text-primary)] hover:text-[var(--accent-color)] transition-colors text-left group rounded-md cursor-pointer"
+                                >
+                                    <div className="flex items-center gap-2.5 truncate">
+                                        <Globe className="w-3.5 h-3.5 text-[var(--accent-color)] shrink-0" />
+                                        <span>Web Search</span>
+                                    </div>
+                                    {selectedSkills.includes('Web Search') && <Check className="w-3.5 h-3.5 text-[var(--accent-color)]" />}
+                                </button>
+                            ) : (
+                                <button
+                                    disabled
+                                    title="Plugin not installed in engine"
+                                    className="w-full flex items-center justify-between px-2.5 py-1.5 text-xs font-medium text-[var(--text-muted)] opacity-40 cursor-not-allowed text-left rounded-md select-none"
+                                >
+                                    <div className="flex items-center gap-2.5 truncate">
+                                        <Globe className="w-3.5 h-3.5 text-[var(--text-muted)] shrink-0" />
+                                        <span>Web Search</span>
+                                    </div>
+                                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[var(--text-muted)]">Not Installed</span>
+                                </button>
+                            )}
+
+                            {/* Deep Research */}
+                            {isDeepResearchInstalled ? (
+                                <button
+                                    onClick={() => toggleSkill('Deep Research')}
+                                    className="w-full flex items-center justify-between px-2.5 py-1.5 text-xs font-medium hover:bg-[var(--bg-secondary)] text-[var(--text-primary)] hover:text-[var(--accent-color)] transition-colors text-left group rounded-md cursor-pointer"
+                                >
+                                    <div className="flex items-center gap-2.5 truncate">
+                                        <Telescope className="w-3.5 h-3.5 text-[var(--accent-color)] shrink-0" />
+                                        <span>Deep Research</span>
+                                    </div>
+                                    {selectedSkills.includes('Deep Research') && <Check className="w-3.5 h-3.5 text-[var(--accent-color)]" />}
+                                </button>
+                            ) : (
+                                <button
+                                    disabled
+                                    title="Plugin not installed in engine"
+                                    className="w-full flex items-center justify-between px-2.5 py-1.5 text-xs font-medium text-[var(--text-muted)] opacity-40 cursor-not-allowed text-left rounded-md select-none"
+                                >
+                                    <div className="flex items-center gap-2.5 truncate">
+                                        <Telescope className="w-3.5 h-3.5 text-[var(--text-muted)] shrink-0" />
+                                        <span>Deep Research</span>
+                                    </div>
+                                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[var(--text-muted)]">Not Installed</span>
+                                </button>
+                            )}
+
+                            {/* Dynamic Installed Plugins */}
+                            {backendTools.plugins.filter(pl => pl.id !== 'web-search' && pl.id !== 'deep-research').map(pl => (
+                                <button
+                                    key={pl.id}
+                                    onClick={() => toggleSkill(pl.name)}
+                                    className="w-full flex items-center justify-between px-2.5 py-1.5 text-xs font-medium hover:bg-[var(--bg-secondary)] text-[var(--text-primary)] hover:text-[var(--accent-color)] transition-colors text-left group rounded-md cursor-pointer"
+                                >
+                                    <div className="flex items-center gap-2.5 truncate">
+                                        <DynamicToolIcon iconSvg={pl.icon_svg} fallback={<Box className="w-3.5 h-3.5 text-[var(--accent-color)] shrink-0" />} />
+                                        <span className="truncate">{pl.name}</span>
+                                    </div>
+                                    {selectedSkills.includes(pl.name) && <Check className="w-3.5 h-3.5 text-[var(--accent-color)]" />}
+                                </button>
+                            ))}
+
+                            <div className="h-px bg-[var(--border-color)] my-1 mx-1" />
+                            <button
+                                onClick={() => {
+                                    setIsAttachOpen(false);
+                                    navigateTo({ isSettingsOpen: true, settingsTab: 'tools' });
+                                }}
+                                className="w-full flex items-center justify-between px-2 py-1.5 text-xs font-medium text-[var(--text-muted)] hover:text-[var(--accent-color)] hover:bg-[var(--bg-secondary)] transition-colors rounded-md text-left cursor-pointer"
+                            >
+                                <div className="flex items-center gap-2">
+                                    <Plus className="w-3.5 h-3.5 text-[var(--accent-color)]" />
+                                    <span>Browse Plugins</span>
+                                </div>
+                                <ChevronRight className="w-3 h-3 text-[var(--text-muted)]" />
+                            </button>
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* Real Dynamic MCP Submenu */}
+            <div className={`relative ${isMcpMenuOpen ? 'z-50' : ''}`} onMouseEnter={() => openSubmenu('mcp')}>
+                <button
+                    className="w-full flex items-center justify-between px-2.5 py-2 text-[0.7rem] sm:text-xs font-medium hover:bg-[var(--bg-secondary)] text-[var(--text-primary)] hover:text-[var(--accent-color)] transition-colors text-left group rounded-md cursor-pointer"
+                >
+                    <div className="flex items-center gap-3">
+                        <Server className="w-4 h-4 text-[var(--text-muted)] group-hover:text-[var(--accent-color)] transition-colors" />
+                        MCP
+                    </div>
+                    <ChevronRight className="w-3.5 h-3.5 text-[var(--text-muted)]" />
+                </button>
+
+                {isMcpMenuOpen && (
+                    <div className="absolute left-8 sm:left-[97%] bottom-0 pl-1 z-50">
+                        <div className="w-52 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-xl shadow-2xl p-1 flex flex-col gap-0.5 max-h-56 overflow-y-auto custom-scrollbar">
+                            {backendTools.mcp.length === 0 ? (
+                                <div className="p-2.5 text-[11px] text-[var(--text-muted)] text-center italic">No MCP servers active</div>
+                            ) : (
+                                backendTools.mcp.map(mc => (
+                                    <button
+                                        key={mc.id}
+                                        onClick={() => toggleSkill(mc.name)}
+                                        className="w-full flex items-center justify-between px-2.5 py-1.5 text-xs font-medium hover:bg-[var(--bg-secondary)] text-[var(--text-primary)] hover:text-[var(--accent-color)] transition-colors text-left group rounded-md cursor-pointer"
+                                    >
+                                        <div className="flex items-center gap-2.5 truncate">
+                                            <DynamicToolIcon iconSvg={mc.icon_svg} fallback={<Server className="w-3.5 h-3.5 text-[var(--accent-color)] shrink-0" />} />
+                                            <span className="truncate">{mc.name}</span>
+                                        </div>
+                                        {selectedSkills.includes(mc.name) && <Check className="w-3.5 h-3.5 text-[var(--accent-color)]" />}
+                                    </button>
+                                ))
+                            )}
+
+                            <div className="h-px bg-[var(--border-color)] my-1 mx-1" />
+                            <button
+                                onClick={() => {
+                                    setIsAttachOpen(false);
+                                    navigateTo({ isSettingsOpen: true, settingsTab: 'tools' });
+                                }}
+                                className="w-full flex items-center justify-between px-2 py-1.5 text-xs font-medium text-[var(--text-muted)] hover:text-[var(--accent-color)] hover:bg-[var(--bg-secondary)] transition-colors rounded-md text-left cursor-pointer"
+                            >
+                                <div className="flex items-center gap-2">
+                                    <Plus className="w-3.5 h-3.5 text-[var(--accent-color)]" />
+                                    <span>Browse MCP</span>
+                                </div>
+                                <ChevronRight className="w-3 h-3 text-[var(--text-muted)]" />
+                            </button>
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* Real Thinking Mode Submenu */}
             <div className={`relative ${isThinkingMenuOpen ? 'z-50' : ''}`} onMouseEnter={() => openSubmenu('thinking')}>
                 <button
-                    className="w-full flex items-center justify-between px-2.5 py-2 text-[0.7rem] sm:text-xs font-medium hover:bg-[var(--bg-secondary)] text-[var(--text-primary)] hover:text-[var(--accent-color)] transition-colors text-left group rounded-md"
+                    className="w-full flex items-center justify-between px-2.5 py-2 text-[0.7rem] sm:text-xs font-medium hover:bg-[var(--bg-secondary)] text-[var(--text-primary)] hover:text-[var(--accent-color)] transition-colors text-left group rounded-md cursor-pointer"
                 >
                     <div className="flex items-center gap-3">
                         <Zap className="w-4 h-4 text-[var(--text-muted)] group-hover:text-[var(--accent-color)] transition-colors" />
@@ -362,17 +662,15 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                                     <Zap className="w-3.5 h-3.5 text-[var(--accent-color)]" />
                                     Thinking Mode
                                 </span>
-                                <button
-                                    onClick={() => {
+                                <ToggleSwitch
+                                    active={isThinkModeOn}
+                                    size="sm"
+                                    onToggle={() => {
                                         const newMode = isThinkModeOn ? 'Off' : 'On';
                                         if (updateBooster) updateBooster('think_mode', newMode);
-                                        // Clear conflicting skills on toggle
                                         setSelectedSkills(prev => prev.filter(s => !['Think Deep', 'Think Lite', 'Long Answer', 'Short Answer'].includes(s)));
                                     }}
-                                    className={`relative inline-flex h-4 w-7 items-center rounded-full transition-colors focus:outline-none ${isThinkModeOn ? 'bg-[var(--accent-color)]' : 'bg-[var(--bg-secondary)] border border-[var(--border-color)]'}`}
-                                >
-                                    <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${isThinkModeOn ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
-                                </button>
+                                />
                             </div>
 
                             <div className="h-px bg-[var(--border-color)] w-full" />
@@ -383,7 +681,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                                     <>
                                         <button
                                             onClick={() => handleThinkingSelect('Think Deep')}
-                                            className={`group w-full flex items-center justify-between px-2.5 py-2 rounded-md text-xs font-medium transition-all ${selectedSkills.includes('Think Deep')
+                                            className={`group w-full flex items-center justify-between px-2.5 py-2 rounded-md text-xs font-medium transition-all cursor-pointer ${selectedSkills.includes('Think Deep')
                                                 ? 'bg-[var(--bg-secondary)] text-[var(--accent-color)] border border-[var(--border-color)] shadow-sm'
                                                 : 'bg-transparent text-[var(--text-primary)] border border-transparent hover:bg-[var(--bg-secondary)] hover:text-[var(--accent-color)]'
                                                 }`}
@@ -396,7 +694,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                                         </button>
                                         <button
                                             onClick={() => handleThinkingSelect('Think Lite')}
-                                            className={`group w-full flex items-center justify-between px-2.5 py-2 rounded-md text-xs font-medium transition-all ${selectedSkills.includes('Think Lite')
+                                            className={`group w-full flex items-center justify-between px-2.5 py-2 rounded-md text-xs font-medium transition-all cursor-pointer ${selectedSkills.includes('Think Lite')
                                                 ? 'bg-[var(--bg-secondary)] text-[var(--accent-color)] border border-[var(--border-color)] shadow-sm'
                                                 : 'bg-transparent text-[var(--text-primary)] border border-transparent hover:bg-[var(--bg-secondary)] hover:text-[var(--accent-color)]'
                                                 }`}
@@ -412,7 +710,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                                     <>
                                         <button
                                             onClick={() => handleThinkingSelect('Long Answer')}
-                                            className={`group w-full flex items-center justify-between px-2.5 py-2 rounded-md text-xs font-medium transition-all ${selectedSkills.includes('Long Answer')
+                                            className={`group w-full flex items-center justify-between px-2.5 py-2 rounded-md text-xs font-medium transition-all cursor-pointer ${selectedSkills.includes('Long Answer')
                                                 ? 'bg-[var(--bg-secondary)] text-[var(--accent-color)] border border-[var(--border-color)] shadow-sm'
                                                 : 'bg-transparent text-[var(--text-primary)] border border-transparent hover:bg-[var(--bg-secondary)] hover:text-[var(--accent-color)]'
                                                 }`}
@@ -425,7 +723,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                                         </button>
                                         <button
                                             onClick={() => handleThinkingSelect('Short Answer')}
-                                            className={`group w-full flex items-center justify-between px-2.5 py-2 rounded-md text-xs font-medium transition-all ${selectedSkills.includes('Short Answer')
+                                            className={`group w-full flex items-center justify-between px-2.5 py-2 rounded-md text-xs font-medium transition-all cursor-pointer ${selectedSkills.includes('Short Answer')
                                                 ? 'bg-[var(--bg-secondary)] text-[var(--accent-color)] border border-[var(--border-color)] shadow-sm'
                                                 : 'bg-transparent text-[var(--text-primary)] border border-transparent hover:bg-[var(--bg-secondary)] hover:text-[var(--accent-color)]'
                                                 }`}
@@ -439,17 +737,23 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                                     </>
                                 )}
                             </div>
-
                         </div>
                     </div>
                 )}
             </div>
-
         </div>
     );
 
     const renderInputContent = () => (
         <>
+            <input
+                type="file"
+                ref={fileInputRef}
+                multiple
+                onChange={handleFileSelect}
+                className="hidden"
+            />
+
             {/* ---------------- SINGLE LINE LAYOUT (Left Buttons) ---------------- */}
             {!isExpanded && (
                 <div className="flex-shrink-0 relative" ref={attachRef}>
@@ -476,7 +780,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {
                         e.preventDefault();
-                        handleSendMessage();
+                        handleSendWithAttachments();
                     }
                 }}
                 rows={1}
@@ -485,10 +789,30 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             {/* ---------------- SINGLE LINE LAYOUT (Right Buttons) ---------------- */}
             {!isExpanded && (
                 <div className="flex-shrink-0 flex items-center gap-1 mb-[2px]">
+                    {/* ---------------- RENDER ATTACHED FILE CHIPS ---------------- */}
+                    {attachedFiles.map(file => (
+                        <div
+                            key={file.id}
+                            title={`${file.name} (${formatBytes(file.size)})`}
+                            className="group relative flex items-center gap-1.5 px-2 sm:px-2.5 py-1 bg-[var(--bg-secondary)] rounded-lg border border-[var(--border-color)] text-[0.7rem] sm:text-xs font-medium text-[var(--text-primary)] hover:border-[var(--accent-color)] transition-colors"
+                        >
+                            <FileText className="w-3.5 h-3.5 text-[var(--accent-color)] flex-shrink-0" />
+                            <span className="truncate max-w-[100px] sm:max-w-[140px]">{file.name}</span>
+                            <span className="text-[10px] text-[var(--text-muted)] font-mono hidden sm:inline">({formatBytes(file.size)})</span>
+                            <button
+                                type="button"
+                                onClick={() => removeFile(file.id)}
+                                className="text-[var(--text-muted)] hover:text-[var(--text-primary)] p-0.5 rounded transition-colors cursor-pointer"
+                            >
+                                <X className="w-3 h-3" />
+                            </button>
+                        </div>
+                    ))}
+
                     {/* ---------------- RENDER CHIPS ---------------- */}
                     {selectedSkills.map(skill => (
                         <div key={skill} title={skill} onClick={() => removeSkill(skill)} className="group relative flex items-center gap-1.5 px-2 sm:px-2.5 py-1.5 sm:py-1 bg-transparent rounded-lg border border-[var(--border-color)] text-[0.7rem] sm:text-xs font-medium text-[var(--text-primary)] whitespace-nowrap overflow-hidden cursor-pointer sm:cursor-default hover:border-[var(--text-muted)] transition-colors">
-                            {getSkillIcon(skill)}
+                            {getSelectedToolIcon(skill)}
                             <span className="hidden sm:inline">{skill}</span>
                             <button
                                 onClick={(e) => { e.stopPropagation(); removeSkill(skill); }}
@@ -538,10 +862,10 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                         <Mic className="w-4 sm:w-5 h-4 sm:h-5" />
                     </button>
 
-                    <div className={`transition-all duration-100 ease-out overflow-hidden flex items-center ${inputValue.trim() ? 'w-[2rem] sm:w-[2.25rem] opacity-100 scale-100' : 'w-0 opacity-0 scale-0'}`}>
+                    <div className={`transition-all duration-100 ease-out overflow-hidden flex items-center ${(inputValue.trim() || attachedFiles.length > 0) ? 'w-[2rem] sm:w-[2.25rem] opacity-100 scale-100' : 'w-0 opacity-0 scale-0'}`}>
                         <button
-                            onClick={handleSendMessage}
-                            className="w-[2rem] sm:w-[2.25rem] h-[2rem] sm:h-[2.25rem] flex-shrink-0 rounded-full flex items-center justify-center bg-[var(--accent-color)] text-[var(--accent-contrast)] hover:opacity-90 transition-transform active:scale-95"
+                            onClick={handleSendWithAttachments}
+                            className="w-[2rem] sm:w-[2.25rem] h-[2rem] sm:h-[2.25rem] flex-shrink-0 rounded-full flex items-center justify-center bg-[var(--accent-color)] text-[var(--accent-contrast)] hover:opacity-90 transition-transform active:scale-95 cursor-pointer"
                         >
                             <Send className="w-3.5 sm:w-4 h-3.5 sm:h-4 -ml-0.5" />
                         </button>
@@ -566,10 +890,30 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                     </div>
 
                     <div className="flex items-center gap-1 flex-wrap max-w-full">
+                        {/* ---------------- RENDER ATTACHED FILE CHIPS ---------------- */}
+                        {attachedFiles.map(file => (
+                            <div
+                                key={file.id}
+                                title={`${file.name} (${formatBytes(file.size)})`}
+                                className="group relative flex items-center gap-1.5 px-2 sm:px-2.5 py-1 bg-[var(--bg-secondary)] rounded-lg border border-[var(--border-color)] text-[0.7rem] sm:text-xs font-medium text-[var(--text-primary)] hover:border-[var(--accent-color)] transition-colors"
+                            >
+                                <FileText className="w-3.5 h-3.5 text-[var(--accent-color)] flex-shrink-0" />
+                                <span className="truncate max-w-[100px] sm:max-w-[140px]">{file.name}</span>
+                                <span className="text-[10px] text-[var(--text-muted)] font-mono hidden sm:inline">({formatBytes(file.size)})</span>
+                                <button
+                                    type="button"
+                                    onClick={() => removeFile(file.id)}
+                                    className="text-[var(--text-muted)] hover:text-[var(--text-primary)] p-0.5 rounded transition-colors cursor-pointer"
+                                >
+                                    <X className="w-3 h-3" />
+                                </button>
+                            </div>
+                        ))}
+
                         {/* ---------------- RENDER CHIPS ---------------- */}
                         {selectedSkills.map(skill => (
                             <div key={skill} title={skill} onClick={() => removeSkill(skill)} className="group relative flex items-center gap-1.5 px-2 sm:px-2.5 py-1.5 sm:py-1 bg-transparent rounded-lg border border-[var(--border-color)] text-[0.7rem] sm:text-xs font-medium text-[var(--text-primary)] whitespace-nowrap overflow-hidden cursor-pointer sm:cursor-default hover:border-[var(--text-muted)] transition-colors">
-                                {getSkillIcon(skill)}
+                                {getSelectedToolIcon(skill)}
                                 <span className="hidden sm:inline">{skill}</span>
                                 <button
                                     onClick={(e) => { e.stopPropagation(); removeSkill(skill); }}
@@ -619,10 +963,10 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                             <Mic className="w-4 sm:w-5 h-4 sm:h-5" />
                         </button>
 
-                        <div className={`transition-all duration-200 ease-out overflow-hidden flex items-center ${inputValue.trim() ? 'w-[2rem] sm:w-[2.25rem] opacity-100 scale-100' : 'w-0 opacity-0 scale-0'}`}>
+                        <div className={`transition-all duration-200 ease-out overflow-hidden flex items-center ${(inputValue.trim() || attachedFiles.length > 0) ? 'w-[2rem] sm:w-[2.25rem] opacity-100 scale-100' : 'w-0 opacity-0 scale-0'}`}>
                             <button
-                                onClick={handleSendMessage}
-                                className="w-[2rem] sm:w-[2.25rem] h-[2rem] sm:h-[2.25rem] flex-shrink-0 rounded-full flex items-center justify-center bg-[var(--accent-color)] text-[var(--accent-contrast)] hover:opacity-90 transition-transform active:scale-95"
+                                onClick={handleSendWithAttachments}
+                                className="w-[2rem] sm:w-[2.25rem] h-[2rem] sm:h-[2.25rem] flex-shrink-0 rounded-full flex items-center justify-center bg-[var(--accent-color)] text-[var(--accent-contrast)] hover:opacity-90 transition-transform active:scale-95 cursor-pointer"
                             >
                                 <Send className="w-3.5 sm:w-4 h-3.5 sm:h-4 -ml-0.5" />
                             </button>
