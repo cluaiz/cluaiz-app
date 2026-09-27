@@ -251,7 +251,7 @@ main().catch(console.error);`);
         };
     }, []);
 
-    const handleSendMessage = async (customText?: string) => {
+    const handleSendMessage = async (customText?: string, options?: import('../../../core/engine').SendChatOptions) => {
         const textToSend = typeof customText === 'string' ? customText : inputValue;
         if (!textToSend.trim() && !replyingTo) return;
         const messageText = textToSend || 'Replying to context...';
@@ -285,7 +285,7 @@ main().catch(console.error);`);
 
         try {
             const { cluaizEngine } = await import('../../../core/engine');
-            await cluaizEngine.send(messageText);
+            await cluaizEngine.send(messageText, options);
         } catch (error) {
             console.error("Engine connection error:", error);
             const currentStore = useChatStore.getState();
