@@ -209,15 +209,15 @@ main().catch(console.error);`);
         let unlistenToken: (() => void) | undefined;
         let isUnmounted = false;
 
-        import('../../../core/engine').then(({ CluaizeEngine }) => {
+        import('../../../core/engine').then(({ cluaizEngine }) => {
             // Conditionally boot the engine based on user settings
             if (launchOnStartup) {
-                CluaizeEngine.boot().then(() => {
+                cluaizEngine.boot().then(() => {
                     useChatStore.getState().fetchSessionsFromEngine();
                 }).catch(console.error);
             }
 
-            CluaizeEngine.onToken((token) => {
+            cluaizEngine.onToken((token) => {
                 const store = useChatStore.getState();
                 if (!store.activeSessionId) return;
 
@@ -251,15 +251,16 @@ main().catch(console.error);`);
         };
     }, []);
 
-    const handleSendMessage = async () => {
-        if (!inputValue.trim() && !replyingTo) return;
-        const messageText = inputValue || 'Replying to context...';
+    const handleSendMessage = async (customText?: string) => {
+        const textToSend = typeof customText === 'string' ? customText : inputValue;
+        if (!textToSend.trim() && !replyingTo) return;
+        const messageText = textToSend || 'Replying to context...';
 
         // Dynamically boot the engine on the first send if "Load Model on Send" is enabled
         const permissions = useEngineStore.getState().permissions;
         if (permissions?.lazy_load_model) {
-            const { CluaizeEngine } = await import('../../../core/engine');
-            await CluaizeEngine.boot();
+            const { cluaizEngine } = await import('../../../core/engine');
+            await cluaizEngine.boot();
         }
 
         const now = new Date();
@@ -283,15 +284,15 @@ main().catch(console.error);`);
         setReplyingTo(null);
 
         try {
-            const { CluaizeEngine } = await import('../../../core/engine');
-            await CluaizeEngine.send(messageText);
+            const { cluaizEngine } = await import('../../../core/engine');
+            await cluaizEngine.send(messageText);
         } catch (error) {
             console.error("Engine connection error:", error);
             const currentStore = useChatStore.getState();
             if (currentStore.activeSessionId) {
                 currentStore.addMessage(currentStore.activeSessionId, {
                     sender: 'system',
-                    text: `[System Error]: Failed to connect to Cluaize Engine via FFI.`,
+                    text: `[System Error]: Failed to connect to cluaiz Engine via FFI.`,
                     time: timeStr,
                     date: now.getTime()
                 });
@@ -695,11 +696,11 @@ main().catch(console.error);`);
                             ) : (
                                 <div className="space-y-4 text-xs md:text-sm text-[var(--text-secondary)] leading-relaxed">
                                     <div className="border-b border-[var(--border-color)] pb-2 mb-2">
-                                        <h3 className="text-sm font-bold text-[var(--accent-color)] uppercase tracking-wider">CLUAIZE ENGINE ARCHITECTURE SPECIFICATIONS</h3>
+                                        <h3 className="text-sm font-bold text-[var(--accent-color)] uppercase tracking-wider">cluaiz ENGINE ARCHITECTURE SPECIFICATIONS</h3>
                                         <p className="text-[var(--text-muted)] text-xs">Document Version: v1.0.3 | Reference Node: CLZ-9892</p>
                                     </div>
                                     <p>
-                                        <strong>1. System Overview:</strong> The Cluaize Engine is designed to facilitate native compilation routing for both web and Tauri-powered desktop architectures. Theme assets are decoupled from UI code via standardized variables.
+                                        <strong>1. System Overview:</strong> The cluaiz Engine is designed to facilitate native compilation routing for both web and Tauri-powered desktop architectures. Theme assets are decoupled from UI code via standardized variables.
                                     </p>
                                     <p>
                                         <strong>2. Component Isolation:</strong> Every visual unit exists inside isolated namespaces. Reusability is achieved through structural bindings. Accents are fed dynamically from state machines.

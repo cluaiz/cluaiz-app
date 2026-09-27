@@ -81,9 +81,9 @@ export function TitleBar() {
     const LogoSection = () => (
         <div className="flex items-center px-3 h-full">
             <div data-tauri-drag-region className="flex items-center h-full cursor-default pr-3">
-                <img src="/logo.ico" alt="Cluaize Logo" className={`w-4 h-4 object-contain mr-2 drop-shadow-sm pointer-events-none transition-all duration-300 ${theme === 'light' ? 'brightness-0' : 'invert dark:invert-0'}`} />
+                <img src="/logo.ico" alt="cluaiz Logo" className={`w-4 h-4 object-contain mr-2 drop-shadow-sm pointer-events-none transition-all duration-300 ${theme === 'light' ? 'brightness-0' : 'invert dark:invert-0'}`} />
                 <span className="text-xs font-bold text-[var(--text-primary)] tracking-widest pointer-events-none">
-                    Cluaize
+                    cluaiz
                 </span>
             </div>
 

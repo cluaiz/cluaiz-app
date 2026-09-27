@@ -1,5 +1,5 @@
 /**
- * CDQL (Cluaize Database Query Language) Builders
+ * CDQL (cluaiz Database Query Language) Builders
  * 
  * This file contains utility functions to generate CDQL strings
  * that the app will send to the Cluaiz Engine for execution.

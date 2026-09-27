@@ -3,12 +3,12 @@ use std::path::PathBuf;
 use std::io::{BufReader, Read};
 use crate::core::state::EngineState;
 
-/// Locates the `~/.cluaize/bin` directory where the production engine lives
+/// Locates the `~/.cluaiz/bin` directory where the production engine lives
 pub fn get_cluaiz_bin_path() -> Result<PathBuf, String> {
     let home = dirs::home_dir().ok_or("Could not find home directory")?;
-    let bin_path = home.join(".cluaize").join("bin");
+    let bin_path = home.join(".cluaiz").join("bin");
     if !bin_path.exists() {
-        return Err(format!("Cluaize system not found at {:?}", bin_path));
+        return Err(format!("cluaiz system not found at {:?}", bin_path));
     }
     Ok(bin_path)
 }
@@ -18,7 +18,7 @@ pub async fn boot_cluaiz_engine(app: AppHandle) -> Result<String, String> {
     let state = app.state::<EngineState>();
     let bin_dir = get_cluaiz_bin_path()?;
     
-    let exe_path = bin_dir.join("cluaize.exe");
+    let exe_path = bin_dir.join("cluaiz.exe");
 
     if !exe_path.exists() {
         return Err(format!("Engine executable not found at {:?}", exe_path));
@@ -33,7 +33,7 @@ pub async fn boot_cluaiz_engine(app: AppHandle) -> Result<String, String> {
         }
     }
 
-    println!("🚀 [FFI] Booting Cluaize Engine at: {:?}", exe_path);
+    println!("🚀 [FFI] Booting cluaiz Engine at: {:?}", exe_path);
     let mut cmd = std::process::Command::new(&exe_path);
     cmd.arg("serve");
     
@@ -103,7 +103,7 @@ pub async fn boot_cluaiz_engine(app: AppHandle) -> Result<String, String> {
 
                 let mut client_opt = None;
                 for _ in 0..15 {
-                    match ClientOptions::new().open(r"\\.\pipe\cluaize_engine_pipe") {
+                    match ClientOptions::new().open(r"\\.\pipe\cluaiz_engine_pipe") {
                         Ok(c) => {
                             client_opt = Some(c);
                             break;

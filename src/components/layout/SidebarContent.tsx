@@ -417,11 +417,11 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                                             {sidebarPosition === 'left' ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
                                         </button>
                                     ) : (
-                                        <img src="/logo.ico" alt="Cluaize Logo" className={`w-10 h-10 object-contain drop-shadow-sm transition-all duration-300 ${theme === 'light' ? 'brightness-0' : 'invert dark:invert-0'}`} />
+                                        <img src="/logo.ico" alt="cluaiz Logo" className={`w-10 h-10 object-contain drop-shadow-sm transition-all duration-300 ${theme === 'light' ? 'brightness-0' : 'invert dark:invert-0'}`} />
                                     )}
                                 </Tooltip>
                             </div>
-                            {!sidebarCollapsed && <span className="font-extrabold text-lg tracking-widest text-[var(--text-primary)]">Cluaize</span>}
+                            {!sidebarCollapsed && <span className="font-extrabold text-lg tracking-widest text-[var(--text-primary)]">cluaiz</span>}
                         </div>
                         {!sidebarCollapsed && (
                             <div className="flex items-center gap-1">

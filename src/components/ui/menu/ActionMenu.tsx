@@ -17,7 +17,7 @@ const appsList = [
     { id: 'database', icon: Database, bg: 'linear-gradient(135deg, #06b6d4, #22d3ee)', label: 'Database' },
     { id: 'system_monitor', icon: Activity, bg: 'linear-gradient(135deg, #ef4444, #f87171)', label: 'System Monitor' },
     { id: 'cpu_logs', icon: Terminal, bg: 'linear-gradient(135deg, #8b5cf6, #a78bfa)', label: 'CPU Logs' },
-    { id: 'cluaize_control', icon: Server, bg: 'linear-gradient(135deg, #14b8a6, #2dd4bf)', label: 'cluaize Control' },
+    { id: 'cluaiz_control', icon: Server, bg: 'linear-gradient(135deg, #14b8a6, #2dd4bf)', label: 'cluaiz Control' },
     { id: 'cluaizd_daemon', icon: Server, bg: 'linear-gradient(135deg, #f97316, #fb923c)', label: 'cluaizd Daemon' },
     { id: 'settings_theme', icon: Palette, bg: 'linear-gradient(135deg, #ec4899, #f472b6)', label: 'Theme Settings' },
     { id: 'settings_shortcuts', icon: Keyboard, bg: 'linear-gradient(135deg, #8b5cf6, #c084fc)', label: 'Shortcuts Settings' },
@@ -111,7 +111,7 @@ export function ActionMenu({ onClose, onOpenSettings }: ActionMenuProps) {
         if (!id) return;
 
         if (id === 'github') {
-            window.open('https://github.com/cluaiz/cluaize-app', '_blank');
+            window.open('https://github.com/cluaiz/cluaiz-app', '_blank');
         } else if (id === 'app_chat') {
             document.dispatchEvent(new CustomEvent('start-new-chat'));
         } else if (id === 'dashboard') {

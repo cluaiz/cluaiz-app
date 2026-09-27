@@ -31,7 +31,7 @@ export async function executeCDQLFFI(query: string): Promise<string> {
 /**
  * Boots the Cluaiz Engine in the background.
  */
-export async function bootCluaizEngine(): Promise<string> {
+export async function bootcluaizngine(): Promise<string> {
     if (!isTauri()) return "Web Mode (No Engine)";
     return await invoke<string>('boot_cluaiz_engine');
 }

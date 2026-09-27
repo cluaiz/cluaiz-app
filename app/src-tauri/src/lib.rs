@@ -25,7 +25,7 @@ pub fn run() {
                 let state = app_handle.state::<EngineState>();
                 if let Ok(mut child_lock) = state.inner().child_process.lock() {
                     if let Some(mut child) = child_lock.take() {
-                        println!("🛑 Tauri App Exiting: Killing Cluaize Engine...");
+                        println!("🛑 Tauri App Exiting: Killing cluaiz Engine...");
                         let _ = child.kill();
                     }
                 }
