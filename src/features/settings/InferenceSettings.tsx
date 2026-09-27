@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { SettingSection, SettingItem, SettingSlider } from './SharedComponents';
-import { useConnectionStore } from '../../../store/engine/useConnectionStore';
+import { useConnectionStore } from '../../store/engine/useConnectionStore';
 import { Check, Loader2 } from 'lucide-react';
 
 interface GgufHardwareExecution {

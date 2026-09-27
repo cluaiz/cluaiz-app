@@ -1,7 +1,7 @@
-import { useThemeStore } from '../../../store/ui/useThemeStore';
+import { useThemeStore } from '../../store/ui/useThemeStore';
 import { Palette, Bot, Type, X, MousePointer } from 'lucide-react';
 import { SettingSection, SettingItem, ThemeCard } from './SharedComponents';
-import { ElasticSlider } from '../cursor/ElasticSlider';
+import { ElasticSlider } from '../../components/ui/cursor/ElasticSlider';
 
 function cn(...classes: (string | boolean | undefined | null)[]) {
     return classes.filter(Boolean).join(' ');

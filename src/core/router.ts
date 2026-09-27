@@ -144,3 +144,13 @@ export function pushViewRoute(view: MainViewId, replace: boolean = false): void 
         window.history.pushState({ isSettings: false, view }, '', targetUrl);
     }
 }
+
+/**
+ * Programmatically triggers navigation to settings tab or app view.
+ */
+export function navigateTo(target: { isSettingsOpen?: boolean; settingsTab?: SettingsTabId }): void {
+    if (target.isSettingsOpen) {
+        document.dispatchEvent(new CustomEvent('open-settings', { detail: { tab: target.settingsTab || 'general' } }));
+    }
+}
+

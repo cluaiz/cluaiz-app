@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { SettingSection, SettingItem } from './SharedComponents';
-import { useConnectionStore } from '../../../store/engine/useConnectionStore';
+import { useConnectionStore } from '../../store/engine/useConnectionStore';
 import { Key, Copy, Check, Trash2, AlertTriangle, X } from 'lucide-react';
 
 interface ApiAuth {

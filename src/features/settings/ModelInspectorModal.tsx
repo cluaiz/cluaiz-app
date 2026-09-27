@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Download, RefreshCw, Copy, Check, Search, Zap, FileCode, MessageSquare, Dna, FileText } from 'lucide-react';
-import { InstalledModelDetail } from '../../../store/engine/useEngineStore';
-import { useConnectionStore } from '../../../store/engine/useConnectionStore';
+import { InstalledModelDetail } from '../../store/engine/useEngineStore';
+import { useConnectionStore } from '../../store/engine/useConnectionStore';
 
 interface ModelInspectorModalProps {
     isOpen: boolean;

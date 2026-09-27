@@ -3,7 +3,7 @@ import { NodeViewWrapper, NodeViewContent } from '@tiptap/react';
 import { Check, Copy } from 'lucide-react';
 import hljs from 'highlight.js';
 import 'highlight.js/styles/github-dark.css';
-import { Button } from '../../Button';
+import { Button } from '../../../components/ui/Button';
 
 const cn = (...classes: (string | undefined | null | false)[]) => classes.filter(Boolean).join(" ");
 

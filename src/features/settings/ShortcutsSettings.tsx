@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Keyboard, RotateCcw } from 'lucide-react';
-import { useShortcutStore, formatBinding, ActionId, ShortcutBinding, parseKeyboardEvent } from '../../../store/ui/useShortcutStore';
-import { Button } from '../Button';
+import { useShortcutStore, formatBinding, ActionId, ShortcutBinding, parseKeyboardEvent } from '../../store/ui/useShortcutStore';
+import { Button } from '../../components/ui/Button';
 
 export function ShortcutsSettings() {
     const { shortcuts, updateShortcut, resetAllShortcuts, resetShortcut } = useShortcutStore();

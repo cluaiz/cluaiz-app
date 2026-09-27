@@ -1,7 +1,11 @@
 import React from 'react';
 import { ChevronRight } from 'lucide-react';
-import { CustomDropdown, DropdownOption } from '../dropdown/CustomDropdown';
-import { ElasticSlider } from '../cursor/ElasticSlider';
+import { CustomDropdown, DropdownOption } from '../../components/ui/dropdown/CustomDropdown';
+import { ElasticSlider } from '../../components/ui/cursor/ElasticSlider';
+import { ToggleSwitch, ToggleSwitchProps } from '../../components/ui/ToggleSwitch';
+
+export { ToggleSwitch };
+export type { ToggleSwitchProps };
 
 function cn(...classes: (string | boolean | undefined | null)[]) {
     return classes.filter(Boolean).join(' ');
@@ -33,50 +37,6 @@ interface SettingItemProps {
     children?: React.ReactNode;
     onClick?: () => void;
 }
-
-export interface ToggleSwitchProps {
-    active: boolean;
-    onToggle?: () => void;
-    size?: 'sm' | 'md';
-    className?: string;
-}
-
-export const ToggleSwitch: React.FC<ToggleSwitchProps> = ({
-    active,
-    onToggle,
-    size = 'md',
-    className
-}) => {
-    const isSm = size === 'sm';
-    return (
-        <div
-            onClick={(e) => {
-                e.stopPropagation();
-                onToggle?.();
-            }}
-            className={cn(
-                isSm 
-                    ? "w-[34px] h-[19px] p-[2px]" 
-                    : "w-[44px] h-[24px] p-[3px]",
-                "rounded-full flex items-center transition-all duration-200 shrink-0 cursor-pointer select-none",
-                active
-                    ? "bg-[var(--accent-color)] border border-[var(--accent-color)]/30 shadow-[0_0_12px_var(--accent-color)]/20"
-                    : "bg-white/10 border border-white/10 hover:bg-white/15",
-                className
-            )}
-        >
-            <div
-                className={cn(
-                    isSm ? "w-[15px] h-[15px]" : "w-[18px] h-[18px]",
-                    "rounded-full shadow-md transition-transform duration-200",
-                    active 
-                        ? (isSm ? "translate-x-[15px] bg-[var(--bg-primary)]" : "translate-x-[20px] bg-[var(--bg-primary)]") 
-                        : "translate-x-0 bg-zinc-400"
-                )}
-            />
-        </div>
-    );
-};
 
 export const SettingItem = ({ label, description, dynamicDescription, toggle = false, action, active = false, onToggle, onClick, icon: Icon, select, value, onChange, children }: SettingItemProps) => {
     const handleClick = (e: React.MouseEvent) => {
