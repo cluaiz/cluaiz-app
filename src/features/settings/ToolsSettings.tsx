@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { SettingSection, SettingItem } from './SharedComponents';
-import { useConnectionStore } from '../../../store/engine/useConnectionStore';
+import { useConnectionStore } from '../../store/engine/useConnectionStore';
 import { 
     Zap, Blocks, Cpu, Trash2, CheckCircle2, X, Folder, FolderOpen,
     FileText, FileCode, Image as ImageIcon, Palette, Eye, Code, 

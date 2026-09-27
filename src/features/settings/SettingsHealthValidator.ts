@@ -1,4 +1,4 @@
-import { BoosterControl, HardwareInfo, SettingAlert } from '../../../store/engine/useEngineStore';
+import { BoosterControl, HardwareInfo, SettingAlert } from '../../store/engine/useEngineStore';
 
 /**
  * Validates booster settings against real hardware and returns alerts.

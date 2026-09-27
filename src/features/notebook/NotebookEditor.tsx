@@ -3,10 +3,10 @@
 import React, { useState, useRef, useEffect } from "react";
 import { ArrowLeft, Brain, Activity, Save, Database, Hash, Sparkles, Wand2, Undo2, Redo2, RefreshCcw, Check, Clock, Loader2, PanelRightClose, PanelRight, FileText, Zap } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Button } from "../Button";
-import { Input } from "../Input";
+import { Button } from "../../components/ui/Button";
+import { Input } from "../../components/ui/Input";
 import { BrainEditor } from "./editor/NotebookRichEditor";
-import { useLayoutStore } from "../../../store/ui/useLayoutStore";
+import { useLayoutStore } from "../../store/ui/useLayoutStore";
 
 const cn = (...classes: (string | undefined | null | false)[]) => classes.filter(Boolean).join(" ");
 

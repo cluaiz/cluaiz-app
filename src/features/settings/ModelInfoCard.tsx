@@ -1,5 +1,5 @@
 import { ExternalLink, Cpu, Layers, Hash } from 'lucide-react';
-import { InstalledModelDetail } from '../../../store/engine/useEngineStore';
+import { InstalledModelDetail } from '../../store/engine/useEngineStore';
 
 interface ModelInfoCardProps {
     model: InstalledModelDetail;

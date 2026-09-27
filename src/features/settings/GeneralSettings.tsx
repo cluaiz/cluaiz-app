@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { SettingSection, SettingItem } from './SharedComponents';
-import { useConnectionStore, ConnectionProtocol } from '../../../store/engine/useConnectionStore';
+import { useConnectionStore, ConnectionProtocol } from '../../store/engine/useConnectionStore';
 
 export function GeneralSettings() {
     // Startup & Localization State

@@ -49,11 +49,11 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
-} from "../../Dialog";
-import { Input } from "../../Input";
-import { Button } from "../../Button";
+} from "../../../components/ui/Dialog";
+import { Input } from "../../../components/ui/Input";
+import { Button } from "../../../components/ui/Button";
 import EmojiPicker, { Theme } from "emoji-picker-react";
-import { useThemeStore } from "../../../../store/ui/useThemeStore";
+import { useThemeStore } from "../../../store/ui/useThemeStore";
 import { AiFillYoutube } from "react-icons/ai";
 
 const cn = (...classes: (string | undefined | null | false)[]) => classes.filter(Boolean).join(" ");

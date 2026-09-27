@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { SettingSection, SettingItem } from './SharedComponents';
 import { Bell, Volume2, Mail, MessageSquare, ShieldAlert } from 'lucide-react';
-import { ElasticSlider } from '../cursor/ElasticSlider';
+import { ElasticSlider } from '../../components/ui/cursor/ElasticSlider';
 
 export function NotificationsSettings() {
     const [desktopPush, setDesktopPush] = useState(true);

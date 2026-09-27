@@ -1,10 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useEngineStore, InstalledModelDetail } from '../../../store/engine/useEngineStore';
+import { useEngineStore, InstalledModelDetail } from '../../store/engine/useEngineStore';
 import { SettingSection, SettingItem, SelectOption } from './SharedComponents';
 import { validateSettings, getOverallHealth } from './SettingsHealthValidator';
 import { ModelInfoCard } from './ModelInfoCard';
 import { ModelInspectorModal } from './ModelInspectorModal';
-import { CustomDropdown, DropdownOption } from '../dropdown/CustomDropdown';
+import { CustomDropdown, DropdownOption } from '../../components/ui/dropdown/CustomDropdown';
 
 const DESC_CONTEXT: Record<string, string> = {
     'Auto': 'System dynamically balances memory consumption and chat history retention.',

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Settings, Shield, Palette, Bell, HelpCircle, ExternalLink, Keyboard, Cpu, Zap, Layers, Boxes, Heart, SlidersHorizontal } from 'lucide-react';
-import pkg from '../../../../package.json';
+import pkg from '../../../package.json';
 import { GeneralSettings } from './GeneralSettings';
 import { SecuritySettings } from './SecuritySettings';
 import { ChatsSettings } from './ChatsSettings';
@@ -11,7 +11,7 @@ import { EngineSettings } from './EngineSettings';
 import { InferenceSettings } from './InferenceSettings';
 import { VectorSettings } from './VectorSettings';
 import { ToolsSettings } from './ToolsSettings';
-import { isTauri } from '../../../core/tauri-api';
+import { isTauri } from '../../core/tauri-api';
 
 interface SettingsOverlayProps {
     isOpen: boolean;
