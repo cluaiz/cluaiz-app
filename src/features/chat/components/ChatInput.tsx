@@ -91,10 +91,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     const [modelTextWidth, setModelTextWidth] = useState(200);
     const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
     const [isEffortMenuOpen, setIsEffortMenuOpen] = useState(false);
-    const [isResponseLengthMenuOpen, setIsResponseLengthMenuOpen] = useState(false);
+    const [isThinkModeMenuOpen, setIsThinkModeMenuOpen] = useState(false);
     const [thinkMode, setThinkMode] = useState<'auto' | 'on' | 'off'>('auto');
     const [effort, setEffort] = useState<'auto' | 'low' | 'medium' | 'high' | 'max'>('auto');
-    const [responseLength, setResponseLength] = useState<'auto' | 'short' | 'standard' | 'long'>('auto');
     const [isRecentMenuOpen, setIsRecentMenuOpen] = useState(false);
     const [isSkillsMenuOpen, setIsSkillsMenuOpen] = useState(false);
     const [isPluginsMenuOpen, setIsPluginsMenuOpen] = useState(false);
@@ -205,6 +204,14 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         setAttachedFiles(prev => prev.filter(f => f.id !== id));
     };
 
+    // Engine State for Think Mode
+    const booster = useEngineStore(s => s.booster);
+    const updateBooster = useEngineStore(s => s.updateBooster);
+    const permissions = useEngineStore(s => s.permissions);
+    const updatePermission = useEngineStore(s => s.updatePermission);
+    const fetchStatus = useEngineStore(s => s.fetchStatus);
+    const initEngineSettings = useEngineStore(s => s.initEngineSettings);
+
     const handleSendWithAttachments = () => {
         if (!inputValue.trim() && attachedFiles.length === 0) return;
 
@@ -214,24 +221,21 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             finalMsg = finalMsg ? `${finalMsg}\n\n${filesSummary}` : filesSummary;
         }
 
+        const activeTools = selectedSkills
+            .filter(s => !['Think Deep', 'Think Lite', 'Long Answer', 'Short Answer'].includes(s))
+            .map(s => ({ name: s, id: s }));
+
         const options: import('../../../core/engine').SendChatOptions = {
             think_mode: thinkMode,
             reasoning_effort: effort,
-            ...(responseLength !== 'auto' ? { response_length: responseLength } : {})
+            model: permissions?.chat_models?.text || undefined,
+            tools: activeTools.length > 0 ? activeTools : undefined,
         };
 
         handleSendMessage(finalMsg, options);
         setInputValue('');
         setAttachedFiles([]);
     };
-
-    // Engine State for Think Mode
-    const booster = useEngineStore(s => s.booster);
-    const updateBooster = useEngineStore(s => s.updateBooster);
-    const permissions = useEngineStore(s => s.permissions);
-    const updatePermission = useEngineStore(s => s.updatePermission);
-    const fetchStatus = useEngineStore(s => s.fetchStatus);
-    const initEngineSettings = useEngineStore(s => s.initEngineSettings);
 
 
     // Auto-fetch settings if not already fetched
@@ -241,25 +245,53 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         }
     }, [fetchStatus, initEngineSettings]);
 
-    // Dynamic Model Processing
+    // Dynamic Model Processing (From Engine /v1/models/installed with permissions fallback)
+    const [installedModels, setInstalledModels] = useState<Array<{ id: string; fullName: string; shortName: string }>>([]);
+
+    useEffect(() => {
+        const fetchInstalledModels = async () => {
+            try {
+                const res = await fetch(`${getBaseUrl()}/v1/models/installed`);
+                if (res.ok) {
+                    const data = await res.json();
+                    const raw = data.installed || data.installed_models || data.models || [];
+                    const list = Array.isArray(raw) ? raw : Object.values(raw);
+                    const chatModels = list.filter((m: any) => !m.category || m.category === 'chat');
+                    if (chatModels.length > 0) {
+                        setInstalledModels(chatModels.map((m: any) => {
+                            const formatted = formatModelName(m.id || m.name);
+                            return {
+                                id: m.id || m.name,
+                                fullName: formatted.fullName,
+                                shortName: formatted.shortName
+                            };
+                        }));
+                    }
+                }
+            } catch (e) {
+                // Silently fallback to permissions
+            }
+        };
+        fetchInstalledModels();
+    }, [getBaseUrl]);
+
     const availableModels = permissions?.available_chat_models?.length
         ? permissions.available_chat_models
         : permissions?.available_models ?? [];
 
     const activeModelId = permissions?.chat_models?.text || 'Unknown Model';
-
-    // Ensure active model is in the list if availableModels is empty
     const displayModels = availableModels.length > 0 ? availableModels : [activeModelId];
 
-    const modelOptions = displayModels.map(id => {
-        const formatted = formatModelName(id);
-        return {
-            id,
-            fullName: formatted.fullName,
-            shortName: formatted.shortName,
-            icon: Sparkles
-        };
-    });
+    const modelOptions = installedModels.length > 0
+        ? installedModels
+        : displayModels.map(id => {
+            const formatted = formatModelName(id);
+            return {
+                id,
+                fullName: formatted.fullName,
+                shortName: formatted.shortName
+            };
+        });
 
     // Calculate model text width based on real-time screen width and selected chips
     useEffect(() => {
@@ -299,7 +331,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             if (attachRef.current && !attachRef.current.contains(target)) {
                 setIsAttachOpen(false);
                 setIsEffortMenuOpen(false);
-                setIsResponseLengthMenuOpen(false);
+                setIsThinkModeMenuOpen(false);
                 setIsRecentMenuOpen(false);
                 setIsSkillsMenuOpen(false);
                 setIsPluginsMenuOpen(false);
@@ -356,7 +388,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
     const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    const openSubmenu = (menu: 'recent' | 'skills' | 'plugins' | 'mcp' | 'effort' | 'response_length') => {
+    const openSubmenu = (menu: 'recent' | 'skills' | 'plugins' | 'mcp' | 'effort' | 'think_mode') => {
         if (timeoutRef.current) clearTimeout(timeoutRef.current);
         timeoutRef.current = setTimeout(() => {
             setIsRecentMenuOpen(menu === 'recent');
@@ -364,7 +396,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             setIsPluginsMenuOpen(menu === 'plugins');
             setIsMcpMenuOpen(menu === 'mcp');
             setIsEffortMenuOpen(menu === 'effort');
-            setIsResponseLengthMenuOpen(menu === 'response_length');
+            setIsThinkModeMenuOpen(menu === 'think_mode');
         }, 120);
     };
 
@@ -376,7 +408,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             setIsPluginsMenuOpen(false);
             setIsMcpMenuOpen(false);
             setIsEffortMenuOpen(false);
-            setIsResponseLengthMenuOpen(false);
+            setIsThinkModeMenuOpen(false);
         }, 120);
     };
 
@@ -641,25 +673,83 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 )}
             </div>
 
-            {/* Effort & Reasoning Submenu (Decoupled Claude Parity) */}
-            <div className={`relative ${isEffortMenuOpen ? 'z-50' : ''}`} onMouseEnter={() => openSubmenu('effort')}>
+            {/* Thinking Mode Submenu (Auto / On / Off) */}
+            <div className={`relative ${isThinkModeMenuOpen ? 'z-50' : ''}`} onMouseEnter={() => openSubmenu('think_mode')}>
                 <button
                     type="button"
                     className="w-full flex items-center justify-between px-2.5 py-2 text-[0.7rem] sm:text-xs font-medium hover:bg-[var(--bg-secondary)] text-[var(--text-primary)] hover:text-[var(--accent-color)] transition-colors text-left group rounded-md cursor-pointer"
                 >
                     <div className="flex items-center gap-3">
                         <Brain className="w-4 h-4 text-[var(--text-muted)] group-hover:text-[var(--accent-color)] transition-colors" />
+                        <span>Thinking Mode</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] text-[var(--accent-color)] uppercase font-mono font-bold">
+                            {thinkMode}
+                        </span>
+                        <ChevronRight className="w-3.5 h-3.5 text-[var(--text-muted)]" />
+                    </div>
+                </button>
+
+                {isThinkModeMenuOpen && (
+                    <div className="absolute left-8 sm:left-[97%] bottom-0 pl-1 z-50">
+                        <div className="w-52 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-xl shadow-2xl p-1.5 flex flex-col gap-0.5">
+                            <div className="px-2 py-1 text-[10px] text-[var(--text-muted)] leading-tight">
+                                Control model reasoning & thought tags.
+                            </div>
+
+                            <div className="flex flex-col gap-0.5">
+                                {[
+                                    { id: 'auto', label: 'Auto', badge: 'Default' },
+                                    { id: 'on', label: 'On' },
+                                    { id: 'off', label: 'Off' },
+                                ].map(item => (
+                                    <button
+                                        key={item.id}
+                                        type="button"
+                                        onClick={() => {
+                                            setThinkMode(item.id as any);
+                                            if (updateBooster) updateBooster('think_mode', item.id);
+                                        }}
+                                        className={`group w-full flex items-center justify-between px-2 py-1.5 rounded-md text-xs font-medium transition-all cursor-pointer ${
+                                            thinkMode === item.id
+                                                ? 'bg-[var(--bg-secondary)] text-[var(--accent-color)] font-semibold shadow-sm'
+                                                : 'text-[var(--text-primary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--accent-color)]'
+                                        }`}
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            <span className="capitalize">{item.label}</span>
+                                            {item.badge && (
+                                                <span className="text-[8px] px-1 py-0.2 rounded bg-[var(--accent-color)]/10 text-[var(--accent-color)] border border-[var(--accent-color)]/20 font-mono">
+                                                    {item.badge}
+                                                </span>
+                                            )}
+                                        </div>
+                                        {thinkMode === item.id && (
+                                            <Check className="w-3.5 h-3.5 text-[var(--accent-color)]" />
+                                        )}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* Effort & Reasoning Submenu (Auto / Low / Medium / High / Max) */}
+            <div className={`relative ${isEffortMenuOpen ? 'z-50' : ''}`} onMouseEnter={() => openSubmenu('effort')}>
+                <button
+                    type="button"
+                    className="w-full flex items-center justify-between px-2.5 py-2 text-[0.7rem] sm:text-xs font-medium hover:bg-[var(--bg-secondary)] text-[var(--text-primary)] hover:text-[var(--accent-color)] transition-colors text-left group rounded-md cursor-pointer"
+                >
+                    <div className="flex items-center gap-3">
+                        <Zap className="w-4 h-4 text-[var(--text-muted)] group-hover:text-[var(--accent-color)] transition-colors" />
                         <span>Effort</span>
                     </div>
                     <div className="flex items-center gap-1.5">
                         <span className="text-[10px] text-[var(--accent-color)] capitalize font-mono">
                             {effort}
                         </span>
-                        {thinkMode !== 'auto' && (
-                            <span className="text-[9px] px-1 py-0.2 rounded bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[var(--text-muted)] font-mono uppercase">
-                                {thinkMode}
-                            </span>
-                        )}
                         <ChevronRight className="w-3.5 h-3.5 text-[var(--text-muted)]" />
                     </div>
                 </button>
@@ -668,7 +758,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                     <div className="absolute left-8 sm:left-[97%] bottom-0 pl-1 z-50">
                         <div className="w-52 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-xl shadow-2xl p-1.5 flex flex-col gap-0.5">
                             <div className="px-2 py-1 text-[10px] text-[var(--text-muted)] leading-tight">
-                                Deeper reasoning for complex tasks.
+                                Thinking token budget for reasoning.
                             </div>
 
                             <div className="flex flex-col gap-0.5">
@@ -684,7 +774,6 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                                         type="button"
                                         onClick={() => {
                                             setEffort(item.id as any);
-                                            if (updateBooster) updateBooster('think_mode', item.id);
                                         }}
                                         className={`group w-full flex items-center justify-between px-2 py-1.5 rounded-md text-xs font-medium transition-all cursor-pointer ${
                                             effort === item.id
@@ -709,100 +798,73 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                                     </button>
                                 ))}
                             </div>
-
-                            <div className="h-px bg-[var(--border-color)] my-1 mx-1" />
-
-                            {/* Thinking Mode Control (Auto / On / Off) */}
-                            <div className="px-1 py-0.5">
-                                <div className="flex items-center justify-between px-1 mb-1">
-                                    <div className="flex items-center gap-1.5">
-                                        <Brain className="w-3.5 h-3.5 text-[var(--accent-color)]" />
-                                        <span className="text-[11px] font-semibold text-[var(--text-primary)]">Thinking Mode</span>
-                                    </div>
-                                    <span className="text-[9px] text-[var(--accent-color)] font-mono uppercase font-bold">{thinkMode}</span>
-                                </div>
-                                <div className="grid grid-cols-3 gap-0.5 p-0.5 bg-[var(--bg-secondary)] rounded-md border border-[var(--border-color)]">
-                                    {(['auto', 'on', 'off'] as const).map(mode => (
-                                        <button
-                                            key={mode}
-                                            type="button"
-                                            onClick={() => setThinkMode(mode)}
-                                            className={`py-1 text-[10px] font-semibold rounded capitalize transition-all cursor-pointer text-center ${
-                                                thinkMode === mode
-                                                    ? 'bg-[var(--accent-color)] text-[var(--bg-primary)] shadow-sm font-bold'
-                                                    : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-                                            }`}
-                                        >
-                                            {mode}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
                         </div>
                     </div>
                 )}
             </div>
+        </div>
+    );
 
-            {/* Response Length Submenu */}
-            <div className={`relative ${isResponseLengthMenuOpen ? 'z-50' : ''}`} onMouseEnter={() => openSubmenu('response_length')}>
-                <button
-                    type="button"
-                    className="w-full flex items-center justify-between px-2.5 py-2 text-[0.7rem] sm:text-xs font-medium hover:bg-[var(--bg-secondary)] text-[var(--text-primary)] hover:text-[var(--accent-color)] transition-colors text-left group rounded-md cursor-pointer"
-                >
-                    <div className="flex items-center gap-3">
-                        <SlidersHorizontal className="w-4 h-4 text-[var(--text-muted)] group-hover:text-[var(--accent-color)] transition-colors" />
-                        <span>Response Length</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                        <span className="text-[10px] text-[var(--accent-color)] capitalize font-mono">
-                            {responseLength}
-                        </span>
-                        <ChevronRight className="w-3.5 h-3.5 text-[var(--text-muted)]" />
-                    </div>
-                </button>
+    const renderModelSelector = () => (
+        <div className="relative" ref={modelRef}>
+            <button
+                type="button"
+                onClick={() => setIsModelOpen(!isModelOpen)}
+                className={`flex items-center gap-1 sm:gap-1.5 px-2 py-1.5 rounded-lg transition-colors text-[0.7rem] sm:text-xs font-medium shrink min-w-0 max-w-[130px] sm:max-w-[160px] md:max-w-[200px] border border-transparent cursor-pointer ${isModelOpen ? 'bg-[var(--bg-secondary)] text-[var(--text-primary)]' : 'hover:bg-[var(--bg-secondary)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}
+                title={currentModel.fullName}
+            >
+                <span className="truncate min-w-0 block">{currentModel.shortName}</span>
+                <ChevronDown className="w-3.5 h-3.5 ml-0.5 flex-shrink-0 opacity-70" />
+            </button>
 
-                {isResponseLengthMenuOpen && (
-                    <div className="absolute left-8 sm:left-[97%] bottom-0 pl-1 z-50">
-                        <div className="w-52 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-xl shadow-2xl p-1.5 flex flex-col gap-0.5">
-                            <div className="px-2 py-1 text-[10px] text-[var(--text-muted)] leading-tight">
-                                Controls length of AI output.
-                            </div>
-
-                            <div className="flex flex-col gap-0.5">
-                                {[
-                                    { id: 'auto', label: 'Auto', badge: 'Default' },
-                                    { id: 'short', label: 'Concise (Short)' },
-                                    { id: 'standard', label: 'Standard' },
-                                    { id: 'long', label: 'Detailed (Long)' },
-                                ].map(item => (
-                                    <button
-                                        key={item.id}
-                                        type="button"
-                                        onClick={() => setResponseLength(item.id as any)}
-                                        className={`group w-full flex items-center justify-between px-2 py-1.5 rounded-md text-xs font-medium transition-all cursor-pointer ${
-                                            responseLength === item.id
-                                                ? 'bg-[var(--bg-secondary)] text-[var(--accent-color)] font-semibold shadow-sm'
-                                                : 'text-[var(--text-primary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--accent-color)]'
-                                        }`}
-                                    >
-                                        <div className="flex items-center gap-2">
-                                            <span>{item.label}</span>
-                                            {item.badge && (
-                                                <span className="text-[8px] px-1 py-0.2 rounded bg-[var(--accent-color)]/10 text-[var(--accent-color)] border border-[var(--accent-color)]/20 font-mono">
-                                                    {item.badge}
-                                                </span>
-                                            )}
-                                        </div>
-                                        {responseLength === item.id && (
-                                            <Check className="w-3.5 h-3.5 text-[var(--accent-color)]" />
-                                        )}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
+            {isModelOpen && (
+                <div className="absolute bottom-full right-0 mb-2 w-64 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl shadow-2xl overflow-hidden p-1.5 z-50 flex flex-col gap-1 max-h-64 overflow-y-auto custom-scrollbar">
+                    <div className="px-2 py-1 text-[10px] uppercase tracking-wider font-semibold text-[var(--text-muted)] select-none border-b border-[var(--border-color)]/40 pb-1.5 mb-0.5">
+                        Select Model
                     </div>
-                )}
-            </div>
+                    {modelOptions.map(model => {
+                        const isSelected = currentModel.id === model.id;
+                        return (
+                            <button
+                                type="button"
+                                key={model.id}
+                                onClick={async () => {
+                                    if (updatePermission) {
+                                        updatePermission('chat_models', { ...permissions?.chat_models, text: model.id });
+                                    }
+                                    try {
+                                        const permRes = await fetch(`${getBaseUrl()}/v1/system/permission`);
+                                        if (permRes.ok) {
+                                            const permData = await permRes.json();
+                                            const newPerm = permData.permission || permData;
+                                            if (!newPerm.active_slots) newPerm.active_slots = {};
+                                            if (!newPerm.active_slots.chat_slot) newPerm.active_slots.chat_slot = {};
+                                            newPerm.active_slots.chat_slot.model_id = model.id;
+                                            if (!newPerm.chat_models) newPerm.chat_models = {};
+                                            newPerm.chat_models.text = model.id;
+                                            await fetch(`${getBaseUrl()}/v1/system/permission`, {
+                                                method: 'POST',
+                                                headers: { 'Content-Type': 'application/json' },
+                                                body: JSON.stringify(newPerm)
+                                            });
+                                        }
+                                        fetch(`${getBaseUrl()}/v1/chat/context_telemetry?model=${encodeURIComponent(model.id)}`).catch(() => null);
+                                    } catch (e) {
+                                        console.error('Failed to sync model switch:', e);
+                                    }
+                                    setIsModelOpen(false);
+                                }}
+                                className={`w-full flex items-center justify-between px-2.5 py-2 text-[0.7rem] sm:text-xs font-medium rounded-lg transition-colors cursor-pointer ${isSelected ? 'bg-[var(--bg-tertiary)] text-[var(--accent-color)] font-semibold' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]'}`}
+                            >
+                                <div className="flex items-center gap-2 truncate">
+                                    <span className="truncate">{model.fullName}</span>
+                                </div>
+                                {isSelected && <Check className="w-3.5 h-3.5 flex-shrink-0 text-[var(--accent-color)]" />}
+                            </button>
+                        );
+                    })}
+                </div>
+            )}
         </div>
     );
 
@@ -885,40 +947,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                         </div>
                     ))}
 
-                    <div className="relative" ref={modelRef}>
-                        <button
-                            onClick={() => setIsModelOpen(!isModelOpen)}
-                            className={`flex items-center gap-1 sm:gap-1.5 px-2 py-1.5 rounded-full transition-colors text-[0.7rem] sm:text-xs font-medium shrink min-w-0 max-w-[130px] sm:max-w-[160px] md:max-w-[200px] ${isModelOpen ? 'bg-[var(--bg-secondary)] text-[var(--text-primary)]' : 'hover:bg-[var(--bg-secondary)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}
-                        >
-                            <span className="truncate min-w-0 block">{currentModel.shortName}</span> <ChevronDown className="w-3.5 h-3.5 ml-0.5 flex-shrink-0" />
-                        </button>
-
-                        {isModelOpen && (
-                            <div className="absolute bottom-full right-0 mb-2 w-56 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-xl shadow-2xl overflow-hidden p-1.5 z-50 flex flex-col gap-1 max-h-64 overflow-y-auto custom-scrollbar">
-                                {modelOptions.map(model => {
-                                    const isSelected = currentModel.id === model.id;
-                                    return (
-                                        <button
-                                            key={model.id}
-                                            onClick={() => {
-                                                if (updatePermission) {
-                                                    updatePermission('chat_models', { ...permissions?.chat_models, text: model.id });
-                                                }
-                                                setIsModelOpen(false);
-                                            }}
-                                            className={`w-full flex items-center justify-between px-3 py-2.5 text-[0.7rem] sm:text-xs font-medium rounded-lg transition-colors ${isSelected ? 'bg-[var(--bg-secondary)] text-[var(--accent-color)]' : 'text-[var(--text-muted)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'}`}
-                                        >
-                                            <div className="flex items-center gap-2 truncate">
-                                                <model.icon className="w-3.5 h-3.5 flex-shrink-0" />
-                                                <span className="truncate">{model.fullName}</span>
-                                            </div>
-                                            {isSelected && <Check className="w-3.5 h-3.5 flex-shrink-0" />}
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        )}
-                    </div>
+                    {renderModelSelector()}
 
                     <button className="w-[2rem] sm:w-[2.25rem] h-[2rem] sm:h-[2.25rem] flex-shrink-0 rounded-full flex items-center justify-center hover:bg-[var(--bg-secondary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors">
                         <Mic className="w-4 sm:w-5 h-4 sm:h-5" />
@@ -986,40 +1015,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                             </div>
                         ))}
 
-                        <div className="relative" ref={modelRef}>
-                            <button
-                                onClick={() => setIsModelOpen(!isModelOpen)}
-                                className={`flex items-center border  border-[var(--border-color)] hover:border-[var(--text-muted)] px-2 py-1.5 rounded-lg transition-colors text-[0.7rem] sm:text-xs font-medium shrink min-w-0 max-w-[130px] sm:max-w-[160px] md:max-w-[200px] ${isModelOpen ? 'bg-[var(--bg-secondary)] text-[var(--text-primary)]' : 'hover:bg-[var(--bg-secondary)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}
-                            >
-                                <span className="truncate min-w-0 block">{currentModel.shortName}</span> <ChevronDown className="w-3.5 h-3.5 ml-0.5 flex-shrink-0" />
-                            </button>
-
-                            {isModelOpen && (
-                                <div className="absolute bottom-full right-0 mb-2 w-56 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-xl shadow-2xl overflow-hidden p-1.5 z-50 flex flex-col gap-1 max-h-64 overflow-y-auto custom-scrollbar">
-                                    {modelOptions.map(model => {
-                                        const isSelected = currentModel.id === model.id;
-                                        return (
-                                            <button
-                                                key={model.id}
-                                                onClick={() => {
-                                                    if (updatePermission) {
-                                                        updatePermission('chat_models', { ...permissions?.chat_models, text: model.id });
-                                                    }
-                                                    setIsModelOpen(false);
-                                                }}
-                                                className={`w-full flex items-center justify-between px-3 py-2.5 text-[0.7rem] sm:text-xs font-medium rounded-lg transition-colors ${isSelected ? 'bg-[var(--bg-secondary)] text-[var(--accent-color)]' : 'text-[var(--text-muted)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'}`}
-                                            >
-                                                <div className="flex items-center gap-2 truncate">
-                                                    <model.icon className="w-3.5 h-3.5 flex-shrink-0" />
-                                                    <span className="truncate">{model.fullName}</span>
-                                                </div>
-                                                {isSelected && <Check className="w-3.5 h-3.5 flex-shrink-0" />}
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            )}
-                        </div>
+                        {renderModelSelector()}
 
                         <button className="w-[2rem] sm:w-[2.25rem] h-[2rem] sm:h-[2.25rem] flex-shrink-0 rounded-full flex items-center justify-center hover:bg-[var(--bg-secondary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors">
                             <Mic className="w-4 sm:w-5 h-4 sm:h-5" />
@@ -1091,7 +1087,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     }, [inputValue, selectedSkills.length, currentModel.shortName]);
 
     return (
-        <div className={`max-[300px]:p-0.5 p-2 flex-shrink-0 z-10 relative ${isFloating ? 'bg-transparent' : 'bg-[var(--bg-primary)]'}`}>
+        <div className={`max-[300px]:p-0.5 p-1 pb-0 flex-shrink-0 z-10 relative ${isFloating ? 'bg-transparent' : 'bg-[var(--bg-primary)]'}`}>
             {/* Top Fade-Out Shadow Effect */}
 
 

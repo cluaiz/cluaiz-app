@@ -9,6 +9,7 @@ import { Cpu, Database, Maximize2 } from 'lucide-react';
 import { useThemeStore } from './store/ui/useThemeStore';
 import { useLayoutStore } from './store/ui/useLayoutStore';
 import { NotebookEditor } from './features/notebook/NotebookEditor';
+import { ApiWorkspace } from './features/api/ApiWorkspace';
 import { ElasticSlider } from './components/ui/cursor/ElasticSlider';
 import ClickSpark from './components/ui/ClickSpark';
 import { SmoothFollowCursor } from './components/ui/cursor/SmoothFollowCursor';
@@ -141,7 +142,13 @@ function MainAppContent() {
                     />
                 }
                 mainContent={
-                    activeView === 'notebook' ? <NotebookEditor /> : <ChatWorkspace />
+                    activeView === 'notebook' ? (
+                        <NotebookEditor />
+                    ) : activeView === 'apis' ? (
+                        <ApiWorkspace />
+                    ) : (
+                        <ChatWorkspace />
+                    )
                 }
             />
 

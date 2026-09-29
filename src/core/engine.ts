@@ -24,11 +24,45 @@ export const isNative = (): boolean => {
  * - In Web, it falls back to a WASM/HTTP bridge.
  */
 export interface SendChatOptions {
+    model?: string;
+    session_id?: string;
+    messages?: Array<{ role: string; content: string }>;
     think_mode?: 'auto' | 'on' | 'off' | string;
     reasoning_effort?: 'auto' | 'low' | 'medium' | 'high' | 'max' | string;
-    response_length?: 'auto' | 'short' | 'standard' | 'long' | string;
     temperature?: number;
     tools?: any[];
+}
+
+export interface ToolCallPayload {
+    id: string;
+    name: string;
+    category?: string;
+    arguments?: string;
+    status: 'running' | 'completed' | 'failed';
+    latencyMs?: number;
+    result?: string;
+    logs?: string[];
+    iconSvg?: string;
+}
+
+export interface StreamChunk {
+    content?: string;
+    reasoning?: string;
+    contextTelemetry?: any;
+    usage?: any;
+    toolCall?: ToolCallPayload;
+    toolResult?: {
+        id: string;
+        name?: string;
+        category?: string;
+        status: 'completed' | 'failed';
+        latency_ms?: number;
+        result?: string;
+        logs?: string[];
+        input_payload?: any;
+        output_result?: any;
+        iconSvg?: string;
+    };
 }
 
 export class cluaizEngine {
@@ -114,11 +148,28 @@ export class cluaizEngine {
         }
     }
 
+    private static subscribers = new Set<(token: string | StreamChunk) => void>();
+
+    private static broadcastToken(token: string | StreamChunk): void {
+        this.subscribers.forEach(cb => {
+            try {
+                cb(token);
+            } catch (err) {
+                console.error('[Engine Stream Subscriber Error]:', err);
+            }
+        });
+    }
+
     /**
      * Sends a chat message to the engine.
      * Dynamically uses Native C-Pointer or configured HTTP API port depending on user setting.
+     * Optionally accepts a direct per-call stream callback for guaranteed token delivery.
      */
-    static async send(message: string, options?: SendChatOptions): Promise<void> {
+    static async send(
+        message: string, 
+        options?: SendChatOptions,
+        onChunk?: (token: string | StreamChunk) => void
+    ): Promise<void> {
         const { protocol, getBaseUrl } = useConnectionStore.getState();
         const shouldUseFFI = protocol === 'ffi' && isNative();
 
@@ -131,17 +182,22 @@ export class cluaizEngine {
             console.log(`[Engine Transport] Routing message via HTTP REST (${baseUrl})...`, message, options);
 
             const payload: any = {
-                messages: [{ role: 'user', content: message }],
+                messages: (options?.messages && options.messages.length > 0)
+                    ? options.messages
+                    : [{ role: 'user', content: message }],
                 stream: true
             };
+            if (options?.model) {
+                payload.model = options.model;
+            }
+            if (options?.session_id) {
+                payload.session_id = options.session_id;
+            }
             if (options?.think_mode) {
                 payload.think_mode = options.think_mode;
             }
             if (options?.reasoning_effort && options.reasoning_effort !== 'auto') {
                 payload.reasoning_effort = options.reasoning_effort;
-            }
-            if (options?.response_length && options.response_length !== 'auto') {
-                payload.response_length = options.response_length;
             }
             if (options?.temperature !== undefined) {
                 payload.temperature = options.temperature;
@@ -150,10 +206,12 @@ export class cluaizEngine {
                 payload.tools = options.tools;
             }
 
+            const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+
             let endpoint = `${baseUrl}/v1/chat/completions`;
             let res = await fetch(endpoint, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers,
                 body: JSON.stringify(payload)
             }).catch(() => null);
 
@@ -162,7 +220,7 @@ export class cluaizEngine {
                 endpoint = `${baseUrl}/chat`;
                 res = await fetch(endpoint, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers,
                     body: JSON.stringify(payload)
                 });
             }
@@ -173,54 +231,169 @@ export class cluaizEngine {
             const reader = res.body.getReader();
             const decoder = new TextDecoder('utf-8');
 
-            const readChunk = async () => {
-                const { done, value } = await reader.read();
-                if (done) return;
-                
-                const chunk = decoder.decode(value, { stream: true });
-                const lines = chunk.split('\n');
-                
-                for (const line of lines) {
-                    if (line.startsWith('data: ')) {
-                        const data = line.slice(6);
-                        if (data === '[DONE]') {
-                            if (this.tokenCallback) this.tokenCallback('[DONE]');
-                            return;
-                        }
-                        try {
-                            const parsed = JSON.parse(data);
-                            if (parsed.choices && parsed.choices[0] && parsed.choices[0].delta) {
-                                const content = parsed.choices[0].delta.content;
-                                if (content && this.tokenCallback) {
-                                    this.tokenCallback(content);
-                                }
+            let sseBuffer = '';
+            let receivedDone = false;
+
+            const emitChunk = (chunk: string | StreamChunk) => {
+                if (onChunk) {
+                    try {
+                        onChunk(chunk);
+                    } catch (err) {
+                        console.error('[Engine Direct onChunk Error]:', err);
+                    }
+                } else {
+                    this.broadcastToken(chunk);
+                }
+            };
+
+            const readStream = async () => {
+                try {
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+
+                        sseBuffer += decoder.decode(value, { stream: true });
+                        const events = sseBuffer.split('\n');
+                        sseBuffer = events.pop() || '';
+
+                        for (const line of events) {
+                            const trimmed = line.trim();
+                            if (!trimmed || !trimmed.startsWith('data:')) continue;
+                            const data = trimmed.slice(5).trim();
+                            if (data === '[DONE]') {
+                                receivedDone = true;
+                                emitChunk('[DONE]');
+                                return;
                             }
-                        } catch (e) {
-                            // Ignored JSON parse errors
+
+                            try {
+                                const parsed = JSON.parse(data);
+
+                                // Catch usage metadata (live context telemetry) even when choices is empty (Developer Hub parity)
+                                if (parsed.usage?.context_telemetry) {
+                                    emitChunk({ contextTelemetry: parsed.usage.context_telemetry, usage: parsed.usage });
+                                }
+
+                                const delta = parsed.choices?.[0]?.delta;
+                                if (!delta) continue;
+
+                                // 1. Handle tool_calls
+                                if (delta.tool_calls && Array.isArray(delta.tool_calls) && delta.tool_calls.length > 0) {
+                                    for (const tc of delta.tool_calls) {
+                                        emitChunk({
+                                            toolCall: {
+                                                id: tc.id || `call_${tc.function?.name || 'tool'}`,
+                                                name: tc.function?.name || 'execute_tool',
+                                                category: tc.type || 'skill',
+                                                arguments: tc.function?.arguments || '',
+                                                status: 'running',
+                                                iconSvg: tc.icon_svg || tc.function?.icon_svg || undefined
+                                            }
+                                        });
+                                    }
+                                    continue;
+                                }
+
+                                // 2. Handle tool_result
+                                const toolResult = delta.tool_result || delta.cluaiz_tool_result;
+                                if (toolResult) {
+                                    const resultStr = toolResult.result 
+                                        || (typeof toolResult.output_result === 'object' ? JSON.stringify(toolResult.output_result, null, 2) : toolResult.output_result) 
+                                        || '';
+                                    emitChunk({
+                                        toolResult: {
+                                            id: toolResult.id,
+                                            name: toolResult.name,
+                                            category: toolResult.category,
+                                            status: 'completed',
+                                            latency_ms: toolResult.latency_ms,
+                                            result: resultStr,
+                                            logs: toolResult.logs,
+                                            input_payload: toolResult.input_payload,
+                                            output_result: toolResult.output_result,
+                                            iconSvg: toolResult.icon_svg || undefined
+                                        }
+                                    });
+                                    continue;
+                                }
+
+                                const reasoningPiece = delta.reasoning_content || delta.reasoning || delta.thought || '';
+                                let contentPiece = delta.content || delta.text || parsed.choices?.[0]?.text || '';
+
+                                // Real-time detection of tool_call in text stream so UI shows Running indicator without delay
+                                if (contentPiece.includes('<tool_call>')) {
+                                    const match = /<tool_call>([\s\S]*?)(?:<\/tool_call>|$)/i.exec(contentPiece);
+                                    if (match && match[1]) {
+                                        try {
+                                            const toolJson = JSON.parse(match[1].trim());
+                                            const toolName = toolJson.name || toolJson.function || 'execute_tool';
+                                            emitChunk({
+                                                toolCall: {
+                                                    id: `call_${toolName}`,
+                                                    name: toolName,
+                                                    category: 'skill',
+                                                    arguments: typeof toolJson.arguments === 'object' ? JSON.stringify(toolJson.arguments) : String(toolJson.arguments || ''),
+                                                    status: 'running'
+                                                }
+                                            });
+                                        } catch {
+                                            const nameMatch = /"(?:name|function)"\s*:\s*"([^"]+)"/.exec(match[1]);
+                                            if (nameMatch && nameMatch[1]) {
+                                                emitChunk({
+                                                    toolCall: {
+                                                        id: `call_${nameMatch[1]}`,
+                                                        name: nameMatch[1],
+                                                        category: 'skill',
+                                                        arguments: '',
+                                                        status: 'running'
+                                                    }
+                                                });
+                                            }
+                                        }
+                                    }
+                                }
+
+                                if (reasoningPiece) {
+                                    emitChunk({ reasoning: reasoningPiece });
+                                }
+                                if (contentPiece) {
+                                    emitChunk({ content: contentPiece });
+                                }
+                            } catch {
+                                // Incomplete chunk or parse error
+                            }
                         }
                     }
+
+                    if (!receivedDone) {
+                        emitChunk('[DONE]');
+                    }
+                } catch (err) {
+                    console.error('[Engine Stream Error]:', err);
+                    throw err;
                 }
-                
-                await readChunk();
             };
-            
-            readChunk().catch(console.error);
+
+            await readStream();
         }
     }
 
-    private static tokenCallback: ((token: string) => void) | null = null;
-    
     /**
      * Listens for incoming tokens from the engine.
      */
-    static async onToken(callback: (token: string) => void): Promise<() => void> {
-        this.tokenCallback = callback;
+    static async onToken(callback: (token: string | StreamChunk) => void): Promise<() => void> {
+        this.subscribers.add(callback);
         if (isNative()) {
             const { listenToEngineStream } = await import('./tauri-api');
-            const unlisten = await listenToEngineStream(callback);
-            return unlisten;
+            const unlisten = await listenToEngineStream((token) => callback(token));
+            return () => {
+                this.subscribers.delete(callback);
+                unlisten();
+            };
         } else {
-            return () => { this.tokenCallback = null; };
+            return () => { 
+                this.subscribers.delete(callback); 
+            };
         }
     }
 

@@ -8,7 +8,7 @@ export function GeneralSettings() {
     const [runBackground, setRunBackground] = useState(true);
 
     // Dynamic Connection State from Store (Zero Hardcoding)
-    const { protocol, port, setProtocol, setPort, getBaseUrl } = useConnectionStore();
+    const { protocol, host, port, setProtocol, setPort, setHost, getBaseUrl } = useConnectionStore();
 
     // Storage State
     const [cleanupPolicy, setCleanupPolicy] = useState('Immediate');
@@ -232,6 +232,26 @@ export function GeneralSettings() {
                     ]}
                     value={port.toString()}
                     onChange={handlePortChange}
+                />
+                <SettingItem
+                    label="API Host"
+                    description={
+                        protocol === 'ffi'
+                            ? 'Host network configuration is bypassed when Native C-Pointer FFI is active.'
+                            : 'Host IP address or domain for the engine HTTP gateway.'
+                    }
+                    dynamicDescription={
+                        protocol === 'ffi'
+                            ? 'Status: Inactive (Bypassed by Native C-Pointer)'
+                            : `Target Gateway: ${getBaseUrl()}`
+                    }
+                    select={[
+                        { value: 'localhost', label: 'localhost (127.0.0.1)' },
+                        { value: '127.0.0.1', label: '127.0.0.1 (IPv4 Loopback)' },
+                        { value: '0.0.0.0', label: '0.0.0.0 (All Interfaces)' }
+                    ]}
+                    value={host || 'localhost'}
+                    onChange={(val) => setHost(val)}
                 />
             </SettingSection>
 

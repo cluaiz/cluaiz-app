@@ -14,6 +14,8 @@ import { DateRange } from '../../../components/ui/dropdown/CalendarDropdown';
 import { useChatScroll } from '../hooks/useChatScroll';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Tooltip } from '../../../components/ui/tooltip';
+import { LiveTelemetryBar } from './LiveTelemetryBar';
+import { useChatTelemetry } from '../hooks/useChatTelemetry';
 
 export function ChatWorkspace() {
     const { splitPaneWidth, setSplitPaneWidth, activeChatData } = useLayoutStore();
@@ -39,6 +41,25 @@ export function ChatWorkspace() {
     const messages = activeSession ? activeSession.messages : [];
 
     const [inputValue, setInputValue] = useState('');
+
+    const {
+        breakdown,
+        setBreakdown,
+        liveStats,
+        fetchContextTelemetry,
+        syncSessionTokens,
+        startStreaming,
+        recordToken,
+        endStreaming,
+        recordToolExecution
+    } = useChatTelemetry();
+
+    useEffect(() => {
+        fetchContextTelemetry('default', activeSessionId || 'default');
+        if (messages && messages.length > 0) {
+            syncSessionTokens(messages);
+        }
+    }, [activeSessionId, messages, fetchContextTelemetry, syncSessionTokens]);
 
     useEffect(() => {
         const handleNewChat = () => {
@@ -217,24 +238,74 @@ main().catch(console.error);`);
                 }).catch(console.error);
             }
 
-            cluaizEngine.onToken((token) => {
+            cluaizEngine.onToken((chunk) => {
                 const store = useChatStore.getState();
                 if (!store.activeSessionId) return;
+
+                if (chunk === '[DONE]') {
+                    const finalStats = endStreaming();
+                    const now = new Date();
+                    const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+
+                    if (finalStats && finalStats.tokens > 0) {
+                        store.attachTelemetryToLastMessage(store.activeSessionId, finalStats);
+                    }
+                    const activeSess = store.sessions[store.activeSessionId];
+                    if (activeSess?.messages && activeSess.messages.length > 0) {
+                        const lastIdx = activeSess.messages.length - 1;
+                        const lastMsg = activeSess.messages[lastIdx];
+                        if (lastMsg.sender === 'assistant' && !lastMsg.time) {
+                            store.updateMessage(store.activeSessionId, lastIdx, m => ({ ...m, time: timeStr }));
+                        }
+                        syncSessionTokens(activeSess.messages);
+                    }
+                    return;
+                }
+
+                // If chunk has contextTelemetry from SSE
+                if (typeof chunk === 'object' && chunk.contextTelemetry) {
+                    const telemetry = chunk.contextTelemetry.context_breakdown || chunk.contextTelemetry;
+                    setBreakdown(telemetry);
+                    return;
+                }
+
+                // If chunk has toolCall
+                if (typeof chunk === 'object' && chunk.toolCall) {
+                    store.appendToolCallToLastMessage(store.activeSessionId, chunk.toolCall);
+                    recordToolExecution(chunk.toolCall.name, undefined, 'running', chunk.toolCall.category);
+                    return;
+                }
+
+                // If chunk has toolResult
+                if (typeof chunk === 'object' && chunk.toolResult) {
+                    store.updateToolResultOnLastMessage(store.activeSessionId, chunk.toolResult);
+                    recordToolExecution(chunk.toolResult.name || 'tool', chunk.toolResult.latency_ms, 'completed', chunk.toolResult.category);
+                    return;
+                }
+
+                recordToken();
+
+                const reasoning = typeof chunk === 'object' ? chunk.reasoning : undefined;
+                const content = typeof chunk === 'object' ? chunk.content : chunk;
 
                 const session = store.sessions[store.activeSessionId];
                 const lastMsg = session?.messages[session.messages.length - 1];
 
                 if (!lastMsg || lastMsg.sender !== 'assistant') {
-                    const now = new Date();
-                    const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
                     store.addMessage(store.activeSessionId, {
                         sender: 'assistant',
-                        text: token === '[DONE]' ? '' : token,
-                        time: timeStr,
-                        date: now.getTime()
+                        text: content || '',
+                        thinking: reasoning || '',
+                        time: '',
+                        date: Date.now()
                     });
-                } else if (token !== '[DONE]') {
-                    store.appendTokenToLastMessage(store.activeSessionId, token);
+                } else {
+                    if (reasoning) {
+                        store.appendThinkingToLastMessage(store.activeSessionId, reasoning);
+                    }
+                    if (content) {
+                        store.appendTokenToLastMessage(store.activeSessionId, content);
+                    }
                 }
             }).then(unlisten => {
                 if (isUnmounted) {
@@ -280,19 +351,108 @@ main().catch(console.error);`);
             date: now.getTime()
         });
 
+        // Instant optimistic assistant placeholder so bubble appears immediately
+        store.addMessage(sessionId, {
+            sender: 'assistant',
+            text: '',
+            thinking: '',
+            time: '',
+            date: now.getTime()
+        });
+
         setInputValue('');
         setReplyingTo(null);
 
         try {
+            startStreaming();
+            // Build conversation history from the active session for context memory
+            const currentSession = useChatStore.getState().sessions[sessionId];
+            const filteredMsgs = currentSession?.messages
+                ?.filter(m => m.sender === 'user' || m.sender === 'assistant' || m.sender === 'system')
+                // Exclude empty pending placeholder from prompt payload
+                ?.filter(m => !(m.sender === 'assistant' && !m.text && !m.thinking))
+                ?.map(m => ({
+                    role: m.sender === 'assistant' ? 'assistant' : m.sender === 'user' ? 'user' : 'system',
+                    content: m.text
+                })) || [{ role: 'user', content: messageText }];
+
+            // Conversation history matches Developer Hub directly without hardcoded system prompt
+            const conversationMessages = filteredMsgs;
+
+            const chatOptions = {
+                ...options,
+                session_id: sessionId,
+                messages: conversationMessages
+            };
+
             const { cluaizEngine } = await import('../../../core/engine');
-            await cluaizEngine.send(messageText, options);
+            await cluaizEngine.send(messageText, chatOptions, (chunk) => {
+                const liveStore = useChatStore.getState();
+                if (chunk === '[DONE]') {
+                    const finalStats = endStreaming();
+                    const now = new Date();
+                    const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+
+                    if (finalStats && finalStats.tokens > 0) {
+                        liveStore.attachTelemetryToLastMessage(sessionId, finalStats);
+                    }
+                    const activeSess = liveStore.sessions[sessionId];
+                    if (activeSess?.messages && activeSess.messages.length > 0) {
+                        const lastIdx = activeSess.messages.length - 1;
+                        const lastMsg = activeSess.messages[lastIdx];
+                        if (lastMsg.sender === 'assistant' && !lastMsg.time) {
+                            liveStore.updateMessage(sessionId, lastIdx, m => ({ ...m, time: timeStr }));
+                        }
+                        syncSessionTokens(activeSess.messages);
+                    }
+                    return;
+                }
+
+                // If chunk has contextTelemetry from SSE
+                if (typeof chunk === 'object' && chunk.contextTelemetry) {
+                    const telemetry = chunk.contextTelemetry.context_breakdown || chunk.contextTelemetry;
+                    setBreakdown(telemetry);
+                    return;
+                }
+
+                // If chunk has toolCall
+                if (typeof chunk === 'object' && chunk.toolCall) {
+                    liveStore.appendToolCallToLastMessage(sessionId, chunk.toolCall);
+                    recordToolExecution(chunk.toolCall.name, undefined, 'running', chunk.toolCall.category);
+                    return;
+                }
+
+                // If chunk has toolResult
+                if (typeof chunk === 'object' && chunk.toolResult) {
+                    liveStore.updateToolResultOnLastMessage(sessionId, chunk.toolResult);
+                    recordToolExecution(chunk.toolResult.name || 'tool', chunk.toolResult.latency_ms, 'completed', chunk.toolResult.category);
+                    return;
+                }
+
+                recordToken();
+
+                const reasoning = typeof chunk === 'object' ? chunk.reasoning : undefined;
+                const content = typeof chunk === 'object' ? chunk.content : chunk;
+
+                if (reasoning) {
+                    liveStore.appendThinkingToLastMessage(sessionId, reasoning);
+                }
+                if (content) {
+                    liveStore.appendTokenToLastMessage(sessionId, content);
+                }
+            });
         } catch (error) {
+            endStreaming();
             console.error("Engine connection error:", error);
             const currentStore = useChatStore.getState();
             if (currentStore.activeSessionId) {
+                const { useConnectionStore } = await import('../../../store/engine/useConnectionStore');
+                const conn = useConnectionStore.getState();
+                const target = conn.protocol === 'ffi' ? 'Native C-Pointer (FFI)' : `${conn.getBaseUrl()}/v1/chat/completions`;
+                const errDetail = error instanceof Error ? error.message : String(error);
                 currentStore.addMessage(currentStore.activeSessionId, {
                     sender: 'system',
-                    text: `[System Error]: Failed to connect to cluaiz Engine via FFI.`,
+                    text: `[System Error]: Failed to connect to Cluaiz Engine via ${target}. ${errDetail}`,
                     time: timeStr,
                     date: now.getTime()
                 });
@@ -324,7 +484,7 @@ main().catch(console.error);`);
         isHeaderVisible,
         handleScroll,
         scrollToBottom
-    } = useChatScroll({ messages: filteredMessages });
+    } = useChatScroll({ messages: filteredMessages, isStreaming: liveStats.isStreaming });
 
     useEffect(() => {
         const handleMouseMove = (e: MouseEvent) => {
@@ -435,7 +595,7 @@ main().catch(console.error);`);
                             ref={viewportRef}
                             onScroll={handleScroll}
                         >
-                            <div className="flex flex-col space-y-4 w-full max-w-2xl lg:max-w-3xl 2xl:max-w-4xl mx-auto pb-4">
+                            <div className="flex flex-col space-y-4 w-full max-w-2xl lg:max-w-3xl 2xl:max-w-4xl mx-auto pb-36">
                                 {(() => {
                                 let absoluteIndex = 0;
                                 const grouped = (filteredMessages || []).reduce((groups, msg) => {
@@ -449,7 +609,7 @@ main().catch(console.error);`);
                                 return Object.entries(grouped).map(([dateStr, groupMsgs]) => (
                                     <div key={dateStr} className="relative flex flex-col">
                                         {!isIncognito && (
-                                            <DateDivider
+                                             <DateDivider
                                                 date={new Date(groupMsgs[0].date || (groupMsgs[0] as any).timestamp || Date.now())}
                                                 dateRange={dateRange}
                                                 onDateRangeChange={setDateRange}
@@ -484,7 +644,7 @@ main().catch(console.error);`);
                                     </div>
                                 ));
                             })()}
-                            <div ref={bottomRef} />
+                            <div ref={bottomRef} className="h-6 flex-shrink-0" />
                             </div>
                         </div>
 
@@ -555,13 +715,17 @@ main().catch(console.error);`);
                                     </div>
                                 </div>
                             ) : (
-                                <motion.div layout layoutId="chat-input-wrapper" className="relative w-full max-w-2xl lg:max-w-3xl 2xl:max-w-4xl mx-auto z-10 px-2 sm:px-4 md:px-8 pb-2 sm:pb-4">
+                                <motion.div layout layoutId="chat-input-wrapper" className="relative w-full max-w-2xl lg:max-w-3xl 2xl:max-w-4xl mx-auto z-10 px-2 sm:px-4 md:px-8 pb-1 sm:pb-2">
                                     <ChatInput
                                         inputValue={inputValue}
                                         setInputValue={setInputValue}
                                         handleSendMessage={handleSendMessage}
                                         replyingTo={replyingTo}
                                         setReplyingTo={setReplyingTo}
+                                    />
+                                    <LiveTelemetryBar
+                                        breakdown={breakdown}
+                                        liveStats={liveStats}
                                     />
                                 </motion.div>
                             )}
