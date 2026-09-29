@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { Check, Copy } from 'lucide-react';
+import { Check, Copy, ArrowUpRight } from 'lucide-react';
+import { ProjectCard } from '../../features/workspace/components/ProjectCard';
+import { useProjectStore } from '../../features/workspace/store/useProjectStore';
+import { useLayoutStore } from '../../store/ui/useLayoutStore';
 
 interface MarkdownRendererProps {
     content: string;
@@ -14,6 +17,25 @@ interface CodeBlockProps {
 
 const CodeBlock: React.FC<CodeBlockProps> = ({ language, value }) => {
     const [copied, setCopied] = useState(false);
+    const { createOrUpdateProject, openWorkspace } = useProjectStore();
+    const { setSplitPaneWidth } = useLayoutStore();
+
+    // 1. Detect Multi-File Project Manifest Block (Mode 1)
+    if (language === 'project' || language === 'workspace') {
+        try {
+            const parsed = JSON.parse(value);
+            if (parsed && parsed.files && typeof parsed.files === 'object') {
+                return (
+                    <ProjectCard
+                        id={parsed.id || `proj_${Date.now()}`}
+                        name={parsed.name || 'Application Project'}
+                        description={parsed.description}
+                        files={parsed.files}
+                    />
+                );
+            }
+        } catch {}
+    }
 
     const handleCopy = () => {
         navigator.clipboard.writeText(value);
@@ -21,32 +43,57 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ language, value }) => {
         setTimeout(() => setCopied(false), 2000);
     };
 
+    const handleOpenInWorkspace = () => {
+        const ext = language === 'python' ? 'py' : (language === 'javascript' ? 'js' : (language === 'typescript' ? 'ts' : (language === 'rust' ? 'rs' : (language === 'html' ? 'html' : (language === 'css' ? 'css' : 'txt')))));
+        const filename = `snippet.${ext}`;
+        createOrUpdateProject('workspace_snippets', 'Code Snippets', { [filename]: value }, 'In-chat code snippets');
+        openWorkspace('workspace_snippets');
+        setSplitPaneWidth(50);
+    };
+
+    const displayLang = (language || 'code').toUpperCase();
+
+    // 2. In-Chat Code Editor Block (Mode 2 — Image 2 reference)
     return (
-        <div className="my-2.5 rounded-xl border border-[var(--border-color)] bg-[var(--bg-secondary)]/50 overflow-hidden shadow-sm">
-            <div className="flex items-center justify-between px-3 py-1.5 bg-[var(--bg-secondary)] border-b border-[var(--border-color)]/60 text-[11px] font-mono text-[var(--text-muted)] select-none">
-                <span className="font-semibold uppercase tracking-wider text-[10px] text-[var(--accent-color)]">
-                    {language || 'text'}
+        <div className="my-3 rounded-xl border border-[var(--border-color)] bg-[var(--bg-secondary)]/70 overflow-hidden shadow-sm font-mono">
+            <div className="flex items-center justify-between px-3.5 py-2 bg-[var(--bg-secondary)] border-b border-[var(--border-color)]/60 select-none">
+                <span className="font-bold uppercase tracking-wider text-[11px] text-[var(--accent-color)]">
+                    {displayLang}
                 </span>
-                <button
-                    type="button"
-                    onClick={handleCopy}
-                    className="flex items-center gap-1 px-2 py-0.5 rounded hover:bg-white/[0.06] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
-                    title="Copy code"
-                >
-                    {copied ? (
-                        <>
-                            <Check className="w-3 h-3 text-emerald-400" />
-                            <span className="text-[10px] text-emerald-400 font-sans">Copied!</span>
-                        </>
-                    ) : (
-                        <>
-                            <Copy className="w-3 h-3" />
-                            <span className="text-[10px] font-sans">Copy</span>
-                        </>
-                    )}
-                </button>
+
+                <div className="flex items-center gap-2">
+                    <button
+                        type="button"
+                        onClick={handleOpenInWorkspace}
+                        className="inline-flex items-center gap-1 text-[11px] text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer px-1.5 py-0.5 rounded hover:bg-white/[0.04]"
+                        title="Open in Workspace Editor"
+                    >
+                        <span>Workspace</span>
+                        <ArrowUpRight className="w-3 h-3" />
+                    </button>
+
+                    <button
+                        type="button"
+                        onClick={handleCopy}
+                        className="flex items-center gap-1 px-2 py-0.5 rounded hover:bg-white/[0.06] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
+                        title="Copy code"
+                    >
+                        {copied ? (
+                            <>
+                                <Check className="w-3 h-3 text-emerald-400" />
+                                <span className="text-[11px] text-emerald-400 font-sans font-medium">Copied!</span>
+                            </>
+                        ) : (
+                            <>
+                                <Copy className="w-3 h-3" />
+                                <span className="text-[11px] font-sans font-medium">Copy</span>
+                            </>
+                        )}
+                    </button>
+                </div>
             </div>
-            <pre className="p-3 text-xs font-mono leading-relaxed overflow-x-auto text-[var(--text-primary)] select-text custom-scrollbar">
+
+            <pre className="p-3.5 text-xs font-mono leading-relaxed overflow-x-auto text-[var(--text-primary)] select-text custom-scrollbar bg-black/25">
                 <code>{value}</code>
             </pre>
         </div>
