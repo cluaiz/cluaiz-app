@@ -1,0 +1,316 @@
+{
+  "group": "System & Control",
+  "endpoints": [
+    {
+      "method": "GET",
+      "path": "/health",
+      "desc": "Checks the core engine health, memory status, and continuous uptime.",
+      "docs_url": "/docs/api/system/health.md",
+      "params": [],
+      "response": "{\n  \"status\": \"healthy\",\n  \"uptime_ms\": 145020,\n  \"components\": {\n    \"db\": \"healthy\",\n    \"gpu\": \"healthy\"\n  }\n}",
+      "examples": [
+        {
+          "language": "curl",
+          "title": "cURL",
+          "code": "curl -X GET http://localhost:8000/health"
+        },
+        {
+          "language": "python",
+          "title": "Python",
+          "code": "import requests\n\nres = requests.get('http://localhost:8000/health')\nprint(res.json())"
+        },
+        {
+          "language": "javascript",
+          "title": "Node.js",
+          "code": "const response = await fetch('http://localhost:8000/health');\nconst data = await response.json();\nconsole.log(data);"
+        },
+        {
+          "language": "rust",
+          "title": "Rust",
+          "code": "let res = reqwest::get(\"http://localhost:8000/health\").await?;\nprintln!(\"{:#?}\", res.json::<serde_json::Value>().await?);"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/info",
+      "desc": "Retrieves deep architectural information, versioning, and the foundational pillars of the cluaiz system.",
+      "docs_url": "/docs/api/system/info.md",
+      "params": [],
+      "response": "{\n  \"engine\": \"Cluaiz Inference Engine\",\n  \"version\": \"0.1.0\",\n  \"build_date\": \"2024-05-10\",\n  \"capabilities\": [\"vision\", \"vector_search\", \"cel\"]\n}",
+      "examples": [
+        {
+          "language": "curl",
+          "title": "cURL",
+          "code": "curl -X GET http://localhost:8000/info"
+        },
+        {
+          "language": "python",
+          "title": "Python",
+          "code": "import requests\n\nres = requests.get('http://localhost:8000/info')\nprint(res.json())"
+        },
+        {
+          "language": "javascript",
+          "title": "Node.js",
+          "code": "const response = await fetch('http://localhost:8000/info');\nconst data = await response.json();\nconsole.log(data);"
+        },
+        {
+          "language": "rust",
+          "title": "Rust",
+          "code": "let res = reqwest::get(\"http://localhost:8000/info\").await?;\nprintln!(\"{:#?}\", res.json::<serde_json::Value>().await?);"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/v1/system/ps",
+      "desc": "Show active neural engines in memory and their current process IDs. Crucial for load balancers.",
+      "docs_url": "/docs/reference/api.md",
+      "params": [],
+      "response": "{\n  \"status\": \"success\",\n  \"active_processes\": [\n    {\n      \"pid\": \"29514\",\n      \"model_id\": \"bonsai:8b\",\n      \"vram_gb\": 4.2,\n      \"context_size\": 8192,\n      \"engine\": \"llama.cpp\"\n    }\n  ]\n}",
+      "examples": [
+        {
+          "language": "curl",
+          "title": "cURL",
+          "code": "curl -X GET http://localhost:8000/v1/system/ps"
+        },
+        {
+          "language": "python",
+          "title": "Python",
+          "code": "import requests\n\nres = requests.get('http://localhost:8000/v1/system/ps')\nprint(res.json())"
+        },
+        {
+          "language": "javascript",
+          "title": "Node.js",
+          "code": "const response = await fetch('http://localhost:8000/v1/system/ps');\nconst data = await response.json();\nconsole.log(data);"
+        },
+        {
+          "language": "rust",
+          "title": "Rust",
+          "code": "let res = reqwest::get(\"http://localhost:8000/v1/system/ps\").await?;\nprintln!(\"{:#?}\", res.json::<serde_json::Value>().await?);"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/v1/system/control",
+      "desc": "Gets the overall hardware orchestrator system control states including brain connection state and hardware limits.",
+      "docs_url": "/docs/api/system/control_hardware.md",
+      "params": [],
+      "response": "{\n  \"brain\": {\n    \"cluaizdb_connect_ffi\": \"on\"\n  },\n  \"silicon_truth\": {\n    \"memory\": {\"total_capacity_gb\": 32.0}\n  }\n}",
+      "examples": [
+        {
+          "language": "curl",
+          "title": "cURL",
+          "code": "curl -X GET http://localhost:8000/v1/system/control"
+        },
+        {
+          "language": "python",
+          "title": "Python",
+          "code": "import requests\n\nres = requests.get('http://localhost:8000/v1/system/control')\nprint(res.json())"
+        },
+        {
+          "language": "javascript",
+          "title": "Node.js",
+          "code": "const response = await fetch('http://localhost:8000/v1/system/control');\nconst data = await response.json();\nconsole.log(data);"
+        },
+        {
+          "language": "rust",
+          "title": "Rust",
+          "code": "let res = reqwest::get(\"http://localhost:8000/v1/system/control\").await?;\nprintln!(\"{:#?}\", res.json::<serde_json::Value>().await?);"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/v1/system/permission",
+      "desc": "Fetch current engine security boundaries, wasm firewalls, and active slot limits.",
+      "docs_url": "/docs/api/system/permission.md",
+      "params": [],
+      "response": "{\n  \"status\": \"success\",\n  \"permission\": {\n    \"wasm_firewall\": \"strict\",\n    \"vectorize_user_input\": true,\n    \"stream_telemetry\": false\n  }\n}",
+      "examples": [
+        {
+          "language": "curl",
+          "title": "cURL",
+          "code": "curl -X GET http://localhost:8000/v1/system/permission"
+        },
+        {
+          "language": "python",
+          "title": "Python",
+          "code": "import requests\n\nres = requests.get('http://localhost:8000/v1/system/permission')\nprint(res.json())"
+        },
+        {
+          "language": "javascript",
+          "title": "Node.js",
+          "code": "const response = await fetch('http://localhost:8000/v1/system/permission');\nconst data = await response.json();\nconsole.log(data);"
+        },
+        {
+          "language": "rust",
+          "title": "Rust",
+          "code": "let res = reqwest::get(\"http://localhost:8000/v1/system/permission\").await?;\nprintln!(\"{:#?}\", res.json::<serde_json::Value>().await?);"
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/v1/system/permission",
+      "desc": "Update engine security boundaries and sandboxing flags.",
+      "docs_url": "/docs/api/system/permission.md",
+      "params": [
+        {
+          "name": "key",
+          "type": "string",
+          "req": true,
+          "desc": "The permission key to change.",
+          "default": "wasm_firewall"
+        },
+        {
+          "name": "value",
+          "type": "string",
+          "req": true,
+          "desc": "The new value.",
+          "default": "strict"
+        }
+      ],
+      "request_payload": "{\n  \"wasm_firewall\": \"strict\",\n  \"vectorize_user_input\": true,\n  \"stream_telemetry\": false\n}",
+      "response": "{\n  \"status\": \"success\",\n  \"updated_keys\": [\"wasm_firewall\", \"vectorize_user_input\"]\n}",
+      "examples": [
+        {
+          "language": "curl",
+          "title": "cURL",
+          "code": "curl -X POST http://localhost:8000/v1/system/permission \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"wasm_firewall\": \"strict\", \"vectorize_user_input\": true, \"stream_telemetry\": false}'"
+        },
+        {
+          "language": "python",
+          "title": "Python",
+          "code": "import requests\n\npayload = {\n    \"wasm_firewall\": \"strict\",\n    \"vectorize_user_input\": True,\n    \"stream_telemetry\": False\n}\nres = requests.post('http://localhost:8000/v1/system/permission', json=payload)\nprint(res.json())"
+        },
+        {
+          "language": "javascript",
+          "title": "Node.js",
+          "code": "const response = await fetch('http://localhost:8000/v1/system/permission', {\n  method: 'POST',\n  headers: { 'Content-Type': 'application/json' },\n  body: JSON.stringify({\n    wasm_firewall: 'strict',\n    vectorize_user_input: true,\n    stream_telemetry: false\n  })\n});\nconst data = await response.json();\nconsole.log(data);"
+        },
+        {
+          "language": "rust",
+          "title": "Rust",
+          "code": "let client = reqwest::Client::new();\nlet res = client.post(\"http://localhost:8000/v1/system/permission\")\n    .json(&serde_json::json!({\n        \"wasm_firewall\": \"strict\",\n        \"vectorize_user_input\": true,\n        \"stream_telemetry\": false\n    }))\n    .send()\n    .await?;\nprintln!(\"{:#?}\", res.json::<serde_json::Value>().await?);"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/v1/system/storage/temp_media",
+      "desc": "Inspects temporary media storage cache size and file counts.",
+      "docs_url": "/docs/reference/api.md",
+      "params": [],
+      "response": "{\n  \"status\": \"success\",\n  \"file_count\": 0,\n  \"total_size_bytes\": 0,\n  \"total_size_mb\": \"0.00 MB\"\n}",
+      "examples": [
+        {
+          "language": "curl",
+          "title": "cURL",
+          "code": "curl -X GET http://localhost:8000/v1/system/storage/temp_media"
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/v1/system/storage/temp_media/clean",
+      "desc": "Cleans and flushes temporary media storage cache.",
+      "docs_url": "/docs/reference/api.md",
+      "params": [],
+      "request_payload": "{}",
+      "response": "{\n  \"status\": \"success\",\n  \"message\": \"Temporary media storage cleaned successfully.\"\n}",
+      "examples": [
+        {
+          "language": "curl",
+          "title": "cURL",
+          "code": "curl -X POST http://localhost:8000/v1/system/storage/temp_media/clean"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/v1/system/storage/settings",
+      "desc": "Retrieves local vault storage controls and location settings.",
+      "docs_url": "/docs/reference/api.md",
+      "params": [],
+      "response": "{\n  \"status\": \"success\",\n  \"storage_dir\": \"~/.cluaiz/models\"\n}",
+      "examples": [
+        {
+          "language": "curl",
+          "title": "cURL",
+          "code": "curl -X GET http://localhost:8000/v1/system/storage/settings"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/v1/system/gguf_config",
+      "desc": "Retrieves global GGUF parser and hardware governor configuration.",
+      "docs_url": "/docs/reference/api.md",
+      "params": [],
+      "response": "{\n  \"status\": \"success\"\n}",
+      "examples": [
+        {
+          "language": "curl",
+          "title": "cURL",
+          "code": "curl -X GET http://localhost:8000/v1/system/gguf_config"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/v1/system/onnx_config",
+      "desc": "Retrieves ONNX runtime session options and execution provider settings.",
+      "docs_url": "/docs/reference/api.md",
+      "params": [],
+      "response": "{\n  \"status\": \"success\"\n}",
+      "examples": [
+        {
+          "language": "curl",
+          "title": "cURL",
+          "code": "curl -X GET http://localhost:8000/v1/system/onnx_config"
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/v1/system/cmd",
+      "desc": "Executes shell commands locally. STRICTLY bound to 127.0.0.1 (Localhost). Rejects any remote attempts to prevent RCE.",
+      "docs_url": "/docs/api/system/cmd.md",
+      "params": [
+        {
+          "name": "command",
+          "type": "string",
+          "req": true,
+          "desc": "The raw shell command to execute.",
+          "default": "echo Hello cluaiz"
+        }
+      ],
+      "request_payload": "{\n  \"command\": \"echo Hello cluaiz\"\n}",
+      "response": "{\n  \"status\": \"success\",\n  \"output\": \"Hello cluaiz\\n\",\n  \"exit_code\": 0\n}",
+      "examples": [
+        {
+          "language": "curl",
+          "title": "cURL",
+          "code": "curl -X POST http://localhost:8000/v1/system/cmd \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"command\": \"echo Hello cluaiz\"}'"
+        },
+        {
+          "language": "python",
+          "title": "Python",
+          "code": "import requests\n\nres = requests.post('http://localhost:8000/v1/system/cmd', json={\"command\": \"echo Hello cluaiz\"})\nprint(res.json())"
+        },
+        {
+          "language": "javascript",
+          "title": "Node.js",
+          "code": "const response = await fetch('http://localhost:8000/v1/system/cmd', {\n  method: 'POST',\n  headers: { 'Content-Type': 'application/json' },\n  body: JSON.stringify({ command: 'echo Hello cluaiz' })\n});\nconst data = await response.json();\nconsole.log(data);"
+        },
+        {
+          "language": "rust",
+          "title": "Rust",
+          "code": "let client = reqwest::Client::new();\nlet res = client.post(\"http://localhost:8000/v1/system/cmd\")\n    .json(&serde_json::json!({\n        \"command\": \"echo Hello cluaiz\" }))\n    .send()\n    .await?;\nprintln!(\"{:#?}\", res.json::<serde_json::Value>().await?);"
+        }
+      ]
+    }
+  ]
+}
