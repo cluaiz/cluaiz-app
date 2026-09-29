@@ -145,6 +145,8 @@ export const useApiStore = create<ApiStoreState>()((set, get) => ({
         let defaultBody = '';
         if (savedPayload && savedPayload.trim().length > 0) {
             defaultBody = savedPayload;
+        } else if (ep.request_payload && ep.request_payload.trim().length > 0) {
+            defaultBody = ep.request_payload;
         } else if (ep.method === 'POST' || ep.method === 'PUT' || ep.method === 'DELETE') {
             if (isRawCode) {
                 defaultBody = ep.params?.[0]?.default ?? '';

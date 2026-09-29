@@ -21,6 +21,7 @@ export interface ApiEndpoint {
     desc: string;
     docs_url?: string;
     docs_content?: string;
+    request_payload?: string;
     params?: ApiParameter[];
     response?: string;
     examples?: CodeSnippet[];
