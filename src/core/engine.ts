@@ -280,11 +280,16 @@ export class cluaizEngine {
                                 // 1. Handle tool_calls
                                 if (delta.tool_calls && Array.isArray(delta.tool_calls) && delta.tool_calls.length > 0) {
                                     for (const tc of delta.tool_calls) {
+                                        const toolName = tc.function?.name || tc.name || 'tool';
+                                        const toolCat = (tc.type && tc.type !== 'function') 
+                                            ? tc.type 
+                                            : (tc.category || undefined);
+
                                         emitChunk({
                                             toolCall: {
-                                                id: tc.id || `call_${tc.function?.name || 'tool'}`,
-                                                name: tc.function?.name || 'execute_tool',
-                                                category: tc.type || 'skill',
+                                                id: tc.id || `call_${toolName}`,
+                                                name: toolName,
+                                                category: toolCat,
                                                 arguments: tc.function?.arguments || '',
                                                 status: 'running',
                                                 iconSvg: tc.icon_svg || tc.function?.icon_svg || undefined

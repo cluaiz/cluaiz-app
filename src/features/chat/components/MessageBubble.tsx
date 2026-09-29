@@ -1,5 +1,5 @@
 import React from 'react';
-import { CheckCheck, Brain } from 'lucide-react';
+import { CheckCheck, ChevronDown } from 'lucide-react';
 import { LottieEmoji } from '../../../components/ui/context-menu/LottieEmoji';
 import { EmojiMeta } from '../../../assets/EmojiMeta';
 
@@ -29,56 +29,110 @@ const formatDisplayTime = (time?: string): string => {
 };
 
 const formatSecondsOnly = (val?: string | number): string => {
-    if (!val && val !== 0) return '0';
+    if (!val && val !== 0) return '';
     const num = typeof val === 'number' ? val : parseFloat(String(val));
-    if (isNaN(num)) return '0';
+    if (isNaN(num) || num <= 0) return '';
     return String(Math.round(num));
 };
-
 
 interface ThoughtProcessCardProps {
     thinking: string;
     isStreaming?: boolean;
+    duration?: string | number;
 }
 
-const ThoughtProcessCard: React.FC<ThoughtProcessCardProps> = ({ thinking, isStreaming = false }) => {
+const ThoughtProcessCard: React.FC<ThoughtProcessCardProps> = ({ thinking, isStreaming = false, duration }) => {
     const [isOpen, setIsOpen] = React.useState(isStreaming);
     const scrollRef = React.useRef<HTMLDivElement>(null);
+    const userInteractedRef = React.useRef(false);
+    const prevStreamingRef = React.useRef(isStreaming);
 
+    // Lifecycle: auto-open while streaming, auto-close when done unless user scrolled/interacted
     React.useEffect(() => {
-        setIsOpen(isStreaming);
+        if (isStreaming) {
+            setIsOpen(true);
+            userInteractedRef.current = false;
+        } else if (prevStreamingRef.current && !isStreaming) {
+            if (!userInteractedRef.current) {
+                setIsOpen(false);
+            }
+        }
+        prevStreamingRef.current = isStreaming;
     }, [isStreaming]);
 
+    // Auto-scroll to bottom of thinking stream unless user manually scrolled up
     React.useEffect(() => {
-        if (thinking && scrollRef.current && isOpen) {
+        if (thinking && scrollRef.current && isOpen && !userInteractedRef.current) {
             scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
         }
     }, [thinking, isOpen]);
 
+    // Detect if user scrolled up to read earlier thoughts
+    const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+        const el = e.currentTarget;
+        const isAtBottom = el.scrollHeight - el.scrollTop - el.clientHeight <= 25;
+        if (!isAtBottom) {
+            userInteractedRef.current = true;
+        } else {
+            userInteractedRef.current = false;
+        }
+    };
+
+    const paragraphs = React.useMemo(() => {
+        if (!thinking) return [];
+        const parts = thinking.split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
+        return parts.length > 0 ? parts : [thinking];
+    }, [thinking]);
+
     if (!thinking) return null;
 
+    const sec = formatSecondsOnly(duration);
+    const displayDuration = sec ? `${sec}s` : '';
+
     return (
-        <details 
-            className="mb-2 rounded-xl border border-[var(--border-color)]/60 bg-black/15 dark:bg-white/[0.03] overflow-hidden text-left" 
-            open={isOpen}
-            onToggle={(e) => setIsOpen((e.target as HTMLDetailsElement).open)}
-        >
-            <summary className="px-3 py-1.5 text-xs font-semibold text-[var(--accent-color)] cursor-pointer select-none flex items-center gap-1.5 hover:bg-white/[0.04] transition-colors">
-                <Brain className="w-3.5 h-3.5 text-[var(--accent-color)] flex-shrink-0" />
-                <span>Thought Process</span>
-                {isStreaming ? (
-                    <span className="ml-auto text-[10px] font-mono text-amber-400/90 animate-pulse">Thinking...</span>
-                ) : (
-                    <span className="ml-auto text-[10px] text-[var(--text-muted)] font-mono">Done</span>
-                )}
-            </summary>
-            <div 
-                ref={scrollRef}
-                className="px-3 py-2 text-xs font-mono text-[var(--text-muted)] border-t border-[var(--border-color)]/30 whitespace-pre-wrap max-h-52 overflow-y-auto leading-relaxed select-text"
+        <div className="w-full my-1 select-none text-left" style={{ fontSize: 'calc(var(--chat-bubble-font-size, 14.5px) * 0.92)' }}>
+            <button
+                type="button"
+                onClick={() => {
+                    userInteractedRef.current = true;
+                    setIsOpen(prev => !prev);
+                }}
+                className="inline-flex items-center gap-1 text-zinc-400 hover:text-zinc-200 transition-colors py-1 cursor-pointer group/thought"
+                style={{ fontSize: 'inherit' }}
             >
-                {thinking}
-            </div>
-        </details>
+                {isStreaming ? (
+                    <span className="font-normal flex items-center text-zinc-400 group-hover/thought:text-zinc-200" style={{ fontSize: 'inherit' }}>
+                        <span>Thinking</span>
+                        <span className="inline-flex items-baseline font-mono tracking-wider ml-0.5 text-zinc-400" style={{ fontSize: 'inherit' }}>
+                            <span className="inline-block animate-bounce leading-none" style={{ animationDelay: '0ms' }}>.</span>
+                            <span className="inline-block animate-bounce leading-none" style={{ animationDelay: '150ms' }}>.</span>
+                            <span className="inline-block animate-bounce leading-none" style={{ animationDelay: '300ms' }}>.</span>
+                        </span>
+                    </span>
+                ) : (
+                    <span className="font-normal text-zinc-400 group-hover/thought:text-zinc-200" style={{ fontSize: 'inherit' }}>
+                        Thought{displayDuration ? ` for ${displayDuration}` : ''}
+                    </span>
+                )}
+                <ChevronDown 
+                    className={`w-3.5 h-3.5 text-zinc-500 group-hover/thought:text-zinc-300 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} 
+                />
+            </button>
+            {isOpen && (
+                <div 
+                    ref={scrollRef}
+                    onScroll={handleScroll}
+                    className="border-l-2 border-zinc-700/60 pl-3.5 my-2 py-0.5 text-zinc-400 font-sans max-h-60 overflow-y-auto select-text custom-scrollbar space-y-1.5"
+                    style={{ fontSize: 'inherit' }}
+                >
+                    {paragraphs.map((para, idx) => (
+                        <p key={idx} className="whitespace-pre-wrap leading-snug">
+                            {para}
+                        </p>
+                    ))}
+                </div>
+            )}
+        </div>
     );
 };
 
@@ -185,7 +239,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     
     return (
         <div 
-            className={`flex relative w-full items-center gap-2 group ${isUser ? 'justify-end' : 'justify-start'}`}
+            className={`flex relative w-full gap-3 group ${isUser ? 'justify-end items-end' : 'justify-start items-start'}`}
             onClick={() => {
                 if (isSelectionMode && onToggleSelect) {
                     onToggleSelect();
@@ -194,7 +248,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         >
             {isSelectionMode && (
                 <div 
-                    className={`w-5 h-5 rounded-md border flex items-center justify-center transition-colors flex-shrink-0 cursor-pointer ${
+                    className={`w-5 h-5 rounded-md border flex items-center justify-center transition-colors flex-shrink-0 cursor-pointer mt-1 ${
                         isSelected 
                             ? 'bg-[var(--accent-color)] border-[var(--accent-color)]' 
                             : 'border-[var(--border-color)] group-hover:border-[var(--text-muted)]'
@@ -204,130 +258,178 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                 </div>
             )}
 
-            <div
-                onContextMenu={(e) => {
-                    if (!isSelectionMode) {
-                        handleMessageContextMenu(e, index);
-                    }
-                }}
-                className={`flex flex-col w-fit max-w-[90%] md:max-w-[100%] rounded-2xl p-2.5 px-3.5 shadow-sm relative group/bubble transition-transform duration-200
-                    ${isSelectionMode ? 'cursor-pointer hover:scale-[1.01]' : ''}
-                    ${isUser
-                        ? 'self-end bg-[#005c4b] text-white rounded-tr-sm'
-                        : 'self-start bg-[var(--bg-secondary)] text-[var(--text-primary)] border border-[var(--border-color)] rounded-tl-sm'
+            {isUser ? (
+                /* User Message Bubble — Theme matched */
+                <div
+                    onContextMenu={(e) => {
+                        if (!isSelectionMode) {
+                            handleMessageContextMenu(e, index);
+                        }
+                    }}
+                    className={`flex flex-col w-fit max-w-[85%] md:max-w-[75%] rounded-2xl rounded-tr-sm p-3 shadow-sm relative group/bubble transition-transform duration-200 self-end select-text ${
+                        isSelectionMode ? 'cursor-pointer hover:scale-[1.01]' : ''
                     }`}
-            >
-                {msg.isStarred && (
-                    <div className={`absolute -top-2 ${isUser ? '-left-2' : '-right-2'} bg-yellow-500/20 text-yellow-500 p-0.5 rounded-full z-10`}>
-                        <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-                    </div>
-                )}
-                {/* 1. Initial Thought Process if present */}
-                {msg.thinking && (
-                    <ThoughtProcessCard 
-                        thinking={msg.thinking} 
-                        isStreaming={Boolean(msg.thinking && !msg.toolCalls?.length && !msg.text?.trim() && !msg.telemetry)} 
-                    />
-                )}
-
-                {/* 2. Executed / Running Tool Calls */}
-                {msg.toolCalls && msg.toolCalls.length > 0 && (
-                    <div className="flex flex-col gap-1.5 my-1.5">
-                        {msg.toolCalls.map(tc => (
-                            <ToolCallAccordion key={tc.id} toolCall={tc} />
-                        ))}
-                    </div>
-                )}
-
-                {/* 3. Post-Tool Thought Process (Turn 2 reasoning) */}
-                {msg.postToolThinking && (
-                    <ThoughtProcessCard 
-                        thinking={msg.postToolThinking} 
-                        isStreaming={Boolean(msg.postToolThinking && !msg.text?.trim() && !msg.telemetry)} 
-                    />
-                )}
-
-                {/* 3. Message Body */}
-                {(() => {
-                    if (isUser) {
-                        return msg.text ? (
-                            <pre
-                                className="whitespace-pre-wrap font-sans font-medium select-text"
-                                style={{ fontSize: 'var(--chat-bubble-font-size, 14px)' }}
-                                onMouseUp={handleMouseUp}
-                            >
-                                {renderTextWithHighlights(msg.text, msg.highlights)}
-                            </pre>
-                        ) : null;
-                    }
-
-                    const hasRunningTools = msg.toolCalls?.some(tc => tc.status === 'running');
-
-                    if (msg.text) {
-                        return (
-                            <div onMouseUp={handleMouseUp} className="w-full">
-                                <MarkdownRenderer content={msg.text} />
-                            </div>
-                        );
-                    }
-
-                    if (hasRunningTools || msg.thinking || msg.postToolThinking) {
-                        return null;
-                    }
-
-                    // If message generation is still active and there's no text yet (and no thinking/tools), show cold waiting indicator
-                    if (!isUser && !msg.telemetry) {
-                        return (
-                            <div className="flex items-center gap-1.5 py-1.5 px-1 text-[var(--text-muted)]">
-                                <span className="w-2 h-2 rounded-full bg-[var(--accent-color)] animate-bounce" style={{ animationDelay: '0ms' }} />
-                                <span className="w-2 h-2 rounded-full bg-[var(--accent-color)] animate-bounce" style={{ animationDelay: '150ms' }} />
-                                <span className="w-2 h-2 rounded-full bg-[var(--accent-color)] animate-bounce" style={{ animationDelay: '300ms' }} />
-                            </div>
-                        );
-                    }
-
-                    return null;
-                })()}
-
-                {/* Footer: Telemetry on the left (for assistant), Time on the right */}
-                <div className="flex items-center justify-between gap-3 mt-1.5 text-[10px] font-mono text-[var(--text-muted)] select-none">
-                    {!isUser && msg.telemetry ? (
-                        <div className="flex items-center gap-2 flex-wrap">
-                            <span><b className="text-[var(--text-primary)] font-semibold">{msg.telemetry.tps}</b> TPS</span>
-                            <span>·</span>
-                            <span><b className="text-[var(--text-primary)] font-semibold">{formatSecondsOnly(msg.telemetry.elapsed)}</b>s</span>
-                            <span>·</span>
-                            <span><b className="text-[var(--text-primary)] font-semibold">{formatSecondsOnly(msg.telemetry.ttft)}</b>s TTFT</span>
-                            <span>·</span>
-                            <span><b className="text-[var(--text-primary)] font-semibold">{msg.telemetry.tokens}</b> Tokens</span>
+                    style={{
+                        backgroundColor: 'var(--accent-color)',
+                        color: 'var(--accent-contrast, #ffffff)',
+                    }}
+                >
+                    {msg.isStarred && (
+                        <div className="absolute -top-2 -left-2 bg-yellow-500/20 text-yellow-500 p-0.5 rounded-full z-10 shadow-sm backdrop-blur-sm">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
                         </div>
-                    ) : <div />}
+                    )}
 
-                    <div className={`flex items-center gap-1 font-bold flex-shrink-0 ${isUser ? 'text-emerald-100/70 ml-auto' : ''}`}>
+                    {msg.text && (
+                        <pre
+                            className="whitespace-pre-wrap font-sans font-medium select-text break-words"
+                            style={{ fontSize: 'var(--chat-bubble-font-size, 14px)' }}
+                            onMouseUp={handleMouseUp}
+                        >
+                            {renderTextWithHighlights(msg.text, msg.highlights)}
+                        </pre>
+                    )}
+
+                    <div 
+                        className="flex items-center justify-end gap-1 mt-1 font-mono select-none opacity-85 ml-auto"
+                        style={{ fontSize: 'calc(var(--chat-bubble-font-size, 14px) * 0.78)' }}
+                    >
                         <span>{formatDisplayTime(msg.time)}</span>
-                        {isUser && <CheckCheck className="w-3.5 h-3.5 text-[#53bdeb]" />}
+                        <CheckCheck className="w-3.5 h-3.5 opacity-90" />
                     </div>
-                </div>
 
-            {/* Render Reacted Emojis */}
-            {msg.reactions && msg.reactions.length > 0 && (
-                <div className={`absolute -bottom-3 ${isUser ? 'right-2' : 'left-2'} flex items-center gap-0.5 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-full px-1.5 py-0.5 shadow-sm`}>
-                    {msg.reactions.map((r, ri) => {
-                        const codepoint = getEmojiCodepoint(r);
-                        const meta = EmojiMeta[codepoint];
-                        return (
-                            <span key={ri} className="flex items-center justify-center w-4 h-4">
-                                {meta?.path ? (
-                                    <LottieEmoji path={meta.path} loop={true} autoplay={true} playOnHover={false} shouldPreload={true} alt={r} style={{ width: 14, height: 14 }} />
-                                ) : (
-                                    <span className="text-[10px]">{r}</span>
-                                )}
-                            </span>
-                        );
-                    })}
+                    {/* Reactions for user */}
+                    {msg.reactions && msg.reactions.length > 0 && (
+                        <div className="absolute -bottom-3 right-2 flex items-center gap-0.5 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-full px-1.5 py-0.5 shadow-sm z-10">
+                            {msg.reactions.map((r, ri) => {
+                                const codepoint = getEmojiCodepoint(r);
+                                const meta = EmojiMeta[codepoint];
+                                return (
+                                    <span key={ri} className="flex items-center justify-center w-4 h-4">
+                                        {meta?.path ? (
+                                            <LottieEmoji path={meta.path} loop={true} autoplay={true} playOnHover={false} shouldPreload={true} alt={r} style={{ width: 14, height: 14 }} />
+                                        ) : (
+                                            <span className="text-[10px]">{r}</span>
+                                        )}
+                                    </span>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+            ) : (
+                /* AI Assistant Unboxed Layout — Clean canvas like ChatGPT / Claude / Gemini */
+                <div
+                    onContextMenu={(e) => {
+                        if (!isSelectionMode) {
+                            handleMessageContextMenu(e, index);
+                        }
+                    }}
+                    className={`flex flex-col w-full max-w-full bg-transparent border-0 p-0 shadow-none text-[var(--text-primary)] relative group/bubble transition-opacity duration-200 select-text ${
+                        isSelectionMode ? 'cursor-pointer hover:opacity-90' : ''
+                    }`}
+                >
+                    {msg.isStarred && (
+                        <div className="absolute -top-2 -left-2 bg-yellow-500/20 text-yellow-500 p-0.5 rounded-full z-10 shadow-sm backdrop-blur-sm">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                        </div>
+                    )}
+
+                    {/* 1. Initial Thought Process if present */}
+                    {msg.thinking && (
+                        <div className="w-full mb-1">
+                            <ThoughtProcessCard 
+                                thinking={msg.thinking} 
+                                isStreaming={Boolean(msg.thinking && !msg.toolCalls?.length && !msg.text?.trim() && !msg.telemetry)} 
+                                duration={msg.telemetry?.ttft || msg.telemetry?.elapsed}
+                            />
+                        </div>
+                    )}
+
+                    {/* 2. Executed / Running Tool Calls */}
+                    {msg.toolCalls && msg.toolCalls.length > 0 && (
+                        <div className="flex flex-col gap-1.5 my-1.5 w-full">
+                            {msg.toolCalls.map(tc => (
+                                <ToolCallAccordion key={tc.id} toolCall={tc} />
+                            ))}
+                        </div>
+                    )}
+
+                    {/* 3. Post-Tool Thought Process (Turn 2 reasoning) */}
+                    {msg.postToolThinking && (
+                        <div className="w-full mb-1">
+                            <ThoughtProcessCard 
+                                thinking={msg.postToolThinking} 
+                                isStreaming={Boolean(msg.postToolThinking && !msg.text?.trim() && !msg.telemetry)} 
+                                duration={msg.telemetry?.elapsed}
+                            />
+                        </div>
+                    )}
+
+                    {/* 4. Message Markdown Body */}
+                    {msg.text ? (
+                        <div 
+                            onMouseUp={handleMouseUp} 
+                            className="w-full overflow-hidden select-text text-[var(--text-primary)]"
+                            style={{ fontSize: 'var(--chat-bubble-font-size, 14px)' }}
+                        >
+                            <MarkdownRenderer content={msg.text} />
+                        </div>
+                    ) : null}
+
+                    {/* 5. Waiting indicator when streaming/generating and no text/tools/thinking yet */}
+                    {!msg.text && !msg.toolCalls?.some(tc => tc.status === 'running') && !msg.thinking && !msg.postToolThinking && !msg.telemetry && (
+                        <div className="flex items-center gap-1.5 py-2 px-1 text-[var(--text-muted)]">
+                            <span className="w-2 h-2 rounded-full bg-[var(--accent-color)] animate-bounce" style={{ animationDelay: '0ms' }} />
+                            <span className="w-2 h-2 rounded-full bg-[var(--accent-color)] animate-bounce" style={{ animationDelay: '150ms' }} />
+                            <span className="w-2 h-2 rounded-full bg-[var(--accent-color)] animate-bounce" style={{ animationDelay: '300ms' }} />
+                        </div>
+                    )}
+
+                    {/* 6. Telemetry & Time Footer */}
+                    <div 
+                        className="flex items-center justify-between gap-3 mt-2.5 pt-1.5 font-mono text-[var(--text-muted)] select-none w-full border-t border-[var(--border-color)]/10"
+                        style={{ fontSize: 'calc(var(--chat-bubble-font-size, 14px) * 0.78)' }}
+                    >
+                        {msg.telemetry ? (
+                            <div className="flex items-center gap-2 flex-wrap" style={{ fontSize: 'inherit' }}>
+                                <span><b className="text-[var(--text-primary)] font-semibold">{msg.telemetry.tps}</b> TPS</span>
+                                <span>·</span>
+                                <span><b className="text-[var(--text-primary)] font-semibold">{formatSecondsOnly(msg.telemetry.elapsed)}</b>s</span>
+                                <span>·</span>
+                                <span><b className="text-[var(--text-primary)] font-semibold">{formatSecondsOnly(msg.telemetry.ttft)}</b>s TTFT</span>
+                                <span>·</span>
+                                <span><b className="text-[var(--text-primary)] font-semibold">{msg.telemetry.tokens}</b> Tokens</span>
+                            </div>
+                        ) : <div />}
+
+                        <div className="flex items-center gap-1 ml-auto" style={{ fontSize: 'inherit' }}>
+                            <span>{formatDisplayTime(msg.time)}</span>
+                        </div>
+                    </div>
+
+                    {/* 7. Reactions for AI */}
+                    {msg.reactions && msg.reactions.length > 0 && (
+                        <div className="flex items-center gap-1 mt-1.5">
+                            <div className="flex items-center gap-0.5 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-full px-2 py-0.5 shadow-sm">
+                                {msg.reactions.map((r, ri) => {
+                                    const codepoint = getEmojiCodepoint(r);
+                                    const meta = EmojiMeta[codepoint];
+                                    return (
+                                        <span key={ri} className="flex items-center justify-center w-4 h-4">
+                                            {meta?.path ? (
+                                                <LottieEmoji path={meta.path} loop={true} autoplay={true} playOnHover={false} shouldPreload={true} alt={r} style={{ width: 14, height: 14 }} />
+                                            ) : (
+                                                <span className="text-[10px]">{r}</span>
+                                            )}
+                                        </span>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
-            </div>
         </div>
     );
 };

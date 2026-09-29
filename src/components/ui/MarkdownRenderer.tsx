@@ -57,7 +57,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, cla
     if (!content) return null;
 
     return (
-        <div className={`markdown-body text-xs sm:text-[13px] leading-relaxed select-text text-[var(--text-primary)] ${className}`}>
+        <div className={`markdown-body leading-relaxed select-text text-[var(--text-primary)] ${className}`} style={{ fontSize: 'inherit' }}>
             <ReactMarkdown
                 components={{
                     code({ inline, className: codeClassName, children, ...props }: any) {

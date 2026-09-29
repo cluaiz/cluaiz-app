@@ -11,8 +11,6 @@ interface ThemeState {
     darkAccent: string;
     lightAccent: string;
     cursorType: string;
-    myBubbleColor: string;
-    aiBubbleColor: string;
     localFontSize: number;
     compactMode: boolean;
     modernBubbles: boolean;
@@ -25,8 +23,6 @@ interface ThemeState {
     setDarkAccent: (color: string) => void;
     setLightAccent: (color: string) => void;
     setCursorType: (cursorType: string) => void;
-    setMyBubbleColor: (color: string) => void;
-    setAiBubbleColor: (color: string) => void;
     setLocalFontSize: (size: number) => void;
     setCompactMode: (compactMode: boolean) => void;
     setModernBubbles: (modernBubbles: boolean) => void;
@@ -43,8 +39,6 @@ export const useThemeStore = create<ThemeState>()(
             darkAccent: '#00f0ff', // default (cyberpunk cyan)
             lightAccent: '#2563eb', // default (light blue)
             cursorType: 'none',
-            myBubbleColor: 'none',
-            aiBubbleColor: 'none',
             localFontSize: 14.5,
             compactMode: false,
             modernBubbles: true,
@@ -57,8 +51,6 @@ export const useThemeStore = create<ThemeState>()(
             setDarkAccent: (darkAccent) => set({ darkAccent }),
             setLightAccent: (lightAccent) => set({ lightAccent }),
             setCursorType: (cursorType) => set({ cursorType }),
-            setMyBubbleColor: (myBubbleColor) => set({ myBubbleColor }),
-            setAiBubbleColor: (aiBubbleColor) => set({ aiBubbleColor }),
             setLocalFontSize: (localFontSize) => set({ localFontSize }),
             setCompactMode: (compactMode) => set({ compactMode }),
             setModernBubbles: (modernBubbles) => set({ modernBubbles }),
