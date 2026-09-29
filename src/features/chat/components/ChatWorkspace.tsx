@@ -3,7 +3,7 @@ import { useLayoutStore } from '../../../store/ui/useLayoutStore';
 import { useThemeStore } from '../../../store/ui/useThemeStore';
 import { useEngineStore } from '../../../store/engine/useEngineStore';
 import { useChatStore } from '../../../store/chat/useChatStore';
-import { FileCode, FileText, Play, Database, Maximize2, ChevronDown, Copy, Trash2, X, HatGlasses } from 'lucide-react';
+import { ChevronDown, Copy, Trash2, X, HatGlasses, FileText } from 'lucide-react';
 import { MessageContextMenu } from '../../../components/ui/context-menu/MessageContextMenu';
 import { GlobalChatContextMenu } from '../../../components/ui/context-menu/GlobalChatContextMenu';
 import { DateDivider } from '../../../components/ui/DateDivider';
@@ -16,6 +16,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Tooltip } from '../../../components/ui/tooltip';
 import { LiveTelemetryBar } from './LiveTelemetryBar';
 import { useChatTelemetry } from '../hooks/useChatTelemetry';
+import { WorkspaceEditorPane } from '../../workspace';
 
 export function ChatWorkspace() {
     const { splitPaneWidth, setSplitPaneWidth, activeChatData } = useLayoutStore();
@@ -809,86 +810,7 @@ main().catch(console.error);`);
                         style={{ width: `${100 - splitPaneWidth}%` }}
                         className="h-full flex flex-col bg-[var(--bg-secondary)] overflow-hidden"
                     >
-                        <div
-                            className="h-14 border-b border-[var(--border-color)] flex items-center justify-between bg-[var(--bg-tertiary)] flex-shrink-0 px-2"
-                            style={{ borderStyle: 'var(--border-style)' }}
-                        >
-                            <div className="flex gap-1">
-                                <button
-                                    onClick={() => setActiveTab('editor')}
-                                    className={`px-3 py-1.5 text-xs font-bold rounded tracking-wide uppercase flex items-center gap-1.5 transition-colors ${activeTab === 'editor'
-                                        ? 'bg-[var(--bg-primary)] text-[var(--accent-color)] border border-[var(--border-color)]'
-                                        : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-                                        }`}
-                                    style={{ borderStyle: activeTab === 'editor' ? 'var(--border-style)' : 'none' }}
-                                >
-                                    <FileCode className="w-3.5 h-3.5" />
-                                    main.ts
-                                </button>
-                                <button
-                                    onClick={() => setActiveTab('pdf')}
-                                    className={`px-3 py-1.5 text-xs font-bold rounded tracking-wide uppercase flex items-center gap-1.5 transition-colors ${activeTab === 'pdf'
-                                        ? 'bg-[var(--bg-primary)] text-[var(--accent-color)] border border-[var(--border-color)]'
-                                        : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-                                        }`}
-                                    style={{ borderStyle: activeTab === 'pdf' ? 'var(--border-style)' : 'none' }}
-                                >
-                                    <FileText className="w-3.5 h-3.5" />
-                                    engine_spec.pdf
-                                </button>
-                            </div>
-
-                            <div className="flex items-center gap-1">
-                                <button className="p-1.5 rounded hover:bg-[var(--bg-secondary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors active:scale-95">
-                                    <Play className="w-3.5 h-3.5 text-emerald-500" />
-                                </button>
-                                <button className="p-1.5 rounded hover:bg-[var(--bg-secondary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors active:scale-95">
-                                    <Maximize2 className="w-3.5 h-3.5" />
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* Workspace body */}
-                        <div className="flex-1 overflow-auto bg-[var(--bg-primary)] p-4 font-mono text-sm relative">
-                            {activeTab === 'editor' ? (
-                                <textarea
-                                    className="w-full h-full bg-transparent border-0 outline-none resize-none font-mono text-xs md:text-sm leading-relaxed text-[var(--text-primary)]"
-                                    value={codeContent}
-                                    onChange={(e) => setCodeContent(e.target.value)}
-                                    spellCheck={false}
-                                />
-                            ) : (
-                                <div className="space-y-4 text-xs md:text-sm text-[var(--text-secondary)] leading-relaxed">
-                                    <div className="border-b border-[var(--border-color)] pb-2 mb-2">
-                                        <h3 className="text-sm font-bold text-[var(--accent-color)] uppercase tracking-wider">cluaiz ENGINE ARCHITECTURE SPECIFICATIONS</h3>
-                                        <p className="text-[var(--text-muted)] text-xs">Document Version: v1.0.3 | Reference Node: CLZ-9892</p>
-                                    </div>
-                                    <p>
-                                        <strong>1. System Overview:</strong> The cluaiz Engine is designed to facilitate native compilation routing for both web and Tauri-powered desktop architectures. Theme assets are decoupled from UI code via standardized variables.
-                                    </p>
-                                    <p>
-                                        <strong>2. Component Isolation:</strong> Every visual unit exists inside isolated namespaces. Reusability is achieved through structural bindings. Accents are fed dynamically from state machines.
-                                    </p>
-                                    <p>
-                                        <strong>3. Memory Map limits:</strong>
-                                    </p>
-                                    <ul className="list-disc list-inside pl-2 space-y-1">
-                                        <li>Global Cache: 512MB RAM</li>
-                                        <li>Local Context Token Buffer: 8192 tokens</li>
-                                        <li>Worker Thread Pools: 4 parallel threads</li>
-                                    </ul>
-                                    <div className="p-3 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded mt-4" style={{ borderStyle: 'var(--border-style)' }}>
-                                        <p className="text-xs font-semibold text-[var(--accent-color)] uppercase flex items-center gap-1.5">
-                                            <Database className="w-3.5 h-3.5" />
-                                            Active Database Handshake
-                                        </p>
-                                        <p className="text-[var(--text-muted)] text-xs mt-1">
-                                            Local DB engine linked via socket IPC. Sync completed at standard tick 19892.
-                                        </p>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
+                        <WorkspaceEditorPane />
                     </div>
                 </>
             )}
