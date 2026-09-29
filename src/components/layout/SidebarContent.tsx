@@ -20,8 +20,10 @@ import {
     MessageSquarePlus,
     FolderPlus,
     NotebookPen,
-    MessageCircleWarning
+    MessageCircleWarning,
+    Code2
 } from 'lucide-react';
+import { ApiSidebar } from '../../features/api/components/ApiSidebar';
 import { Tag } from '../ui/Tag';
 import { ChatRibbon } from '../ui/ChatRibbon';
 import { ChatContextMenu } from '../ui/context-menu/ChatContextMenu';
@@ -81,7 +83,7 @@ const getChatDate = (timeStr: string): Date => {
 };
 
 export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
-    const { sidebarPosition, toggleSidebar, sidebarCollapsed, setSidebarCollapsed, sidebarPeeked, setSidebarPeeked, setActiveChatData } = useLayoutStore();
+    const { activeView, sidebarPosition, toggleSidebar, sidebarCollapsed, setSidebarCollapsed, sidebarPeeked, setSidebarPeeked, setActiveChatData } = useLayoutStore();
     const { theme } = useThemeStore();
     const [inTauri, setInTauri] = useState(false);
     const [isLogoHovered, setIsLogoHovered] = useState(false);
@@ -106,7 +108,13 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
     
     const chats = useMemo(() => {
         return Object.values(sessions).map(session => {
-            const lastMsg = session.messages[session.messages.length - 1];
+            const lastMsg = session.messages && session.messages.length > 0 
+                ? session.messages[session.messages.length - 1] 
+                : null;
+            const lastUserMsg = session.messages 
+                ? [...session.messages].reverse().find(m => m.sender === 'user')
+                : null;
+
             const msgDate = lastMsg?.date || (lastMsg as any)?.timestamp || session.createdAt || Date.now();
             
             // Format time string from timestamp
@@ -118,19 +126,43 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                }
             }
 
+            // Determine preview message and sent status so preview is never empty
+            let previewMsg = 'New Chat...';
+            let isSentByUser = false;
+
+            if (lastMsg) {
+                if (lastMsg.sender === 'user') {
+                    previewMsg = lastMsg.text?.trim() || 'New Chat...';
+                    isSentByUser = true;
+                } else {
+                    // Assistant message
+                    if (lastMsg.text?.trim()) {
+                        previewMsg = lastMsg.text.trim();
+                        isSentByUser = false;
+                    } else if (lastMsg.thinking || !lastMsg.telemetry) {
+                        // Assistant is actively thinking or generating response
+                        previewMsg = lastUserMsg?.text?.trim() || 'Thinking...';
+                        isSentByUser = Boolean(lastUserMsg);
+                    } else {
+                        previewMsg = lastUserMsg?.text?.trim() || 'New Chat...';
+                        isSentByUser = Boolean(lastUserMsg);
+                    }
+                }
+            }
+
             return {
                 id: session.id,
                 name: session.title,
                 avatar: session.avatar || '🤖',
                 time: timeStr,
-                message: lastMsg ? lastMsg.text : 'New Chat...',
+                message: previewMsg,
                 tags: session.tags || [],
                 unread: session.unread || 0,
                 pinned: session.pinned || false,
                 pinnedAt: session.pinnedAt,
                 favourite: session.favourite || false,
                 status: 'online',
-                sent: lastMsg?.sender === 'user',
+                sent: isSentByUser,
                 muted: session.muted || false,
                 archived: session.archived || false
             } as MockChat;
@@ -455,19 +487,29 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                 {/* Chats Sub-Header: Title + Actions */}
                 {sidebarCollapsed ? (
                     <div className={`pt-4 pb-2 flex flex-col items-center gap-3 relative ${inTauri ? 'border-b border-[var(--border-color)]' : ''}`} style={{ borderStyle: 'var(--border-style)' }}>
+                        {activeView === 'apis' ? (
+                            <Tooltip title="APIs Registry" position="right">
+                                <button
+                                    onClick={() => setSidebarCollapsed(false)}
+                                    className="p-1.5 rounded-full hover:bg-[var(--bg-tertiary)] text-[var(--text-primary)] transition-colors active:scale-95 cursor-pointer"
+                                >
+                                    <Code2 className="w-4.5 h-4.5" />
+                                </button>
+                            </Tooltip>
+                        ) : (
+                            <Tooltip title="New Chat" position="right">
+                                <button 
+                                    onClick={() => {
+                                        document.dispatchEvent(new CustomEvent('start-new-chat'));
+                                    }}
+                                    className="p-1.5 rounded-full hover:bg-[var(--bg-tertiary)] text-[var(--text-primary)] transition-colors active:scale-95 cursor-pointer"
+                                >
+                                    <Plus className="w-4.5 h-4.5" />
+                                </button>
+                            </Tooltip>
+                        )}
 
-                        <Tooltip title="New Chat" position="right">
-                            <button 
-                                onClick={() => {
-                                    document.dispatchEvent(new CustomEvent('start-new-chat'));
-                                }}
-                                className="p-1.5 rounded-full hover:bg-[var(--bg-tertiary)] text-[var(--text-primary)] transition-colors active:scale-95 cursor-pointer"
-                            >
-                                <Plus className="w-4.5 h-4.5" />
-                            </button>
-                        </Tooltip>
-
-                        <Tooltip title="Search Chat" position="right">
+                        <Tooltip title={activeView === 'apis' ? "Search Endpoints" : "Search Chat"} position="right">
                             <button
                                 onClick={() => setSidebarCollapsed(false)}
                                 className="p-1.5 rounded-full hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors active:scale-95 cursor-pointer"
@@ -478,19 +520,23 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                     </div>
                 ) : (
                     <div className={`px-4 ${inTauri ? 'py-3 border-b border-[var(--border-color)]' : 'py-2 pb-1'} flex items-center justify-between`} style={{ borderStyle: 'var(--border-style)' }}>
-                        <h2 className="text-xl font-extrabold tracking-wide text-[var(--text-primary)]">Chats</h2>
+                        <h2 className="text-xl font-extrabold tracking-wide text-[var(--text-primary)]">
+                            {activeView === 'apis' ? 'APIs' : 'Chats'}
+                        </h2>
                         <div className="flex items-center gap-1">
-                            <Tooltip title="New Chat" position="bottom">
-                                <button
-                                    ref={plusBtnRef}
-                                    onClick={() => {
-                                        document.dispatchEvent(new CustomEvent('start-new-chat'));
-                                    }}
-                                    className="p-1.5 rounded hover:bg-[var(--bg-tertiary)] text-[var(--text-primary)] transition-colors active:scale-95 cursor-pointer"
-                                >
-                                    <Plus className="w-4 h-4" />
-                                </button>
-                            </Tooltip>
+                            {activeView !== 'apis' && (
+                                <Tooltip title="New Chat" position="bottom">
+                                    <button
+                                        ref={plusBtnRef}
+                                        onClick={() => {
+                                            document.dispatchEvent(new CustomEvent('start-new-chat'));
+                                        }}
+                                        className="p-1.5 rounded hover:bg-[var(--bg-tertiary)] text-[var(--text-primary)] transition-colors active:scale-95 cursor-pointer"
+                                    >
+                                        <Plus className="w-4 h-4" />
+                                    </button>
+                                </Tooltip>
+                            )}
                             {inTauri && (
                                 <>
                                     <Tooltip title="Menu" position="bottom">
@@ -521,9 +567,15 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                     </div>
                 )}
 
-                {/* Search Input Bar (WhatsApp style) */}
+                {/* Search & List Body (Chats or APIs) */}
                 {!sidebarCollapsed && (
-                    <div className="px-4 py-2">
+                    activeView === 'apis' ? (
+                        <div className="flex-1 overflow-hidden flex flex-col min-h-0">
+                            <ApiSidebar />
+                        </div>
+                    ) : (
+                        <>
+                            <div className="px-4 py-2">
                         <div
                             className="flex items-center gap-2 px-3 py-2 bg-[var(--bg-primary)] themed-border rounded-lg focus-within:border-[var(--accent-color)] transition-all duration-200 relative"
                             style={{ borderStyle: 'var(--border-style)' }}
@@ -598,10 +650,8 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                             />
                         </div>
                     </div>
-                )}
 
-                {/* Category Filter Chips (using naye Reusable Tag component) */}
-                {!sidebarCollapsed && (
+                    {/* Category Filter Chips (using naye Reusable Tag component) */}
                     <div className="px-4 py-1.5 overflow-x-auto flex gap-1.5 no-scrollbar scroll-smooth flex-shrink-0 select-none">
                         {categories.map((cat) => (
                             <Tag
@@ -617,7 +667,6 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                             </Tag>
                         ))}
                     </div>
-                )}
 
                 {/* Chat list viewport */}
                 <div className={`flex-1 overflow-y-auto py-1 space-y-0 ${sidebarCollapsed ? 'no-scrollbar' : ''}`}>
@@ -821,6 +870,9 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                             </button>
                         </div>
                     </div>
+                )}
+                    </>
+                    )
                 )}
 
             </div>

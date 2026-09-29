@@ -19,7 +19,9 @@
     "build:ios": "npm run tauri ios build -w app"
   },
   "dependencies": {
+    "@monaco-editor/react": "^4.7.0",
     "@tiptap/core": "^2.27.2",
+    "@tiptap/extension-character-count": "^2.27.3",
     "@tiptap/extension-code-block-lowlight": "^2.27.2",
     "@tiptap/extension-document": "^2.27.2",
     "@tiptap/extension-table": "^2.27.2",
@@ -27,18 +29,27 @@
     "@tiptap/extension-table-header": "^2.27.2",
     "@tiptap/extension-table-row": "^2.27.2",
     "@tiptap/react": "^2.27.2",
+    "class-variance-authority": "^0.7.1",
     "d3-force-3d": "^3.0.6",
+    "emoji-picker-react": "^4.22.3",
     "framer-motion": "^12.40.0",
     "highlight.js": "^11.11.1",
+    "lottie-react": "^3.1.2",
     "lowlight": "^3.3.0",
     "lucide-react": "^1.17.0",
+    "novel": "^1.0.2",
     "prosemirror-state": "^1.4.4",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "react-force-graph-3d": "^1.29.1",
     "react-icons": "^5.6.0",
+    "react-markdown": "^10.1.0",
     "three": "^0.184.0",
     "three-spritetext": "^1.10.0",
     "zustand": "^5.0.14"
+  },
+  "devDependencies": {
+    "@tailwindcss/typography": "^0.5.20",
+    "vite": "^8.3.1"
   }
 }

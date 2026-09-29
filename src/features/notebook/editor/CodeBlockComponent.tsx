@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { NodeViewWrapper, NodeViewContent } from '@tiptap/react';
 import { Check, Copy } from 'lucide-react';
 import hljs from 'highlight.js';
+// @ts-ignore
 import 'highlight.js/styles/github-dark.css';
 import { Button } from '../../../components/ui/Button';
 
