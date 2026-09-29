@@ -42,8 +42,6 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
         fontFamily, 
         darkAccent, 
         lightAccent,
-        myBubbleColor,
-        aiBubbleColor,
         localFontSize,
         cursorType,
         bgGlowOpacity
@@ -124,16 +122,9 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
         }
         root.style.setProperty('--font-family', fontVal);
 
-        // Apply chat bubble background overrides
-        const bubbleBgMy = myBubbleColor === 'none' ? 'var(--bg-secondary)' : myBubbleColor;
-        const bubbleBgAi = aiBubbleColor === 'none' ? 'var(--bg-tertiary)' : aiBubbleColor;
-        const bubbleFgMy = myBubbleColor === 'none' ? 'var(--text-primary)' : getContrastColor(myBubbleColor);
-        const bubbleFgAi = aiBubbleColor === 'none' ? 'var(--text-primary)' : getContrastColor(aiBubbleColor);
-
-        root.style.setProperty('--chat-bubble-bg-my', bubbleBgMy);
-        root.style.setProperty('--chat-bubble-bg-ai', bubbleBgAi);
-        root.style.setProperty('--chat-bubble-fg-my', bubbleFgMy);
-        root.style.setProperty('--chat-bubble-fg-ai', bubbleFgAi);
+        // Apply chat bubble background overrides for user messages (always matches active theme accent)
+        root.style.setProperty('--chat-bubble-bg-my', 'var(--accent-color)');
+        root.style.setProperty('--chat-bubble-fg-my', accentContrast);
         root.style.setProperty('--chat-bubble-font-size', `${localFontSize * textScale}px`);
         
         root.style.setProperty('--bg-glow-opacity', (bgGlowOpacity / 100).toString());
@@ -142,7 +133,7 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
         root.style.setProperty('--scrollbar-bg', activeTheme.properties['--bg-secondary']);
         root.style.setProperty('--scrollbar-thumb', activeTheme.properties['--border-color']);
 
-    }, [theme, textScale, fontFamily, darkAccent, lightAccent, myBubbleColor, aiBubbleColor, localFontSize, cursorType, bgGlowOpacity]);
+    }, [theme, textScale, fontFamily, darkAccent, lightAccent, localFontSize, cursorType, bgGlowOpacity]);
 
     return (
         <div className="h-full w-full bg-[var(--bg-primary)] text-[var(--text-primary)] transition-colors duration-300 font-[family-name:var(--font-family)]">

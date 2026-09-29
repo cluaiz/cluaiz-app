@@ -1,5 +1,5 @@
 import { useThemeStore } from '../../store/ui/useThemeStore';
-import { Palette, Bot, Type, X, MousePointer } from 'lucide-react';
+import { Type, MousePointer } from 'lucide-react';
 import { SettingSection, SettingItem, ThemeCard } from './SharedComponents';
 import { ElasticSlider } from '../../components/ui/cursor/ElasticSlider';
 
@@ -22,10 +22,6 @@ export function ChatsSettings() {
         setLightAccent,
         cursorType,
         setCursorType,
-        myBubbleColor,
-        setMyBubbleColor,
-        aiBubbleColor,
-        setAiBubbleColor,
         localFontSize,
         setLocalFontSize,
         compactMode,
@@ -262,101 +258,7 @@ export function ChatsSettings() {
                 </div>
             </SettingSection>
 
-            <SettingSection title="Chat Bubble Styling">
-                <div className="p-4 space-y-6">
-                    <div>
-                        <div className="flex items-center gap-2 mb-3">
-                            <Palette size={14} className="text-zinc-500" />
-                            <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">My Messages</span>
-                        </div>
-                        <div className="flex flex-wrap gap-3">
-                            <button
-                                onClick={() => setMyBubbleColor('none')}
-                                className={cn(
-                                    "w-8 h-8 rounded-full transition-all hover:scale-110 relative border border-dashed border-white/20 flex items-center justify-center bg-black/40 shadow-lg cursor-pointer",
-                                    myBubbleColor === 'none' ? "scale-105" : "opacity-60 hover:opacity-100"
-                                )}
-                                style={{
-                                    boxShadow: myBubbleColor === 'none'
-                                        ? `0 0 0 2px var(--bg-primary, #09090b), 0 0 0 4px var(--accent-color)`
-                                        : undefined
-                                }}
-                                title="No custom color (Default)"
-                            >
-                                <X size={14} className="text-zinc-500" />
-                            </button>
-                            {[
-                                '#09090b', '#022c22', '#064e3b', '#14532d',
-                                '#0f172a', '#172554', '#312e81', '#4c0519',
-                                '#451a03', '#1c1917', '#27272a', '#000000'
-                            ].map((color) => (
-                                <button
-                                    key={color}
-                                    onClick={() => setMyBubbleColor(color)}
-                                    className={cn(
-                                        "w-8 h-8 rounded-full transition-all hover:scale-110 relative border border-white/10 shadow-lg cursor-pointer",
-                                        myBubbleColor === color ? "scale-105" : "opacity-60 hover:opacity-100"
-                                    )}
-                                    style={{
-                                        backgroundColor: color,
-                                        boxShadow: myBubbleColor === color
-                                            ? `0 0 0 2px var(--bg-primary, #09090b), 0 0 0 4px var(--accent-color)`
-                                            : undefined
-                                    }}
-                                />
-                            ))}
-                        </div>
-                    </div>
-
-                    <div className="h-[1px] bg-white/5" />
-
-                    <div>
-                        <div className="flex items-center gap-2 mb-3">
-                            <Bot size={14} className="text-zinc-500" />
-                            <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">AI Messages</span>
-                        </div>
-                        <div className="flex flex-wrap gap-3">
-                            <button
-                                onClick={() => setAiBubbleColor('none')}
-                                className={cn(
-                                    "w-8 h-8 rounded-full transition-all hover:scale-110 relative border border-dashed border-white/20 flex items-center justify-center bg-black/40 shadow-lg cursor-pointer",
-                                    aiBubbleColor === 'none' ? "scale-105" : "opacity-60 hover:opacity-100"
-                                )}
-                                style={{
-                                    boxShadow: aiBubbleColor === 'none'
-                                        ? `0 0 0 2px var(--bg-primary, #09090b), 0 0 0 4px var(--accent-color)`
-                                        : undefined
-                                }}
-                                title="No custom color (Default)"
-                            >
-                                <X size={14} className="text-zinc-500" />
-                            </button>
-                            {[
-                                '#09090b', '#022c22', '#064e3b', '#14532d',
-                                '#0f172a', '#172554', '#312e81', '#4c0519',
-                                '#451a03', '#1c1917', '#27272a', '#000000'
-                            ].map((color) => (
-                                <button
-                                    key={color}
-                                    onClick={() => setAiBubbleColor(color)}
-                                    className={cn(
-                                        "w-8 h-8 rounded-full transition-all hover:scale-110 relative border border-white/10 shadow-lg cursor-pointer",
-                                        aiBubbleColor === color ? "scale-105" : "opacity-60 hover:opacity-100"
-                                    )}
-                                    style={{
-                                        backgroundColor: color,
-                                        boxShadow: aiBubbleColor === color
-                                            ? `0 0 0 2px var(--bg-primary, #09090b), 0 0 0 4px var(--accent-color)`
-                                            : undefined
-                                    }}
-                                />
-                            ))}
-                        </div>
-                    </div>
-                </div>
-            </SettingSection>
-
-            <SettingSection title="Typography & Font Size">
+                  <SettingSection title="Typography & Font Size">
                 <div className="p-4 space-y-6">
                     <div>
                         <div className="flex items-center justify-between mb-2">
