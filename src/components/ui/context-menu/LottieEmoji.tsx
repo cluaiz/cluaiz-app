@@ -1,11 +1,15 @@
-import React, { useEffect, useState } from 'react';
-import { useLottie, type LottieComponentProps } from 'lottie-react';
+import React, { useEffect, useState, useRef } from 'react';
+import { Lottie } from 'lottie-react';
 
-interface LottieEmojiProps extends Omit<LottieComponentProps, 'animationData'> {
+interface LottieEmojiProps {
     path: string;
     alt?: string;
+    style?: React.CSSProperties;
     shouldPreload?: boolean;
     playOnHover?: boolean;
+    loop?: boolean | number;
+    autoplay?: boolean;
+    [key: string]: any;
 }
 
 const animationCache: Record<string, any> = {};
@@ -23,9 +27,16 @@ export const LottieEmoji: React.FC<LottieEmojiProps> = ({
     const [isLoaded, setIsLoaded] = useState(!!animationCache[path]);
 
     useEffect(() => {
-        if (animationData || error) return;
+        if (animationCache[path]) {
+            setAnimationData(animationCache[path]);
+            setIsLoaded(true);
+            setError(false);
+            return;
+        }
 
         let isMounted = true;
+        setError(false);
+        setIsLoaded(false);
 
         fetch(path)
             .then(res => {
@@ -34,7 +45,7 @@ export const LottieEmoji: React.FC<LottieEmojiProps> = ({
             })
             .then(data => {
                 if (isMounted) {
-                    animationCache[path] = data; // Cache it
+                    animationCache[path] = data; // Cache in memory
                     setAnimationData(data);
                     setIsLoaded(true);
                 }
@@ -44,7 +55,7 @@ export const LottieEmoji: React.FC<LottieEmojiProps> = ({
             });
 
         return () => { isMounted = false; };
-    }, [path, animationData, error]);
+    }, [path]);
 
     if (error) {
         return <span style={{ fontSize: '1.5em' }}>{alt || ''}</span>;
@@ -76,7 +87,7 @@ const LottieInner: React.FC<{
     alt?: string;
     loop?: boolean | number;
     autoplay?: boolean;
-    onComplete?: LottieComponentProps['onComplete'];
+    onComplete?: (event?: any) => void;
     [key: string]: any;
 }> = ({
     animationData,
@@ -88,35 +99,20 @@ const LottieInner: React.FC<{
     onComplete,
     ...restProps
 }) => {
+    const lottieRef = useRef<any>(null);
     const [isHovered, setIsHovered] = useState(false);
 
     const defaultLoop = playOnHover ? isHovered : (loop ?? true);
-    const defaultAutoplay = playOnHover ? true : (autoplay ?? true);
-
-    const options = {
-        animationData,
-        loop: defaultLoop,
-        autoplay: defaultAutoplay,
-        onComplete: (event: any) => {
-            if (playOnHover && !isHovered) {
-                stop();
-            } else if (onComplete) {
-                onComplete(event);
-            }
-        },
-        ...restProps
-    };
-
-    const { View, play, stop } = useLottie(options, style);
+    const defaultAutoplay = playOnHover ? false : (autoplay ?? true);
 
     useEffect(() => {
-        if (!playOnHover) return;
+        if (!playOnHover || !lottieRef.current) return;
         if (isHovered) {
-            play();
+            lottieRef.current.play?.();
         } else {
-            stop();
+            lottieRef.current.stop?.();
         }
-    }, [isHovered, playOnHover, play, stop]);
+    }, [isHovered, playOnHover]);
 
     const handleMouseEnter = () => {
         if (!playOnHover) return;
@@ -134,8 +130,14 @@ const LottieInner: React.FC<{
             onMouseEnter={handleMouseEnter}
             onMouseLeave={handleMouseLeave}
         >
-            {View}
+            <Lottie
+                lottieRef={lottieRef}
+                src={animationData}
+                loop={defaultLoop}
+                autoplay={defaultAutoplay}
+                style={{ width: '100%', height: '100%', ...style }}
+                {...restProps}
+            />
         </div>
     );
 };
-
