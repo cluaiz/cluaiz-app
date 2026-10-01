@@ -18,6 +18,14 @@ export interface ChatMessage {
         status: 'running' | 'completed' | 'failed';
         iconSvg?: string;
     }>;
+    permissionRequest?: {
+        requestId: string;
+        toolName: string;
+        category?: string;
+        parameters?: any;
+        status: 'pending' | 'approved' | 'rejected' | 'timeout';
+        feedback?: string;
+    };
     time: string;
     date: number; // Stored as timestamp
     reactions?: string[];
@@ -80,6 +88,15 @@ interface ChatStore {
         iconSvg?: string;
     }) => void;
     attachTelemetryToLastMessage: (sessionId: string, telemetry: { tps: string; elapsed: string; ttft: string; tokens: number }) => void;
+    setPermissionRequestOnLastMessage: (sessionId: string, req: {
+        requestId: string;
+        toolName: string;
+        category?: string;
+        parameters?: any;
+        status: 'pending' | 'approved' | 'rejected' | 'timeout';
+        feedback?: string;
+    }) => void;
+    resolvePermissionRequest: (sessionId: string, requestId: string, decision: 'approved' | 'rejected' | 'timeout', feedback?: string) => void;
     updateMessage: (sessionId: string, messageIndex: number, updater: (msg: ChatMessage) => ChatMessage) => void;
     deleteMessage: (sessionId: string, messageIndex: number) => void;
     updateSession: (sessionId: string, updater: (session: ChatSession) => ChatSession) => void;
@@ -337,6 +354,66 @@ export const useChatStore = create<ChatStore>()(
                     ...lastMessage,
                     toolCalls: updatedTools
                 };
+
+                return {
+                    sessions: {
+                        ...state.sessions,
+                        [sessionId]: {
+                            ...session,
+                            updatedAt: Date.now(),
+                            messages
+                        }
+                    }
+                };
+            });
+        },
+
+        setPermissionRequestOnLastMessage: (sessionId, req) => {
+            set((state) => {
+                const session = state.sessions[sessionId];
+                if (!session || session.messages.length === 0) return state;
+
+                const messages = [...session.messages];
+                const lastIndex = messages.length - 1;
+                const lastMessage = messages[lastIndex];
+                if (lastMessage.sender !== 'assistant') return state;
+
+                messages[lastIndex] = {
+                    ...lastMessage,
+                    permissionRequest: req
+                };
+
+                return {
+                    sessions: {
+                        ...state.sessions,
+                        [sessionId]: {
+                            ...session,
+                            updatedAt: Date.now(),
+                            messages
+                        }
+                    }
+                };
+            });
+        },
+
+        resolvePermissionRequest: (sessionId, requestId, decision, feedback) => {
+            set((state) => {
+                const session = state.sessions[sessionId];
+                if (!session || session.messages.length === 0) return state;
+
+                const messages = session.messages.map(msg => {
+                    if (msg.permissionRequest && msg.permissionRequest.requestId === requestId) {
+                        return {
+                            ...msg,
+                            permissionRequest: {
+                                ...msg.permissionRequest,
+                                status: decision,
+                                feedback
+                            }
+                        };
+                    }
+                    return msg;
+                });
 
                 return {
                     sessions: {

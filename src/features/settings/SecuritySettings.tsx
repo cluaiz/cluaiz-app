@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { SettingSection, SettingItem } from './SharedComponents';
 import { useConnectionStore } from '../../store/engine/useConnectionStore';
-import { Key, Copy, Check, Trash2, AlertTriangle, X } from 'lucide-react';
+import { Key, Copy, Check, Trash2, AlertTriangle, X, Shield } from 'lucide-react';
 
 interface ApiAuth {
     required: boolean;
@@ -10,6 +10,7 @@ interface ApiAuth {
 }
 
 interface PermissionData {
+    agent_security_mode?: 'full_access' | 'sandboxed' | 'strict';
     require_login_on_boot?: boolean;
     api_key_storage?: string;
     api_auth?: ApiAuth;
@@ -76,6 +77,7 @@ export function SecuritySettings() {
     const getBaseUrl = useConnectionStore((s) => s.getBaseUrl);
 
     const [permData, setPermData] = useState<PermissionData>({
+        agent_security_mode: 'sandboxed',
         require_login_on_boot: false,
         api_key_storage: 'system',
         api_auth: { required: false, tokens: [] },
@@ -226,6 +228,68 @@ export function SecuritySettings() {
 
     return (
         <div className="space-y-8 select-none">
+            {/* 0. Agent Security Mode (HITL) */}
+            <div className="bg-[var(--bg-secondary)]/60 border border-[var(--border-color)] rounded-2xl p-6 space-y-4">
+                <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-[var(--accent-color)]/10 text-[var(--accent-color)] flex items-center justify-center font-bold">
+                        <Shield size={20} />
+                    </div>
+                    <div>
+                        <h3 className="text-sm font-bold text-[var(--text-primary)]">Agent Execution Security Mode</h3>
+                        <p className="text-xs text-[var(--text-secondary)]">Controls how the AI Agent executes system tools, scripts, and file modifications.</p>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2">
+                    {[
+                        {
+                            id: 'full_access',
+                            title: 'Full Access',
+                            badge: 'Autonomous',
+                            desc: 'Agent executes all tools and file changes automatically without confirmation prompts.'
+                        },
+                        {
+                            id: 'sandboxed',
+                            title: 'Workspace-Gated',
+                            badge: 'Recommended',
+                            desc: 'Safe workspace reads execute automatically. Writes, outside-jail access, and undeclared capabilities require user approval.'
+                        },
+                        {
+                            id: 'strict',
+                            title: 'Strict Approval',
+                            badge: 'Maximum Safety',
+                            desc: 'Every tool execution and write pauses for explicit user approval. Access outside active workspace jail is hard-blocked (403).'
+                        }
+                    ].map((item) => {
+                        const isSelected = (permData.agent_security_mode || 'sandboxed') === item.id;
+                        return (
+                            <button
+                                key={item.id}
+                                type="button"
+                                onClick={() => updatePermission('agent_security_mode', item.id)}
+                                className={`p-4 rounded-xl border text-left flex flex-col justify-between gap-3 transition-all cursor-pointer ${
+                                    isSelected
+                                        ? 'bg-[var(--accent-color)]/10 border-[var(--accent-color)] shadow-sm'
+                                        : 'bg-[var(--bg-primary)]/40 border-[var(--border-color)] hover:border-[var(--accent-color)]/40'
+                                }`}
+                            >
+                                <div className="flex items-center justify-between w-full">
+                                    <span className={`text-xs font-bold ${isSelected ? 'text-[var(--accent-color)]' : 'text-[var(--text-primary)]'}`}>
+                                        {item.title}
+                                    </span>
+                                    <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[var(--text-secondary)]">
+                                        {item.badge}
+                                    </span>
+                                </div>
+                                <p className="text-[11px] text-[var(--text-muted)] leading-relaxed">
+                                    {item.desc}
+                                </p>
+                            </button>
+                        );
+                    })}
+                </div>
+            </div>
+
             {/* 1. Security & SSO */}
             <SettingSection title="Security & SSO">
                 <SettingItem

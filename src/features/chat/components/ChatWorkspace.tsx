@@ -270,6 +270,12 @@ main().catch(console.error);`);
                     return;
                 }
 
+                // If chunk has permissionRequest
+                if (typeof chunk === 'object' && chunk.permissionRequest) {
+                    store.setPermissionRequestOnLastMessage(store.activeSessionId, chunk.permissionRequest);
+                    return;
+                }
+
                 // If chunk has toolCall
                 if (typeof chunk === 'object' && chunk.toolCall) {
                     store.appendToolCallToLastMessage(store.activeSessionId, chunk.toolCall);
@@ -413,6 +419,12 @@ main().catch(console.error);`);
                 if (typeof chunk === 'object' && chunk.contextTelemetry) {
                     const telemetry = chunk.contextTelemetry.context_breakdown || chunk.contextTelemetry;
                     setBreakdown(telemetry);
+                    return;
+                }
+
+                // If chunk has permissionRequest
+                if (typeof chunk === 'object' && chunk.permissionRequest) {
+                    liveStore.setPermissionRequestOnLastMessage(sessionId, chunk.permissionRequest);
                     return;
                 }
 

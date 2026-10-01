@@ -136,9 +136,10 @@ const ThoughtProcessCard: React.FC<ThoughtProcessCardProps> = ({ thinking, isStr
     );
 };
 
-import { ChatMessage } from '../../../store/chat/useChatStore';
+import { ChatMessage, useChatStore } from '../../../store/chat/useChatStore';
 import { ToolCallAccordion } from './ToolCallAccordion';
 import { MarkdownRenderer } from '../../../components/ui/MarkdownRenderer';
+import { PermissionApprovalCard } from './PermissionApprovalCard';
 
 interface MessageBubbleProps {
     msg: ChatMessage;
@@ -161,6 +162,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     isSelected,
     onToggleSelect
 }) => {
+    const activeSessionId = useChatStore(s => s.activeSessionId) || '';
     const isUser = msg.sender === 'user';
     const isThinking = Boolean(msg.thinking && !msg.text);
     const [isThinkingOpen, setIsThinkingOpen] = React.useState(isThinking);
@@ -353,6 +355,14 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                                 <ToolCallAccordion key={tc.id} toolCall={tc} />
                             ))}
                         </div>
+                    )}
+
+                    {/* 2b. Agent Action Permission Approval Card (HITL Stream Pause) */}
+                    {msg.permissionRequest && (
+                        <PermissionApprovalCard
+                            sessionId={activeSessionId}
+                            permissionRequest={msg.permissionRequest}
+                        />
                     )}
 
                     {/* 3. Post-Tool Thought Process (Turn 2 reasoning) */}
