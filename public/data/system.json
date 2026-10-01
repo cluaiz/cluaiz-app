@@ -199,6 +199,83 @@
     },
     {
       "method": "GET",
+      "path": "/v1/system/permission/pending",
+      "desc": "Lists active paused agent operations currently awaiting human approval.",
+      "docs_url": "/docs/api/system/permission.md",
+      "params": [],
+      "response": "{\n  \"status\": \"success\",\n  \"pending\": [\n    {\n      \"request_id\": \"7fa419ba-a5a4-441f-8e2b-ffad67a1496a\",\n      \"tool_name\": \"execute_shell\",\n      \"capabilities\": [\"exec\"],\n      \"parameters\": {\"command\": \"git status\"},\n      \"status\": \"pending\"\n    }\n  ]\n}",
+      "examples": [
+        {
+          "language": "curl",
+          "title": "cURL",
+          "code": "curl -X GET http://localhost:8000/v1/system/permission/pending \\\n  -H 'Authorization: Bearer sk-cluaiz-e46c11e877b20afb49c4df0fcfa44351'"
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/v1/system/permission/approve",
+      "desc": "Approves a paused tool invocation or sensitive filesystem operation by its request UUID.",
+      "docs_url": "/docs/api/system/permission.md",
+      "params": [
+        {
+          "name": "request_id",
+          "type": "string",
+          "req": true,
+          "desc": "Unique UUID of the paused permission request.",
+          "default": "7fa419ba-a5a4-441f-8e2b-ffad67a1496a"
+        },
+        {
+          "name": "feedback",
+          "type": "string",
+          "req": false,
+          "desc": "Optional annotation for approval audit log.",
+          "default": "Approved by user in Desktop App"
+        }
+      ],
+      "request_payload": "{\n  \"request_id\": \"7fa419ba-a5a4-441f-8e2b-ffad67a1496a\",\n  \"feedback\": \"Approved by user in Desktop App\"\n}",
+      "response": "{\n  \"status\": \"success\",\n  \"message\": \"Permission approved\"\n}",
+      "examples": [
+        {
+          "language": "curl",
+          "title": "cURL",
+          "code": "curl -X POST http://localhost:8000/v1/system/permission/approve \\\n  -H 'Authorization: Bearer sk-cluaiz-e46c11e877b20afb49c4df0fcfa44351' \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"request_id\": \"7fa419ba-a5a4-441f-8e2b-ffad67a1496a\"}'"
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/v1/system/permission/reject",
+      "desc": "Rejects a paused tool invocation and sends cancellation feedback to the model context.",
+      "docs_url": "/docs/api/system/permission.md",
+      "params": [
+        {
+          "name": "request_id",
+          "type": "string",
+          "req": true,
+          "desc": "Unique UUID of the paused permission request.",
+          "default": "7fa419ba-a5a4-441f-8e2b-ffad67a1496a"
+        },
+        {
+          "name": "feedback",
+          "type": "string",
+          "req": false,
+          "desc": "Optional feedback explaining why the action was declined.",
+          "default": "Declined by user"
+        }
+      ],
+      "request_payload": "{\n  \"request_id\": \"7fa419ba-a5a4-441f-8e2b-ffad67a1496a\",\n  \"feedback\": \"Declined by user\"\n}",
+      "response": "{\n  \"status\": \"success\",\n  \"message\": \"Permission rejected\"\n}",
+      "examples": [
+        {
+          "language": "curl",
+          "title": "cURL",
+          "code": "curl -X POST http://localhost:8000/v1/system/permission/reject \\\n  -H 'Authorization: Bearer sk-cluaiz-e46c11e877b20afb49c4df0fcfa44351' \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"request_id\": \"7fa419ba-a5a4-441f-8e2b-ffad67a1496a\", \"feedback\": \"Declined\"}'"
+        }
+      ]
+    },
+    {
+      "method": "GET",
       "path": "/v1/system/storage/temp_media",
       "desc": "Inspects temporary media storage cache size and file counts.",
       "docs_url": "/docs/reference/api.md",

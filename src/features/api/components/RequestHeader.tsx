@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { useApiStore } from '../../../store/api/useApiStore';
+import { useApiStore, fetchActiveBearerToken } from '../../../store/api/useApiStore';
 import { useConnectionStore } from '../../../store/engine/useConnectionStore';
 import { HttpMethod, ApiProtocol } from '../types';
 import { executeApiRequest } from '../services/apiTransport';
@@ -78,6 +78,17 @@ export const RequestHeader: React.FC = () => {
             }
         } catch {
             // Keep default
+        }
+
+        // Auto-inject Authorization Bearer token if not provided by user
+        if (!parsedHeaders['Authorization']) {
+            try {
+                const token = await fetchActiveBearerToken();
+                if (token) {
+                    parsedHeaders['Authorization'] = token;
+                    useApiStore.getState().setReqHeaders(JSON.stringify(parsedHeaders, null, 2));
+                }
+            } catch (_) {}
         }
 
         try {

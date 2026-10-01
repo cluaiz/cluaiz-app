@@ -49,6 +49,7 @@ interface ApiStoreState {
 
 const DATA_FILES = [
     'system.json',
+    'filesystem.json',
     'inference.json',
     'tools.json',
     'execution.json',
@@ -59,6 +60,23 @@ const DATA_FILES = [
     'config.json',
     'tuning.json'
 ];
+
+export async function fetchActiveBearerToken(): Promise<string | null> {
+    try {
+        const baseUrl = useConnectionStore.getState().getBaseUrl();
+        const res = await fetch(`${baseUrl}/v1/system/permission`);
+        if (!res.ok) return null;
+        const pData = await res.json();
+        const apiAuth = pData?.api_auth || pData?.permission?.api_auth;
+        if (apiAuth && Array.isArray(apiAuth.tokens) && apiAuth.tokens.length > 0) {
+            const rawToken = apiAuth.tokens[0].trim();
+            return rawToken.startsWith('Bearer ') ? rawToken : `Bearer ${rawToken}`;
+        }
+    } catch (e) {
+        console.warn('[useApiStore] Could not fetch permissions for auth token:', e);
+    }
+    return null;
+}
 
 export const useApiStore = create<ApiStoreState>()((set, get) => ({
     apiData: [],
@@ -121,6 +139,19 @@ export const useApiStore = create<ApiStoreState>()((set, get) => ({
             if (!get().activeEndpoint && validGroups.length > 0 && validGroups[0].endpoints.length > 0) {
                 get().selectEndpoint(validGroups[0].endpoints[0]);
             }
+
+            // Auto-fetch active token and sync into reqHeaders
+            try {
+                const bearer = await fetchActiveBearerToken();
+                if (bearer) {
+                    set({
+                        reqHeaders: JSON.stringify({
+                            'Content-Type': 'application/json',
+                            'Authorization': bearer
+                        }, null, 2)
+                    });
+                }
+            } catch (_) {}
         } catch (e) {
             console.error('[useApiStore] Error in loadApiData:', e);
             set({ isLoadingData: false });
@@ -191,6 +222,47 @@ export const useApiStore = create<ApiStoreState>()((set, get) => ({
             audioData: null,
             activeResTab: 'json'
         });
+
+        // Ensure Authorization header is present
+        const currentHeaders = get().reqHeaders;
+        try {
+            const parsed = JSON.parse(currentHeaders || '{}');
+            if (!parsed['Authorization']) {
+                fetchActiveBearerToken().then((token) => {
+                    if (token) {
+                        const updated = {
+                            'Content-Type': parsed['Content-Type'] || 'application/json',
+                            'Authorization': token,
+                            ...parsed
+                        };
+                        set({ reqHeaders: JSON.stringify(updated, null, 2) });
+                    }
+                });
+            }
+        } catch (_) {}
+
+        // Fetch markdown documentation if docs_url is specified and docs_content not yet cached
+        if (ep.docs_url && !ep.docs_content) {
+            fetch(`${baseUrl}${ep.docs_url}`)
+                .then(async (r) => {
+                    if (!r.ok) return;
+                    const text = await r.text();
+                    if (!text.trim().startsWith('<!DOCTYPE') && !text.trim().startsWith('<html')) {
+                        set((state) => {
+                            if (state.activeEndpoint && state.activeEndpoint.path === ep.path) {
+                                return {
+                                    activeEndpoint: {
+                                        ...state.activeEndpoint,
+                                        docs_content: text
+                                    }
+                                };
+                            }
+                            return {};
+                        });
+                    }
+                })
+                .catch(() => {});
+        }
     },
 
     setSearchQuery: (searchQuery) => set({ searchQuery }),

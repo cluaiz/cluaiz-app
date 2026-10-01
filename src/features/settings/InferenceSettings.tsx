@@ -140,8 +140,10 @@ export function InferenceSettings() {
                 const pRes = await fetch(`${baseUrl}/v1/system/permission`).catch(() => null);
                 if (pRes && pRes.ok) {
                     const pData = await pRes.json();
-                    if (pData?.permission?.api_auth?.required && pData.permission.api_auth.tokens?.length > 0) {
-                        authHeadersRef.current['Authorization'] = 'Bearer ' + pData.permission.api_auth.tokens[0];
+                    const apiAuth = pData?.api_auth || pData?.permission?.api_auth;
+                    if (apiAuth?.required && apiAuth.tokens?.length > 0) {
+                        const tok = apiAuth.tokens[0].trim();
+                        authHeadersRef.current['Authorization'] = tok.startsWith('Bearer ') ? tok : 'Bearer ' + tok;
                     }
                 }
             } catch (e) {
