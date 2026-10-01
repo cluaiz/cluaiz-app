@@ -63,6 +63,14 @@ export interface StreamChunk {
         output_result?: any;
         iconSvg?: string;
     };
+    permissionRequest?: {
+        requestId: string;
+        toolName: string;
+        category?: string;
+        parameters?: any;
+        status: 'pending' | 'approved' | 'rejected' | 'timeout';
+        timeoutSeconds?: number;
+    };
 }
 
 export class cluaizEngine {
@@ -296,6 +304,22 @@ export class cluaizEngine {
                                             }
                                         });
                                     }
+                                    continue;
+                                }
+
+                                // 1b. Handle permission_request (HITL Stream Pause)
+                                const permReq = delta.permission_request;
+                                if (permReq) {
+                                    emitChunk({
+                                        permissionRequest: {
+                                            requestId: permReq.request_id,
+                                            toolName: permReq.tool_name,
+                                            category: permReq.category,
+                                            parameters: permReq.parameters,
+                                            status: 'pending',
+                                            timeoutSeconds: permReq.timeout_seconds || 120
+                                        }
+                                    });
                                     continue;
                                 }
 

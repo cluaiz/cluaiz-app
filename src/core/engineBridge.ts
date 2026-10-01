@@ -51,24 +51,10 @@ export async function executeEngineCommand(command: string): Promise<EngineCmdRe
     }
 }
 
-// Browser-safe UTF-16LE Base64 encoding for Windows PowerShell -EncodedCommand
-function encodeUtf16LeBase64(str: string): string {
-    const codeUnits = new Uint16Array(str.length);
-    for (let i = 0; i < str.length; i++) {
-        codeUnits[i] = str.charCodeAt(i);
-    }
-    const bytes = new Uint8Array(codeUnits.buffer);
-    let binary = '';
-    for (let i = 0; i < bytes.byteLength; i++) {
-        binary += String.fromCharCode(bytes[i]);
-    }
-    return btoa(binary);
-}
-
 /**
  * High-Performance Native File Reader
- * Direct kernel-level Rust fs::read_to_string via Tauri IPC (< 1ms).
- * In web mode, falls back to immune Base64-encoded PowerShell runner.
+ * Direct kernel-level Rust fs::read via Tauri IPC in Desktop (< 0.1ms).
+ * In Web mode, calls Engine native /v1/fs/read REST API (< 0.2ms, zero cmd/powershell).
  */
 export async function readDiskFileFast(path: string, isBinary: boolean = false): Promise<string> {
     if (!path) return '';
@@ -91,52 +77,36 @@ export async function readDiskFileFast(path: string, isBinary: boolean = false):
         }
     }
 
-    // 2. High-speed Fallback (Zero-Double-Quote Engine Runner)
+    // 2. High-speed Engine Native REST Fallback (Direct SSD Syscall, Zero Process Overhead)
     try {
         const baseUrl = useConnectionStore.getState().getBaseUrl();
-        let cmd = '';
-        if (isWin) {
-            if (isBinary) {
-                const psEscaped = normalizedPath.replace(/'/g, "''");
-                const script = `$ProgressPreference = 'SilentlyContinue'; $ErrorActionPreference = 'SilentlyContinue'; if (Test-Path -LiteralPath '${psEscaped}') { [System.Convert]::ToBase64String([System.IO.File]::ReadAllBytes('${psEscaped}')) }`;
-                const encoded = encodeUtf16LeBase64(script);
-                cmd = `powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand ${encoded}`;
-            } else if (!normalizedPath.includes(' ') && !normalizedPath.includes('&') && !normalizedPath.includes('^')) {
-                // High-Speed Direct Path (10ms): Clean, unquoted type command.
-                // Engine runs: cmd.exe /C type <path>
-                // Without double quotes, Rust's Command::new never injects \" escaping.
-                cmd = `type ${normalizedPath}`;
-            } else {
-                // Safe Path with Spaces: Use single-quoted PowerShell ReadAllText.
-                // Single quotes are completely ignored by Rust Command escaping and cmd.exe wrapper.
-                const psEscaped = normalizedPath.replace(/'/g, "''");
-                cmd = `powershell -NoProfile -NonInteractive -Command "[System.IO.File]::ReadAllText('${psEscaped}')"`;
-            }
-        } else {
-            cmd = isBinary ? `base64 "${normalizedPath}" 2>/dev/null || true` : `cat "${normalizedPath}" 2>/dev/null || true`;
-        }
-
-        const res = await fetch(`${baseUrl}/v1/system/cmd`, {
+        const res = await fetch(`${baseUrl}/v1/fs/read`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ command: cmd })
+            headers: {
+                'Content-Type': 'application/json',
+                'x-caller': 'user',
+            },
+            body: JSON.stringify({
+                path: normalizedPath,
+                is_binary: isBinary,
+            }),
         });
+
         if (res.ok) {
             const data = await res.json();
-            const out = data.output || '';
-            if (out.includes('The filename, directory name, or volume label syntax is incorrect')) {
-                return '';
-            }
-            return out;
+            return data.content || '';
         }
-    } catch {}
+    } catch (err) {
+        console.warn('[engineBridge] Native FS read error:', err);
+    }
 
     return '';
 }
 
 /**
  * High-Performance Native File Writer
- * Direct Rust fs::write via Tauri IPC (< 1ms).
+ * Direct Rust fs::write via Tauri IPC in Desktop (< 0.1ms).
+ * In Web mode, calls Engine native /v1/fs/write REST API (< 0.2ms, zero cmd/powershell).
  */
 export async function writeDiskFileFast(path: string, content: string): Promise<boolean> {
     if (!path) return false;
@@ -158,15 +128,16 @@ export async function writeDiskFileFast(path: string, content: string): Promise<
 
     try {
         const baseUrl = useConnectionStore.getState().getBaseUrl();
-        const b64 = btoa(unescape(encodeURIComponent(content)));
-        const isWin = typeof navigator !== 'undefined' && (navigator.userAgent.includes('Windows') || navigator.platform?.startsWith('Win'));
-        const cmd = isWin
-            ? `powershell -NoProfile -NonInteractive -Command "$d = Split-Path -Path '${path}' -Parent; if (-not (Test-Path -LiteralPath $d)) { New-Item -ItemType Directory -Path $d -Force | Out-Null }; [System.IO.File]::WriteAllBytes('${path}', [System.Convert]::FromBase64String('${b64}'))"`
-            : `mkdir -p "$(dirname "${path}")" && echo "${b64}" | base64 -d > "${path}"`;
-        const res = await fetch(`${baseUrl}/v1/system/cmd`, {
+        const res = await fetch(`${baseUrl}/v1/fs/write`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ command: cmd })
+            headers: {
+                'Content-Type': 'application/json',
+                'x-caller': 'user',
+            },
+            body: JSON.stringify({
+                path: normalizedPath,
+                content,
+            }),
         });
         return res.ok;
     } catch {
@@ -184,6 +155,7 @@ export interface DiskItemNative {
 
 export async function listDiskDirFast(dirPath: string, rootPath?: string, recursive: boolean = false): Promise<DiskItemNative[]> {
     if (!dirPath) return [];
+
     if (isTauri()) {
         try {
             const res = await invoke<DiskItemNative[]>('fs_list_dir', { 
@@ -196,11 +168,37 @@ export async function listDiskDirFast(dirPath: string, rootPath?: string, recurs
             console.warn('[engineBridge] Tauri fs_list_dir error:', err);
         }
     }
+
+    // Engine Native REST for Web Mode
+    try {
+        const baseUrl = useConnectionStore.getState().getBaseUrl();
+        const res = await fetch(`${baseUrl}/v1/fs/list`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-caller': 'user',
+            },
+            body: JSON.stringify({
+                dir_path: dirPath,
+                root_path: rootPath || dirPath,
+                recursive,
+            }),
+        });
+
+        if (res.ok) {
+            const data = await res.json();
+            return data.items || [];
+        }
+    } catch (err) {
+        console.warn('[engineBridge] Native FS list error:', err);
+    }
+
     return [];
 }
 
 export async function deleteDiskPathFast(path: string): Promise<boolean> {
     if (!path) return false;
+
     if (isTauri()) {
         try {
             await invoke('fs_delete_path', { path });
@@ -209,11 +207,26 @@ export async function deleteDiskPathFast(path: string): Promise<boolean> {
             console.warn('[engineBridge] Tauri fs_delete_path error:', err);
         }
     }
-    return false;
+
+    try {
+        const baseUrl = useConnectionStore.getState().getBaseUrl();
+        const res = await fetch(`${baseUrl}/v1/fs/delete`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-caller': 'user',
+            },
+            body: JSON.stringify({ path }),
+        });
+        return res.ok;
+    } catch {
+        return false;
+    }
 }
 
 export async function renameDiskPathFast(oldPath: string, newPath: string): Promise<boolean> {
     if (!oldPath || !newPath) return false;
+
     if (isTauri()) {
         try {
             await invoke('fs_rename_path', { oldPath, newPath });
@@ -222,11 +235,26 @@ export async function renameDiskPathFast(oldPath: string, newPath: string): Prom
             console.warn('[engineBridge] Tauri fs_rename_path error:', err);
         }
     }
-    return false;
+
+    try {
+        const baseUrl = useConnectionStore.getState().getBaseUrl();
+        const res = await fetch(`${baseUrl}/v1/fs/rename`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-caller': 'user',
+            },
+            body: JSON.stringify({ old_path: oldPath, new_path: newPath }),
+        });
+        return res.ok;
+    } catch {
+        return false;
+    }
 }
 
 export async function copyDiskPathFast(srcPath: string, destPath: string): Promise<boolean> {
     if (!srcPath || !destPath) return false;
+
     if (isTauri()) {
         try {
             await invoke('fs_copy_path', { srcPath, destPath });
@@ -235,11 +263,26 @@ export async function copyDiskPathFast(srcPath: string, destPath: string): Promi
             console.warn('[engineBridge] Tauri fs_copy_path error:', err);
         }
     }
-    return false;
+
+    try {
+        const baseUrl = useConnectionStore.getState().getBaseUrl();
+        const res = await fetch(`${baseUrl}/v1/fs/copy`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-caller': 'user',
+            },
+            body: JSON.stringify({ src_path: srcPath, dest_path: destPath }),
+        });
+        return res.ok;
+    } catch {
+        return false;
+    }
 }
 
 export async function createDirFast(path: string): Promise<boolean> {
     if (!path) return false;
+
     if (isTauri()) {
         try {
             await invoke('fs_create_dir', { path });
@@ -248,7 +291,21 @@ export async function createDirFast(path: string): Promise<boolean> {
             console.warn('[engineBridge] Tauri fs_create_dir error:', err);
         }
     }
-    return false;
+
+    try {
+        const baseUrl = useConnectionStore.getState().getBaseUrl();
+        const res = await fetch(`${baseUrl}/v1/fs/mkdir`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-caller': 'user',
+            },
+            body: JSON.stringify({ path }),
+        });
+        return res.ok;
+    } catch {
+        return false;
+    }
 }
 
 export interface FsChangeEvent {
