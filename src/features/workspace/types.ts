@@ -19,9 +19,16 @@ export interface Project {
     id: string;
     name: string;
     description?: string;
+    rootPath?: string;
     files: Record<string, ProjectFile>;
+    folders?: string[];
     activeFilePath: string;
     openFilePaths: string[];
     createdAt: number;
     updatedAt: number;
+}
+export interface RecentWorkspace {
+    path: string;
+    name: string;
+    lastOpened: number;
 }

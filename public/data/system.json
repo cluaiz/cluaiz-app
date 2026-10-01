@@ -275,6 +275,101 @@
     },
     {
       "method": "POST",
+      "path": "/v1/system/storage/settings",
+      "desc": "Updates local vault storage controls and automatic cache cleanup policy.",
+      "docs_url": "/docs/reference/api.md",
+      "params": [
+        {
+          "name": "cleanup_policy",
+          "type": "string",
+          "req": true,
+          "desc": "Temporary media cleanup policy ('Immediate', 'Deferred', 'Disabled').",
+          "default": "Immediate"
+        }
+      ],
+      "request_payload": "{\n  \"cleanup_policy\": \"Immediate\"\n}",
+      "response": "{\n  \"status\": \"success\",\n  \"message\": \"Storage settings updated.\"\n}",
+      "examples": [
+        {
+          "language": "curl",
+          "title": "cURL",
+          "code": "curl -X POST http://localhost:8000/v1/system/storage/settings \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"cleanup_policy\": \"Immediate\"}'"
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/v1/system/gguf_config",
+      "desc": "Updates global GGUF parser flags and thinking monologue behavior.",
+      "docs_url": "/docs/reference/api.md",
+      "params": [
+        {
+          "name": "user_moved_flags",
+          "type": "object",
+          "req": false,
+          "desc": "Thinking mode flags and runtime overrides.",
+          "default": {
+            "think_mode": "auto"
+          }
+        }
+      ],
+      "request_payload": "{\n  \"user_moved_flags\": {\n    \"think_mode\": \"auto\"\n  }\n}",
+      "response": "{\n  \"status\": \"success\"\n}",
+      "examples": [
+        {
+          "language": "curl",
+          "title": "cURL",
+          "code": "curl -X POST http://localhost:8000/v1/system/gguf_config \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"user_moved_flags\": {\"think_mode\": \"auto\"}}'"
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/v1/system/onnx_config",
+      "desc": "Updates ONNX runtime execution provider and memory optimization settings.",
+      "docs_url": "/docs/reference/api.md",
+      "params": [
+        {
+          "name": "execution_provider",
+          "type": "string",
+          "req": false,
+          "desc": "ONNX execution provider (e.g. 'CPUExecutionProvider', 'CUDAExecutionProvider').",
+          "default": "CPUExecutionProvider"
+        }
+      ],
+      "request_payload": "{\n  \"execution_provider\": \"CPUExecutionProvider\"\n}",
+      "response": "{\n  \"status\": \"success\"\n}",
+      "examples": [
+        {
+          "language": "curl",
+          "title": "cURL",
+          "code": "curl -X POST http://localhost:8000/v1/system/onnx_config \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"execution_provider\": \"CPUExecutionProvider\"}'"
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/v1/benchmark/run",
+      "desc": "Executes hardware isolated benchmark suite across CPU, RAM, and GPU/VRAM to measure compute throughput.",
+      "docs_url": "/docs/reference/api.md",
+      "params": [],
+      "request_payload": "{}",
+      "response": "{\n  \"status\": \"success\",\n  \"message\": \"Hardware isolated benchmark stream executed.\"\n}",
+      "examples": [
+        {
+          "language": "curl",
+          "title": "cURL",
+          "code": "curl -X POST http://localhost:8000/v1/benchmark/run \\\n  -H 'Content-Type: application/json' \\\n  -d '{}'"
+        },
+        {
+          "language": "python",
+          "title": "Python",
+          "code": "import requests\n\nres = requests.post('http://localhost:8000/v1/benchmark/run', json={})\nprint(res.json())"
+        }
+      ]
+    },
+    {
+      "method": "POST",
       "path": "/v1/system/cmd",
       "desc": "Executes shell commands locally. STRICTLY bound to 127.0.0.1 (Localhost). Rejects any remote attempts to prevent RCE.",
       "docs_url": "/docs/api/system/cmd.md",

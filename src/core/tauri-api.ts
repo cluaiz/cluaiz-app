@@ -6,7 +6,12 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
  * Checks if the app is currently running in a Tauri desktop environment.
  */
 export const isTauri = (): boolean => {
-    return typeof window !== 'undefined' && ('__TAURI_INTERNALS__' in window || '__TAURI__' in window || '__TAURI_IPC__' in window);
+    return typeof window !== 'undefined' && (
+        '__TAURI_INTERNALS__' in window || 
+        '__TAURI__' in window || 
+        '__TAURI_IPC__' in window || 
+        !!(window as any).__TAURI__
+    );
 };
 
 /**

@@ -1,6 +1,7 @@
-import { Settings, LayoutDashboard, Wrench, Code2, Boxes, MessageSquare } from 'lucide-react';
+import { Settings, LayoutDashboard, Wrench, Code2, Boxes, MessageSquare, FolderGit2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLayoutStore } from '../../store/ui/useLayoutStore';
+import { useProjectStore } from '../../features/workspace/store/useProjectStore';
 
 interface BubbleLauncherProps {
     isOpen: boolean;
@@ -20,6 +21,10 @@ export function BubbleLauncher({ isOpen, coords, onClose, onOpenSettings }: Bubb
         } else if (action === 'new_chat') {
             useLayoutStore.getState().setActiveView('chat');
             document.dispatchEvent(new CustomEvent('start-new-chat'));
+        } else if (action === 'workspace') {
+            useLayoutStore.getState().setActiveView('chat');
+            useProjectStore.getState().openWorkspace();
+            useLayoutStore.getState().setSplitPaneWidth(50);
         } else if (action === 'tools') {
             useLayoutStore.getState().setActiveView('tools');
             document.dispatchEvent(new CustomEvent('open-tools'));
@@ -65,6 +70,7 @@ export function BubbleLauncher({ isOpen, coords, onClose, onOpenSettings }: Bubb
                         style={coords ? { left: getLeftPos(), top: coords.y } : undefined}
                     >
                         <MenuItem icon={MessageSquare} label="New Chat" onClick={() => handleSelect('new_chat')} />
+                        <MenuItem icon={FolderGit2} label="Open Workspace" onClick={() => handleSelect('workspace')} />
                         <MenuItem icon={LayoutDashboard} label="Dashboard" onClick={() => handleSelect('dashboard')} />
                         <MenuItem icon={Wrench} label="Tools" onClick={() => handleSelect('tools')} />
                         <MenuItem icon={Code2} label="APIs" onClick={() => handleSelect('apis')} />

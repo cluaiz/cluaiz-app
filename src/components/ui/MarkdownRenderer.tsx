@@ -43,11 +43,15 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ language, value }) => {
         setTimeout(() => setCopied(false), 2000);
     };
 
-    const handleOpenInWorkspace = () => {
+    const handleOpenInWorkspace = async () => {
         const ext = language === 'python' ? 'py' : (language === 'javascript' ? 'js' : (language === 'typescript' ? 'ts' : (language === 'rust' ? 'rs' : (language === 'html' ? 'html' : (language === 'css' ? 'css' : 'txt')))));
         const filename = `snippet.${ext}`;
-        createOrUpdateProject('workspace_snippets', 'Code Snippets', { [filename]: value }, 'In-chat code snippets');
-        openWorkspace('workspace_snippets');
+        const store = useProjectStore.getState();
+        const activeProj = store.getActiveProject();
+        if (activeProj) {
+            await store.createFile(filename, value);
+        }
+        store.openWorkspace();
         setSplitPaneWidth(50);
     };
 

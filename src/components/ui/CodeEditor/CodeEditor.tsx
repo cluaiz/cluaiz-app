@@ -41,7 +41,9 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
     allowLanguageChange = true,
     onLanguageChange,
     onMount: userOnMount,
-    extraToolbarActions
+    extraToolbarActions,
+    disableNativeContextMenu = false,
+    onContextMenu
 }) => {
     const { theme, darkAccent, lightAccent } = useThemeStore();
     const isDark = theme !== 'light';
@@ -139,10 +141,30 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
             }
         });
 
+        // Custom Right-Click Context Menu Listener
+        let disposableContextMenu: any = null;
+        if (onContextMenu) {
+            disposableContextMenu = editor.onContextMenu((e: any) => {
+                if (e.event?.browserEvent) {
+                    e.event.browserEvent.preventDefault();
+                    e.event.browserEvent.stopPropagation();
+                    onContextMenu({
+                        x: e.event.browserEvent.clientX,
+                        y: e.event.browserEvent.clientY,
+                        editor,
+                        monaco
+                    });
+                }
+            });
+        }
+
         editor.onDidDispose(() => {
             disposableMarkers.dispose();
             disposableCursor.dispose();
             disposableSelection.dispose();
+            if (disposableContextMenu) {
+                disposableContextMenu.dispose();
+            }
         });
 
         if (userOnMount) {
@@ -570,10 +592,9 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
                     options={{
                         readOnly,
 
-                        // Sticky Scroll (Shows parent function/object at top when scrolling)
+                        // Sticky Scroll: disabled to prevent synchronous AST parsing on scroll
                         stickyScroll: {
-                            enabled: true,
-                            maxLineCount: 5
+                            enabled: false
                         },
 
                         // Linked Editing (HTML/XML tag rename synchronization)
@@ -587,38 +608,52 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
                         // Hover inspection tooltips
                         hover: {
                             enabled: 'on',
-                            delay: 150
+                            delay: 250
                         },
 
-                        // CodeLens references
-                        codeLens: true,
+                        // CodeLens references (disabled for zero scroll measuring overhead)
+                        codeLens: false,
 
                         // Minimap & Overview Ruler
                         minimap: { 
                             enabled: isMinimapEnabled, 
-                            renderCharacters: true, 
+                            renderCharacters: false, 
                             maxColumn: 120, 
                             showSlider: 'always' 
                         },
-                        overviewRulerBorder: true,
-                        overviewRulerLanes: 3,
+                        overviewRulerBorder: false,
+                        overviewRulerLanes: 1,
 
                         // Line Numbers, Gutter & Glyphs
                         lineNumbers: isLineNumbersEnabled ? 'on' : 'off',
                         lineNumbersMinChars: 3,
-                        glyphMargin: true,
-                        lineDecorationsWidth: 8,
+                        glyphMargin: false,
+                        lineDecorationsWidth: 6,
 
                         // Word Wrap & Layout
                         wordWrap: isWordWrap ? 'on' : 'off',
                         scrollBeyondLastLine: false,
                         automaticLayout: true,
-                        smoothScrolling: true,
-                        mouseWheelZoom: true,
+
+                        // Native Fluid 60/120FPS GPU Scrolling (Zero software timer conflict)
+                        smoothScrolling: false,
+                        fastScrollSensitivity: 5,
+                        mouseWheelScrollSensitivity: 1,
+
+                        // Scrollbar styling (Hardware composited, no heavy shadow repaints)
+                        scrollbar: {
+                            vertical: 'visible',
+                            horizontal: 'auto',
+                            useShadows: false,
+                            verticalScrollbarSize: 10,
+                            horizontalScrollbarSize: 10,
+                            verticalSliderSize: 6,
+                            horizontalSliderSize: 6
+                        },
 
                         // Cursor Caret & Animation
                         cursorBlinking: 'smooth',
-                        cursorSmoothCaretAnimation: 'on',
+                        cursorSmoothCaretAnimation: 'explicit',
                         cursorStyle: 'line',
                         cursorWidth: 2,
 
@@ -675,7 +710,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
                         formatOnType: true,
 
                         // Native Right-Click Context Menu
-                        contextmenu: true,
+                        contextmenu: !disableNativeContextMenu && !onContextMenu,
 
                         // Multi-Cursor Editing
                         multiCursorModifier: 'alt',
@@ -695,16 +730,8 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
                             seedSearchStringFromSelection: 'always'
                         },
 
-                        // Padding & Custom Scrollbars
-                        padding: { top: 10, bottom: 10 },
-                        scrollbar: {
-                            vertical: 'visible',
-                            horizontal: 'visible',
-                            verticalScrollbarSize: 9,
-                            horizontalScrollbarSize: 9,
-                            useShadows: true,
-                            alwaysConsumeMouseWheel: false
-                        }
+                        // Padding
+                        padding: { top: 10, bottom: 10 }
                     }}
                 />
             </div>
