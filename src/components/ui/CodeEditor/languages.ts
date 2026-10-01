@@ -83,7 +83,13 @@ export const LANGUAGE_ALIASES: Record<string, string> = {
     ini: 'ini',
     cel: 'cel',
     'c-pointer': 'rust'
-};
+} as const;
+
+export type SupportedLanguage = 
+    | keyof typeof LANGUAGE_ALIASES 
+    | (typeof LANGUAGE_ALIASES)[keyof typeof LANGUAGE_ALIASES]
+    | (string & {});
+
 
 export interface LanguageItem {
     label: string;

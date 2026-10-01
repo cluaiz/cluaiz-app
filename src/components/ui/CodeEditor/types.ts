@@ -1,32 +1,7 @@
 import type { ReactNode } from 'react';
+import type { SupportedLanguage } from './languages';
 
-export type CodeEditorLanguage =
-    | 'json'
-    | 'javascript'
-    | 'typescript'
-    | 'python'
-    | 'rust'
-    | 'go'
-    | 'c'
-    | 'cpp'
-    | 'csharp'
-    | 'java'
-    | 'kotlin'
-    | 'php'
-    | 'html'
-    | 'css'
-    | 'scss'
-    | 'sql'
-    | 'shell'
-    | 'dockerfile'
-    | 'yaml'
-    | 'xml'
-    | 'graphql'
-    | 'markdown'
-    | 'cel'
-    | 'toml'
-    | 'plaintext'
-    | string;
+export type CodeEditorLanguage = SupportedLanguage;
 
 export interface CodeEditorProps {
     value: string;
@@ -45,6 +20,8 @@ export interface CodeEditorProps {
     onLanguageChange?: (language: CodeEditorLanguage) => void;
     onMount?: (editor: any, monaco: any) => void;
     extraToolbarActions?: ReactNode;
+    disableNativeContextMenu?: boolean;
+    onContextMenu?: (e: { x: number; y: number; editor: any; monaco: any }) => void;
 }
 
 export interface DiffStats {
