@@ -354,9 +354,10 @@ export function ToolsSettings() {
                                     <div className="flex items-start gap-3.5 flex-1 min-w-0">
                                         <div className="w-10 h-10 rounded-xl bg-[var(--bg-tertiary)] border border-[var(--border-color)] flex items-center justify-center font-bold text-[var(--accent-color)] shrink-0 group-hover:border-[var(--accent-color)]/40 transition-colors overflow-hidden p-1.5">
                                             {tool.icon_svg ? (
-                                                <div 
-                                                    className="w-full h-full flex items-center justify-center [&>svg]:w-full [&>svg]:h-full [&>svg]:object-contain"
-                                                    dangerouslySetInnerHTML={{ __html: tool.icon_svg }}
+                                                <img 
+                                                    src={`data:image/svg+xml;utf8,${encodeURIComponent(tool.icon_svg)}`}
+                                                    alt={tool.name}
+                                                    className="w-full h-full object-contain"
                                                 />
                                             ) : tool.category === 'skill' ? (
                                                 <Zap size={18} />
