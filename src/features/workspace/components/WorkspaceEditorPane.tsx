@@ -1,14 +1,11 @@
 import React, { useState, useRef } from 'react';
 import { 
-    Play, 
     Maximize2, 
     Minimize2, 
     X, 
-    Download, 
     FolderGit2, 
     ChevronDown,
     FileCode,
-    Archive,
     PanelLeft,
     FilePlus,
     FolderPlus,
@@ -17,9 +14,10 @@ import {
     Terminal,
     LogOut,
     LayoutGrid,
-    Pin
+    Pin,
+    Loader2
 } from 'lucide-react';
-import { useProjectStore, pickFolderFromOS, syncFileToDisk } from '../store/useProjectStore';
+import { useProjectStore, pickFolderFromOS, syncFileToDisk } from '../../../store/workspace/useProjectStore';
 import { WorkspaceFileTree, getFileExtension } from './WorkspaceFileTree';
 import { WorkspaceTerminal } from './WorkspaceTerminal';
 import { EditorContextMenu } from './EditorContextMenu';
@@ -27,7 +25,6 @@ import { EditorTabContextMenu } from './EditorTabContextMenu';
 import { CodeEditor } from '../../../components/ui/CodeEditor/CodeEditor';
 import { useLayoutStore } from '../../../store/ui/useLayoutStore';
 import { Tooltip } from '../../../components/ui/tooltip';
-import { downloadFile, exportProjectAsZip } from '../utils/zipExport';
 import { FileIcon } from 'react-material-icon-theme';
 import { FilePreviewDispatcher, isPreviewableFile } from '../../../components/preview/FilePreviewDispatcher';
 import { EditorLoadingSkeleton } from '../../../components/preview/EditorLoadingSkeleton';
@@ -54,14 +51,17 @@ export const WorkspaceEditorPane: React.FC = () => {
         removeRecentWorkspace,
         isSyncing,
         isLoadingFile,
-        setActiveProject
+        setActiveProject,
+        createOrUpdateProject,
+        openWorkspace
     } = useProjectStore();
 
     const { splitPaneWidth, setSplitPaneWidth } = useLayoutStore();
     const [isMaximized, setIsMaximized] = useState(false);
-    const [isRunning, setIsRunning] = useState(false);
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [sidebarWidth, setSidebarWidth] = useState(230);
+    const [isOpeningFolder, setIsOpeningFolder] = useState(false);
+    const [openingWorkspacePath, setOpeningWorkspacePath] = useState<string | null>(null);
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number; editor: any } | null>(null);
     const [fileMenuOpen, setFileMenuOpen] = useState(false);
     const [isTerminalOpen, setIsTerminalOpen] = useState(false);
@@ -85,9 +85,9 @@ export const WorkspaceEditorPane: React.FC = () => {
 
     const activeProject = getActiveProject();
     const activeFile = getActiveFile();
-    const cleanRecentWorkspaces = (recentWorkspaces || []).filter(
-        rw => !rw.path.startsWith('#<') && !rw.name.includes('CLIXML') && !rw.path.includes('CLIXML')
-    );
+    const cleanRecentWorkspaces = (recentWorkspaces || [])
+        .filter(rw => !rw.path.startsWith('#<') && !rw.name.includes('CLIXML') && !rw.path.includes('CLIXML'))
+        .slice(0, 5);
 
     // Auto-sync files from physical disk on mount / active project change
     React.useEffect(() => {
@@ -237,18 +237,6 @@ export const WorkspaceEditorPane: React.FC = () => {
         setIsMaximized(false);
     };
 
-    const handleDownloadActiveFile = () => {
-        if (!activeFile) return;
-        downloadFile(activeFile.name, activeFile.content);
-        setFileMenuOpen(false);
-    };
-
-    const handleDownloadAllZip = () => {
-        if (!activeProject) return;
-        exportProjectAsZip(activeProject.name || 'project', activeProject.files);
-        setFileMenuOpen(false);
-    };
-
     const handleOpenFile = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
@@ -262,19 +250,33 @@ export const WorkspaceEditorPane: React.FC = () => {
     };
 
     const handleOpenFolder = async () => {
-        const path = await pickFolderFromOS();
-        if (path && path.trim() && !path.startsWith('#<') && !path.includes('CLIXML')) {
-            await openFolder(path.trim());
+        if (isOpeningFolder || openingWorkspacePath) return;
+        setIsOpeningFolder(true);
+        try {
+            const path = await pickFolderFromOS();
+            if (path && path.trim() && !path.startsWith('#<') && !path.includes('CLIXML')) {
+                await openFolder(path.trim());
+            }
+        } catch (err) {
+            console.error('Failed to open folder:', err);
+        } finally {
+            setIsOpeningFolder(false);
         }
     };
 
-    const handleRun = () => {
-        if (!activeFile) return;
-        setIsRunning(true);
-        setTimeout(() => {
-            setIsRunning(false);
-        }, 1200);
+    const handleOpenRecentWorkspace = async (path: string) => {
+        if (openingWorkspacePath || isOpeningFolder) return;
+        setOpeningWorkspacePath(path);
+        try {
+            await openFolder(path);
+        } catch (err) {
+            console.error('Failed to open recent workspace:', err);
+        } finally {
+            setOpeningWorkspacePath(null);
+        }
     };
+
+
 
     const handleTriggerFind = () => {
         if (editorInstanceRef.current) {
@@ -339,8 +341,8 @@ export const WorkspaceEditorPane: React.FC = () => {
                 </div>
 
                 {/* Empty Workspace Hero Area */}
-                <div className="flex-1 overflow-y-auto custom-scrollbar flex flex-col items-center justify-center p-6 text-[var(--text-secondary)] font-sans">
-                    <div className="max-w-sm w-full flex flex-col items-center text-center">
+                <div className="flex-1 overflow-y-auto custom-scrollbar flex flex-col p-6 text-[var(--text-secondary)] font-sans">
+                    <div className="max-w-sm w-full mx-auto my-auto flex flex-col items-center text-center py-6">
                         {/* Centered Cluaiz Logo */}
                         <img
                             src="/logo.ico"
@@ -351,11 +353,29 @@ export const WorkspaceEditorPane: React.FC = () => {
                             Cluaiz
                         </h2>
 
-                        <button type="button" onClick={handleOpenFolder} className="w-full py-2.5 px-4 rounded-lg bg-[var(--accent-color)] hover:opacity-90 text-white font-medium text-xs flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer">
-                            <FolderUp className="w-4 h-4" />
-                            <span>Open Folder</span>
+                        <button 
+                            type="button" 
+                            disabled={isOpeningFolder || !!openingWorkspacePath}
+                            onClick={handleOpenFolder} 
+                            className="w-full py-2.5 px-4 rounded-lg bg-[var(--accent-color)] hover:opacity-90 text-white font-medium text-xs flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer disabled:opacity-60"
+                        >
+                            {isOpeningFolder ? (
+                                <>
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                    <span>Opening Folder...</span>
+                                </>
+                            ) : (
+                                <>
+                                    <FolderUp className="w-4 h-4" />
+                                    <span>Open Folder</span>
+                                </>
+                            )}
                         </button>
-                        <button type="button" onClick={() => setIsTerminalOpen(true)} className="w-full mt-2.5 py-2.5 px-4 rounded-lg bg-[var(--bg-secondary)] hover:bg-white/5 text-[var(--text-primary)] font-medium text-xs flex items-center justify-center gap-2 border border-[var(--border-color)] transition-all cursor-pointer">
+                        <button 
+                            type="button" 
+                            onClick={() => setIsTerminalOpen(true)} 
+                            className="w-full mt-2.5 py-2.5 px-4 rounded-lg bg-[var(--bg-secondary)] hover:bg-white/5 text-[var(--text-primary)] font-medium text-xs flex items-center justify-center gap-2 border border-[var(--border-color)] transition-all cursor-pointer"
+                        >
                             <Terminal className="w-4 h-4 text-[var(--accent-color)]" />
                             <span>Open Terminal</span>
                         </button>
@@ -368,34 +388,51 @@ export const WorkspaceEditorPane: React.FC = () => {
                             </div>
 
                             {cleanRecentWorkspaces.length > 0 ? (
-                                <div className="space-y-1.5 max-h-56 overflow-y-auto custom-scrollbar">
-                                    {cleanRecentWorkspaces.map((rw) => (
-                                        <div
-                                            key={rw.path}
-                                            onClick={() => openFolder(rw.path)}
-                                            className="group p-2.5 rounded-lg bg-[var(--bg-secondary)] hover:bg-white/[0.06] border border-[var(--border-color)]/60 hover:border-[var(--border-color)] cursor-pointer transition-all flex items-center justify-between"
-                                        >
-                                            <div className="min-w-0 pr-2">
-                                                <div className="text-xs font-medium text-[var(--text-primary)] group-hover:text-[var(--accent-color)] transition-colors truncate">
-                                                    {rw.name}
+                                <div className="space-y-1.5">
+                                    {cleanRecentWorkspaces.map((rw) => {
+                                        const isThisOpening = openingWorkspacePath === rw.path;
+                                        return (
+                                            <div
+                                                key={rw.path}
+                                                onClick={() => handleOpenRecentWorkspace(rw.path)}
+                                                className={`group p-2.5 rounded-lg bg-[var(--bg-secondary)] hover:bg-white/[0.06] border border-[var(--border-color)]/60 hover:border-[var(--border-color)] cursor-pointer transition-all flex items-center justify-between ${
+                                                    isThisOpening ? 'opacity-80 border-[var(--accent-color)]/60 bg-[var(--accent-color)]/5' : ''
+                                                }`}
+                                            >
+                                                <div className="min-w-0 pr-2">
+                                                    <div className="text-xs font-medium text-[var(--text-primary)] group-hover:text-[var(--accent-color)] transition-colors truncate flex items-center gap-2">
+                                                        <span>{rw.name}</span>
+                                                        {isThisOpening && (
+                                                            <span className="text-[10px] text-[var(--accent-color)] font-mono flex items-center gap-1">
+                                                                <Loader2 className="w-3 h-3 animate-spin" />
+                                                                Loading...
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <div className="text-[11px] text-[var(--text-muted)] truncate mt-0.5 font-mono">
+                                                        {rw.path}
+                                                    </div>
                                                 </div>
-                                                <div className="text-[11px] text-[var(--text-muted)] truncate mt-0.5 font-mono">
-                                                    {rw.path}
+                                                <div className="flex items-center gap-1.5 flex-shrink-0">
+                                                    {isThisOpening ? (
+                                                        <Loader2 className="w-4 h-4 animate-spin text-[var(--accent-color)]" />
+                                                    ) : (
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                removeRecentWorkspace(rw.path);
+                                                            }}
+                                                            className="p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-white/10 text-zinc-500 hover:text-zinc-300 transition-all flex-shrink-0"
+                                                            title="Remove from recent"
+                                                        >
+                                                            <X className="w-3.5 h-3.5" />
+                                                        </button>
+                                                    )}
                                                 </div>
                                             </div>
-                                            <button
-                                                type="button"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    removeRecentWorkspace(rw.path);
-                                                }}
-                                                className="p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-white/10 text-zinc-500 hover:text-zinc-300 transition-all flex-shrink-0"
-                                                title="Remove from recent"
-                                            >
-                                                <X className="w-3.5 h-3.5" />
-                                            </button>
-                                        </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             ) : (
                                 <div className="p-3.5 rounded-lg border border-dashed border-[var(--border-color)]/60 text-[var(--text-muted)] text-[11px] text-center font-mono">
@@ -433,8 +470,8 @@ export const WorkspaceEditorPane: React.FC = () => {
                             onClick={() => setFileMenuOpen((prev) => !prev)}
                             className={`px-2 py-1 text-xs font-medium rounded transition-colors flex items-center gap-1 ${
                                 fileMenuOpen 
-                                    ? 'bg-white/10 text-white' 
-                                    : 'text-zinc-300 hover:text-white hover:bg-white/[0.06]'
+                                    ? 'bg-black/10 dark:bg-white/10 text-[var(--text-primary)]' 
+                                    : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-black/5 dark:hover:bg-white/[0.06]'
                             }`}
                         >
                             <span>File</span>
@@ -444,38 +481,29 @@ export const WorkspaceEditorPane: React.FC = () => {
                         {fileMenuOpen && (
                             <>
                                 <div className="fixed inset-0 z-40" onClick={() => setFileMenuOpen(false)} />
-                                <div className="absolute left-0 top-full mt-1 w-56 bg-zinc-950/95 border border-white/10 rounded-xl shadow-2xl p-1 z-50 font-mono text-xs backdrop-blur-md">
-                                    <button type="button" onClick={() => { setFileMenuOpen(false); const name = prompt('Enter new file name:'); if (name?.trim()) createFile(name.trim(), ''); }} className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded hover:bg-white/10 text-left text-zinc-300 hover:text-white transition-colors">
+                                <div className="absolute left-0 top-full mt-1 w-56 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl shadow-2xl p-1 z-50 font-mono text-xs backdrop-blur-md">
+                                    <button type="button" onClick={() => { setFileMenuOpen(false); const name = prompt('Enter new file name:'); if (name?.trim()) createFile(name.trim(), ''); }} className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded hover:bg-black/5 dark:hover:bg-white/10 text-left text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors">
                                         <FilePlus className="w-3.5 h-3.5 text-blue-400" /><span>New File</span>
                                     </button>
-                                    <button type="button" onClick={() => { setFileMenuOpen(false); const name = prompt('Enter new folder name:'); if (name?.trim()) createFolder(name.trim()); }} className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded hover:bg-white/10 text-left text-zinc-300 hover:text-white transition-colors">
+                                    <button type="button" onClick={() => { setFileMenuOpen(false); const name = prompt('Enter new folder name:'); if (name?.trim()) createFolder(name.trim()); }} className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded hover:bg-black/5 dark:hover:bg-white/10 text-left text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors">
                                         <FolderPlus className="w-3.5 h-3.5 text-amber-400" /><span>New Folder</span>
                                     </button>
-                                    <div className="my-1 border-t border-white/10" />
-                                    <button type="button" onClick={() => { setFileMenuOpen(false); fileInputRef.current?.click(); }} className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded hover:bg-white/10 text-left text-zinc-300 hover:text-white transition-colors">
+                                    <div className="my-1 border-t border-[var(--border-color)]/60" />
+                                    <button type="button" onClick={() => { setFileMenuOpen(false); fileInputRef.current?.click(); }} className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded hover:bg-black/5 dark:hover:bg-white/10 text-left text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors">
                                         <FileUp className="w-3.5 h-3.5 text-emerald-400" /><span>Open File...</span>
                                     </button>
-                                    <button type="button" onClick={() => { setFileMenuOpen(false); handleOpenFolder(); }} className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded hover:bg-white/10 text-left text-zinc-300 hover:text-white transition-colors">
+                                    <button type="button" onClick={() => { setFileMenuOpen(false); handleOpenFolder(); }} className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded hover:bg-black/5 dark:hover:bg-white/10 text-left text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors">
                                         <FolderUp className="w-3.5 h-3.5 text-indigo-400" /><span>Open Folder...</span>
                                     </button>
-                                    <div className="my-1 border-t border-white/10" />
-                                    {activeFile && (
-                                        <button type="button" onClick={handleDownloadActiveFile} className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded hover:bg-white/10 text-left text-zinc-300 hover:text-white transition-colors">
-                                            <Download className="w-3.5 h-3.5 text-[var(--accent-color)]" /><span className="truncate">Download {activeFile.name}</span>
-                                        </button>
-                                    )}
-                                    <button type="button" onClick={handleDownloadAllZip} className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded hover:bg-white/10 text-left text-zinc-300 hover:text-white transition-colors">
-                                        <Archive className="w-3.5 h-3.5 text-amber-400" /><span>Export All (.zip)</span>
-                                    </button>
-                                    <div className="my-1 border-t border-white/10" />
-                                    <button type="button" onClick={() => { setFileMenuOpen(false); handleOpenTerminal(''); }} className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded hover:bg-white/10 text-left text-zinc-300 hover:text-white transition-colors">
+                                    <div className="my-1 border-t border-[var(--border-color)]/60" />
+                                    <button type="button" onClick={() => { setFileMenuOpen(false); handleOpenTerminal(''); }} className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded hover:bg-black/5 dark:hover:bg-white/10 text-left text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors">
                                         <Terminal className="w-3.5 h-3.5 text-cyan-400" /><span>Open Terminal</span>
                                     </button>
-                                    <div className="my-1 border-t border-white/10" />
-                                    <button type="button" onClick={() => { setFileMenuOpen(false); setActiveProject(null); }} className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded hover:bg-white/10 text-left text-zinc-300 hover:text-white transition-colors">
+                                    <div className="my-1 border-t border-[var(--border-color)]/60" />
+                                    <button type="button" onClick={() => { setFileMenuOpen(false); setActiveProject(null); }} className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded hover:bg-black/5 dark:hover:bg-white/10 text-left text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors">
                                         <LayoutGrid className="w-3.5 h-3.5 text-indigo-400" /><span>Open Workspace</span>
                                     </button>
-                                    <div className="my-1 border-t border-white/10" />
+                                    <div className="my-1 border-t border-[var(--border-color)]/60" />
                                     <button type="button" onClick={() => { setFileMenuOpen(false); handleClose(); }} className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded hover:bg-rose-500/20 text-left text-rose-400 hover:text-rose-300 transition-colors">
                                         <LogOut className="w-3.5 h-3.5" /><span>Close Workspace</span>
                                     </button>
@@ -489,17 +517,13 @@ export const WorkspaceEditorPane: React.FC = () => {
                         <button
                             type="button"
                             onClick={() => setIsSidebarOpen((prev) => !prev)}
-                            className={`p-1.5 rounded hover:bg-white/10 transition-colors flex-shrink-0 ${
-                                isSidebarOpen 
-                                    ? 'text-[var(--accent-color)] bg-[var(--accent-color)]/10' 
-                                    : 'text-zinc-400 hover:text-zinc-200'
-                            }`}
+                            className={isSidebarOpen ? "ui-icon-btn ui-icon-btn-active" : "ui-icon-btn"}
                         >
                             <PanelLeft className="w-3.5 h-3.5" />
                         </button>
                     </Tooltip>
 
-                    <div className="h-4 w-px bg-white/10 mx-1 flex-shrink-0" />
+                    <div className="h-4 w-px bg-[var(--border-color)]/60 mx-1 flex-shrink-0" />
                 </div>
 
                 {/* Zone 2: SCROLLABLE OPEN FILE TABS (Only tabs scroll horizontally!) */}
@@ -524,10 +548,8 @@ export const WorkspaceEditorPane: React.FC = () => {
                                         fileName: file.name
                                     });
                                 }}
-                                className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-mono transition-all cursor-pointer flex-shrink-0 group/tab ${
-                                    isActive
-                                        ? 'bg-[var(--bg-primary)] text-white border border-[var(--border-color)] shadow-sm'
-                                        : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04]'
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-t text-xs font-mono transition-colors cursor-pointer flex-shrink-0 group/tab select-none ${
+                                    isActive ? 'ui-tab-active' : 'ui-tab-inactive'
                                 }`}
                             >
                                 <FileIcon fileName={file.name} fileExtension={getFileExtension(file.name)} languageId={getFileExtension(file.name)} size={13} />
@@ -545,7 +567,11 @@ export const WorkspaceEditorPane: React.FC = () => {
                                             e.stopPropagation();
                                             closeFile(filePath);
                                         }}
-                                        className="p-0.5 rounded hover:bg-white/10 text-zinc-500 hover:text-zinc-300 opacity-60 group-hover/tab:opacity-100 transition-opacity"
+                                        className={`p-0.5 rounded transition-all ${
+                                            isActive
+                                                ? 'hover:bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] opacity-70 group-hover/tab:opacity-100'
+                                                : 'hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] opacity-0 group-hover/tab:opacity-100'
+                                        }`}
                                     >
                                         <X className="w-3 h-3" />
                                     </button>
@@ -565,24 +591,11 @@ export const WorkspaceEditorPane: React.FC = () => {
                         onChange={handleOpenFile}
                     />
 
-                    <Tooltip title="Run file">
-                        <button
-                            type="button"
-                            onClick={handleRun}
-                            disabled={isRunning || !activeFile}
-                            className={`p-1.5 rounded hover:bg-white/10 text-zinc-400 hover:text-emerald-400 transition-colors ${
-                                isRunning ? 'animate-pulse text-emerald-400' : ''
-                            }`}
-                        >
-                            <Play className="w-3.5 h-3.5 fill-current" />
-                        </button>
-                    </Tooltip>
-
                     <Tooltip title={isMaximized ? "Restore split" : "Maximize editor"}>
                         <button
                             type="button"
                             onClick={toggleMaximize}
-                            className="p-1.5 rounded hover:bg-white/10 text-zinc-400 hover:text-zinc-200 transition-colors"
+                            className="ui-icon-btn"
                         >
                             {isMaximized ? (
                                 <Minimize2 className="w-3.5 h-3.5" />
@@ -596,7 +609,7 @@ export const WorkspaceEditorPane: React.FC = () => {
                         <button
                             type="button"
                             onClick={handleClose}
-                            className="p-1.5 rounded hover:bg-white/10 text-zinc-400 hover:text-rose-400 transition-colors"
+                            className="ui-icon-btn hover:text-rose-400"
                         >
                             <X className="w-3.5 h-3.5" />
                         </button>
@@ -646,8 +659,8 @@ export const WorkspaceEditorPane: React.FC = () => {
                     {activeFile ? (
                         <>
                             {/* VS Code Style Breadcrumbs Bar */}
-                            <div className="h-6 border-b border-[var(--border-color)]/60 bg-[var(--bg-secondary)]/40 flex items-center px-3 text-[11px] font-mono text-zinc-400 gap-1.5 flex-shrink-0 select-none overflow-x-auto custom-scrollbar">
-                                <span className="text-zinc-400 hover:text-zinc-200 transition-colors flex items-center gap-1">
+                            <div className="h-6 border-b border-[var(--border-color)]/60 bg-[var(--bg-secondary)]/40 flex items-center px-3 text-[11px] font-mono text-[var(--text-muted)] gap-1.5 flex-shrink-0 select-none overflow-x-auto custom-scrollbar">
+                                <span className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors flex items-center gap-1">
                                     <FolderGit2 className="w-3 h-3 text-[var(--accent-color)]" />
                                     {activeProject.name || 'Workspace'}
                                 </span>
@@ -655,8 +668,8 @@ export const WorkspaceEditorPane: React.FC = () => {
                                     const isLast = idx === arr.length - 1;
                                     return (
                                         <React.Fragment key={idx}>
-                                            <span className="text-zinc-600">/</span>
-                                            <span className={isLast ? 'text-zinc-200 font-medium flex items-center gap-1' : 'text-zinc-400'}>
+                                            <span className="text-[var(--text-muted)]/50">/</span>
+                                            <span className={isLast ? 'text-[var(--text-primary)] font-medium flex items-center gap-1' : 'text-[var(--text-muted)]'}>
                                                 {isLast && <FileIcon fileName={seg} fileExtension={getFileExtension(seg)} languageId={getFileExtension(seg)} size={12} />}
                                                 {seg}
                                             </span>
@@ -683,7 +696,7 @@ export const WorkspaceEditorPane: React.FC = () => {
                                         language={activeFile.language}
                                         onChange={(newVal) => updateFileContent(activeFile.path, newVal)}
                                         height="100%"
-                                        className="h-full border-0"
+                                        className="h-full border-0 rounded-none shadow-none"
                                         showToolbar={false}
                                         onMount={(editor) => {
                                             editorInstanceRef.current = editor;
@@ -696,7 +709,7 @@ export const WorkspaceEditorPane: React.FC = () => {
                             </div>
                         </>
                     ) : (
-                        <div className="h-full w-full flex items-center justify-center text-zinc-500 font-mono text-xs">
+                        <div className="h-full w-full flex items-center justify-center text-[var(--text-muted)] font-mono text-xs">
                             Select a file from the explorer to view and edit
                         </div>
                     )}

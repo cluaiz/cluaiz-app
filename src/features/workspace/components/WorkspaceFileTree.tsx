@@ -8,13 +8,14 @@ import {
     ChevronsDownUp,
     X,
     CaseSensitive,
-    RefreshCw
+    RefreshCw,
+    Loader2
 } from 'lucide-react';
 import { FileIcon, FolderIcon } from 'react-material-icon-theme';
 import { FileTreeNode, ProjectFile } from '../types';
 import { FileTreeContextMenu, FileTreeContextTarget } from './FileTreeContextMenu';
 import { resolveDiskPath } from '../../../utils/mediaResolver';
-import { useProjectStore } from '../store/useProjectStore';
+import { useProjectStore } from '../../../store/workspace/useProjectStore';
 
 interface WorkspaceFileTreeProps {
     files: Record<string, ProjectFile>;
@@ -39,13 +40,14 @@ export const getFileExtension = (name?: string): string | undefined => {
     return name.split('.').pop()?.toLowerCase();
 };
 
-export function buildFileTree(files: Record<string, ProjectFile>, folders: string[] = []): FileTreeNode[] {
+function buildFileTree(files: Record<string, ProjectFile>, folders: string[] = []): FileTreeNode[] {
     const rootNodes: FileTreeNode[] = [];
     const folderMap = new Map<string, FileTreeNode>();
 
     const ensureFolder = (folderPath: string): FileTreeNode => {
-        if (folderMap.has(folderPath)) return folderMap.get(folderPath)!;
-        const parts = folderPath.split('/').filter(Boolean);
+        const norm = folderPath.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
+        if (folderMap.has(norm)) return folderMap.get(norm)!;
+        const parts = norm.split('/').filter(Boolean);
         let curr = '', parentNode: FileTreeNode | null = null;
         for (let i = 0; i < parts.length; i++) {
             const part = parts[i], prev = curr;
@@ -63,8 +65,8 @@ export function buildFileTree(files: Record<string, ProjectFile>, folders: strin
 
     for (const f of folders) { if (f) ensureFolder(f); }
 
-    for (const filePath of Object.keys(files).sort()) {
-        if (filePath.endsWith('.gitkeep')) continue;
+    for (const rawFilePath of Object.keys(files).sort()) {
+        const filePath = rawFilePath.replace(/\\/g, '/');
         const parts = filePath.split('/').filter(Boolean);
         if (!parts.length) continue;
         const fileName = parts[parts.length - 1];
@@ -106,6 +108,7 @@ export const WorkspaceFileTree: React.FC<WorkspaceFileTreeProps> = ({
         name: string;
     } | null>(null);
     const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({});
+    const [loadingFolders, setLoadingFolders] = useState<Record<string, boolean>>({});
     const [isCreating, setIsCreating] = useState<'file' | 'folder' | null>(null);
     const [creationParentFolder, setCreationParentFolder] = useState<string>('');
     const [selectedFolderPath, setSelectedFolderPath] = useState<string>('');
@@ -236,15 +239,19 @@ export const WorkspaceFileTree: React.FC<WorkspaceFileTreeProps> = ({
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [activeFilePath, selectedFolderPath, clipboard, folders, onRenameFile, onCopyFile, onCreateFile]);
 
-    const toggleFolder = (folderPath: string, e: React.MouseEvent) => {
+    const toggleFolder = async (folderPath: string, e: React.MouseEvent) => {
         e.stopPropagation();
-        setExpandedFolders(prev => {
-            const nextState = !prev[folderPath];
-            if (nextState) {
-                useProjectStore.getState().loadFolderChildren(folderPath);
+        const nextState = !expandedFolders[folderPath];
+        setExpandedFolders(prev => ({ ...prev, [folderPath]: nextState }));
+
+        if (nextState) {
+            setLoadingFolders(prev => ({ ...prev, [folderPath]: true }));
+            try {
+                await useProjectStore.getState().loadFolderChildren(folderPath);
+            } finally {
+                setLoadingFolders(prev => ({ ...prev, [folderPath]: false }));
             }
-            return { ...prev, [folderPath]: nextState };
-        });
+        }
     };
 
     const handleCollapseAll = () => {
@@ -263,6 +270,7 @@ export const WorkspaceFileTree: React.FC<WorkspaceFileTreeProps> = ({
 
     const renderNode = (node: FileTreeNode, depth = 0) => {
         const isExpanded = !!expandedFolders[node.path];
+        const isLoading = !!loadingFolders[node.path];
         const isActive = node.path === activeFilePath;
         const isFolderSelected = selectedFolderPath === node.path;
         const isCut = clipboard?.action === 'cut' && (clipboard.targetPath === node.path || node.path.startsWith(`${clipboard.targetPath}/`));
@@ -286,13 +294,15 @@ export const WorkspaceFileTree: React.FC<WorkspaceFileTreeProps> = ({
                                 target: { type: 'folder', path: node.path, name: node.name }
                             });
                         }}
-                        className={`flex items-center gap-1.5 py-1 px-2 rounded-md hover:bg-white/[0.05] cursor-pointer transition-colors text-xs font-mono group ${
-                            isFolderSelected ? 'bg-white/[0.06] text-white font-medium' : 'text-zinc-300 hover:text-white'
+                        className={`flex items-center gap-1.5 py-1 px-2 rounded-md cursor-pointer transition-colors text-xs font-mono group select-none ${
+                            isFolderSelected ? 'ui-tree-item-active' : 'ui-tree-item-inactive'
                         } ${isCut ? 'opacity-40 transition-opacity' : ''} ${isCopied && clipboard.targetPath === node.path ? 'ring-1 ring-cyan-500/50 bg-cyan-500/10' : ''}`}
                         style={{ paddingLeft: `${depth * 12 + 8}px` }}
                     >
-                        <span className="text-zinc-500 group-hover:text-zinc-300 transition-colors">
-                            {isExpanded ? (
+                        <span className="text-zinc-500 group-hover:text-zinc-300 transition-colors flex items-center justify-center w-3.5 h-3.5">
+                            {isLoading ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin text-[var(--accent-color)]" />
+                            ) : isExpanded ? (
                                 <ChevronDown className="w-3.5 h-3.5" />
                             ) : (
                                 <ChevronRight className="w-3.5 h-3.5" />
@@ -319,11 +329,11 @@ export const WorkspaceFileTree: React.FC<WorkspaceFileTreeProps> = ({
                     </div>
 
                     {isExpanded && (
-                        <div className="border-l border-white/[0.06] ml-3">
+                        <div className="border-l border-[var(--border-color)]/50 ml-3">
                             {/* In-tree nested creation directly inside this folder */}
                             {isCreating && creationParentFolder === node.path && (
                                 <div 
-                                    className="my-1 mr-1 flex items-center gap-1.5 px-2 py-0.5 rounded bg-white/5 border border-[var(--accent-color)]/50"
+                                    className="my-1 mr-1 flex items-center gap-1.5 px-2 py-0.5 rounded bg-[var(--bg-secondary)] border border-[var(--border-color)]"
                                     style={{ paddingLeft: `${(depth + 1) * 12 + 6}px` }}
                                 >
                                     {isCreating === 'file' ? (
@@ -352,8 +362,17 @@ export const WorkspaceFileTree: React.FC<WorkspaceFileTreeProps> = ({
                                         }}
                                         onBlur={handleCreateSubmit}
                                         placeholder={isCreating === 'file' ? 'filename.ext' : 'folder-name'}
-                                        className="bg-transparent text-xs text-white outline-none w-full font-mono placeholder:text-zinc-600"
+                                        className="bg-transparent text-xs text-[var(--text-primary)] outline-none w-full font-mono placeholder:text-[var(--text-muted)]"
                                     />
+                                </div>
+                            )}
+                            {isLoading && (!node.children || node.children.length === 0) && (
+                                <div 
+                                    className="flex items-center gap-1.5 py-1 px-2 text-[11px] text-zinc-400 font-mono italic animate-pulse"
+                                    style={{ paddingLeft: `${(depth + 1) * 12 + 6}px` }}
+                                >
+                                    <Loader2 className="w-3 h-3 animate-spin text-[var(--accent-color)]" />
+                                    <span>Loading folder...</span>
                                 </div>
                             )}
                             {node.children && node.children.map(child => renderNode(child, depth + 1))}
@@ -362,9 +381,6 @@ export const WorkspaceFileTree: React.FC<WorkspaceFileTreeProps> = ({
                 </div>
             );
         }
-
-        // Do not render empty folder keep files
-        if (node.name === '.gitkeep') return null;
 
         return (
             <div
@@ -385,10 +401,8 @@ export const WorkspaceFileTree: React.FC<WorkspaceFileTreeProps> = ({
                         target: { type: 'file', path: node.path, name: node.name }
                     });
                 }}
-                className={`flex items-center gap-1.5 py-1 px-2 rounded-md cursor-pointer transition-all text-xs font-mono select-none group ${
-                    isActive
-                        ? 'bg-[var(--accent-color)]/15 text-[var(--accent-color)] font-medium border border-[var(--accent-color)]/30'
-                        : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04]'
+                className={`flex items-center gap-1.5 py-1 px-2 rounded-md cursor-pointer transition-colors text-xs font-mono select-none group ${
+                    isActive ? 'ui-tree-item-active' : 'ui-tree-item-inactive'
                 } ${isCut ? 'opacity-40 transition-opacity' : ''} ${isCopied && clipboard.targetPath === node.path ? 'ring-1 ring-cyan-500/50 bg-cyan-500/10' : ''}`}
                 style={{ paddingLeft: `${depth * 12 + 14}px` }}
             >
@@ -410,7 +424,7 @@ export const WorkspaceFileTree: React.FC<WorkspaceFileTreeProps> = ({
                             else if (e.key === 'Escape') setRenamingPath(null);
                         }}
                         onBlur={() => handleRenameSubmit(node.path)}
-                        className="bg-zinc-800 text-xs text-white border border-[var(--accent-color)]/60 rounded px-1 py-0.5 outline-none font-mono flex-1"
+                        className="bg-[var(--bg-secondary)] text-xs text-[var(--text-primary)] border border-[var(--border-color)] focus:border-[var(--accent-color)] rounded px-1 py-0.5 outline-none font-mono flex-1"
                     />
                 ) : (
                     <span className="truncate flex-1">{node.name}</span>
@@ -556,8 +570,8 @@ export const WorkspaceFileTree: React.FC<WorkspaceFileTreeProps> = ({
             }}
         >
             {/* Fixed Explorer Header (Never scrolls with file list) */}
-            <div className="px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider text-zinc-500 flex items-center justify-between border-b border-white/[0.05] flex-shrink-0 bg-[var(--bg-secondary)]/80 backdrop-blur-sm">
-                <span className="truncate text-zinc-300 font-semibold" title={workspaceName || 'Explorer'}>
+            <div className="px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] flex items-center justify-between border-b border-transparent flex-shrink-0 bg-[var(--bg-secondary)]/80 backdrop-blur-sm">
+                <span className="truncate text-[var(--text-primary)] font-semibold" title={workspaceName || 'Explorer'}>
                     {selectedFolderPath 
                         ? `${(workspaceName || 'Explorer').toUpperCase()} · /${selectedFolderPath}` 
                         : (workspaceName || 'Explorer').toUpperCase()}
@@ -575,7 +589,7 @@ export const WorkspaceFileTree: React.FC<WorkspaceFileTreeProps> = ({
                             }
                         }}
                         title={selectedFolderPath ? `New File in ${selectedFolderPath}` : "New File at root"}
-                        className="p-1 rounded hover:bg-white/10 hover:text-white text-zinc-400 transition-colors"
+                        className="ui-icon-btn"
                     >
                         <FilePlus className="w-3.5 h-3.5" />
                     </button>
@@ -591,7 +605,7 @@ export const WorkspaceFileTree: React.FC<WorkspaceFileTreeProps> = ({
                             }
                         }}
                         title={selectedFolderPath ? `New Folder in ${selectedFolderPath}` : "New Folder at root"}
-                        className="p-1 rounded hover:bg-white/10 hover:text-white text-zinc-400 transition-colors"
+                        className="ui-icon-btn"
                     >
                         <FolderPlus className="w-3.5 h-3.5" />
                     </button>
@@ -602,11 +616,7 @@ export const WorkspaceFileTree: React.FC<WorkspaceFileTreeProps> = ({
                             setIsSearchOpen(prev => !prev);
                         }}
                         title={isSearchOpen ? "Close Search" : "Search in Workspace (Global Search)"}
-                        className={`p-1 rounded transition-colors ${
-                            isSearchOpen 
-                                ? 'bg-[var(--accent-color)]/20 text-[var(--accent-color)]' 
-                                : 'hover:bg-white/10 hover:text-white text-zinc-400'
-                        }`}
+                        className={isSearchOpen ? "ui-icon-btn ui-icon-btn-active" : "ui-icon-btn"}
                     >
                         <Search className="w-3.5 h-3.5" />
                     </button>
@@ -617,20 +627,22 @@ export const WorkspaceFileTree: React.FC<WorkspaceFileTreeProps> = ({
                             handleCollapseAll();
                         }}
                         title="Collapse Folders in Explorer"
-                        className="p-1 rounded hover:bg-white/10 hover:text-white text-zinc-400 transition-colors"
+                        className="ui-icon-btn"
                     >
                         <ChevronsDownUp className="w-3.5 h-3.5" />
                     </button>
                     <button
                         type="button"
-                        onClick={(e) => {
+                        onClick={async (e) => {
                             e.stopPropagation();
                             onRefresh?.();
+                            const openDirs = Object.keys(expandedFolders).filter(f => expandedFolders[f]);
+                            if (openDirs.length > 0) {
+                                await Promise.all(openDirs.map(dir => useProjectStore.getState().loadFolderChildren(dir)));
+                            }
                         }}
                         title="Sync & Refresh files from Disk"
-                        className={`p-1 rounded hover:bg-white/10 hover:text-white text-zinc-400 transition-colors ${
-                            isSyncing ? 'animate-spin text-[var(--accent-color)]' : ''
-                        }`}
+                        className={`ui-icon-btn ${isSyncing ? 'animate-spin text-[var(--accent-color)]' : ''}`}
                     >
                         <RefreshCw className="w-3.5 h-3.5" />
                     </button>
@@ -639,22 +651,22 @@ export const WorkspaceFileTree: React.FC<WorkspaceFileTreeProps> = ({
 
             {/* Global Workspace Search Bar */}
             {isSearchOpen && (
-                <div className="p-2 border-b border-white/[0.06] bg-[var(--bg-secondary)] flex flex-col gap-1.5 flex-shrink-0">
-                    <div className="flex items-center gap-1 bg-zinc-900/90 border border-white/10 rounded px-2 py-1 focus-within:border-[var(--accent-color)] transition-colors">
-                        <Search className="w-3 h-3 text-zinc-500 flex-shrink-0" />
+                <div className="p-2 border-b border-[var(--border-color)]/60 bg-[var(--bg-secondary)] flex flex-col gap-1.5 flex-shrink-0">
+                    <div className="flex items-center gap-1 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded px-2 py-1 focus-within:border-[var(--accent-color)] transition-colors">
+                        <Search className="w-3 h-3 text-[var(--text-muted)] flex-shrink-0" />
                         <input
                             type="text"
                             autoFocus
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             placeholder="Search across files..."
-                            className="bg-transparent text-xs text-white outline-none w-full font-mono placeholder:text-zinc-600"
+                            className="bg-transparent text-xs text-[var(--text-primary)] outline-none w-full font-mono placeholder:text-[var(--text-muted)]"
                         />
                         {searchQuery && (
                             <button
                                 type="button"
                                 onClick={() => setSearchQuery('')}
-                                className="p-0.5 text-zinc-500 hover:text-zinc-300"
+                                className="p-0.5 text-[var(--text-muted)] hover:text-[var(--text-primary)]"
                             >
                                 <X className="w-2.5 h-2.5" />
                             </button>
@@ -666,7 +678,7 @@ export const WorkspaceFileTree: React.FC<WorkspaceFileTreeProps> = ({
                             className={`p-0.5 rounded text-[10px] font-bold ${
                                 isCaseSensitive 
                                     ? 'text-[var(--accent-color)] bg-[var(--accent-color)]/10' 
-                                    : 'text-zinc-500 hover:text-zinc-300'
+                                    : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
                             }`}
                         >
                             <CaseSensitive className="w-3.5 h-3.5" />
@@ -674,7 +686,7 @@ export const WorkspaceFileTree: React.FC<WorkspaceFileTreeProps> = ({
                     </div>
 
                     {searchQuery.trim() && (
-                        <div className="text-[10px] text-zinc-500 font-mono px-0.5">
+                        <div className="text-[10px] text-[var(--text-muted)] font-mono px-0.5">
                             {totalMatches === 0 
                                 ? 'No results found' 
                                 : `${totalMatches} match${totalMatches > 1 ? 'es' : ''} across ${searchResults.length} file${searchResults.length > 1 ? 's' : ''}`
@@ -740,7 +752,7 @@ export const WorkspaceFileTree: React.FC<WorkspaceFileTreeProps> = ({
                     <>
                         {/* Inline New File / Folder Input at root */}
                         {isCreating && !creationParentFolder && (
-                            <div className="mx-1 mb-1.5 flex items-center gap-1.5 px-2 py-1 rounded bg-white/5 border border-[var(--accent-color)]/50">
+                            <div className="mx-1 mb-1.5 flex items-center gap-1.5 px-2 py-1 rounded bg-[var(--bg-secondary)] border border-[var(--border-color)]">
                                 {isCreating === 'file' ? (
                                     <FileIcon 
                                         fileName={newItemName || 'file'} 
@@ -767,7 +779,7 @@ export const WorkspaceFileTree: React.FC<WorkspaceFileTreeProps> = ({
                                     }}
                                     onBlur={handleCreateSubmit}
                                     placeholder={isCreating === 'file' ? 'filename.ext' : 'folder-name'}
-                                    className="bg-transparent text-xs text-white outline-none w-full font-mono placeholder:text-zinc-600"
+                                    className="bg-transparent text-xs text-[var(--text-primary)] outline-none w-full font-mono placeholder:text-[var(--text-muted)]"
                                 />
                             </div>
                         )}
