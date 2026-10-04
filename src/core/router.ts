@@ -6,6 +6,7 @@
  * 2. State restoration on browser refresh (F5)
  * 3. History navigation (browser back & forward buttons)
  */
+import { useLayoutStore } from '../store/ui/useLayoutStore';
 
 export type SettingsTabId =
     | 'general'
@@ -13,7 +14,6 @@ export type SettingsTabId =
     | 'inference'
     | 'vector'
     | 'security'
-    | 'tools'
     | 'theme'
     | 'notifications'
     | 'shortcuts'
@@ -25,7 +25,6 @@ export const VALID_SETTINGS_TABS: SettingsTabId[] = [
     'inference',
     'vector',
     'security',
-    'tools',
     'theme',
     'notifications',
     'shortcuts',
@@ -81,8 +80,18 @@ export function parseCurrentRoute(): RouteState {
         hash.startsWith('#/setting') ||
         searchParams.has('tab');
 
-    let settingsTab: SettingsTabId = 'general';
     const rawTab = searchParams.get('tab') || extractTabFromPath(pathname) || extractTabFromHash(hash);
+
+    // Redirect legacy settings tools tab to standalone /tools page
+    if (rawTab === 'tools' || pathname === '/settings/tools') {
+        return {
+            view: 'tools',
+            isSettingsOpen: false,
+            settingsTab: 'general',
+        };
+    }
+
+    let settingsTab: SettingsTabId = 'general';
     if (rawTab && VALID_SETTINGS_TABS.includes(rawTab as SettingsTabId)) {
         settingsTab = rawTab as SettingsTabId;
     }
@@ -93,7 +102,7 @@ export function parseCurrentRoute(): RouteState {
         view = 'notebook';
     } else if (pathname.includes('/dashboard') || hash.includes('/dashboard')) {
         view = 'dashboard';
-    } else if (pathname.includes('/tools') && !isSettingsPath) {
+    } else if (pathname.includes('/tools')) {
         view = 'tools';
     } else if (pathname.includes('/apis')) {
         view = 'apis';
@@ -148,7 +157,11 @@ export function pushViewRoute(view: MainViewId, replace: boolean = false): void 
 /**
  * Programmatically triggers navigation to settings tab or app view.
  */
-export function navigateTo(target: { isSettingsOpen?: boolean; settingsTab?: SettingsTabId }): void {
+export function navigateTo(target: { view?: MainViewId; isSettingsOpen?: boolean; settingsTab?: SettingsTabId }): void {
+    if (target.view) {
+        useLayoutStore.getState().setActiveView(target.view);
+        pushViewRoute(target.view);
+    }
     if (target.isSettingsOpen) {
         document.dispatchEvent(new CustomEvent('open-settings', { detail: { tab: target.settingsTab || 'general' } }));
     }

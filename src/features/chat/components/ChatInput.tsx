@@ -505,7 +505,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                             <button
                                 onClick={() => {
                                     setIsAttachOpen(false);
-                                    navigateTo({ isSettingsOpen: true, settingsTab: 'tools' });
+                                    navigateTo({ view: 'tools' });
                                 }}
                                 className="w-full flex items-center justify-between px-2 py-1.5 text-xs font-medium text-[var(--text-muted)] hover:text-[var(--accent-color)] hover:bg-[var(--bg-secondary)] transition-colors rounded-md text-left cursor-pointer"
                             >
@@ -606,7 +606,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                             <button
                                 onClick={() => {
                                     setIsAttachOpen(false);
-                                    navigateTo({ isSettingsOpen: true, settingsTab: 'tools' });
+                                    navigateTo({ view: 'tools' });
                                 }}
                                 className="w-full flex items-center justify-between px-2 py-1.5 text-xs font-medium text-[var(--text-muted)] hover:text-[var(--accent-color)] hover:bg-[var(--bg-secondary)] transition-colors rounded-md text-left cursor-pointer"
                             >
@@ -658,7 +658,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                             <button
                                 onClick={() => {
                                     setIsAttachOpen(false);
-                                    navigateTo({ isSettingsOpen: true, settingsTab: 'tools' });
+                                    navigateTo({ view: 'tools' });
                                 }}
                                 className="w-full flex items-center justify-between px-2 py-1.5 text-xs font-medium text-[var(--text-muted)] hover:text-[var(--accent-color)] hover:bg-[var(--bg-secondary)] transition-colors rounded-md text-left cursor-pointer"
                             >

@@ -2,6 +2,7 @@ import { Settings, LayoutDashboard, Wrench, Code2, Boxes, MessageSquare, FolderG
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLayoutStore } from '../../store/ui/useLayoutStore';
 import { useProjectStore } from '../../store/workspace/useProjectStore';
+import { pushViewRoute } from '../../core/router';
 
 interface BubbleLauncherProps {
     isOpen: boolean;
@@ -27,6 +28,7 @@ export function BubbleLauncher({ isOpen, coords, onClose, onOpenSettings }: Bubb
             useLayoutStore.getState().setSplitPaneWidth(50);
         } else if (action === 'tools') {
             useLayoutStore.getState().setActiveView('tools');
+            pushViewRoute('tools');
             document.dispatchEvent(new CustomEvent('open-tools'));
         } else if (action === 'apis') {
             useLayoutStore.getState().setActiveView('apis');

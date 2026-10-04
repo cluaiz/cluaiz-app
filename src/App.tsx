@@ -10,6 +10,7 @@ import { useThemeStore } from './store/ui/useThemeStore';
 import { useLayoutStore } from './store/ui/useLayoutStore';
 import { NotebookEditor } from './features/notebook/NotebookEditor';
 import { ApiWorkspace } from './features/api/ApiWorkspace';
+import { ToolsWorkspace } from './features/tools';
 import { ElasticSlider } from './components/ui/cursor/ElasticSlider';
 import ClickSpark from './components/ui/ClickSpark';
 import { SmoothFollowCursor } from './components/ui/cursor/SmoothFollowCursor';
@@ -147,6 +148,8 @@ function MainAppContent() {
                         <NotebookEditor />
                     ) : activeView === 'apis' ? (
                         <ApiWorkspace />
+                    ) : activeView === 'tools' ? (
+                        <ToolsWorkspace />
                     ) : (
                         <ChatWorkspace />
                     )
