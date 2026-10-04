@@ -1,117 +1,242 @@
 import { useState, useEffect } from 'react';
 import { SettingSection, SettingItem } from './SharedComponents';
 import { useConnectionStore, ConnectionProtocol } from '../../store/engine/useConnectionStore';
+import { useEngineStore } from '../../store/engine/useEngineStore';
+import { systemApi, storageApi } from '../../api';
+import { AlertBanner } from '../../components/ui/AlertBanner';
+import { PortConfirmModal } from '../../components/ui/modal/PortConfirmModal';
+import { toast } from '../../components/ui/toast';
 
 export function GeneralSettings() {
-    // Startup & Localization State
-    const [launchStartup, setLaunchStartup] = useState(false);
-    const [runBackground, setRunBackground] = useState(true);
+    // Startup & Background State (Persisted)
+    const [launchStartup, setLaunchStartup] = useState(() => {
+        try { return localStorage.getItem('cluaiz_launch_startup') === 'true'; } catch { return false; }
+    });
+    const [runBackground, setRunBackground] = useState(() => {
+        try { return localStorage.getItem('cluaiz_run_background') !== 'false'; } catch { return true; }
+    });
 
     // Dynamic Connection State from Store (Zero Hardcoding)
-    const { protocol, host, port, setProtocol, setPort, setHost, getBaseUrl } = useConnectionStore();
+    const { protocol, host, port, getBaseUrl } = useConnectionStore();
+    const permissions = useEngineStore((state) => state.permissions);
+    const initEngineSettings = useEngineStore((state) => state.initEngineSettings);
+
+    // Live Engine Values strictly prioritize permission.json (zero hardcoded fallback)
+    const currentProtocol = (permissions?.connection_protocol as ConnectionProtocol) || protocol || 'http';
+    const currentPort = (permissions?.api_port ?? port)?.toString() ?? '';
+    const currentHost = permissions?.api_host || host || '0.0.0.0';
+
+    // Per-setting pending sync states
+    const [pendingProtocol, setPendingProtocol] = useState<ConnectionProtocol | null>(null);
+    const [pendingHost, setPendingHost] = useState<string | null>(null);
+    const [isSyncingProtocol, setIsSyncingProtocol] = useState(false);
+    const [isSyncingHost, setIsSyncingHost] = useState(false);
+    const [isSyncingPort, setIsSyncingPort] = useState(false);
+    const [pendingPort, setPendingPort] = useState<number | null>(null);
+    const [showPortModal, setShowPortModal] = useState(false);
+    const [isUpdatingPort, setIsUpdatingPort] = useState(false);
 
     // Storage State
     const [cleanupPolicy, setCleanupPolicy] = useState('Immediate');
+    const [isSyncingStoragePolicy, setIsSyncingStoragePolicy] = useState(false);
     const [storageUsage, setStorageUsage] = useState('0.00 MB');
     const [fileCount, setFileCount] = useState(0);
     const [isCleaning, setIsCleaning] = useState(false);
     const [cleanSuccess, setCleanSuccess] = useState(false);
+    const [isOffline, setIsOffline] = useState(false);
+
+    // Save startup preferences
+    const handleToggleStartup = (val: boolean) => {
+        setLaunchStartup(val);
+        try { localStorage.setItem('cluaiz_launch_startup', String(val)); } catch {}
+    };
+
+    const handleToggleBackground = (val: boolean) => {
+        setRunBackground(val);
+        try { localStorage.setItem('cluaiz_run_background', String(val)); } catch {}
+    };
 
     // Fetch initial settings & storage telemetry dynamically from active endpoint
     useEffect(() => {
-        const activeUrl = getBaseUrl();
+        let isMounted = true;
 
-        // 1. Fetch system permission / network config
-        fetch(`${activeUrl}/v1/system/permission`)
-            .then(res => res.json())
-            .then(data => {
-                if (data?.permission) {
-                    if (data.permission.connection_protocol) {
-                        setProtocol(data.permission.connection_protocol as ConnectionProtocol);
-                    }
-                    if (data.permission.api_port) {
-                        setPort(data.permission.api_port);
-                    }
+        const loadSettings = async () => {
+            try {
+                await initEngineSettings();
+                if (isMounted) setIsOffline(false);
+            } catch {
+                if (isMounted) setIsOffline(true);
+            }
+
+            try {
+                // 2. Fetch storage telemetry
+                const storageData = await storageApi.getTempMediaStatus();
+                if (isMounted && storageData) {
+                    setStorageUsage(storageData.human_size || (storageData.total_size_bytes ? `${(storageData.total_size_bytes / (1024 * 1024)).toFixed(2)} MB` : '0.00 MB'));
+                    setFileCount(storageData.file_count || 0);
                 }
-            })
-            .catch(() => {
-                // Graceful fallback to persistent store if engine endpoint is not active
-            });
-
-        // 2. Fetch storage telemetry
-        fetchStorageStatus();
-    }, [protocol, port]);
-
-    const fetchStorageStatus = () => {
-        const activeUrl = getBaseUrl();
-        fetch(`${activeUrl}/v1/system/storage/temp_media`)
-            .then(res => res.json())
-            .then(data => {
-                if (data?.status === 'success') {
-                    setStorageUsage(data.total_size_mb || '0.00 MB');
-                    setFileCount(data.file_count || 0);
+            } catch {
+                if (isMounted) {
+                    setStorageUsage('0.00 MB');
+                    setFileCount(0);
                 }
-            })
-            .catch(() => {
-                setStorageUsage('0.00 MB');
-                setFileCount(0);
-            });
-    };
+            }
+
+            try {
+                // 3. Fetch storage policy settings directly from engine backend
+                const policyData = await storageApi.getStorageSettings();
+                if (isMounted && (policyData as any)?.cleanup_policy) {
+                    setCleanupPolicy((policyData as any).cleanup_policy);
+                }
+            } catch {
+                // Default to Immediate
+            }
+        };
+
+        loadSettings();
+
+        return () => { isMounted = false; };
+    }, []);
 
     const handleProtocolChange = async (val: string) => {
         const proto = val as ConnectionProtocol;
-        setProtocol(proto);
+        if (proto === currentProtocol) return;
+        setIsSyncingProtocol(true);
+        setPendingProtocol(proto);
         try {
-            await fetch(`${getBaseUrl()}/v1/system/permission`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ connection_protocol: proto })
-            });
-        } catch {
-            // Persisted locally in connection store
+            await toast.promise(
+                async () => {
+                    await systemApi.updatePermission({ connection_protocol: proto });
+                    useConnectionStore.getState().setProtocol(proto);
+                    await initEngineSettings();
+                    setIsOffline(false);
+                },
+                {
+                    loading: `Updating connection protocol to ${proto.toUpperCase()}...`,
+                    success: `Protocol updated to ${proto.toUpperCase()}`,
+                    error: (err) => err?.message || 'Failed to sync protocol to engine'
+                }
+            );
+        } catch (err: any) {
+            console.error('[GeneralSettings] Failed to sync protocol to engine:', err);
+        } finally {
+            setIsSyncingProtocol(false);
+            setPendingProtocol(null);
         }
     };
 
-    const handlePortChange = async (val: string) => {
+    const handlePortChange = (val: string) => {
         const portNum = parseInt(val, 10);
-        setPort(portNum);
+        if (isNaN(portNum) || portNum < 1 || portNum > 65535) {
+            toast.error('Invalid port number (1 - 65535)');
+            return;
+        }
+        if (portNum === parseInt(currentPort, 10)) return;
+        setPendingPort(portNum);
+        setShowPortModal(true);
+    };
+
+    const confirmPortChange = async () => {
+        if (!pendingPort) return;
+        const targetPort = pendingPort;
+        setIsUpdatingPort(true);
+        setIsSyncingPort(true);
         try {
-            await fetch(`${getBaseUrl()}/v1/system/permission`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ api_port: portNum })
-            });
-        } catch {
-            // Persisted locally in connection store
+            await toast.promise(
+                async () => {
+                    await systemApi.updatePermission({ api_port: targetPort });
+                    await initEngineSettings();
+                    setIsOffline(false);
+                    setShowPortModal(false);
+                    setPendingPort(null);
+                },
+                {
+                    loading: `Setting gateway port to ${targetPort} in permission.json...`,
+                    success: `Gateway port set to ${targetPort}. Please restart engine daemon to apply.`,
+                    error: (err) => err?.message || 'Failed to sync port to engine'
+                }
+            );
+        } catch (err: any) {
+            console.error('[GeneralSettings] Failed to sync port to engine:', err);
+        } finally {
+            setIsUpdatingPort(false);
+            setIsSyncingPort(false);
+        }
+    };
+
+    const cancelPortChange = () => {
+        setShowPortModal(false);
+        setPendingPort(null);
+    };
+
+    const handleHostChange = async (val: string) => {
+        const cleanHost = val.trim();
+        if (!cleanHost || cleanHost === currentHost) return;
+        setIsSyncingHost(true);
+        setPendingHost(cleanHost);
+        try {
+            await toast.promise(
+                async () => {
+                    await systemApi.updatePermission({ api_host: cleanHost });
+                    await initEngineSettings();
+                    setIsOffline(false);
+                },
+                {
+                    loading: `Updating engine API host to ${cleanHost}...`,
+                    success: `API host updated to ${cleanHost} in permission.json`,
+                    error: (err) => err?.message || 'Failed to sync host to engine'
+                }
+            );
+        } catch (err: any) {
+            console.error('[GeneralSettings] Failed to sync host to engine:', err);
+        } finally {
+            setIsSyncingHost(false);
+            setPendingHost(null);
         }
     };
 
     const handleStoragePolicyChange = async (val: string) => {
-        setCleanupPolicy(val);
+        setIsSyncingStoragePolicy(true);
         try {
-            await fetch(`${getBaseUrl()}/v1/system/storage/settings`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ cleanup_policy: val })
-            });
-        } catch {
-            // Silently persist locally
+            await toast.promise(
+                async () => {
+                    await storageApi.updateStorageSettings({ cleanup_policy: val } as any);
+                },
+                {
+                    loading: `Updating storage cleanup policy to ${val}...`,
+                    success: `Storage cleanup policy set to ${val}`,
+                    error: 'Failed to update storage cleanup policy'
+                }
+            );
+            // Only update local state after backend returns success
+            setCleanupPolicy(val);
+        } catch (err) {
+            console.error('[GeneralSettings] Failed to update storage cleanup policy:', err);
+        } finally {
+            setIsSyncingStoragePolicy(false);
         }
     };
 
     const handleCleanStorage = async () => {
         setIsCleaning(true);
         try {
-            await fetch(`${getBaseUrl()}/v1/system/storage/temp_media/clean`, { method: 'POST' });
-            setStorageUsage('0.00 MB');
-            setFileCount(0);
-            setCleanSuccess(true);
-            setTimeout(() => setCleanSuccess(false), 2500);
+            await toast.promise(
+                async () => {
+                    const res = await storageApi.cleanTempMedia();
+                    setStorageUsage('0.00 MB');
+                    setFileCount(0);
+                    setCleanSuccess(true);
+                    setTimeout(() => setCleanSuccess(false), 2500);
+                    return res;
+                },
+                {
+                    loading: 'Cleaning temporary media cache...',
+                    success: (res: any) => `Cleaned ${res?.cleaned_human || 'cache'} (${res?.cleaned_files || 0} files deleted)`,
+                    error: (err) => 'Failed to clean storage: ' + (err?.message || 'Unknown error')
+                }
+            );
         } catch {
-            setStorageUsage('0.00 MB');
-            setFileCount(0);
-            setCleanSuccess(true);
-            setTimeout(() => setCleanSuccess(false), 2500);
+            // Handled by toast.promise
         } finally {
             setIsCleaning(false);
         }
@@ -130,21 +255,17 @@ export function GeneralSettings() {
     };
 
     const portDescriptions: Record<string, { desc: string; dynamic: string }> = {
-        '8000': {
-            desc: 'Standard default port allocated for Cluaiz Engine HTTP daemon.',
+        '8080': {
+            desc: 'Default port allocated for Cluaiz Engine HTTP daemon.',
             dynamic: `Target Gateway: ${getBaseUrl()} (Default Engine Port)`
         },
-        '8080': {
-            desc: 'Alternative development port when 8000 is occupied by other local services.',
-            dynamic: `Target Gateway: ${getBaseUrl()} (Alternative Dev Port)`
+        '8000': {
+            desc: 'Alternative port allocated for Cluaiz Engine HTTP daemon.',
+            dynamic: `Target Gateway: ${getBaseUrl()} (Standard Engine Port)`
         },
         '9000': {
             desc: 'High-range port commonly used for isolated local engine clusters.',
             dynamic: `Target Gateway: ${getBaseUrl()} (High-Range Service Port)`
-        },
-        '1420': {
-            desc: 'Shared port co-located with the Tauri / Vite UI frontend shell.',
-            dynamic: `Target Gateway: ${getBaseUrl()} (Co-located UI Port)`
         }
     };
 
@@ -173,85 +294,98 @@ export function GeneralSettings() {
 
     return (
         <div className="space-y-8 select-none">
+            {isOffline && (
+                <AlertBanner
+                    variant="warning"
+                    title="Engine Offline"
+                    message="Engine is currently offline. Some settings will apply when the engine boots."
+                />
+            )}
+
             {/* Login & Startup */}
             <SettingSection title="Login & Startup">
                 <SettingItem
                     label="Launch on startup"
-                    description="Automatically open Cluaiz when you log in to Windows."
+                    description="Automatically open Cluaiz when your computer starts."
                     toggle
                     active={launchStartup}
-                    onToggle={() => setLaunchStartup(!launchStartup)}
+                    onToggle={() => handleToggleStartup(!launchStartup)}
                 />
                 <SettingItem
                     label="Run in background"
                     description="Keep Cluaiz running in the tray when window is closed."
                     toggle
                     active={runBackground}
-                    onToggle={() => setRunBackground(!runBackground)}
+                    onToggle={() => handleToggleBackground(!runBackground)}
                 />
             </SettingSection>
 
-            {/* Network & Connection (Dynamic - Zero Hardcoding) */}
+            {/* Network & Connection (Dynamic - Engine Source of Truth) */}
             <SettingSection title="Network & Connection">
                 <SettingItem
                     label="Connection Protocol"
+                    loading={isSyncingProtocol}
                     description={
-                        protocolDescriptions[protocol]?.desc ||
+                        protocolDescriptions[currentProtocol]?.desc ||
                         'Choose how the UI communicates with the Engine.'
                     }
                     dynamicDescription={
-                        protocolDescriptions[protocol]?.dynamic ||
-                        `Active Mode: ${protocol.toUpperCase()}`
+                        protocolDescriptions[currentProtocol]?.dynamic ||
+                        `Active Mode: ${currentProtocol.toUpperCase()}`
                     }
                     select={[
-                        { value: 'ffi', label: 'Native C-Pointer (FFI)' },
-                        { value: 'http', label: 'HTTP REST API (Default)' }
+                        { value: 'http', label: 'HTTP REST API (Default)' },
+                        { value: 'ffi', label: 'Native C-Pointer (FFI)' }
                     ]}
-                    value={protocol}
+                    value={pendingProtocol || currentProtocol}
                     onChange={handleProtocolChange}
                 />
                 <SettingItem
-                    label="Localhost Port"
+                    label="API Port"
+                    loading={isSyncingPort}
                     description={
-                        protocol === 'ffi'
+                        currentProtocol === 'ffi'
                             ? 'Network port is bypassed because Native C-Pointer uses direct memory IPC instead of TCP sockets.'
-                            : portDescriptions[port.toString()]?.desc ||
-                              'Select the port for HTTP REST API communication.'
+                            : portDescriptions[currentPort]?.desc ||
+                              'Port for engine HTTP REST API communication.'
                     }
                     dynamicDescription={
-                        protocol === 'ffi'
+                        currentProtocol === 'ffi'
                             ? 'Status: Inactive (Bypassed by Native C-Pointer)'
-                            : portDescriptions[port.toString()]?.dynamic ||
+                            : portDescriptions[currentPort]?.dynamic ||
                               `Target Gateway: ${getBaseUrl()}`
                     }
                     select={[
-                        { value: '8000', label: 'Port 8000 (Default)' },
                         { value: '8080', label: 'Port 8080' },
-                        { value: '9000', label: 'Port 9000' },
-                        { value: '1420', label: 'Port 1420' }
+                        { value: '8000', label: 'Port 8000' },
+                        { value: '9000', label: 'Port 9000' }
                     ]}
-                    value={port.toString()}
+                    value={pendingPort ? pendingPort.toString() : currentPort}
                     onChange={handlePortChange}
+                    allowCustomInput
+                    customInputPlaceholder="Type custom port..."
                 />
                 <SettingItem
                     label="API Host"
+                    loading={isSyncingHost}
                     description={
-                        protocol === 'ffi'
+                        currentProtocol === 'ffi'
                             ? 'Host network configuration is bypassed when Native C-Pointer FFI is active.'
-                            : 'Host IP address or domain for the engine HTTP gateway.'
+                            : 'Host IP address for the engine HTTP gateway.'
                     }
                     dynamicDescription={
-                        protocol === 'ffi'
+                        currentProtocol === 'ffi'
                             ? 'Status: Inactive (Bypassed by Native C-Pointer)'
                             : `Target Gateway: ${getBaseUrl()}`
                     }
                     select={[
-                        { value: 'localhost', label: 'localhost (127.0.0.1)' },
-                        { value: '127.0.0.1', label: '127.0.0.1 (IPv4 Loopback)' },
-                        { value: '0.0.0.0', label: '0.0.0.0 (All Interfaces)' }
+                        { value: '0.0.0.0', label: '0.0.0.0 (All Interfaces - Default)' },
+                        { value: '127.0.0.1', label: '127.0.0.1 (Local Loopback)' }
                     ]}
-                    value={host || 'localhost'}
-                    onChange={(val) => setHost(val)}
+                    value={pendingHost || currentHost}
+                    onChange={handleHostChange}
+                    allowCustomInput
+                    customInputPlaceholder="Type custom host..."
                 />
             </SettingSection>
 
@@ -259,6 +393,8 @@ export function GeneralSettings() {
             <SettingSection title="Temp Media & Storage">
                 <SettingItem
                     label="Cleanup Policy"
+                    loading={isSyncingStoragePolicy}
+                    disabled={isSyncingStoragePolicy}
                     description={
                         cleanupDescriptions[cleanupPolicy]?.desc ||
                         'Automatically delete downloaded media/files to save disk space.'
@@ -301,6 +437,16 @@ export function GeneralSettings() {
                     </button>
                 </div>
             </SettingSection>
+
+            {/* Reusable Port Change Confirmation Modal */}
+            <PortConfirmModal
+                open={showPortModal}
+                pendingPort={pendingPort}
+                currentPort={currentPort}
+                isUpdating={isUpdatingPort}
+                onConfirm={confirmPortChange}
+                onCancel={cancelPortChange}
+            />
         </div>
     );
 }

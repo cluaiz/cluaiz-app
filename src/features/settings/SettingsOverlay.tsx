@@ -11,6 +11,7 @@ import { EngineSettings } from './EngineSettings';
 import { InferenceSettings } from './InferenceSettings';
 import { VectorSettings } from './VectorSettings';
 import { ToolsSettings } from './ToolsSettings';
+import { EngineOfflineGuard } from './EngineOfflineGuard';
 import { isTauri } from '../../core/tauri-api';
 
 interface SettingsOverlayProps {
@@ -55,17 +56,17 @@ export function SettingsOverlay({ isOpen, initialTab = 'general', onClose, onTab
     const renderTabContent = () => {
         switch (activeTab) {
             case 'general':
-                return <GeneralSettings />;
+                return <EngineOfflineGuard><GeneralSettings /></EngineOfflineGuard>;
             case 'engine':
-                return <EngineSettings />;
+                return <EngineOfflineGuard><EngineSettings /></EngineOfflineGuard>;
             case 'inference':
-                return <InferenceSettings />;
+                return <EngineOfflineGuard><InferenceSettings /></EngineOfflineGuard>;
             case 'vector':
-                return <VectorSettings />;
+                return <EngineOfflineGuard><VectorSettings /></EngineOfflineGuard>;
             case 'security':
-                return <SecuritySettings />;
+                return <EngineOfflineGuard><SecuritySettings /></EngineOfflineGuard>;
             case 'tools':
-                return <ToolsSettings />;
+                return <EngineOfflineGuard><ToolsSettings /></EngineOfflineGuard>;
             case 'theme':
                 return <ChatsSettings />;
             case 'notifications':

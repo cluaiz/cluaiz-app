@@ -5,6 +5,7 @@ import { validateSettings, getOverallHealth } from './SettingsHealthValidator';
 import { ModelInfoCard } from './ModelInfoCard';
 import { ModelInspectorModal } from './ModelInspectorModal';
 import { CustomDropdown, DropdownOption } from '../../components/ui/dropdown/CustomDropdown';
+import { Loader2 } from 'lucide-react';
 
 const DESC_CONTEXT: Record<string, string> = {
     'Auto': 'System dynamically balances memory consumption and chat history retention.',
@@ -36,6 +37,7 @@ export function EngineSettings() {
         brainMode,
         hardware,
         installedModelsMap,
+        pendingKeys,
         initEngineSettings,
         updatePermission,
         updateBooster,
@@ -250,6 +252,8 @@ export function EngineSettings() {
                             description="Run the engine purely as a stateful database and knowledge base. Generative models will be disabled."
                             toggle
                             active={brainMode}
+                            loading={Boolean(pendingKeys['brain_mode'])}
+                            disabled={Boolean(pendingKeys['brain_mode'])}
                             onToggle={() => setBrainMode(!brainMode)}
                             dynamicDescription={DESC_BRAIN_MODE(brainMode)}
                         />
@@ -258,6 +262,8 @@ export function EngineSettings() {
                             description="Wait until you send the first message to load the AI model into memory. Saves RAM while idle."
                             toggle
                             active={permissions.lazy_load_model}
+                            loading={Boolean(pendingKeys['lazy_load_model'])}
+                            disabled={Boolean(pendingKeys['lazy_load_model'])}
                             onToggle={() => updatePermission('lazy_load_model', !permissions.lazy_load_model)}
                             dynamicDescription={DESC_LAZY_LOAD(permissions.lazy_load_model)}
                         />
@@ -278,6 +284,8 @@ export function EngineSettings() {
                                         onChange={(v) => updateModelSlot('chat', v)}
                                         placeholder="Select Chat Model..."
                                         className="w-full"
+                                        loading={Boolean(pendingKeys['slot_chat'])}
+                                        disabled={Boolean(pendingKeys['slot_chat'])}
                                     />
                                 </div>
                             </div>
@@ -305,6 +313,8 @@ export function EngineSettings() {
                                         onChange={(v) => updateModelSlot('vector', v)}
                                         placeholder="Select Vector Model..."
                                         className="w-full"
+                                        loading={Boolean(pendingKeys['slot_vector'])}
+                                        disabled={Boolean(pendingKeys['slot_vector'])}
                                     />
                                 </div>
                             </div>
@@ -332,6 +342,8 @@ export function EngineSettings() {
                                         onChange={(v) => updateModelSlot('ingest', v)}
                                         placeholder="Select Document & Ingest Model..."
                                         className="w-full"
+                                        loading={Boolean(pendingKeys['slot_ingest'])}
+                                        disabled={Boolean(pendingKeys['slot_ingest'])}
                                     />
                                 </div>
                             </div>
@@ -359,6 +371,8 @@ export function EngineSettings() {
                                         onChange={(v) => updateModelSlot('tts', v)}
                                         placeholder="Select Text-to-Speech (TTS) Model..."
                                         className="w-full"
+                                        loading={Boolean(pendingKeys['slot_tts'])}
+                                        disabled={Boolean(pendingKeys['slot_tts'])}
                                     />
                                 </div>
                             </div>
@@ -386,6 +400,8 @@ export function EngineSettings() {
                                         onChange={(v) => updateModelSlot('stt', v)}
                                         placeholder="Select Speech-to-Text (STT) Model..."
                                         className="w-full"
+                                        loading={Boolean(pendingKeys['slot_stt'])}
+                                        disabled={Boolean(pendingKeys['slot_stt'])}
                                     />
                                 </div>
                             </div>
@@ -426,8 +442,10 @@ export function EngineSettings() {
                                 ))}
                                 <button
                                     onClick={resetBooster}
-                                    className="mt-2 px-3 py-1 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 rounded-lg text-xs font-semibold text-emerald-400 transition-all cursor-pointer"
+                                    disabled={Boolean(pendingKeys['reset_optimization'])}
+                                    className="mt-2 px-3 py-1 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 rounded-lg text-xs font-semibold text-emerald-400 transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
+                                    {Boolean(pendingKeys['reset_optimization']) && <Loader2 size={12} className="animate-spin" />}
                                     Reset to Defaults
                                 </button>
                             </div>
@@ -447,6 +465,9 @@ export function EngineSettings() {
                                     </span>
                                 </div>
                                 <div className="flex items-center gap-3">
+                                    {Boolean(pendingKeys['custom_vram_buffer_gb']) && (
+                                        <Loader2 size={14} className="animate-spin text-blue-400" />
+                                    )}
                                     <span className="font-mono text-xs font-bold text-blue-400 bg-blue-500/10 px-2.5 py-1 rounded-md border border-blue-500/20">
                                         {booster.custom_vram_buffer_gb !== null && booster.custom_vram_buffer_gb !== undefined
                                             ? `${booster.custom_vram_buffer_gb.toFixed(1)} GB`
@@ -454,13 +475,14 @@ export function EngineSettings() {
                                     </span>
                                     <button
                                         type="button"
+                                        disabled={Boolean(pendingKeys['custom_vram_buffer_gb'])}
                                         onClick={() =>
                                             updateBoosterBuffer(
                                                 'vram',
                                                 booster.custom_vram_buffer_gb !== null && booster.custom_vram_buffer_gb !== undefined ? null : 2.0
                                             )
                                         }
-                                        className="text-xs px-2.5 py-1 rounded border border-[var(--border-color)] hover:border-[var(--accent-color)] text-[var(--text-secondary)] hover:text-white transition-colors cursor-pointer"
+                                        className="text-xs px-2.5 py-1 rounded border border-[var(--border-color)] hover:border-[var(--accent-color)] text-[var(--text-secondary)] hover:text-white transition-colors cursor-pointer disabled:opacity-50"
                                     >
                                         Auto
                                     </button>
@@ -472,9 +494,10 @@ export function EngineSettings() {
                                     min="0"
                                     max="16"
                                     step="0.1"
+                                    disabled={Boolean(pendingKeys['custom_vram_buffer_gb'])}
                                     value={booster.custom_vram_buffer_gb ?? 0}
                                     onChange={(e) => updateBoosterBuffer('vram', parseFloat(e.target.value))}
-                                    className="w-full accent-blue-500 cursor-pointer h-1.5 bg-zinc-800 rounded-lg appearance-none"
+                                    className="w-full accent-blue-500 cursor-pointer h-1.5 bg-zinc-800 rounded-lg appearance-none disabled:opacity-50"
                                 />
                             </div>
                         </div>
@@ -489,6 +512,9 @@ export function EngineSettings() {
                                     </span>
                                 </div>
                                 <div className="flex items-center gap-3">
+                                    {Boolean(pendingKeys['custom_ram_buffer_gb']) && (
+                                        <Loader2 size={14} className="animate-spin text-purple-400" />
+                                    )}
                                     <span className="font-mono text-xs font-bold text-purple-400 bg-purple-500/10 px-2.5 py-1 rounded-md border border-purple-500/20">
                                         {booster.custom_ram_buffer_gb !== null && booster.custom_ram_buffer_gb !== undefined
                                             ? `${booster.custom_ram_buffer_gb.toFixed(1)} GB`
@@ -496,13 +522,14 @@ export function EngineSettings() {
                                     </span>
                                     <button
                                         type="button"
+                                        disabled={Boolean(pendingKeys['custom_ram_buffer_gb'])}
                                         onClick={() =>
                                             updateBoosterBuffer(
                                                 'ram',
                                                 booster.custom_ram_buffer_gb !== null && booster.custom_ram_buffer_gb !== undefined ? null : 4.0
                                             )
                                         }
-                                        className="text-xs px-2.5 py-1 rounded border border-[var(--border-color)] hover:border-[var(--accent-color)] text-[var(--text-secondary)] hover:text-white transition-colors cursor-pointer"
+                                        className="text-xs px-2.5 py-1 rounded border border-[var(--border-color)] hover:border-[var(--accent-color)] text-[var(--text-secondary)] hover:text-white transition-colors cursor-pointer disabled:opacity-50"
                                     >
                                         Auto
                                     </button>
@@ -514,9 +541,10 @@ export function EngineSettings() {
                                     min="0"
                                     max="32"
                                     step="0.5"
+                                    disabled={Boolean(pendingKeys['custom_ram_buffer_gb'])}
                                     value={booster.custom_ram_buffer_gb ?? 0}
                                     onChange={(e) => updateBoosterBuffer('ram', parseFloat(e.target.value))}
-                                    className="w-full accent-purple-500 cursor-pointer h-1.5 bg-zinc-800 rounded-lg appearance-none"
+                                    className="w-full accent-purple-500 cursor-pointer h-1.5 bg-zinc-800 rounded-lg appearance-none disabled:opacity-50"
                                 />
                             </div>
                         </div>
@@ -527,6 +555,8 @@ export function EngineSettings() {
                             description="Enables hardware-optimized attention kernels. Delivers higher throughput for long context."
                             select={['Auto', 'On', 'Off']}
                             value={booster.flash_attention}
+                            loading={Boolean(pendingKeys['flash_attention'])}
+                            disabled={Boolean(pendingKeys['flash_attention'])}
                             onChange={(v) => updateBooster('flash_attention', v)}
                             dynamicDescription={DESC_FLASH_ATTN[booster.flash_attention]}
                         />
@@ -537,6 +567,8 @@ export function EngineSettings() {
                             description="System dynamically balances memory consumption and chat history retention."
                             select={['Auto', 'Minimal', 'Standard', 'Aggressive', 'Extreme', 'Off']}
                             value={booster.context_shifting}
+                            loading={Boolean(pendingKeys['context_shifting'])}
+                            disabled={Boolean(pendingKeys['context_shifting'])}
                             onChange={(v) => updateBooster('context_shifting', v)}
                             dynamicDescription={DESC_CONTEXT[booster.context_shifting]}
                         />
@@ -547,6 +579,8 @@ export function EngineSettings() {
                             description="Compresses key-value cache in memory to unlock higher context limits."
                             select={['Auto', 'Kv16', 'Kv8', 'Kv4']}
                             value={booster.kv_cache_quantization}
+                            loading={Boolean(pendingKeys['kv_cache_quantization'])}
+                            disabled={Boolean(pendingKeys['kv_cache_quantization'])}
                             onChange={(v) => updateBooster('kv_cache_quantization', v)}
                             dynamicDescription={DESC_KV_QUANT[booster.kv_cache_quantization]}
                         />
@@ -557,6 +591,8 @@ export function EngineSettings() {
                             description="Accelerates inference using secondary draft models or lookup tables."
                             select={['Auto', 'On', 'Off']}
                             value={booster.speculative_decoding}
+                            loading={Boolean(pendingKeys['speculative_decoding'])}
+                            disabled={Boolean(pendingKeys['speculative_decoding'])}
                             onChange={(v) => updateBooster('speculative_decoding', v)}
                             dynamicDescription={DESC_SPEC_DEC[booster.speculative_decoding]}
                         />
@@ -567,6 +603,8 @@ export function EngineSettings() {
                             description="Zero-RAM out-of-core streaming for MoE models directly from NVMe SSD with DMA staging."
                             select={['Auto', 'On', 'Off']}
                             value={booster.moe_vram_routing}
+                            loading={Boolean(pendingKeys['moe_vram_routing'])}
+                            disabled={Boolean(pendingKeys['moe_vram_routing'])}
                             onChange={(v) => updateBooster('moe_vram_routing', v)}
                             dynamicDescription={DESC_MOE[booster.moe_vram_routing]}
                         />
@@ -577,6 +615,8 @@ export function EngineSettings() {
                             description="Dynamically balances layer placement across GPU VRAM and host RAM."
                             select={['Auto', 'On', 'Off']}
                             value={booster.force_vram_reclaim || 'Off'}
+                            loading={Boolean(pendingKeys['force_vram_reclaim'])}
+                            disabled={Boolean(pendingKeys['force_vram_reclaim'])}
                             onChange={(v) => updateBooster('force_vram_reclaim', v)}
                             dynamicDescription={DESC_HYBRID_MEMORY[booster.force_vram_reclaim || 'Off']}
                         />
@@ -587,13 +627,15 @@ export function EngineSettings() {
                             description="Locks model weights in RAM/VRAM to prevent OS pagefile swapping and latency spikes."
                             select={['Auto', 'On', 'Off']}
                             value={booster.force_memory_lock}
+                            loading={Boolean(pendingKeys['force_memory_lock'])}
+                            disabled={Boolean(pendingKeys['force_memory_lock'])}
                             onChange={(v) => updateBooster('force_memory_lock', v)}
                             dynamicDescription={DESC_MLOCK[booster.force_memory_lock]}
                         />
 
-                        {/* 10. Booster Profile */}
+                        {/* 10. Optimization Profile */}
                         <SettingItem
-                            label="Booster Engine Profile"
+                            label="Llama Optimization Profile"
                             description="Pre-configured profiles determining how aggressively cluaiz reclaims system resources."
                             select={[
                                 { label: 'Edge (Low Power)', value: 'edge' },
@@ -604,6 +646,8 @@ export function EngineSettings() {
                                 { label: 'Hyper Cluster', value: 'hyper_cluster' }
                             ]}
                             value={booster.mode_run}
+                            loading={Boolean(pendingKeys['mode_run'])}
+                            disabled={Boolean(pendingKeys['mode_run'])}
                             onChange={(v) => updateBooster('mode_run', v)}
                             dynamicDescription={DESC_BOOSTER_PROFILE[booster.mode_run]}
                         />
