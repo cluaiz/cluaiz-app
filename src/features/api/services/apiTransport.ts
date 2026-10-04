@@ -1,5 +1,6 @@
 import { ExecutionMetrics, HttpMethod, ApiProtocol } from '../types';
 import { isTauri, sendFFIMessage } from '../../../core/tauri-api';
+import { client } from '../../../api/client';
 
 export interface TransportRequestOptions {
     url: string;
@@ -87,15 +88,19 @@ export async function executeApiRequest(opts: TransportRequestOptions): Promise<
     // 2. HTTP REST API Execution Path
     const fetchOptions: RequestInit = {
         method,
-        headers
+        headers: client.getHeaders(headers)
     };
 
     if (method !== 'GET' && body.trim().length > 0) {
         fetchOptions.body = body;
     }
 
+    const targetUrl = url.startsWith('http://') || url.startsWith('https://')
+        ? url
+        : `${client.getBaseUrl().replace(/\/+$/, '')}/${url.replace(/^\/+/, '')}`;
+
     try {
-        const response = await fetch(url, fetchOptions);
+        const response = await fetch(targetUrl, fetchOptions);
         const headersTime = (performance.now() - startTime).toFixed(2);
         const contentType = response.headers.get('content-type') || '';
         const isSse = contentType.includes('text/event-stream');
@@ -216,7 +221,7 @@ export async function executeApiRequest(opts: TransportRequestOptions): Promise<
             {
                 error: true,
                 message: err?.message || 'Failed to connect to gateway',
-                url
+                url: targetUrl
             },
             null,
             2

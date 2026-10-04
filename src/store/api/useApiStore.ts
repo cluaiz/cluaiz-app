@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { ApiEndpoint, ApiGroup, ApiProtocol, ExecutionMetrics, HttpMethod, InstalledModel, VoiceOption } from '../../features/api/types';
 import { useConnectionStore } from '../engine/useConnectionStore';
+import { http, modelsApi } from '../../api';
 
 interface ApiStoreState {
     apiData: ApiGroup[];
@@ -62,20 +63,9 @@ const DATA_FILES = [
 ];
 
 export async function fetchActiveBearerToken(): Promise<string | null> {
-    try {
-        const baseUrl = useConnectionStore.getState().getBaseUrl();
-        const res = await fetch(`${baseUrl}/v1/system/permission`);
-        if (!res.ok) return null;
-        const pData = await res.json();
-        const apiAuth = pData?.api_auth || pData?.permission?.api_auth;
-        if (apiAuth && Array.isArray(apiAuth.tokens) && apiAuth.tokens.length > 0) {
-            const rawToken = apiAuth.tokens[0].trim();
-            return rawToken.startsWith('Bearer ') ? rawToken : `Bearer ${rawToken}`;
-        }
-    } catch (e) {
-        console.warn('[useApiStore] Could not fetch permissions for auth token:', e);
-    }
-    return null;
+    const rawToken = http.getToken();
+    if (!rawToken) return null;
+    return rawToken.startsWith('Bearer ') ? rawToken : `Bearer ${rawToken}`;
 }
 
 export const useApiStore = create<ApiStoreState>()((set, get) => ({
@@ -121,15 +111,11 @@ export const useApiStore = create<ApiStoreState>()((set, get) => ({
             const validGroups = results.filter((g): g is ApiGroup => g !== null && Array.isArray(g.endpoints));
             set({ apiData: validGroups, isLoadingData: false });
 
-            // Fetch installed models dynamically from configured gateway
+            // Fetch installed models dynamically via centralized modelsApi
             try {
-                const baseUrl = useConnectionStore.getState().getBaseUrl();
-                const modelRes = await fetch(`${baseUrl}/v1/models/installed`);
-                if (modelRes.ok) {
-                    const data = await modelRes.json();
-                    if (data && Array.isArray(data.models)) {
-                        set({ installedModels: data.models });
-                    }
+                const data = await modelsApi.getInstalled();
+                if (data && Array.isArray(data.models)) {
+                    set({ installedModels: data.models as any });
                 }
             } catch (err) {
                 console.warn('[useApiStore] Could not fetch installed models from gateway:', err);
@@ -151,7 +137,7 @@ export const useApiStore = create<ApiStoreState>()((set, get) => ({
                         }, null, 2)
                     });
                 }
-            } catch (_) {}
+            } catch (_) { }
         } catch (e) {
             console.error('[useApiStore] Error in loadApiData:', e);
             set({ isLoadingData: false });
@@ -204,8 +190,8 @@ export const useApiStore = create<ApiStoreState>()((set, get) => ({
             }
         }
 
-        const targetUrl = targetProtocol === 'c-pointer' 
-            ? 'cluaiz_engine_invoke(ptr)' 
+        const targetUrl = targetProtocol === 'c-pointer'
+            ? 'cluaiz_engine_invoke(ptr)'
             : `${baseUrl}${ep.path}`;
 
         set({
@@ -223,23 +209,24 @@ export const useApiStore = create<ApiStoreState>()((set, get) => ({
             activeResTab: 'json'
         });
 
-        // Ensure Authorization header is present
+        // Ensure Authorization header stays in sync with active token
         const currentHeaders = get().reqHeaders;
         try {
             const parsed = JSON.parse(currentHeaders || '{}');
-            if (!parsed['Authorization']) {
-                fetchActiveBearerToken().then((token) => {
-                    if (token) {
-                        const updated = {
-                            'Content-Type': parsed['Content-Type'] || 'application/json',
-                            'Authorization': token,
-                            ...parsed
-                        };
-                        set({ reqHeaders: JSON.stringify(updated, null, 2) });
-                    }
-                });
-            }
-        } catch (_) {}
+            fetchActiveBearerToken().then((token) => {
+                if (token) {
+                    const updated = {
+                        'Content-Type': parsed['Content-Type'] || 'application/json',
+                        ...parsed,
+                        'Authorization': token
+                    };
+                    set({ reqHeaders: JSON.stringify(updated, null, 2) });
+                } else if (parsed['Authorization']) {
+                    const { Authorization: _, ...rest } = parsed;
+                    set({ reqHeaders: JSON.stringify(rest, null, 2) });
+                }
+            });
+        } catch (_) { }
 
         // Fetch markdown documentation if docs_url is specified and docs_content not yet cached
         if (ep.docs_url && !ep.docs_content) {
@@ -261,7 +248,7 @@ export const useApiStore = create<ApiStoreState>()((set, get) => ({
                         });
                     }
                 })
-                .catch(() => {});
+                .catch(() => { });
         }
     },
 
