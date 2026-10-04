@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Download, RefreshCw, Copy, Check, Search, Zap, FileCode, MessageSquare, Dna, FileText } from 'lucide-react';
 import { InstalledModelDetail } from '../../store/engine/useEngineStore';
 import { useConnectionStore } from '../../store/engine/useConnectionStore';
+import { modelsApi, componentsApi } from '../../api';
 
 interface ModelInspectorModalProps {
     isOpen: boolean;
@@ -120,10 +121,7 @@ export function ModelInspectorModal({ isOpen, model, onClose }: ModelInspectorMo
     const fetchRawHeader = async () => {
         setIsLoading(true);
         try {
-            const baseUrl = getBaseUrl();
-            const res = await fetch(`${baseUrl}/v1/models/${encodeURIComponent(model.id)}/inspect_raw_header`);
-            if (!res.ok) throw new Error(`HTTP error ${res.status}`);
-            const data = await res.json();
+            const data = await modelsApi.inspectHeader(model.id);
             setRawHeaderData(JSON.stringify(data, null, 2));
         } catch (e: any) {
             setRawHeaderData(`// Error fetching raw binary header: ${e.message}`);
@@ -136,13 +134,8 @@ export function ModelInspectorModal({ isOpen, model, onClose }: ModelInspectorMo
     const fetchExtraFile = async (filename: string, setter: (val: string) => void) => {
         setIsLoading(true);
         try {
-            const baseUrl = getBaseUrl();
-            const res = await fetch(
-                `${baseUrl}/api/components/file?component_type=model&component_id=${encodeURIComponent(model.id)}&file_path=${encodeURIComponent(filename)}`
-            );
-            if (!res.ok) throw new Error(`HTTP error ${res.status}`);
-            const data = await res.json();
-            if (data.status === 'success' && data.content) {
+            const data = await componentsApi.getFile('model', model.id, filename);
+            if (data?.status === 'success' && data.content) {
                 try {
                     const parsed = JSON.parse(data.content);
                     setter(JSON.stringify(parsed, null, 2));
@@ -150,7 +143,7 @@ export function ModelInspectorModal({ isOpen, model, onClose }: ModelInspectorMo
                     setter(data.content);
                 }
             } else {
-                setter(data.message || '// File not found or empty.');
+                setter(data?.message || '// File not found or empty.');
             }
         } catch (e: any) {
             setter(`// Error fetching ${filename}: ${e.message}`);

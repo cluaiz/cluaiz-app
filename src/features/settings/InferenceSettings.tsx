@@ -1,323 +1,33 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { SettingSection, SettingItem, SettingSlider } from './SharedComponents';
-import { useConnectionStore } from '../../store/engine/useConnectionStore';
-import { Check, Loader2 } from 'lucide-react';
-
-interface GgufHardwareExecution {
-    n_gpu_layers: number;
-    n_ctx: number;
-    no_mmap: boolean;
-    override_tensor: string;
-    batch_size: number;
-    ubatch_size: number;
-    parallel: number;
-    spec_type: string;
-    spec_draft_n_max: number;
-}
-
-interface GgufTemplatingFlags {
-    chat_template_file: string;
-    chat_template_kwargs: string;
-    jinja: boolean;
-    fit: string;
-}
-
-interface GgufSamplers {
-    temp: number;
-    top_k: number;
-    top_p: number;
-    min_p: number;
-    presence_penalty: number;
-    repeat_penalty: number;
-    frequency_penalty: number;
-    seed?: number | null;
-}
-
-interface UserMovedFlags {
-    think_mode: string;
-    response_length: string;
-}
-
-interface GgufConfig {
-    hardware_and_execution: GgufHardwareExecution;
-    templating_flags: GgufTemplatingFlags;
-    samplers: GgufSamplers;
-    user_moved_flags: UserMovedFlags;
-}
-
-interface OnnxConfig {
-    n_gpu_layers: number;
-    n_ctx: number;
-    intra_op_num_threads: number;
-    graph_optimization_level: string;
-    enable_profiling: boolean;
-    inter_op_num_threads: number;
-    enable_mem_pattern: boolean;
-    enable_cpu_mem_arena: boolean;
-    execution_mode: string;
-    gpu_mem_limit_bytes: number;
-    arena_extend_strategy: string;
-    enable_ort_transformers_optimization: boolean;
-    kv_cache_data_type: string;
-    use_deterministic_compute: boolean;
-    user_moved_flags: UserMovedFlags;
-}
-
-const DEFAULT_GGUF_CONFIG: GgufConfig = {
-    hardware_and_execution: {
-        n_gpu_layers: -1,
-        n_ctx: 4096,
-        no_mmap: false,
-        override_tensor: '',
-        batch_size: 512,
-        ubatch_size: 512,
-        parallel: 1,
-        spec_type: '',
-        spec_draft_n_max: 0
-    },
-    templating_flags: {
-        chat_template_file: '',
-        chat_template_kwargs: '',
-        jinja: false,
-        fit: 'off'
-    },
-    samplers: {
-        temp: 0.7,
-        top_k: 40,
-        top_p: 0.95,
-        min_p: 0.05,
-        presence_penalty: 0.0,
-        repeat_penalty: 1.1,
-        frequency_penalty: 0.0,
-        seed: null
-    },
-    user_moved_flags: {
-        think_mode: 'Auto',
-        response_length: 'auto'
-    }
-};
-
-const DEFAULT_ONNX_CONFIG: OnnxConfig = {
-    n_gpu_layers: -1,
-    n_ctx: 4096,
-    intra_op_num_threads: 0,
-    graph_optimization_level: 'ORT_ENABLE_ALL',
-    enable_profiling: false,
-    inter_op_num_threads: 0,
-    enable_mem_pattern: true,
-    enable_cpu_mem_arena: true,
-    execution_mode: 'ORT_SEQUENTIAL',
-    gpu_mem_limit_bytes: 0,
-    arena_extend_strategy: 'kNextPowerOfTwo',
-    enable_ort_transformers_optimization: true,
-    kv_cache_data_type: 'ort_fp16',
-    use_deterministic_compute: false,
-    user_moved_flags: {
-        think_mode: 'Auto',
-        response_length: 'auto'
-    }
-};
+import { useInferenceStore } from '../../api/engine/inference';
+import type { GgufSamplers } from '../../api/engine/inference';
+import { Check, Loader2, AlertCircle } from 'lucide-react';
 
 export function InferenceSettings() {
-    const { getBaseUrl } = useConnectionStore();
     const [activeSubTab, setActiveSubTab] = useState<'gguf' | 'onnx'>('gguf');
-    const [ggufConfig, setGgufConfig] = useState<GgufConfig>(DEFAULT_GGUF_CONFIG);
-    const [onnxConfig, setOnnxConfig] = useState<OnnxConfig>(DEFAULT_ONNX_CONFIG);
-    const [isLoading, setIsLoading] = useState(true);
-    const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
 
-    const authHeadersRef = useRef<Record<string, string>>({ 'Content-Type': 'application/json' });
-    const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const {
+        gguf: ggufConfig,
+        onnx: onnxConfig,
+        status,
+        isSaving,
+        error,
+        load,
+        updateGgufHardware,
+        updateGgufTemplate,
+        updateGgufSampler,
+        updateGgufUserMoved,
+        updateOnnxField,
+        updateOnnxUserMoved,
+    } = useInferenceStore();
 
-    // Fetch auth headers & initial configs
+    // Fetch initial configs on mount
     useEffect(() => {
-        let isMounted = true;
+        load();
+    }, [load]);
 
-        const loadConfigs = async () => {
-            const baseUrl = getBaseUrl();
-            try {
-                // Fetch permission token if required
-                const pRes = await fetch(`${baseUrl}/v1/system/permission`).catch(() => null);
-                if (pRes && pRes.ok) {
-                    const pData = await pRes.json();
-                    const apiAuth = pData?.api_auth || pData?.permission?.api_auth;
-                    if (apiAuth?.required && apiAuth.tokens?.length > 0) {
-                        const tok = apiAuth.tokens[0].trim();
-                        authHeadersRef.current['Authorization'] = tok.startsWith('Bearer ') ? tok : 'Bearer ' + tok;
-                    }
-                }
-            } catch (e) {
-                console.warn('[InferenceSettings] Auth check failed:', e);
-            }
-
-            try {
-                const [ggufRes, onnxRes] = await Promise.all([
-                    fetch(`${baseUrl}/v1/system/gguf_config`, { headers: authHeadersRef.current }).catch(() => null),
-                    fetch(`${baseUrl}/v1/system/onnx_config`, { headers: authHeadersRef.current }).catch(() => null)
-                ]);
-
-                if (isMounted) {
-                    if (ggufRes && ggufRes.ok) {
-                        const data = await ggufRes.json();
-                        setGgufConfig({
-                            hardware_and_execution: { ...DEFAULT_GGUF_CONFIG.hardware_and_execution, ...(data.hardware_and_execution || {}) },
-                            templating_flags: { ...DEFAULT_GGUF_CONFIG.templating_flags, ...(data.templating_flags || {}) },
-                            samplers: { ...DEFAULT_GGUF_CONFIG.samplers, ...(data.samplers || {}) },
-                            user_moved_flags: {
-                                think_mode: data.user_moved_flags?.think_mode || 'Auto',
-                                response_length: typeof data.user_moved_flags?.response_length === 'string'
-                                    ? data.user_moved_flags.response_length.replace(/"/g, '')
-                                    : 'auto'
-                            }
-                        });
-                    }
-
-                    if (onnxRes && onnxRes.ok) {
-                        const data = await onnxRes.json();
-                        setOnnxConfig({
-                            ...DEFAULT_ONNX_CONFIG,
-                            ...data,
-                            user_moved_flags: {
-                                think_mode: data.user_moved_flags?.think_mode || 'Auto',
-                                response_length: typeof data.user_moved_flags?.response_length === 'string'
-                                    ? data.user_moved_flags.response_length.replace(/"/g, '')
-                                    : 'auto'
-                            }
-                        });
-                    }
-                }
-            } catch (err) {
-                console.error('[InferenceSettings] Failed to fetch inference configs:', err);
-            } finally {
-                if (isMounted) setIsLoading(false);
-            }
-        };
-
-        loadConfigs();
-
-        return () => {
-            isMounted = false;
-            if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-        };
-    }, [getBaseUrl]);
-
-    // Save GGUF Config to Backend
-    const saveGgufToServer = useCallback(async (updated: GgufConfig) => {
-        setSaveStatus('saving');
-        try {
-            const baseUrl = getBaseUrl();
-            const payload = {
-                ...updated,
-                user_moved_flags: {
-                    ...updated.user_moved_flags,
-                    response_length: `"${updated.user_moved_flags.response_length}"`
-                }
-            };
-            await fetch(`${baseUrl}/v1/system/gguf_config`, {
-                method: 'POST',
-                headers: authHeadersRef.current,
-                body: JSON.stringify(payload)
-            });
-            setSaveStatus('saved');
-            setTimeout(() => setSaveStatus('idle'), 2000);
-        } catch (e) {
-            console.error('[InferenceSettings] Auto-save GGUF failed:', e);
-            setSaveStatus('idle');
-        }
-    }, [getBaseUrl]);
-
-    // Save ONNX Config to Backend
-    const saveOnnxToServer = useCallback(async (updated: OnnxConfig) => {
-        setSaveStatus('saving');
-        try {
-            const baseUrl = getBaseUrl();
-            const payload = {
-                ...updated,
-                user_moved_flags: {
-                    ...updated.user_moved_flags,
-                    response_length: `"${updated.user_moved_flags.response_length}"`
-                }
-            };
-            await fetch(`${baseUrl}/v1/system/onnx_config`, {
-                method: 'POST',
-                headers: authHeadersRef.current,
-                body: JSON.stringify(payload)
-            });
-            setSaveStatus('saved');
-            setTimeout(() => setSaveStatus('idle'), 2000);
-        } catch (e) {
-            console.error('[InferenceSettings] Auto-save ONNX failed:', e);
-            setSaveStatus('idle');
-        }
-    }, [getBaseUrl]);
-
-    // GGUF Field Mutators
-    const updateGgufHardware = (key: keyof GgufHardwareExecution, val: any) => {
-        setGgufConfig(prev => {
-            const updated = {
-                ...prev,
-                hardware_and_execution: { ...prev.hardware_and_execution, [key]: val }
-            };
-            saveGgufToServer(updated);
-            return updated;
-        });
-    };
-
-    const updateGgufTemplate = (key: keyof GgufTemplatingFlags, val: any) => {
-        setGgufConfig(prev => {
-            const updated = {
-                ...prev,
-                templating_flags: { ...prev.templating_flags, [key]: val }
-            };
-            saveGgufToServer(updated);
-            return updated;
-        });
-    };
-
-    const updateGgufSampler = (key: keyof GgufSamplers, val: number) => {
-        setGgufConfig(prev => {
-            const updated = {
-                ...prev,
-                samplers: { ...prev.samplers, [key]: val }
-            };
-            if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-            saveTimerRef.current = setTimeout(() => {
-                saveGgufToServer(updated);
-            }, 300);
-            return updated;
-        });
-    };
-
-    const updateGgufUserMoved = (key: keyof UserMovedFlags, val: string) => {
-        setGgufConfig(prev => {
-            const updated = {
-                ...prev,
-                user_moved_flags: { ...prev.user_moved_flags, [key]: val }
-            };
-            saveGgufToServer(updated);
-            return updated;
-        });
-    };
-
-    // ONNX Field Mutators
-    const updateOnnxField = (key: keyof OnnxConfig, val: any) => {
-        setOnnxConfig(prev => {
-            const updated = { ...prev, [key]: val };
-            saveOnnxToServer(updated);
-            return updated;
-        });
-    };
-
-    const updateOnnxUserMoved = (key: keyof UserMovedFlags, val: string) => {
-        setOnnxConfig(prev => {
-            const updated = {
-                ...prev,
-                user_moved_flags: { ...prev.user_moved_flags, [key]: val }
-            };
-            saveOnnxToServer(updated);
-            return updated;
-        });
-    };
+    const isLoading = status === 'pending' && !ggufConfig;
 
     return (
         <div className="space-y-8 select-none">
@@ -349,16 +59,22 @@ export function InferenceSettings() {
                 </div>
 
                 <div className="flex items-center gap-2 text-xs font-medium">
-                    {saveStatus === 'saving' && (
+                    {isSaving && (
                         <span className="flex items-center gap-1.5 text-[var(--text-muted)] animate-pulse">
                             <Loader2 size={13} className="animate-spin text-[var(--accent-color)]" />
                             Saving changes...
                         </span>
                     )}
-                    {saveStatus === 'saved' && (
+                    {!isSaving && status === 'success' && (
                         <span className="flex items-center gap-1.5 text-[var(--accent-color)] font-semibold">
                             <Check size={14} />
                             Persisted to engine
+                        </span>
+                    )}
+                    {error && (
+                        <span className="flex items-center gap-1.5 text-red-400 font-semibold">
+                            <AlertCircle size={14} />
+                            {error}
                         </span>
                     )}
                 </div>
@@ -369,7 +85,7 @@ export function InferenceSettings() {
                     <Loader2 size={18} className="animate-spin text-[var(--accent-color)]" />
                     Loading inference configurations...
                 </div>
-            ) : activeSubTab === 'gguf' ? (
+            ) : activeSubTab === 'gguf' && ggufConfig ? (
                 <>
                     {/* GGUF: Hardware & Execution */}
                     <SettingSection title="Hardware & Execution (GGUF)">
@@ -585,7 +301,7 @@ export function InferenceSettings() {
                         />
                     </SettingSection>
                 </>
-            ) : (
+            ) : activeSubTab === 'onnx' && onnxConfig ? (
                 <>
                     {/* ONNX: Hardware & Execution */}
                     <SettingSection title="Hardware & Execution (ONNX)">
@@ -774,7 +490,7 @@ export function InferenceSettings() {
                         />
                     </SettingSection>
                 </>
-            )}
+            ) : null}
         </div>
     );
 }

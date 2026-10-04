@@ -1,29 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { SettingSection, SettingItem } from './SharedComponents';
-import { useConnectionStore } from '../../store/engine/useConnectionStore';
-import { Key, Copy, Check, Trash2, AlertTriangle, X, Shield } from 'lucide-react';
-
-interface ApiAuth {
-    required: boolean;
-    tokens: string[];
-}
-
-interface PermissionData {
-    agent_security_mode?: 'full_access' | 'sandboxed' | 'strict';
-    require_login_on_boot?: boolean;
-    api_key_storage?: string;
-    api_auth?: ApiAuth;
-    auto_execute_shell?: boolean;
-    workspace_read_access?: boolean;
-    wasm_firewall?: string;
-    stream_telemetry?: boolean;
-    model_header_info?: boolean;
-    vectorize_user_input?: boolean;
-    vectorize_ai_response?: boolean;
-    enable_kvcache?: boolean;
-    [key: string]: any;
-}
+import { useEngineStore } from '../../store/engine/useEngineStore';
+import { Key, Copy, Check, Trash2, Shield, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { AlertBanner } from '../../components/ui/AlertBanner';
+import { toast } from '../../components/ui/toast';
 
 interface ModalConfig {
     title: string;
@@ -44,8 +25,8 @@ const DESCRIPTIONS = {
         false: 'Disabled: No data leaves your machine.'
     } as Record<string, string>,
     modelHeader: {
-        true: 'Enabled: Injects model name and type tags (e.g. <cluaiz_model_name>) directly into the chat SSE stream for client apps to parse.',
-        false: 'Disabled: The chat stream will only contain raw generated text without any model metadata headers.'
+        true: 'Enabled: Injects model name and type tags directly into the chat stream for client apps to parse.',
+        false: 'Disabled: The chat stream will only contain raw generated text without metadata headers.'
     } as Record<string, string>,
     vecUser: {
         true: 'Enabled: Your inputs are vectorized and stored in semantic memory.',
@@ -74,83 +55,54 @@ const WASM_OPTIONS = [
 ];
 
 export function SecuritySettings() {
-    const getBaseUrl = useConnectionStore((s) => s.getBaseUrl);
-
-    const [permData, setPermData] = useState<PermissionData>({
-        agent_security_mode: 'sandboxed',
-        require_login_on_boot: false,
-        api_key_storage: 'system',
-        api_auth: { required: false, tokens: [] },
-        auto_execute_shell: false,
-        workspace_read_access: true,
-        wasm_firewall: 'auto',
-        stream_telemetry: false,
-        model_header_info: false,
-        vectorize_user_input: true,
-        vectorize_ai_response: true,
-        enable_kvcache: true
-    });
+    const permissions = useEngineStore((s) => s.permissions);
+    const fetchStatus = useEngineStore((s) => s.fetchStatus);
+    const toggleApiAuth = useEngineStore((s) => s.toggleApiAuth);
+    const generateApiKey = useEngineStore((s) => s.generateApiKey);
+    const revokeApiKey = useEngineStore((s) => s.revokeApiKey);
+    const updateAgentSecurityMode = useEngineStore((s) => s.updateAgentSecurityMode);
+    const updateFirewall = useEngineStore((s) => s.updateFirewall);
+    const updateTelemetry = useEngineStore((s) => s.updateTelemetry);
+    const updateVectorizeUserInput = useEngineStore((s) => s.updateVectorizeUserInput);
+    const updateVectorizeAiResponse = useEngineStore((s) => s.updateVectorizeAiResponse);
+    const updateKvCache = useEngineStore((s) => s.updateKvCache);
+    const updateModelHeaderInfo = useEngineStore((s) => s.updateModelHeaderInfo);
+    const updatePermission = useEngineStore((s) => s.updatePermission);
+    const pendingKeys = useEngineStore((s) => s.pendingKeys || {});
 
     const [copiedToken, setCopiedToken] = useState<string | null>(null);
+    const [visibleTokens, setVisibleTokens] = useState<Record<string, boolean>>({});
     const [modalConfig, setModalConfig] = useState<ModalConfig | null>(null);
+    const [pendingMode, setPendingMode] = useState<string | null>(null);
 
-    // Load permissions from Engine on mount
-    const fetchPermissions = useCallback(async () => {
+    const isEngineOnline = permissions !== null && fetchStatus === 'success';
+
+    const handleSelectSecurityMode = async (modeId: 'full_access' | 'sandboxed' | 'strict') => {
+        if (permissions?.agent_security_mode === modeId) return;
+        setPendingMode(modeId);
         try {
-            const res = await fetch(`${getBaseUrl()}/v1/system/permission`);
-            if (res.ok) {
-                const data = await res.json();
-                if (data.permission) {
-                    setPermData((prev) => ({
-                        ...prev,
-                        ...data.permission,
-                        api_auth: {
-                            required: data.permission.api_auth?.required ?? false,
-                            tokens: Array.isArray(data.permission.api_auth?.tokens) ? data.permission.api_auth.tokens : []
-                        }
-                    }));
-                }
-            }
-        } catch (e) {
-            console.error('Failed to load permission settings:', e);
-        }
-    }, [getBaseUrl]);
-
-    useEffect(() => {
-        fetchPermissions();
-    }, [fetchPermissions]);
-
-    // Update permission and sync with Engine
-    const updatePermission = async (key: string, value: any) => {
-        const nextState = {
-            ...permData,
-            [key]: value
-        };
-        setPermData(nextState);
-
-        try {
-            await fetch(`${getBaseUrl()}/v1/system/permission`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(nextState)
-            });
-        } catch (e) {
-            console.error('Failed to update permission setting:', e);
+            await updateAgentSecurityMode(modeId);
+        } finally {
+            setPendingMode(null);
         }
     };
 
-    // Copy token to clipboard with temporary feedback
+    const toggleTokenVisibility = (token: string) => {
+        setVisibleTokens((prev) => ({
+            ...prev,
+            [token]: !prev[token]
+        }));
+    };
+
     const handleCopyToken = (token: string) => {
         navigator.clipboard.writeText(token);
         setCopiedToken(token);
-        setTimeout(() => {
-            setCopiedToken(null);
-        }, 2000);
+        toast.info('API token copied to clipboard');
+        setTimeout(() => setCopiedToken(null), 2000);
     };
 
-    // Toggle API Auth with safety confirmation
     const handleToggleApiAuth = () => {
-        const isCurrentlyActive = permData.api_auth?.required === true;
+        const isCurrentlyActive = permissions?.api_auth?.required === true;
         const action = isCurrentlyActive ? 'Disable' : 'Enable';
         const message = isCurrentlyActive
             ? 'Are you sure you want to disable API Authentication? The engine will accept requests without a Bearer token.'
@@ -162,72 +114,65 @@ export function SecuritySettings() {
             confirmText: action,
             isDestructive: isCurrentlyActive,
             onConfirm: async () => {
-                const updatedAuth: ApiAuth = {
-                    required: !isCurrentlyActive,
-                    tokens: permData.api_auth?.tokens || []
-                };
-                await updatePermission('api_auth', updatedAuth);
-                setModalConfig(null);
-            }
-        });
-    };
-
-    // Generate or Regenerate API Key
-    const handleGenerateKey = () => {
-        const currentTokens = permData.api_auth?.tokens || [];
-        if (currentTokens.length > 0) {
-            setModalConfig({
-                title: 'Regenerate Key',
-                message: 'Are you sure you want to regenerate the API key? The old key will immediately stop working and applications using it will lose access.',
-                confirmText: 'Regenerate',
-                isDestructive: true,
-                onConfirm: async () => {
-                    const newToken = 'sk-cluaiz-' + Array.from(crypto.getRandomValues(new Uint8Array(16)))
-                        .map(b => b.toString(16).padStart(2, '0')).join('');
-                    const updatedAuth: ApiAuth = {
-                        required: permData.api_auth?.required ?? false,
-                        tokens: [newToken]
-                    };
-                    await updatePermission('api_auth', updatedAuth);
+                try {
+                    await toggleApiAuth();
+                } catch (err: any) {
+                    // Handled by toast.promise in useEngineStore
+                } finally {
                     setModalConfig(null);
                 }
-            });
-            return;
-        }
-
-        const newToken = 'sk-cluaiz-' + Array.from(crypto.getRandomValues(new Uint8Array(16)))
-            .map(b => b.toString(16).padStart(2, '0')).join('');
-        const updatedAuth: ApiAuth = {
-            required: permData.api_auth?.required ?? false,
-            tokens: [newToken]
-        };
-        updatePermission('api_auth', updatedAuth);
-    };
-
-    // Revoke key confirmation
-    const handleRevokeKey = (token: string) => {
-        setModalConfig({
-            title: 'Revoke Key',
-            message: `Are you sure you want to revoke key ...${token.slice(-6)}? This will break any integration using it.`,
-            confirmText: 'Revoke',
-            isDestructive: true,
-            onConfirm: async () => {
-                const currentTokens = permData.api_auth?.tokens || [];
-                const updatedAuth: ApiAuth = {
-                    required: permData.api_auth?.required ?? false,
-                    tokens: currentTokens.filter(t => t !== token)
-                };
-                await updatePermission('api_auth', updatedAuth);
-                setModalConfig(null);
             }
         });
     };
 
-    const tokens = permData.api_auth?.tokens || [];
+    const tokens = permissions?.api_auth?.tokens || [];
     const hasTokens = tokens.length > 0;
+    const MAX_API_KEYS = 5;
+    const isMaxKeysReached = tokens.length >= MAX_API_KEYS;
+
+    const handleGenerateKey = async () => {
+        if (isMaxKeysReached) {
+            toast.error(`Maximum limit of ${MAX_API_KEYS} API keys reached. Revoke an existing key first.`);
+            return;
+        }
+        try {
+            await generateApiKey();
+        } catch {
+            // Handled by toast.promise in useEngineStore
+        }
+    };
+
+    const handleRevokeKey = (token: string) => {
+        const isLastToken = (permissions?.api_auth?.tokens || []).length <= 1;
+        setModalConfig({
+            title: isLastToken ? 'Revoke Last API Key' : 'Revoke Key',
+            message: isLastToken
+                ? `Are you sure you want to revoke key ...${token.slice(-6)}? As this is the last active key, revoking it will automatically disable "Require API Authentication" so you do not get locked out of the engine.`
+                : `Are you sure you want to revoke key ...${token.slice(-6)}? This will immediately break any external script or integration using this key.`,
+            confirmText: isLastToken ? 'Revoke & Disable Auth' : 'Revoke',
+            isDestructive: true,
+            onConfirm: async () => {
+                try {
+                    await revokeApiKey(token);
+                } catch {
+                    // Handled by toast.promise in useEngineStore
+                } finally {
+                    setModalConfig(null);
+                }
+            }
+        });
+    };
 
     return (
         <div className="space-y-8 select-none">
+            {!isEngineOnline && (
+                <AlertBanner
+                    variant="warning"
+                    title="Engine is offline or unreachable"
+                    message="Please ensure the Cluaiz Engine is running to sync and persist settings to disk. Changes cannot be saved while offline."
+                />
+            )}
+
             {/* 0. Agent Security Mode (HITL) */}
             <div className="bg-[var(--bg-secondary)]/60 border border-[var(--border-color)] rounded-2xl p-6 space-y-4">
                 <div className="flex items-center gap-3">
@@ -243,39 +188,45 @@ export function SecuritySettings() {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2">
                     {[
                         {
-                            id: 'full_access',
+                            id: 'full_access' as const,
                             title: 'Full Access',
                             badge: 'Autonomous',
                             desc: 'Agent executes all tools and file changes automatically without confirmation prompts.'
                         },
                         {
-                            id: 'sandboxed',
+                            id: 'sandboxed' as const,
                             title: 'Workspace-Gated',
                             badge: 'Recommended',
                             desc: 'Safe workspace reads execute automatically. Writes, outside-jail access, and undeclared capabilities require user approval.'
                         },
                         {
-                            id: 'strict',
+                            id: 'strict' as const,
                             title: 'Strict Approval',
                             badge: 'Maximum Safety',
                             desc: 'Every tool execution and write pauses for explicit user approval. Access outside active workspace jail is hard-blocked (403).'
                         }
                     ].map((item) => {
-                        const isSelected = (permData.agent_security_mode || 'sandboxed') === item.id;
+                        const isSelected = (permissions?.agent_security_mode || 'sandboxed') === item.id;
+                        const isCardPending = pendingMode === item.id || (isSelected && Boolean(pendingKeys['agent_security_mode']));
+                        const isAnyModePending = pendingMode !== null || Boolean(pendingKeys['agent_security_mode']);
                         return (
                             <button
                                 key={item.id}
                                 type="button"
-                                onClick={() => updatePermission('agent_security_mode', item.id)}
-                                className={`p-4 rounded-xl border text-left flex flex-col justify-between gap-3 transition-all cursor-pointer ${
+                                disabled={isAnyModePending || !isEngineOnline}
+                                onClick={() => handleSelectSecurityMode(item.id)}
+                                className={`p-4 rounded-xl border text-left flex flex-col justify-between gap-3 transition-all cursor-pointer disabled:opacity-60 ${
                                     isSelected
                                         ? 'bg-[var(--accent-color)]/10 border-[var(--accent-color)] shadow-sm'
                                         : 'bg-[var(--bg-primary)]/40 border-[var(--border-color)] hover:border-[var(--accent-color)]/40'
                                 }`}
                             >
                                 <div className="flex items-center justify-between w-full">
-                                    <span className={`text-xs font-bold ${isSelected ? 'text-[var(--accent-color)]' : 'text-[var(--text-primary)]'}`}>
+                                    <span className={`text-xs font-bold flex items-center gap-1.5 ${isSelected ? 'text-[var(--accent-color)]' : 'text-[var(--text-primary)]'}`}>
                                         {item.title}
+                                        {isCardPending && (
+                                            <Loader2 size={12} className="animate-spin text-[var(--accent-color)]" />
+                                        )}
                                     </span>
                                     <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[var(--text-secondary)]">
                                         {item.badge}
@@ -296,15 +247,19 @@ export function SecuritySettings() {
                     label="Require Login on Boot"
                     description="Ask for biometric or master password when opening the developer hub."
                     toggle
-                    active={permData.require_login_on_boot === true}
-                    onToggle={() => updatePermission('require_login_on_boot', !permData.require_login_on_boot)}
+                    active={permissions?.require_login_on_boot === true}
+                    onToggle={() => updatePermission('require_login_on_boot', !permissions?.require_login_on_boot)}
+                    loading={Boolean(pendingKeys['require_login_on_boot'])}
+                    disabled={Boolean(pendingKeys['require_login_on_boot']) || !isEngineOnline}
                 />
                 <SettingItem
                     label="API Key Storage"
                     description="Where third-party API keys are stored locally."
                     select={KEYSTORE_OPTIONS}
-                    value={permData.api_key_storage || 'system'}
+                    value={permissions?.api_key_storage || 'system'}
                     onChange={(val) => updatePermission('api_key_storage', val)}
+                    loading={Boolean(pendingKeys['api_key_storage'])}
+                    disabled={Boolean(pendingKeys['api_key_storage']) || !isEngineOnline}
                 />
             </SettingSection>
 
@@ -314,64 +269,107 @@ export function SecuritySettings() {
                     label="Require API Authentication"
                     description="Enforce Bearer Token authorization for all HTTP REST requests to the engine."
                     toggle
-                    active={permData.api_auth?.required === true}
+                    active={permissions?.api_auth?.required === true}
                     onToggle={handleToggleApiAuth}
+                    loading={Boolean(pendingKeys['api_auth'])}
+                    disabled={Boolean(pendingKeys['api_auth']) || !isEngineOnline}
                 />
 
-                <SettingItem
-                    label="Manage Engine API Keys"
-                    description="Generate a Bearer Token to securely access the engine via HTTP REST."
-                >
-                    <button
-                        onClick={handleGenerateKey}
-                        className="px-3 py-1.5 rounded-lg border border-[var(--border-color)] bg-[var(--bg-secondary)] hover:bg-[var(--text-primary)]/10 text-xs font-semibold text-[var(--text-primary)] flex items-center gap-2 transition-all cursor-pointer shadow-sm active:scale-95"
-                    >
-                        <Key size={14} className="text-[var(--accent-color)]" />
-                        <span>{hasTokens ? 'Regenerate Key' : 'Generate Key'}</span>
-                    </button>
-                </SettingItem>
-
-                {/* Token List / Empty State */}
-                <div className="border-t border-[var(--border-color)]">
-                    {tokens.length === 0 ? (
-                        <div className="px-6 py-4 text-xs text-[var(--text-muted)] italic">
-                            No API keys generated yet.
-                        </div>
-                    ) : (
-                        <div className="p-4 space-y-2">
-                            {tokens.map((token) => (
-                                <div
-                                    key={token}
-                                    className="flex items-center justify-between px-4 py-3 bg-[var(--bg-primary)]/70 border border-[var(--border-color)] rounded-xl transition-all hover:border-[var(--accent-color)]/30 group"
+                <AnimatePresence>
+                    {permissions?.api_auth?.required === true && (
+                        <motion.div
+                            key="api-keys-manager-panel"
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={{ opacity: 0, height: 0 }}
+                            transition={{ duration: 0.2 }}
+                            className="overflow-hidden border-t border-[var(--border-color)]"
+                        >
+                            <SettingItem
+                                label={`Manage Engine API Keys (${tokens.length}/${MAX_API_KEYS})`}
+                                description={
+                                    isMaxKeysReached
+                                        ? `Maximum limit of ${MAX_API_KEYS} keys reached. Revoke an existing key to generate a new one.`
+                                        : 'Generate a Bearer Token to securely access the engine via HTTP REST.'
+                                }
+                            >
+                                <button
+                                    onClick={handleGenerateKey}
+                                    disabled={isMaxKeysReached || Boolean(pendingKeys['generate_token']) || !isEngineOnline}
+                                    className="px-3 py-1.5 rounded-lg border border-[var(--border-color)] bg-[var(--bg-secondary)] hover:bg-[var(--text-primary)]/10 text-xs font-semibold text-[var(--text-primary)] flex items-center gap-2 transition-all cursor-pointer shadow-sm active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    title={isMaxKeysReached ? `Maximum limit of ${MAX_API_KEYS} keys reached` : undefined}
                                 >
-                                    <span className="font-mono text-xs text-[var(--text-primary)] tracking-wide select-all">
-                                        {token}
-                                    </span>
-                                    <div className="flex items-center gap-1.5">
-                                        <button
-                                            onClick={() => handleCopyToken(token)}
-                                            className="p-1.5 rounded-lg hover:bg-[var(--text-primary)]/10 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
-                                            title="Copy Token"
-                                        >
-                                            {copiedToken === token ? (
-                                                <Check size={14} className="text-emerald-400" />
-                                            ) : (
-                                                <Copy size={14} />
-                                            )}
-                                        </button>
-                                        <button
-                                            onClick={() => handleRevokeKey(token)}
-                                            className="p-1.5 rounded-lg hover:bg-rose-500/10 text-[var(--text-muted)] hover:text-rose-400 transition-colors cursor-pointer"
-                                            title="Revoke Token"
-                                        >
-                                            <Trash2 size={14} />
-                                        </button>
+                                    {Boolean(pendingKeys['generate_token']) ? (
+                                        <Loader2 size={14} className="animate-spin text-[var(--accent-color)]" />
+                                    ) : (
+                                        <Key size={14} className="text-[var(--accent-color)]" />
+                                    )}
+                                    <span>{isMaxKeysReached ? `Max Keys Reached (${MAX_API_KEYS})` : 'Generate New Key'}</span>
+                                </button>
+                            </SettingItem>
+
+                            {/* Token List / Empty State */}
+                            <div className="border-t border-[var(--border-color)]">
+                                {tokens.length === 0 ? (
+                                    <div className="px-6 py-4 text-xs text-[var(--text-muted)] italic">
+                                        No API keys generated yet.
                                     </div>
-                                </div>
-                            ))}
-                        </div>
+                                ) : (
+                                    <div className="p-4 max-h-[240px] overflow-y-auto space-y-2 custom-scrollbar pr-2">
+                                        {tokens.map((token) => {
+                                            const isVisible = visibleTokens[token] === true;
+                                            const masked = token.length > 16
+                                                ? `${token.slice(0, 10)}${'•'.repeat(16)}${token.slice(-6)}`
+                                                : '••••••••••••••••';
+                                            return (
+                                                <div
+                                                    key={token}
+                                                    className="flex items-center justify-between px-4 py-3 bg-[var(--bg-primary)]/70 border border-[var(--border-color)] rounded-xl transition-all hover:border-[var(--accent-color)]/30 group"
+                                                >
+                                                    <span className="font-mono text-xs text-[var(--text-primary)] tracking-wide select-all">
+                                                        {isVisible ? token : masked}
+                                                    </span>
+                                                    <div className="flex items-center gap-1.5">
+                                                        <button
+                                                            onClick={() => toggleTokenVisibility(token)}
+                                                            className="p-1.5 rounded-lg hover:bg-[var(--text-primary)]/10 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
+                                                            title={isVisible ? "Hide Token" : "Show Token"}
+                                                        >
+                                                            {isVisible ? <EyeOff size={14} /> : <Eye size={14} />}
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleCopyToken(token)}
+                                                            className="p-1.5 rounded-lg hover:bg-[var(--text-primary)]/10 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
+                                                            title="Copy Token"
+                                                        >
+                                                            {copiedToken === token ? (
+                                                                <Check size={14} className="text-emerald-400" />
+                                                            ) : (
+                                                                <Copy size={14} />
+                                                            )}
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleRevokeKey(token)}
+                                                            disabled={Boolean(pendingKeys[`revoke_token_${token}`]) || !isEngineOnline}
+                                                            className="p-1.5 rounded-lg hover:bg-rose-500/10 text-[var(--text-muted)] hover:text-rose-400 transition-colors cursor-pointer disabled:opacity-50"
+                                                            title="Revoke Token"
+                                                        >
+                                                            {Boolean(pendingKeys[`revoke_token_${token}`]) ? (
+                                                                <Loader2 size={14} className="animate-spin text-rose-400" />
+                                                            ) : (
+                                                                <Trash2 size={14} />
+                                                            )}
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+                        </motion.div>
                     )}
-                </div>
+                </AnimatePresence>
             </SettingSection>
 
             {/* 3. Agent Permissions */}
@@ -380,15 +378,19 @@ export function SecuritySettings() {
                     label="Auto-execute Shell Commands"
                     description="Allow autonomous agents to run commands without prompting. (DANGEROUS)"
                     toggle
-                    active={permData.auto_execute_shell === true}
-                    onToggle={() => updatePermission('auto_execute_shell', !permData.auto_execute_shell)}
+                    active={permissions?.auto_execute_shell === true}
+                    onToggle={() => updatePermission('auto_execute_shell', !permissions?.auto_execute_shell)}
+                    loading={Boolean(pendingKeys['auto_execute_shell'])}
+                    disabled={Boolean(pendingKeys['auto_execute_shell']) || !isEngineOnline}
                 />
                 <SettingItem
                     label="Workspace Read Access"
                     description="Allow agents to read files in the entire active workspace."
                     toggle
-                    active={permData.workspace_read_access === true}
-                    onToggle={() => updatePermission('workspace_read_access', !permData.workspace_read_access)}
+                    active={permissions?.workspace_read_access === true}
+                    onToggle={() => updatePermission('workspace_read_access', !permissions?.workspace_read_access)}
+                    loading={Boolean(pendingKeys['workspace_read_access'])}
+                    disabled={Boolean(pendingKeys['workspace_read_access']) || !isEngineOnline}
                 />
             </SettingSection>
 
@@ -397,26 +399,32 @@ export function SecuritySettings() {
                 <SettingItem
                     label="WASM Firewall Mode"
                     description="Configure security isolation for dynamic WebAssembly extensions."
-                    dynamicDescription={DESCRIPTIONS.wasmFirewall[permData.wasm_firewall || 'auto']}
+                    dynamicDescription={DESCRIPTIONS.wasmFirewall[permissions?.wasm_firewall || 'auto']}
                     select={WASM_OPTIONS}
-                    value={permData.wasm_firewall || 'auto'}
-                    onChange={(val) => updatePermission('wasm_firewall', val)}
+                    value={permissions?.wasm_firewall || 'auto'}
+                    onChange={(val) => updateFirewall(val as any)}
+                    loading={Boolean(pendingKeys['wasm_firewall'])}
+                    disabled={Boolean(pendingKeys['wasm_firewall']) || !isEngineOnline}
                 />
                 <SettingItem
                     label="Stream Telemetry"
                     description="Control performance and diagnostic metrics streaming."
-                    dynamicDescription={DESCRIPTIONS.telemetry[String(permData.stream_telemetry === true)]}
+                    dynamicDescription={DESCRIPTIONS.telemetry[String(permissions?.stream_telemetry === true)]}
                     toggle
-                    active={permData.stream_telemetry === true}
-                    onToggle={() => updatePermission('stream_telemetry', !permData.stream_telemetry)}
+                    active={permissions?.stream_telemetry === true}
+                    onToggle={() => updateTelemetry(!permissions?.stream_telemetry)}
+                    loading={Boolean(pendingKeys['stream_telemetry'])}
+                    disabled={Boolean(pendingKeys['stream_telemetry']) || !isEngineOnline}
                 />
                 <SettingItem
                     label="Model Header"
                     description="Inject model identity metadata headers into chat SSE streams."
-                    dynamicDescription={DESCRIPTIONS.modelHeader[String(permData.model_header_info === true)]}
+                    dynamicDescription={DESCRIPTIONS.modelHeader[String(permissions?.model_header_info === true)]}
                     toggle
-                    active={permData.model_header_info === true}
-                    onToggle={() => updatePermission('model_header_info', !permData.model_header_info)}
+                    active={permissions?.model_header_info === true}
+                    onToggle={() => updateModelHeaderInfo(!permissions?.model_header_info)}
+                    loading={Boolean(pendingKeys['model_header_info'])}
+                    disabled={Boolean(pendingKeys['model_header_info']) || !isEngineOnline}
                 />
             </SettingSection>
 
@@ -424,76 +432,67 @@ export function SecuritySettings() {
             <SettingSection title="Context & Memory Permissions">
                 <SettingItem
                     label="Vectorize User Input"
-                    description="Control semantic vectorization of incoming user prompts."
-                    dynamicDescription={DESCRIPTIONS.vecUser[String(permData.vectorize_user_input === true)]}
+                    description="Automatically creates embedding vectors for incoming user prompts."
+                    dynamicDescription={DESCRIPTIONS.vecUser[String(permissions?.vectorize_user_input === true)]}
                     toggle
-                    active={permData.vectorize_user_input === true}
-                    onToggle={() => updatePermission('vectorize_user_input', !permData.vectorize_user_input)}
+                    active={permissions?.vectorize_user_input === true}
+                    onToggle={() => updateVectorizeUserInput(!permissions?.vectorize_user_input)}
+                    loading={Boolean(pendingKeys['vectorize_user_input'])}
+                    disabled={Boolean(pendingKeys['vectorize_user_input']) || !isEngineOnline}
                 />
                 <SettingItem
-                    label="Vectorize AI Response"
-                    description="Control semantic vectorization of generated model outputs."
-                    dynamicDescription={DESCRIPTIONS.vecAi[String(permData.vectorize_ai_response === true)]}
+                    label="Vectorize AI Responses"
+                    description="Embeds output responses into the local neural vector store."
+                    dynamicDescription={DESCRIPTIONS.vecAi[String(permissions?.vectorize_ai_response === true)]}
                     toggle
-                    active={permData.vectorize_ai_response === true}
-                    onToggle={() => updatePermission('vectorize_ai_response', !permData.vectorize_ai_response)}
+                    active={permissions?.vectorize_ai_response === true}
+                    onToggle={() => updateVectorizeAiResponse(!permissions?.vectorize_ai_response)}
+                    loading={Boolean(pendingKeys['vectorize_ai_response'])}
+                    disabled={Boolean(pendingKeys['vectorize_ai_response']) || !isEngineOnline}
                 />
                 <SettingItem
-                    label="Enable KV Cache"
-                    description="Enable KV cache retention across conversational turns for lower latency."
-                    dynamicDescription={DESCRIPTIONS.kvCache[String(permData.enable_kvcache === true)]}
+                    label="Key-Value Cache (KV Cache)"
+                    description="Accelerates multi-turn chat sessions by caching model state."
+                    dynamicDescription={DESCRIPTIONS.kvCache[String(permissions?.enable_kvcache === true)]}
                     toggle
-                    active={permData.enable_kvcache === true}
-                    onToggle={() => updatePermission('enable_kvcache', !permData.enable_kvcache)}
+                    active={permissions?.enable_kvcache === true}
+                    onToggle={() => updateKvCache(!permissions?.enable_kvcache)}
+                    loading={Boolean(pendingKeys['enable_kvcache'])}
+                    disabled={Boolean(pendingKeys['enable_kvcache']) || !isEngineOnline}
                 />
             </SettingSection>
 
-            {/* Confirmation Modal */}
+            {/* Confirmation / Alert Modal */}
             <AnimatePresence>
                 {modalConfig && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
                         <motion.div
-                            initial={{ opacity: 0, scale: 0.95, y: 10 }}
-                            animate={{ opacity: 1, scale: 1, y: 0 }}
-                            exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                            className="w-full max-w-md bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-2xl p-6 shadow-2xl space-y-4"
+                            initial={{ scale: 0.95, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.95, opacity: 0 }}
+                            className="bg-[var(--bg-secondary)] border border-[var(--border-color)] p-6 rounded-2xl max-w-md w-full shadow-2xl space-y-4"
                         >
-                            <div className="flex items-center justify-between pb-3 border-b border-[var(--border-color)]">
-                                <div className="flex items-center gap-2.5">
-                                    <div className={`p-2 rounded-xl ${modalConfig.isDestructive ? 'bg-rose-500/10 text-rose-400' : 'bg-[var(--accent-color)]/10 text-[var(--accent-color)]'}`}>
-                                        <AlertTriangle size={18} />
-                                    </div>
-                                    <h3 className="text-sm font-bold text-[var(--text-primary)]">
-                                        {modalConfig.title}
-                                    </h3>
-                                </div>
-                                <button
-                                    onClick={() => setModalConfig(null)}
-                                    className="text-[var(--text-muted)] hover:text-[var(--text-primary)] p-1 rounded-lg transition-colors cursor-pointer"
-                                >
-                                    <X size={16} />
-                                </button>
-                            </div>
-
-                            <p className="text-xs text-[var(--text-muted)] leading-relaxed">
+                            <h3 className="text-sm font-bold text-[var(--text-primary)]">
+                                {modalConfig.title}
+                            </h3>
+                            <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
                                 {modalConfig.message}
                             </p>
-
-                            <div className="flex items-center justify-end gap-2.5 pt-2">
+                            <div className="flex justify-end gap-3 pt-2">
                                 <button
                                     type="button"
                                     onClick={() => setModalConfig(null)}
-                                    className="px-4 py-2 rounded-xl text-xs font-semibold text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--text-primary)]/5 transition-colors cursor-pointer"
+                                    className="px-4 py-2 rounded-xl text-xs font-semibold text-[var(--text-secondary)] hover:bg-[var(--text-primary)]/5 transition-colors cursor-pointer"
                                 >
                                     Cancel
                                 </button>
                                 <button
                                     type="button"
                                     onClick={modalConfig.onConfirm}
-                                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-sm ${
+                                    className={`px-4 py-2 rounded-xl text-xs font-semibold shadow-sm transition-all cursor-pointer ${
                                         modalConfig.isDestructive
-                                            ? 'bg-rose-500 hover:bg-rose-600 text-white shadow-rose-500/20'
-                                            : 'bg-[var(--accent-color)] hover:brightness-110 text-white shadow-[var(--accent-color)]/20'
+                                            ? 'bg-rose-500 hover:bg-rose-600 text-white'
+                                            : 'bg-[var(--accent-color)] hover:opacity-90 text-white'
                                     }`}
                                 >
                                     {modalConfig.confirmText}

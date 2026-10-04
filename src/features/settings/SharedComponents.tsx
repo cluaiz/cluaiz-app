@@ -1,11 +1,10 @@
-import React from 'react';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, Loader2 } from 'lucide-react';
 import { CustomDropdown, DropdownOption } from '../../components/ui/dropdown/CustomDropdown';
 import { ElasticSlider } from '../../components/ui/cursor/ElasticSlider';
 import { ToggleSwitch, ToggleSwitchProps } from '../../components/ui/ToggleSwitch';
 
-export { ToggleSwitch };
-export type { ToggleSwitchProps };
+export { ToggleSwitch, CustomDropdown };
+export type { ToggleSwitchProps, DropdownOption };
 
 function cn(...classes: (string | boolean | undefined | null)[]) {
     return classes.filter(Boolean).join(' ');
@@ -29,6 +28,8 @@ interface SettingItemProps {
     toggle?: boolean;
     action?: string;
     active?: boolean;
+    loading?: boolean;
+    disabled?: boolean;
     onToggle?: () => void;
     icon?: React.ComponentType<any>;
     select?: string[] | SelectOption[];
@@ -36,10 +37,32 @@ interface SettingItemProps {
     onChange?: (v: string) => void;
     children?: React.ReactNode;
     onClick?: () => void;
+    allowCustomInput?: boolean;
+    customInputPlaceholder?: string;
 }
 
-export const SettingItem = ({ label, description, dynamicDescription, toggle = false, action, active = false, onToggle, onClick, icon: Icon, select, value, onChange, children }: SettingItemProps) => {
+export const SettingItem = ({
+    label,
+    description,
+    dynamicDescription,
+    toggle = false,
+    action,
+    active = false,
+    loading = false,
+    disabled = false,
+    onToggle,
+    onClick,
+    icon: Icon,
+    select,
+    value,
+    onChange,
+    children,
+    allowCustomInput,
+    customInputPlaceholder
+}: SettingItemProps) => {
+    const isBlocked = disabled || loading;
     const handleClick = (e: React.MouseEvent) => {
+        if (isBlocked) return;
         if (onClick) {
             e.preventDefault();
             onClick();
@@ -55,7 +78,8 @@ export const SettingItem = ({ label, description, dynamicDescription, toggle = f
             onClick={handleClick}
             className={cn(
                 "flex items-center justify-between p-6 hover:bg-[var(--text-primary)]/5 transition-all group border-b border-[var(--border-color)] last:border-none cursor-default relative",
-                toggle && "cursor-pointer"
+                toggle && !isBlocked && "cursor-pointer",
+                isBlocked && "opacity-75"
             )}
         >
             <div className="flex items-center gap-4">
@@ -74,26 +98,39 @@ export const SettingItem = ({ label, description, dynamicDescription, toggle = f
                     )}
                 </div>
             </div>
-            {toggle ? (
-                <ToggleSwitch active={active} onToggle={onToggle} />
-            ) : children ? (
-                <div className="w-[250px] shrink-0 flex justify-end">
-                    {children}
-                </div>
-            ) : select ? (
-                <div className="w-[250px] shrink-0 flex justify-end">
-                    <CustomDropdown
-                        options={select}
-                        value={value}
-                        onChange={onChange}
-                        className="w-full"
-                    />
-                </div>
-            ) : action ? (
-                <button type="button" className="text-[10px] font-black text-[var(--accent-color)] uppercase tracking-widest hover:opacity-80 transition-opacity">{action}</button>
-            ) : (
-                <ChevronRight size={16} className="text-[var(--text-muted)] group-hover:text-[var(--text-secondary)] transition-colors" />
-            )}
+
+            <div className="flex items-center gap-3">
+                {loading && (
+                    <span className="flex items-center gap-1.5 text-[10px] font-semibold text-[var(--accent-color)] animate-pulse">
+                        <Loader2 size={12} className="animate-spin" />
+                        Saving...
+                    </span>
+                )}
+                {toggle ? (
+                    <ToggleSwitch active={active} onToggle={onToggle} loading={loading} disabled={disabled} />
+                ) : children ? (
+                    <div className="w-[250px] shrink-0 flex justify-end">
+                        {children}
+                    </div>
+                ) : select ? (
+                    <div className="w-[250px] shrink-0 flex justify-end">
+                        <CustomDropdown
+                            options={select}
+                            value={value}
+                            onChange={onChange}
+                            allowCustomInput={allowCustomInput}
+                            customInputPlaceholder={customInputPlaceholder}
+                            className="w-full"
+                            loading={loading}
+                            disabled={disabled}
+                        />
+                    </div>
+                ) : action ? (
+                    <button type="button" disabled={isBlocked} className="text-[10px] font-black text-[var(--accent-color)] uppercase tracking-widest hover:opacity-80 transition-opacity disabled:opacity-50">{action}</button>
+                ) : (
+                    <ChevronRight size={16} className="text-[var(--text-muted)] group-hover:text-[var(--text-secondary)] transition-colors" />
+                )}
+            </div>
         </div>
     );
 };

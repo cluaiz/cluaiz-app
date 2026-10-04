@@ -1,7 +1,10 @@
 import { create } from 'zustand';
 import { sendFFIMessage, listenToEngineStream, isTauri } from '../../core/tauri-api';
 import { UnlistenFn } from '@tauri-apps/api/event';
-import { useConnectionStore } from './useConnectionStore';
+import { useConnectionStore, saveFallbackConnection } from './useConnectionStore';
+import { http, systemApi, optimizationApi, modelsApi, nativeApi, type PermissionSchema } from '../../api';
+import { toast } from '../../components/ui/toast';
+export type { PermissionSchema } from '../../api';
 
 export interface ChatMessage {
     id: string;
@@ -39,27 +42,7 @@ export interface InstalledModelDetail {
     metadata: InstalledModelMetadata;
 }
 
-export interface PermissionSchema {
-    wasm_firewall: string;
-    vectorize_user_input: boolean;
-    vectorize_ai_response: boolean;
-    stream_telemetry: boolean;
-    lazy_load_model: boolean;
-    temporary_chat_ttl_hours: number;
-    chat_models: { text?: string | null; vision?: string | null; audio?: string | null };
-    vector_models: { text?: string | null; vision?: string | null; audio?: string | null };
-    ingest_models?: { vision?: string | null; document?: string | null };
-    tts_models?: { audio?: string | null };
-    stt_models?: { audio?: string | null };
-    active_slots?: Record<string, any>;
-    available_models?: string[];        // fallback full list
-    available_chat_models?: string[];   // only generative/chat models
-    available_vector_models?: string[]; // only embedding/vector models
-    available_vision_ingest_models?: string[];
-    available_tts_models?: string[];
-    available_stt_models?: string[];
-    available_devices?: string[];
-}
+
 
 export interface BoosterControl {
     mode_run: string;
@@ -98,7 +81,7 @@ interface EngineState {
     fetchStatus: 'idle' | 'loading' | 'success' | 'error';
     messages: ChatMessage[];
     activeStreamId: string | null;
-    
+
     // Core Engine Settings from SSOT
     permissions: PermissionSchema | null;
     booster: BoosterControl | null;
@@ -107,22 +90,33 @@ interface EngineState {
     activeChatModel: any | null; // The loaded Chat ModelManifest
     activeVectorModel: any | null; // The loaded Vector ModelManifest
     installedModelsMap: Record<string, InstalledModelDetail>;
-    
+
     // UI-only setting
     launchOnStartup: boolean;
-    
+    pendingKeys: Record<string, boolean>;
+
     // Actions
     setStatus: (status: 'booting' | 'idle' | 'processing' | 'error') => void;
     setLaunchOnStartup: (value: boolean) => void;
-    
+
     initEngineSettings: () => Promise<void>;
     updatePermission: (key: keyof PermissionSchema, value: any) => Promise<void>;
+    toggleApiAuth: () => Promise<void>;
+    generateApiKey: () => Promise<string>;
+    revokeApiKey: (token: string) => Promise<void>;
+    updateAgentSecurityMode: (mode: 'full_access' | 'sandboxed' | 'strict') => Promise<void>;
+    updateFirewall: (mode: 'auto' | 'strict' | 'off') => Promise<void>;
+    updateTelemetry: (enabled: boolean) => Promise<void>;
+    updateVectorizeUserInput: (enabled: boolean) => Promise<void>;
+    updateVectorizeAiResponse: (enabled: boolean) => Promise<void>;
+    updateKvCache: (enabled: boolean) => Promise<void>;
+    updateModelHeaderInfo: (enabled: boolean) => Promise<void>;
     updateBooster: (key: keyof BoosterControl, value: any) => Promise<void>;
     updateBoosterBuffer: (type: 'vram' | 'ram', value: number | null) => Promise<void>;
     updateModelSlot: (slotKey: 'chat' | 'vector' | 'ingest' | 'tts' | 'stt', modelId: string) => Promise<void>;
     setBrainMode: (value: boolean) => Promise<void>;
     resetBooster: () => Promise<void>;
-    
+
     sendMessage: (text: string) => Promise<void>;
     appendStreamToken: (token: string) => void;
     initStreamListener: () => Promise<void>;
@@ -135,7 +129,7 @@ export const useEngineStore = create<EngineState>()((set, get) => ({
     messages: [],
     activeStreamId: null,
     unlistenFn: null,
-    
+
     permissions: null,
     booster: null,
     brainMode: false,
@@ -144,6 +138,7 @@ export const useEngineStore = create<EngineState>()((set, get) => ({
     activeVectorModel: null,
     installedModelsMap: {},
     launchOnStartup: true,
+    pendingKeys: {},
 
     setStatus: (status) => set({ status }),
     setLaunchOnStartup: (value) => set({ launchOnStartup: value }),
@@ -155,12 +150,53 @@ export const useEngineStore = create<EngineState>()((set, get) => ({
 
         const fetchViaHttp = async () => {
             try {
-                const baseUrl = getBaseUrl();
+                // Dynamic Engine Port Auto-Discovery (zero hardcoding, probes running engine)
+                const configuredPort = useConnectionStore.getState().port;
+                const candidatePorts: number[] = Array.from(new Set([
+                    configuredPort,
+                    8080,
+                    8000,
+                    9000
+                ])).filter((p): p is number => typeof p === 'number' && p !== 1420 && p !== 5173 && p >= 1024 && p <= 65535);
+
+                let activeWorkingPort: number | null = null;
+                for (const candidatePort of candidatePorts) {
+                    try {
+                        const ctrl = new AbortController();
+                        const tid = setTimeout(() => ctrl.abort(), candidatePort === configuredPort ? 350 : 250);
+                        const probeRes = await fetch(`http://127.0.0.1:${candidatePort}/v1/system/permission`, {
+                            method: 'GET',
+                            signal: ctrl.signal,
+                            headers: { 'Content-Type': 'application/json' }
+                        });
+                        clearTimeout(tid);
+                        if (probeRes.ok) {
+                            activeWorkingPort = candidatePort;
+                            break;
+                        }
+                    } catch {
+                        // Candidate port unreachable, continue probing
+                    }
+                }
+
+                if (activeWorkingPort && activeWorkingPort !== configuredPort) {
+                    useConnectionStore.getState().setPort(activeWorkingPort);
+                }
+
+                if (isTauri()) {
+                    try {
+                        const sessionToken = await nativeApi.getSessionToken();
+                        if (sessionToken) {
+                            http.setToken(sessionToken);
+                        }
+                    } catch {}
+                }
+
                 const [permRes, optRes, hwRes, modelsRes] = await Promise.allSettled([
-                    fetch(`${baseUrl}/v1/system/permission`),
-                    fetch(`${baseUrl}/v1/optimization/status`),
-                    fetch(`${baseUrl}/hardware`),
-                    fetch(`${baseUrl}/v1/models/installed`)
+                    systemApi.getPermission(),
+                    optimizationApi.getBoosterStatus(),
+                    modelsApi.getHardwareStatus(),
+                    modelsApi.getInstalledModels()
                 ]);
 
                 let permData: any = null;
@@ -168,17 +204,17 @@ export const useEngineStore = create<EngineState>()((set, get) => ({
                 let hwData: any = null;
                 let modelsData: any = null;
 
-                if (permRes.status === 'fulfilled' && permRes.value.ok) {
-                    permData = await permRes.value.json();
+                if (permRes.status === 'fulfilled') {
+                    permData = permRes.value;
                 }
-                if (optRes.status === 'fulfilled' && optRes.value.ok) {
-                    optData = await optRes.value.json();
+                if (optRes.status === 'fulfilled') {
+                    optData = optRes.value;
                 }
-                if (hwRes.status === 'fulfilled' && hwRes.value.ok) {
-                    hwData = await hwRes.value.json();
+                if (hwRes.status === 'fulfilled') {
+                    hwData = hwRes.value;
                 }
-                if (modelsRes.status === 'fulfilled' && modelsRes.value.ok) {
-                    modelsData = await modelsRes.value.json();
+                if (modelsRes.status === 'fulfilled') {
+                    modelsData = modelsRes.value;
                 }
 
                 if (!permData && !optData && !hwData) {
@@ -251,12 +287,22 @@ export const useEngineStore = create<EngineState>()((set, get) => ({
                 };
 
                 const permissions: PermissionSchema = {
+                    ...rawPerm,
+                    agent_security_mode: rawPerm.agent_security_mode || 'sandboxed',
+                    api_auth: rawPerm.api_auth || { required: false, tokens: [] },
+                    api_key_storage: rawPerm.api_key_storage || 'in_memory',
+                    auto_execute_shell: rawPerm.auto_execute_shell ?? false,
+                    workspace_read_access: rawPerm.workspace_read_access ?? true,
+                    enable_kvcache: rawPerm.enable_kvcache ?? false,
+                    model_header_info: rawPerm.model_header_info ?? false,
                     wasm_firewall: rawPerm.wasm_firewall || 'auto',
                     vectorize_user_input: rawPerm.vectorize_user_input ?? true,
                     vectorize_ai_response: rawPerm.vectorize_ai_response ?? true,
                     stream_telemetry: rawPerm.stream_telemetry ?? false,
                     lazy_load_model: rawPerm.lazy_load_model ?? true,
-                    temporary_chat_ttl_hours: rawPerm.temporary_chat_ttl_hours || 24,
+                    api_port: rawPerm.api_port,
+                    api_host: rawPerm.api_host || '0.0.0.0',
+                    connection_protocol: rawPerm.connection_protocol || 'http',
                     chat_models: { text: rawPerm.active_slots?.chat_slot?.model_id || rawPerm.chat_models?.text || null },
                     vector_models: { text: rawPerm.active_slots?.embed_slot?.model_id || rawPerm.vector_models?.text || null },
                     ingest_models: { vision: rawPerm.active_slots?.ingest_slot?.model_id || rawPerm.active_slots?.vision_slot?.model_id || rawPerm.ingest_models?.vision || rawPerm.vector_models?.vision || null },
@@ -271,6 +317,22 @@ export const useEngineStore = create<EngineState>()((set, get) => ({
                     available_stt_models: Array.from(new Set([...(rawPerm.available_stt_models || []), ...regSttModels])),
                     available_devices: rawPerm.available_devices || ['CPU', 'GPU']
                 };
+
+                if (rawPerm.connection_protocol) {
+                    useConnectionStore.getState().setProtocol(rawPerm.connection_protocol);
+                }
+                if (rawPerm.api_port) {
+                    useConnectionStore.getState().setPort(rawPerm.api_port);
+                }
+                if (rawPerm.api_host) {
+                    useConnectionStore.getState().setHost(rawPerm.api_host);
+                }
+
+                saveFallbackConnection({
+                    protocol: rawPerm.connection_protocol,
+                    host: rawPerm.api_host,
+                    port: rawPerm.api_port || activeWorkingPort || configuredPort
+                });
 
                 set({
                     permissions,
@@ -300,13 +362,13 @@ export const useEngineStore = create<EngineState>()((set, get) => ({
                         console.error("Failed to boot engine during settings init:", e);
                     }
                 }
-                
+
                 // Listen for the FFI response on the system response channel
                 const unlisten = await listen<string>('engine_sys_response', (event) => {
                     try {
                         const data = JSON.parse(event.payload);
                         if (data.permissions && data.booster) {
-                            set({ 
+                            set({
                                 permissions: data.permissions,
                                 booster: data.booster,
                                 hardware: data.hardware || null,
@@ -344,68 +406,186 @@ export const useEngineStore = create<EngineState>()((set, get) => ({
     },
 
     updatePermission: async (key, value) => {
-        // Optimistically update local state
-        set((state) => ({
-            permissions: state.permissions ? { ...state.permissions, [key]: value } : null
-        }));
+        const keyStr = String(key);
+        set((state) => ({ pendingKeys: { ...state.pendingKeys, [keyStr]: true } }));
 
-        const { protocol, getBaseUrl } = useConnectionStore.getState();
+        const label = keyStr.replace(/_/g, ' ');
+        const { protocol } = useConnectionStore.getState();
         const shouldUseFFI = protocol === 'ffi' && isTauri();
 
-        if (shouldUseFFI) {
-            try {
-                const { invoke } = await import('@tauri-apps/api/core');
-                await invoke('update_engine_settings', {
-                    payload: { action: "UPDATE_PERMISSION", payload: { key, value } }
-                });
-                return;
-            } catch (error) {
-                console.warn("[useEngineStore] FFI updatePermission failed, falling back to HTTP:", error);
-            }
-        }
-
         try {
-            const baseUrl = getBaseUrl();
-            await fetch(`${baseUrl}/v1/system/permission`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ [key]: value })
-            });
-        } catch (error) {
-            console.error("[useEngineStore] Failed to update permission over HTTP:", error);
+            await toast.promise(
+                async () => {
+                    if (shouldUseFFI) {
+                        try {
+                            const { invoke } = await import('@tauri-apps/api/core');
+                            await invoke('update_engine_settings', {
+                                payload: { action: "UPDATE_PERMISSION", payload: { key, value } }
+                            });
+                            set((state) => ({
+                                permissions: state.permissions ? { ...state.permissions, [key]: value } : null
+                            }));
+                            return;
+                        } catch (error) {
+                            console.warn("[useEngineStore] FFI updatePermission failed, falling back to HTTP:", error);
+                        }
+                    }
+                    await systemApi.updatePermission({ [key]: value });
+                    // Only update local state after backend successfully responds
+                    set((state) => ({
+                        permissions: state.permissions ? { ...state.permissions, [key]: value } : null
+                    }));
+                },
+                {
+                    loading: `Updating ${label}...`,
+                    success: `${label.charAt(0).toUpperCase() + label.slice(1)} updated`,
+                    error: `Failed to update ${label}`
+                }
+            );
+        } finally {
+            set((state) => ({ pendingKeys: { ...state.pendingKeys, [keyStr]: false } }));
         }
     },
 
-    updateBooster: async (key, value) => {
-        // Optimistically update local state
-        set((state) => ({
-            booster: state.booster ? { ...state.booster, [key]: value } : null
-        }));
+    toggleApiAuth: async () => {
+        const perms = get().permissions;
+        const isCurrent = perms?.api_auth?.required ?? false;
+        set((state) => ({ pendingKeys: { ...state.pendingKeys, api_auth: true } }));
+        try {
+            await toast.promise(
+                async () => {
+                    await systemApi.updatePermission({ api_auth: { required: !isCurrent } });
+                    await get().initEngineSettings();
+                },
+                {
+                    loading: isCurrent ? 'Disabling API authentication...' : 'Enabling API authentication...',
+                    success: isCurrent ? 'API authentication disabled' : 'API authentication enabled',
+                    error: 'Failed to update API authentication'
+                }
+            );
+        } finally {
+            set((state) => ({ pendingKeys: { ...state.pendingKeys, api_auth: false } }));
+        }
+    },
 
-        const { protocol, getBaseUrl } = useConnectionStore.getState();
+    generateApiKey: async () => {
+        set((state) => ({ pendingKeys: { ...state.pendingKeys, generate_token: true } }));
+        try {
+            return await toast.promise(
+                async () => {
+                    const res = await systemApi.generateAuthToken();
+                    // If client currently has no active token, immediately adopt the newly generated token
+                    if (!http.getToken() && res?.token) {
+                        http.setToken(res.token);
+                    }
+                    await get().initEngineSettings();
+                    return res?.token || '';
+                },
+                {
+                    loading: 'Generating API key...',
+                    success: 'New API key generated',
+                    error: 'Failed to generate API key'
+                }
+            );
+        } finally {
+            set((state) => ({ pendingKeys: { ...state.pendingKeys, generate_token: false } }));
+        }
+    },
+
+    revokeApiKey: async (token: string) => {
+        const revokeKey = `revoke_token_${token}`;
+        set((state) => ({ pendingKeys: { ...state.pendingKeys, [revokeKey]: true } }));
+        try {
+            await toast.promise(
+                async () => {
+                    const res = await systemApi.revokeAuthToken(token);
+                    // If the revoked token was the active token in the HTTP client (or is no longer valid),
+                    // immediately switch to the first remaining valid token, or null if none remain.
+                    const currentActiveToken = http.getToken();
+                    if (currentActiveToken === token || (res?.tokens && !res.tokens.includes(currentActiveToken || ''))) {
+                        const remaining = res?.tokens || [];
+                        http.setToken(remaining.length > 0 ? remaining[0] : null);
+                    }
+                    await get().initEngineSettings();
+                },
+                {
+                    loading: 'Revoking API key...',
+                    success: 'API key revoked',
+                    error: 'Failed to revoke API key'
+                }
+            );
+        } finally {
+            set((state) => ({ pendingKeys: { ...state.pendingKeys, [revokeKey]: false } }));
+        }
+    },
+
+    updateAgentSecurityMode: async (mode: 'full_access' | 'sandboxed' | 'strict') => {
+        await get().updatePermission('agent_security_mode', mode);
+    },
+
+    updateFirewall: async (mode: 'auto' | 'strict' | 'off') => {
+        await get().updatePermission('wasm_firewall', mode);
+    },
+
+    updateTelemetry: async (enabled: boolean) => {
+        await get().updatePermission('stream_telemetry', enabled);
+    },
+
+    updateVectorizeUserInput: async (enabled: boolean) => {
+        await get().updatePermission('vectorize_user_input', enabled);
+    },
+
+    updateVectorizeAiResponse: async (enabled: boolean) => {
+        await get().updatePermission('vectorize_ai_response', enabled);
+    },
+
+    updateKvCache: async (enabled: boolean) => {
+        await get().updatePermission('enable_kvcache', enabled);
+    },
+
+    updateModelHeaderInfo: async (enabled: boolean) => {
+        await get().updatePermission('model_header_info', enabled);
+    },
+
+    updateBooster: async (key, value) => {
+        const keyStr = String(key);
+        set((state) => ({ pendingKeys: { ...state.pendingKeys, [keyStr]: true } }));
+
+        const label = keyStr.replace(/_/g, ' ');
+        const { protocol } = useConnectionStore.getState();
         const shouldUseFFI = protocol === 'ffi' && isTauri();
 
-        if (shouldUseFFI) {
-            try {
-                const { invoke } = await import('@tauri-apps/api/core');
-                await invoke('update_engine_settings', {
-                    payload: { action: "UPDATE_BOOSTER", payload: { key, value } }
-                });
-                return;
-            } catch (error) {
-                console.warn("[useEngineStore] FFI updateBooster failed, falling back to HTTP:", error);
-            }
-        }
-
         try {
-            const baseUrl = getBaseUrl();
-            await fetch(`${baseUrl}/v1/optimization/update`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ [key]: value })
-            });
-        } catch (error) {
-            console.error("[useEngineStore] Failed to update booster over HTTP:", error);
+            await toast.promise(
+                async () => {
+                    if (shouldUseFFI) {
+                        try {
+                            const { invoke } = await import('@tauri-apps/api/core');
+                            await invoke('update_engine_settings', {
+                                payload: { action: "UPDATE_BOOSTER", payload: { key, value } }
+                            });
+                            set((state) => ({
+                                booster: state.booster ? { ...state.booster, [key]: value } : null
+                            }));
+                            return;
+                        } catch (error) {
+                            console.warn("[useEngineStore] FFI updateBooster failed, falling back to HTTP:", error);
+                        }
+                    }
+                    await optimizationApi.updateBooster({ [key]: value });
+                    // Only update local state after backend successfully responds
+                    set((state) => ({
+                        booster: state.booster ? { ...state.booster, [key]: value } : null
+                    }));
+                },
+                {
+                    loading: `Updating ${label}...`,
+                    success: `${label.charAt(0).toUpperCase() + label.slice(1)} updated`,
+                    error: `Failed to update ${label}`
+                }
+            );
+        } finally {
+            set((state) => ({ pendingKeys: { ...state.pendingKeys, [keyStr]: false } }));
         }
     },
 
@@ -413,38 +593,52 @@ export const useEngineStore = create<EngineState>()((set, get) => ({
         const booster = get().booster;
         if (!booster) return;
         const key = type === 'vram' ? 'custom_vram_buffer_gb' : 'custom_ram_buffer_gb';
-        set({ booster: { ...booster, [key]: value } });
+        set((state) => ({ pendingKeys: { ...state.pendingKeys, [key]: true } }));
 
-        const { protocol, getBaseUrl } = useConnectionStore.getState();
+        const label = `${type.toUpperCase()} buffer`;
+        const { protocol } = useConnectionStore.getState();
         const shouldUseFFI = protocol === 'ffi' && isTauri();
 
-        if (shouldUseFFI) {
-            try {
-                const { invoke } = await import('@tauri-apps/api/core');
-                await invoke('update_engine_settings', {
-                    payload: { action: "UPDATE_BOOSTER", payload: { [key]: value } }
-                });
-                return;
-            } catch (e) {
-                console.warn("[useEngineStore] FFI buffer update failed, falling back to HTTP:", e);
-            }
-        }
-
         try {
-            const baseUrl = getBaseUrl();
-            await fetch(`${baseUrl}/v1/optimization/update`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ [key]: value })
-            });
-        } catch (error) {
-            console.error("[useEngineStore] Failed to update buffer over HTTP:", error);
+            await toast.promise(
+                async () => {
+                    if (shouldUseFFI) {
+                        try {
+                            const { invoke } = await import('@tauri-apps/api/core');
+                            await invoke('update_engine_settings', {
+                                payload: { action: "UPDATE_BOOSTER", payload: { [key]: value } }
+                            });
+                            set((state) => ({
+                                booster: state.booster ? { ...state.booster, [key]: value } : null
+                            }));
+                            return;
+                        } catch (e) {
+                            console.warn("[useEngineStore] FFI buffer update failed, falling back to HTTP:", e);
+                        }
+                    }
+                    await optimizationApi.updateBooster({ [key]: value });
+                    // Only update local state after backend successfully responds
+                    set((state) => ({
+                        booster: state.booster ? { ...state.booster, [key]: value } : null
+                    }));
+                },
+                {
+                    loading: `Updating ${label}...`,
+                    success: `${label} updated`,
+                    error: `Failed to update ${label}`
+                }
+            );
+        } finally {
+            set((state) => ({ pendingKeys: { ...state.pendingKeys, [key]: false } }));
         }
     },
 
     updateModelSlot: async (slotKey: 'chat' | 'vector' | 'ingest' | 'tts' | 'stt', modelId: string) => {
         const perms = get().permissions;
         if (!perms) return;
+
+        const slotLockKey = 'slot_' + slotKey;
+        set((state) => ({ pendingKeys: { ...state.pendingKeys, [slotLockKey]: true } }));
 
         const effectiveId = modelId && modelId.trim() !== '' ? modelId.trim() : null;
         const updatedSlots: Record<string, any> = { ...(perms.active_slots || {}) };
@@ -491,7 +685,6 @@ export const useEngineStore = create<EngineState>()((set, get) => ({
         }
 
         updatedPerms.active_slots = updatedSlots;
-        set({ permissions: updatedPerms });
 
         // Clean payload for backend saving (Developer Hub Parity)
         const postPayload: Record<string, any> = {
@@ -510,67 +703,81 @@ export const useEngineStore = create<EngineState>()((set, get) => ({
         const { protocol, getBaseUrl } = useConnectionStore.getState();
         const shouldUseFFI = protocol === 'ffi' && isTauri();
 
-        if (shouldUseFFI) {
-            try {
-                const { invoke } = await import('@tauri-apps/api/core');
-                await invoke('update_engine_settings', {
-                    payload: {
-                        action: "UPDATE_PERMISSION",
-                        payload: postPayload
-                    }
-                });
-                return;
-            } catch (e) {
-                console.warn("[useEngineStore] FFI updateModelSlot failed, falling back to HTTP:", e);
-            }
-        }
-
         try {
-            const baseUrl = getBaseUrl();
-            await fetch(`${baseUrl}/v1/system/permission`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(postPayload)
-            });
-        } catch (error) {
-            console.error("[useEngineStore] Failed to update model slot over HTTP:", error);
+            await toast.promise(
+                async () => {
+                    if (shouldUseFFI) {
+                        try {
+                            const { invoke } = await import('@tauri-apps/api/core');
+                            await invoke('update_engine_settings', {
+                                payload: {
+                                    action: "UPDATE_PERMISSION",
+                                    payload: postPayload
+                                }
+                            });
+                            // Only update local state after backend successfully responds
+                            set({ permissions: updatedPerms });
+                            return;
+                        } catch (e) {
+                            console.warn("[useEngineStore] FFI updateModelSlot failed, falling back to HTTP:", e);
+                        }
+                    }
+                    await systemApi.updatePermission(postPayload);
+                    // Only update local state after backend successfully responds
+                    set({ permissions: updatedPerms });
+                },
+                {
+                    loading: `Assigning ${slotKey.toUpperCase()} model slot...`,
+                    success: `${slotKey.toUpperCase()} model assigned`,
+                    error: `Failed to assign ${slotKey.toUpperCase()} model`
+                }
+            );
+        } finally {
+            set((state) => ({ pendingKeys: { ...state.pendingKeys, [slotLockKey]: false } }));
         }
     },
 
     setBrainMode: async (value) => {
-        set({ brainMode: value });
-        const { protocol, getBaseUrl } = useConnectionStore.getState();
+        set((state) => ({ pendingKeys: { ...state.pendingKeys, brain_mode: true } }));
+        const { protocol } = useConnectionStore.getState();
         const shouldUseFFI = protocol === 'ffi' && isTauri();
 
-        if (shouldUseFFI) {
-            try {
-                const { invoke } = await import('@tauri-apps/api/core');
-                await invoke('update_engine_settings', {
-                    payload: { action: "SYSTEM_BRAIN", payload: { state: value } }
-                });
-                return;
-            } catch (error) {
-                console.warn("[useEngineStore] FFI setBrainMode failed:", error);
-            }
-        }
-
         try {
-            const baseUrl = getBaseUrl();
-            await fetch(`${baseUrl}/v1/system/control`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ brain_mode: value })
-            });
-        } catch (error) {
-            console.error("[useEngineStore] Failed to update brain mode over HTTP:", error);
+            await toast.promise(
+                async () => {
+                    if (shouldUseFFI) {
+                        try {
+                            const { invoke } = await import('@tauri-apps/api/core');
+                            await invoke('update_engine_settings', {
+                                payload: { action: "SYSTEM_BRAIN", payload: { state: value } }
+                            });
+                            set({ brainMode: value });
+                            return;
+                        } catch (error) {
+                            console.warn("[useEngineStore] FFI setBrainMode failed:", error);
+                        }
+                    }
+                    await systemApi.updateSystemControl({ brain_mode: value });
+                    // Only update local state after backend successfully responds
+                    set({ brainMode: value });
+                },
+                {
+                    loading: value ? 'Enabling brain mode...' : 'Disabling brain mode...',
+                    success: value ? 'Brain mode enabled' : 'Brain mode disabled',
+                    error: 'Failed to update brain mode'
+                }
+            );
+        } finally {
+            set((state) => ({ pendingKeys: { ...state.pendingKeys, brain_mode: false } }));
         }
     },
 
     resetBooster: async () => {
-        const { updateBooster, hardware } = get();
+        set((state) => ({ pendingKeys: { ...state.pendingKeys, reset_optimization: true } }));
+        const { hardware } = get();
         const hasGpu = hardware?.has_gpu ?? false;
 
-        // Safe universal defaults that adapt to basic hardware presence
+        // Safe defaults that adapt to basic hardware presence
         const safeDefaults: Record<string, any> = {
             mode_run: 'balance',
             turbo_quant: 'Auto',
@@ -587,8 +794,42 @@ export const useEngineStore = create<EngineState>()((set, get) => ({
             moe_vram_routing: 'Off',
         };
 
-        for (const [key, value] of Object.entries(safeDefaults)) {
-            await updateBooster(key as any, value);
+        const { protocol } = useConnectionStore.getState();
+        const shouldUseFFI = protocol === 'ffi' && isTauri();
+
+        try {
+            await toast.promise(
+                async () => {
+                    if (shouldUseFFI) {
+                        try {
+                            const { invoke } = await import('@tauri-apps/api/core');
+                            for (const [key, value] of Object.entries(safeDefaults)) {
+                                await invoke('update_engine_settings', {
+                                    payload: { action: "UPDATE_BOOSTER", payload: { key, value } }
+                                });
+                            }
+                            set((state) => ({
+                                booster: state.booster ? { ...state.booster, ...safeDefaults } : null
+                            }));
+                            return;
+                        } catch (err) {
+                            console.warn("[useEngineStore] FFI resetBooster failed, falling back to HTTP:", err);
+                        }
+                    }
+                    await optimizationApi.updateBooster(safeDefaults);
+                    // Only update local state after backend successfully responds
+                    set((state) => ({
+                        booster: state.booster ? { ...state.booster, ...safeDefaults } : null
+                    }));
+                },
+                {
+                    loading: 'Resetting llama optimizations to defaults...',
+                    success: 'Llama optimizations reset to defaults',
+                    error: 'Failed to reset llama optimizations'
+                }
+            );
+        } finally {
+            set((state) => ({ pendingKeys: { ...state.pendingKeys, reset_optimization: false } }));
         }
     },
 
@@ -600,7 +841,7 @@ export const useEngineStore = create<EngineState>()((set, get) => ({
             content: text,
             timestamp: Date.now()
         };
-        
+
         const assistantId = (Date.now() + 1).toString();
         const assistantMsg: ChatMessage = {
             id: assistantId,
@@ -609,7 +850,7 @@ export const useEngineStore = create<EngineState>()((set, get) => ({
             timestamp: Date.now() + 1
         };
 
-        set((state) => ({ 
+        set((state) => ({
             messages: [...state.messages, userMsg, assistantMsg],
             status: 'processing',
             activeStreamId: assistantId
