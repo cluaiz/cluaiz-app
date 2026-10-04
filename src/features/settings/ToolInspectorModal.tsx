@@ -412,9 +412,10 @@ export function ToolInspectorModal({ tool, onClose, onDeleteTool }: ToolInspecto
                         <div className="flex items-center gap-3">
                             <div className="w-10 h-10 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-color)] flex items-center justify-center font-bold text-[var(--accent-color)] shrink-0 overflow-hidden p-1.5 shadow-sm">
                                 {(realIconSvg || tool.icon_svg) ? (
-                                    <div 
-                                        className="w-full h-full flex items-center justify-center [&>svg]:w-full [&>svg]:h-full [&>svg]:object-contain"
-                                        dangerouslySetInnerHTML={{ __html: (realIconSvg || tool.icon_svg)! }}
+                                    <img 
+                                        src={`data:image/svg+xml;utf8,${encodeURIComponent((realIconSvg || tool.icon_svg)!)}`}
+                                        alt={tool.name}
+                                        className="w-full h-full object-contain"
                                     />
                                 ) : tool.category === 'skill' ? (
                                     <Zap size={20} />
@@ -663,9 +664,10 @@ export function ToolInspectorModal({ tool, onClose, onDeleteTool }: ToolInspecto
                                         </div>
                                     ) : isCurrentFileSvg && viewMode === 'preview' ? (
                                         <div className="flex flex-col items-center justify-center min-h-[360px] p-8 bg-[var(--bg-secondary)]/30 rounded-2xl border border-[var(--border-color)] text-center">
-                                            <div 
-                                                className="w-40 h-40 flex items-center justify-center [&>svg]:w-full [&>svg]:h-full [&>svg]:object-contain filter drop-shadow-lg p-2"
-                                                dangerouslySetInnerHTML={{ __html: fileContent }}
+                                            <img 
+                                                src={`data:image/svg+xml;utf8,${encodeURIComponent(fileContent)}`}
+                                                alt={selectedFile.name}
+                                                className="w-40 h-40 object-contain filter drop-shadow-lg p-2"
                                             />
                                             <div className="mt-4 flex items-center gap-2">
                                                 <span className="text-xs font-mono font-bold text-[var(--text-primary)]">{selectedFile.name}</span>

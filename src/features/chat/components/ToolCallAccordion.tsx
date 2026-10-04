@@ -44,9 +44,10 @@ export const ToolCallAccordion: React.FC<ToolCallAccordionProps> = ({ toolCall }
     const renderIcon = () => {
         if (toolCall.iconSvg) {
             return (
-                <div 
-                    className={`w-4 h-4 flex-shrink-0 flex items-center justify-center [&>svg]:w-4 [&>svg]:h-4 ${categoryColor}`}
-                    dangerouslySetInnerHTML={{ __html: toolCall.iconSvg }} 
+                <img 
+                    src={`data:image/svg+xml;utf8,${encodeURIComponent(toolCall.iconSvg)}`}
+                    alt={toolCall.name}
+                    className={`w-4 h-4 flex-shrink-0 object-contain ${categoryColor}`}
                 />
             );
         }
