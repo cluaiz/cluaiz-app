@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { http, type Status, errorMessage } from '../../client';
 import { permissionApi } from './permission.api';
+import { nativeApi } from '../../app/native/native.api';
 import type {
   PermissionSchema,
   PendingPermissionRequest,
@@ -12,6 +13,7 @@ export interface PermissionState {
   pendingRequests: PendingPermissionRequest[];
   status: Status;
   error: string | null;
+  isAuthModalOpen: boolean;
 
   // Actions
   fetchPermission: () => Promise<void>;
@@ -21,6 +23,7 @@ export interface PermissionState {
   fetchPendingPermissions: () => Promise<void>;
   approvePermission: (requestId: string, feedback?: string) => Promise<void>;
   rejectPermission: (requestId: string, feedback?: string) => Promise<void>;
+  setAuthModalOpen: (open: boolean) => void;
   reset: () => void;
 }
 
@@ -28,20 +31,13 @@ export const usePermissionStore = create<PermissionState>((set, get) => {
   // Register automatic 401 token sync handler with centralized http client
   http.setAuthTokenSyncHandler(async () => {
     try {
-      // Clear rejected token immediately so recovery fetch does not send invalid auth
-      http.setToken(null);
-
-      // Fetch fresh permission state from public endpoint
-      const res = await permissionApi.getPermission();
-      const tokens = res.permission?.api_auth?.tokens || [];
-      if (tokens.length > 0) {
-        const nextToken = tokens[0];
-        http.setToken(nextToken);
-        set({ permissions: res.permission, lanIp: res.lan_ip });
-        return nextToken;
-      } else {
-        set({ permissions: res.permission, lanIp: res.lan_ip });
-        return null;
+      // 1. In Desktop (Tauri), read the secret session token or permission.json directly from native IPC
+      if (nativeApi.isDesktop()) {
+        const sessionToken = await nativeApi.getSessionToken();
+        if (sessionToken && sessionToken.trim()) {
+          http.setToken(sessionToken.trim());
+          return sessionToken.trim();
+        }
       }
     } catch {
       // Return null on failure to prevent endless retry loops
@@ -55,27 +51,43 @@ export const usePermissionStore = create<PermissionState>((set, get) => {
     pendingRequests: [],
     status: 'idle',
     error: null,
+    isAuthModalOpen: false,
+
+    setAuthModalOpen: (open: boolean) => set({ isAuthModalOpen: open }),
 
     fetchPermission: async () => {
       set({ status: 'pending', error: null });
       try {
-        const res = await permissionApi.getPermission();
-        if (res.permission) {
-          // If active token is missing from client, sync first available token
-          if (!http.getToken() && res.permission.api_auth?.tokens?.length) {
-            http.setToken(res.permission.api_auth.tokens[0]);
+        // 1. Seed token from native desktop session or permission.json before making the call
+        if (nativeApi.isDesktop() && !http.getToken()) {
+          const sessionToken = await nativeApi.getSessionToken();
+          if (sessionToken && sessionToken.trim()) {
+            http.setToken(sessionToken.trim());
           }
+        }
+
+        const res = await permissionApi.getPermission();
+        if (res && res.permission) {
           set({
             permissions: res.permission,
             lanIp: res.lan_ip || null,
             status: 'success',
             error: null,
+            isAuthModalOpen: false,
           });
         } else {
-          set({ status: 'success', error: null });
+          set({ status: 'success', error: null, isAuthModalOpen: false });
         }
       } catch (err) {
-        set({ status: 'error', error: errorMessage(err) });
+        const msg = errorMessage(err);
+        const isUnauthorized = msg.includes('401') || msg.toLowerCase().includes('unauthorized');
+        const hasNoToken = !http.getToken();
+        // ONLY prompt the user with the modal if authorization failed AND no token was found on the system
+        set({
+          status: 'error',
+          error: msg,
+          isAuthModalOpen: isUnauthorized && hasNoToken,
+        });
       }
     },
 
@@ -194,7 +206,9 @@ export const usePermissionStore = create<PermissionState>((set, get) => {
         pendingRequests: [],
         status: 'idle',
         error: null,
+        isAuthModalOpen: false,
       });
     },
   };
 });
+
