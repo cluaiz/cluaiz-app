@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Key, Shield, Eye, EyeOff, Loader2, Terminal, X } from 'lucide-react';
+import { Key, Shield, Eye, EyeOff, Loader2, Terminal, X, Copy, Check } from 'lucide-react';
 import { client } from '../../../api';
 import { permissionApi } from '../../../api/engine/permission/permission.api';
 import { usePermissionStore } from '../../../api/engine/permission/permission.store';
+import { useEngineStore } from '../../../store/engine/useEngineStore';
 import { toast } from '../../../components/ui/toast';
 
 export function AuthTokenModal() {
@@ -15,8 +16,20 @@ export function AuthTokenModal() {
   const [showPassword, setShowPassword] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [copiedCmd, setCopiedCmd] = useState<string | null>(null);
 
   if (!isOpen) return null;
+
+  const handleCopy = (cmd: string) => {
+    try {
+      navigator.clipboard.writeText(cmd);
+      setCopiedCmd(cmd);
+      setTimeout(() => setCopiedCmd(null), 1500);
+      toast.success(`Copied: ${cmd}`);
+    } catch {
+      // Fallback
+    }
+  };
 
   const handleConnect = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -34,12 +47,14 @@ export function AuthTokenModal() {
       client.setToken(cleanToken);
       const res = await permissionApi.getPermission();
       
-      if (res && res.status === 'success') {
+      if (res && (res.status === 'success' || Boolean((res as any).permission))) {
         toast.success('Successfully authenticated with Cluaiz Engine');
         setOpen(false);
         setTokenInput('');
         // Refresh application permissions state
         await fetchPermission();
+        // Also refresh engine settings so offline guard unlocks
+        await useEngineStore.getState().initEngineSettings();
       } else {
         setErrorMsg('Authentication failed: Engine rejected this token.');
         client.setToken(null);
@@ -89,16 +104,60 @@ export function AuthTokenModal() {
           </div>
 
           {/* Terminal Command Helper Callout */}
-          <div className="p-3 mb-4 text-xs rounded-xl bg-[var(--bg-primary)] border border-[var(--border-color)] space-y-1.5">
+          <div className="p-3 mb-4 text-xs rounded-xl bg-[var(--bg-primary)] border border-[var(--border-color)] space-y-2">
             <div className="flex items-center gap-2 text-[var(--text-secondary)] font-medium">
               <Terminal className="w-4 h-4 text-[var(--accent-color)]" />
               <span>How to find your token:</span>
             </div>
-            <p className="text-[var(--text-muted)] pl-6">
-              Run this command in your terminal to display your active tokens:
+
+            <p className="text-[var(--text-muted)] text-[11px] leading-relaxed">
+              Run this command in your terminal to display your active token:
             </p>
-            <div className="ml-6 p-2 rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border-color)] font-mono text-[11px] text-[var(--accent-color)] select-all">
-              cluaiz token show
+
+            <div className="pt-0.5">
+              {/* Show Tokens Command */}
+              <div className="flex items-center justify-between p-2 rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border-color)] font-mono text-[11px] group">
+                <span className="text-[var(--accent-color)] select-all truncate">
+                  cluaiz token show
+                </span>
+                <button
+                  type="button"
+                  onClick={() => handleCopy('cluaiz token show')}
+                  className="p-1 rounded text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-white/5 transition-colors cursor-pointer flex-shrink-0 ml-2"
+                  title="Copy command"
+                >
+                  {copiedCmd === 'cluaiz token show' ? (
+                    <Check className="w-3.5 h-3.5 text-emerald-400" />
+                  ) : (
+                    <Copy className="w-3.5 h-3.5" />
+                  )}
+                </button>
+              </div>
+
+              {/* Sub-commands helpers */}
+              <div className="flex items-center justify-between text-[11px] text-[var(--text-muted)] px-1 pt-0.5">
+                <span className="truncate">Need a new token?</span>
+                <button
+                  type="button"
+                  onClick={() => handleCopy('cluaiz token create')}
+                  className="font-mono text-[10px] text-[var(--text-secondary)] hover:text-[var(--accent-color)] underline underline-offset-2 transition-colors cursor-pointer ml-1 truncate"
+                  title="Click to copy create command"
+                >
+                  cluaiz token create
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between text-[11px] text-[var(--text-muted)] px-1">
+                <span className="truncate">View all commands:</span>
+                <button
+                  type="button"
+                  onClick={() => handleCopy('cluaiz token -h')}
+                  className="font-mono text-[10px] text-[var(--text-secondary)] hover:text-[var(--accent-color)] underline underline-offset-2 transition-colors cursor-pointer ml-1 truncate"
+                  title="Click to copy help command"
+                >
+                  cluaiz token -h
+                </button>
+              </div>
             </div>
           </div>
 
@@ -106,15 +165,15 @@ export function AuthTokenModal() {
           <form onSubmit={handleConnect} className="space-y-4">
             <div>
               <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5 flex items-center justify-between">
-                <span>Bearer Token</span>
-                <span className="text-[11px] text-[var(--text-muted)]">Format: sk-cluaiz-... or UUID</span>
+                <span>API Token</span>
+                <span className="text-[11px] text-[var(--text-muted)] font-mono">e.g. sk-cluaiz-758cfa11...</span>
               </label>
               <div className="relative">
                 <input
                   type={showPassword ? 'text' : 'password'}
                   value={tokenInput}
                   onChange={(e) => setTokenInput(e.target.value)}
-                  placeholder="Paste your token here..."
+                  placeholder="Paste token here..."
                   className="w-full px-3 py-2 pr-10 text-sm bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-xl text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-[var(--accent-color)] transition-colors font-mono"
                   autoFocus
                 />

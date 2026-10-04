@@ -3,7 +3,8 @@ import { useLayoutStore } from '../../../store/ui/useLayoutStore';
 import { useThemeStore } from '../../../store/ui/useThemeStore';
 import { useEngineStore } from '../../../store/engine/useEngineStore';
 import { useChatStore } from '../../../store/chat/useChatStore';
-import { ChevronDown, Copy, Trash2, X, HatGlasses, FileText } from 'lucide-react';
+import { ChevronDown, Copy, Trash2, X, HatGlasses, FileText, WifiOff } from 'lucide-react';
+import { toast } from '../../../components/ui/toast';
 import { MessageContextMenu } from '../../../components/ui/context-menu/MessageContextMenu';
 import { GlobalChatContextMenu } from '../../../components/ui/context-menu/GlobalChatContextMenu';
 import { DateDivider } from '../../../components/ui/DateDivider';
@@ -42,6 +43,22 @@ export function ChatWorkspace() {
     const messages = activeSession ? activeSession.messages : [];
 
     const [inputValue, setInputValue] = useState('');
+    const permissions = useEngineStore((state) => state.permissions);
+    const fetchStatus = useEngineStore((state) => state.fetchStatus);
+    const initEngineSettings = useEngineStore((state) => state.initEngineSettings);
+    const isEngineOnline = Boolean(permissions);
+    const hasToastedOfflineRef = useRef(false);
+
+    useEffect(() => {
+        initEngineSettings();
+    }, [initEngineSettings]);
+
+    useEffect(() => {
+        if (!isEngineOnline && fetchStatus === 'error' && !hasToastedOfflineRef.current) {
+            hasToastedOfflineRef.current = true;
+            toast.error('Cluaiz Engine is Offline');
+        }
+    }, [isEngineOnline, fetchStatus]);
 
     const {
         breakdown,
@@ -459,9 +476,20 @@ main().catch(console.error);`);
             console.error("Engine connection error:", error);
             const currentStore = useChatStore.getState();
             if (currentStore.activeSessionId) {
+                const activeSess = currentStore.sessions[currentStore.activeSessionId];
+                if (activeSess?.messages && activeSess.messages.length > 0) {
+                    const lastIdx = activeSess.messages.length - 1;
+                    const lastMsg = activeSess.messages[lastIdx];
+                    // Clean up empty optimistic assistant placeholder so three green dots stop immediately
+                    if (lastMsg && lastMsg.sender === 'assistant' && !lastMsg.text && !lastMsg.thinking) {
+                        currentStore.deleteMessage(currentStore.activeSessionId, lastIdx);
+                    }
+                }
+
                 const { useConnectionStore } = await import('../../../store/engine/useConnectionStore');
                 const conn = useConnectionStore.getState();
-                const target = conn.protocol === 'ffi' ? 'Native C-Pointer (FFI)' : `${conn.getBaseUrl()}/v1/chat/completions`;
+                const isNativeDesktop = typeof window !== 'undefined' && Boolean((window as any).__TAURI_INTERNALS__ || (window as any).__TAURI__);
+                const target = (conn.protocol === 'ffi' && isNativeDesktop) ? 'Native C-Pointer (FFI)' : `${conn.getBaseUrl()}/v1/chat/completions`;
                 const errDetail = error instanceof Error ? error.message : String(error);
                 currentStore.addMessage(currentStore.activeSessionId, {
                     sender: 'system',
@@ -588,6 +616,13 @@ main().catch(console.error);`);
                         >
                             Hi, User
                         </motion.h1>
+
+                        {/* Background offline watermark when engine is not connected */}
+                        {!isEngineOnline && (
+                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none select-none z-0">
+                                <WifiOff className="w-56 h-56 sm:w-64 sm:h-64 text-[var(--text-secondary)] opacity-[0.08] stroke-[1]" />
+                            </div>
+                        )}
                         <motion.div layout layoutId="chat-input-wrapper" className="w-full max-w-2xl lg:max-w-3xl 2xl:max-w-4xl mx-auto z-10 px-2 sm:px-4 md:px-8">
                             <ChatInput
                                 inputValue={inputValue} 

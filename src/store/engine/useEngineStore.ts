@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { sendFFIMessage, listenToEngineStream, isTauri } from '../../core/tauri-api';
 import { UnlistenFn } from '@tauri-apps/api/event';
 import { useConnectionStore, saveFallbackConnection } from './useConnectionStore';
-import { http, systemApi, optimizationApi, modelsApi, nativeApi, type PermissionSchema } from '../../api';
+import { http, systemApi, optimizationApi, modelsApi, nativeApi, type PermissionSchema, client, usePermissionStore } from '../../api';
 import { toast } from '../../components/ui/toast';
 export type { PermissionSchema } from '../../api';
 
@@ -78,7 +78,7 @@ export interface SettingAlert {
 
 interface EngineState {
     status: 'booting' | 'idle' | 'processing' | 'error';
-    fetchStatus: 'idle' | 'loading' | 'success' | 'error';
+    fetchStatus: 'idle' | 'loading' | 'success' | 'error' | 'auth_required';
     messages: ChatMessage[];
     activeStreamId: string | null;
 
@@ -150,46 +150,30 @@ export const useEngineStore = create<EngineState>()((set, get) => ({
 
         const fetchViaHttp = async () => {
             try {
-                // Dynamic Engine Port Auto-Discovery (zero hardcoding, probes running engine)
-                const configuredPort = useConnectionStore.getState().port;
-                const candidatePorts: number[] = Array.from(new Set([
-                    configuredPort,
-                    8080,
-                    8000,
-                    9000
-                ])).filter((p): p is number => typeof p === 'number' && p !== 1420 && p !== 5173 && p >= 1024 && p <= 65535);
-
-                let activeWorkingPort: number | null = null;
-                for (const candidatePort of candidatePorts) {
-                    try {
-                        const ctrl = new AbortController();
-                        const tid = setTimeout(() => ctrl.abort(), candidatePort === configuredPort ? 350 : 250);
-                        const probeRes = await fetch(`http://127.0.0.1:${candidatePort}/v1/system/permission`, {
-                            method: 'GET',
-                            signal: ctrl.signal,
-                            headers: { 'Content-Type': 'application/json' }
-                        });
-                        clearTimeout(tid);
-                        if (probeRes.ok) {
-                            activeWorkingPort = candidatePort;
-                            break;
-                        }
-                    } catch {
-                        // Candidate port unreachable, continue probing
+                // 1. Seed native session token before making any engine calls (IPC in Tauri, Bridge fallback in Web)
+                try {
+                    const sessionToken = await nativeApi.getSessionToken();
+                    if (sessionToken) {
+                        http.setToken(sessionToken);
                     }
+                } catch (tokenErr) {
+                    console.warn("[useEngineStore] Token discovery warning:", tokenErr);
                 }
 
-                if (activeWorkingPort && activeWorkingPort !== configuredPort) {
-                    useConnectionStore.getState().setPort(activeWorkingPort);
+                // 2. Dynamic Engine Liveness Probe via public /health endpoint (Zero Hardcoded Magic Ports)
+                const configuredPort = useConnectionStore.getState().port;
+                if (configuredPort === 1420 || configuredPort === 1421 || configuredPort === 5173) {
+                    useConnectionStore.getState().setPort(8080);
+                }
+                const envPort = Number((import.meta as any).env?.VITE_ENGINE_PORT);
+                if (envPort && envPort >= 1024 && envPort <= 65535 && envPort !== 1420 && envPort !== 1421 && envPort !== 5173 && envPort !== useConnectionStore.getState().port) {
+                    useConnectionStore.getState().setPort(envPort);
                 }
 
-                if (isTauri()) {
-                    try {
-                        const sessionToken = await nativeApi.getSessionToken();
-                        if (sessionToken) {
-                            http.setToken(sessionToken);
-                        }
-                    } catch {}
+                try {
+                    await client.get('/health', { skipAuth: true, timeoutMs: 1500 });
+                } catch (probeErr) {
+                    console.warn("[useEngineStore] Health probe warning (proceeding to sync):", probeErr);
                 }
 
                 const [permRes, optRes, hwRes, modelsRes] = await Promise.allSettled([
@@ -218,6 +202,18 @@ export const useEngineStore = create<EngineState>()((set, get) => ({
                 }
 
                 if (!permData && !optData && !hwData) {
+                    const isAuthError = [permRes, optRes, hwRes, modelsRes].some(
+                        (r) =>
+                            r.status === 'rejected' &&
+                            ((r.reason as any)?.status === 401 ||
+                             String((r.reason as any)?.message || '').includes('401') ||
+                             String((r.reason as any)?.message || '').toLowerCase().includes('unauthorized'))
+                    );
+                    if (isAuthError) {
+                        set({ fetchStatus: 'auth_required' });
+                        usePermissionStore.getState().setAuthModalOpen(true);
+                        return;
+                    }
                     throw new Error("Unable to reach engine HTTP endpoints");
                 }
 
@@ -331,7 +327,7 @@ export const useEngineStore = create<EngineState>()((set, get) => ({
                 saveFallbackConnection({
                     protocol: rawPerm.connection_protocol,
                     host: rawPerm.api_host,
-                    port: rawPerm.api_port || activeWorkingPort || configuredPort
+                    port: rawPerm.api_port || useConnectionStore.getState().port
                 });
 
                 set({
@@ -342,9 +338,18 @@ export const useEngineStore = create<EngineState>()((set, get) => ({
                     fetchStatus: 'success',
                     status: 'idle'
                 });
-            } catch (error) {
+            } catch (error: any) {
                 console.error("[useEngineStore] Failed to fetch engine settings via HTTP:", error);
-                set({ fetchStatus: 'error' });
+                const isAuthError =
+                    error?.status === 401 ||
+                    String(error?.message || '').includes('401') ||
+                    String(error?.message || '').toLowerCase().includes('unauthorized');
+                if (isAuthError) {
+                    set({ fetchStatus: 'auth_required' });
+                    usePermissionStore.getState().setAuthModalOpen(true);
+                } else {
+                    set({ fetchStatus: 'error' });
+                }
             }
         };
 
