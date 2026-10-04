@@ -7,19 +7,14 @@ import { Terminal as XTerm } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
 import { ProjectFile } from '../types';
-import { useConnectionStore } from '../../../store/engine/useConnectionStore';
+import { useSystemStore } from '../../../api/engine/system/system.store';
+import type { CmdResponse } from '../../../api/engine/system/system.types';
 import { FileIcon, FolderIcon } from 'react-material-icon-theme';
 
 export type SecurityMode = 'full_access' | 'sandboxed' | 'strict';
 
-const sendEngineCmd = async (command: string) => {
-    const baseUrl = useConnectionStore.getState().getBaseUrl();
-    const res = await fetch(`${baseUrl}/v1/system/cmd`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ command })
-    });
-    return res.json();
+const sendEngineCmd = (command: string): Promise<CmdResponse> => {
+    return useSystemStore.getState().executeCommand(command);
 };
 
 export interface TerminalTarget {

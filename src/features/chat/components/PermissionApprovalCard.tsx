@@ -3,6 +3,8 @@ import { Shield, Check, X, AlertTriangle, MessageSquare, ChevronDown, ChevronUp,
 import { useConnectionStore } from '../../../store/engine/useConnectionStore';
 import { useChatStore } from '../../../store/chat/useChatStore';
 
+import { permissionApi } from '../../../api/engine/permission/permission.api';
+
 interface PermissionApprovalCardProps {
     sessionId: string;
     permissionRequest: {
@@ -16,7 +18,6 @@ interface PermissionApprovalCardProps {
 }
 
 export const PermissionApprovalCard: React.FC<PermissionApprovalCardProps> = ({ sessionId, permissionRequest }) => {
-    const { getBaseUrl } = useConnectionStore();
     const resolvePermissionRequest = useChatStore(s => s.resolvePermissionRequest);
 
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -43,18 +44,12 @@ export const PermissionApprovalCard: React.FC<PermissionApprovalCardProps> = ({ 
 
     const handleApprove = async () => {
         setIsSubmitting(true);
-        const baseUrl = getBaseUrl();
         try {
-            await fetch(`${baseUrl}/v1/system/permission/approve`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    request_id: permissionRequest.requestId
-                })
-            });
+            await permissionApi.approvePermission(permissionRequest.requestId);
             resolvePermissionRequest(sessionId, permissionRequest.requestId, 'approved');
-        } catch (err) {
+        } catch (err: any) {
             console.error('[PermissionApprovalCard] Failed to approve:', err);
+            alert(`Approval failed: ${err.message || 'Unauthorized or connection error'}`);
         } finally {
             setIsSubmitting(false);
         }
@@ -62,20 +57,13 @@ export const PermissionApprovalCard: React.FC<PermissionApprovalCardProps> = ({ 
 
     const handleReject = async () => {
         setIsSubmitting(true);
-        const baseUrl = getBaseUrl();
         const trimmedFeedback = feedbackText.trim();
         try {
-            await fetch(`${baseUrl}/v1/system/permission/reject`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    request_id: permissionRequest.requestId,
-                    feedback: trimmedFeedback || undefined
-                })
-            });
+            await permissionApi.rejectPermission(permissionRequest.requestId, trimmedFeedback || undefined);
             resolvePermissionRequest(sessionId, permissionRequest.requestId, 'rejected', trimmedFeedback || undefined);
-        } catch (err) {
+        } catch (err: any) {
             console.error('[PermissionApprovalCard] Failed to reject:', err);
+            alert(`Rejection failed: ${err.message || 'Unauthorized or connection error'}`);
         } finally {
             setIsSubmitting(false);
         }
