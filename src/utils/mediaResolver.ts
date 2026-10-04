@@ -162,7 +162,7 @@ export function resolveMediaUrlSync(
 }
 
 /**
- * Universal 0ms Instant Media URL Resolver.
+ * Media URL Resolver.
  * Priority 1: Direct SSD Streaming (convertFileSrc) - zero memory, zero encoding latency.
  * Priority 2: In-memory Data/Blob URI.
  * Priority 3: Fallback disk read for web-only mode.

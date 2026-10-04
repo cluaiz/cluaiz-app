@@ -4,7 +4,6 @@ import {
     Pause, 
     Volume2, 
     VolumeX, 
-    Download, 
     Music, 
     Repeat, 
     Loader2,
@@ -152,13 +151,7 @@ export const AudioPreview: React.FC<AudioPreviewProps> = ({
         setIsLooping(!isLooping);
     };
 
-    const handleDownload = () => {
-        if (!src) return;
-        const link = document.createElement('a');
-        link.href = src;
-        link.download = fileName;
-        link.click();
-    };
+
 
     const formatTime = (seconds: number): string => {
         if (isNaN(seconds) || !isFinite(seconds)) return '00:00';
@@ -168,34 +161,25 @@ export const AudioPreview: React.FC<AudioPreviewProps> = ({
     };
 
     return (
-        <div className="h-full w-full flex flex-col bg-[#0b0f14] select-none font-sans overflow-hidden">
+        <div className="h-full w-full flex flex-col bg-[var(--bg-primary)] select-none font-sans overflow-hidden">
             {/* Top Toolbar */}
-            <div className="h-10 border-b border-white/[0.08] bg-zinc-950/80 px-4 flex items-center justify-between flex-shrink-0 backdrop-blur-md">
+            <div className="h-10 border-b border-[var(--border-color)] bg-[var(--bg-secondary)] px-4 flex items-center justify-between flex-shrink-0">
                 <div className="flex items-center gap-2">
-                    <Music className="w-4 h-4 text-emerald-400" />
-                    <span className="text-xs font-semibold text-zinc-200 truncate max-w-[200px]">{fileName}</span>
-                    <span className="text-[10px] font-mono font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                    <Music className="w-4 h-4 text-[var(--accent-color)]" />
+                    <span className="text-xs font-semibold text-[var(--text-primary)] truncate max-w-[200px]">{fileName}</span>
+                    <span className="text-[10px] font-mono font-bold text-[var(--accent-color)] bg-[var(--accent-color)]/10 px-2 py-0.5 rounded border border-[var(--accent-color)]/20">
                         {ext}
                     </span>
                 </div>
 
-                <div className="flex items-center gap-1.5">
-                    <button
-                        type="button"
-                        onClick={handleDownload}
-                        className="p-1.5 rounded hover:bg-white/10 text-zinc-400 hover:text-emerald-400 transition-colors"
-                        title="Download Audio"
-                    >
-                        <Download className="w-3.5 h-3.5" />
-                    </button>
-                </div>
+                <div className="flex items-center gap-1.5" />
             </div>
 
             {/* Central Graphic Area */}
-            <div className="flex-1 flex flex-col items-center justify-center p-8 relative bg-gradient-to-b from-[#0b0f14] via-[#080b0f] to-[#040608]">
+            <div className="flex-1 flex flex-col items-center justify-center p-8 relative bg-[var(--bg-primary)]">
                 {isLoading && !src && (
-                    <div className="flex flex-col items-center justify-center gap-2 text-zinc-500 mb-6">
-                        <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
+                    <div className="flex flex-col items-center justify-center gap-2 text-[var(--text-muted)] mb-6">
+                        <Loader2 className="w-8 h-8 animate-spin text-[var(--accent-color)]" />
                         <span className="text-xs font-mono">Loading audio stream...</span>
                     </div>
                 )}
@@ -207,16 +191,16 @@ export const AudioPreview: React.FC<AudioPreviewProps> = ({
                     </div>
                 )}
 
-                {/* Vinyl / Disc Visualizer with Emerald-Cyan Glow */}
-                <div className={`w-48 h-48 rounded-full border-4 border-white/5 bg-zinc-950/90 shadow-2xl flex items-center justify-center relative transition-all duration-700 ${isPlaying ? 'scale-105 shadow-emerald-500/10' : 'scale-100'}`}>
-                    {/* Glowing Accent Ring */}
-                    <div className={`absolute inset-0 rounded-full bg-gradient-to-tr from-emerald-500/10 via-transparent to-cyan-500/10 transition-opacity duration-500 ${isPlaying ? 'opacity-100' : 'opacity-40'}`} />
+                {/* Vinyl / Disc Visualizer */}
+                <div className={`w-48 h-48 rounded-full border-4 border-[var(--border-color)] bg-[var(--bg-secondary)] shadow-2xl flex items-center justify-center relative transition-all duration-700 ${isPlaying ? 'scale-105 shadow-[var(--accent-color)]/10' : 'scale-100'}`}>
+                    {/* Accent Ring */}
+                    <div className={`absolute inset-0 rounded-full bg-[var(--accent-color)]/5 transition-opacity duration-500 ${isPlaying ? 'opacity-100' : 'opacity-40'}`} />
                     
                     {/* Ring grooves */}
-                    <div className="w-40 h-40 rounded-full border border-white/[0.04] flex items-center justify-center">
-                        <div className="w-32 h-32 rounded-full border border-white/[0.06] flex items-center justify-center">
-                            <div className="w-20 h-20 rounded-full bg-gradient-to-tr from-emerald-500/20 to-cyan-500/20 border border-emerald-500/30 flex items-center justify-center shadow-inner">
-                                <Music className={`w-9 h-9 text-emerald-400 transition-transform ${isPlaying ? 'animate-pulse text-cyan-300' : ''}`} />
+                    <div className="w-40 h-40 rounded-full border border-[var(--border-color)]/40 flex items-center justify-center">
+                        <div className="w-32 h-32 rounded-full border border-[var(--border-color)]/60 flex items-center justify-center">
+                            <div className="w-20 h-20 rounded-full bg-[var(--accent-color)]/10 border border-[var(--accent-color)]/30 flex items-center justify-center shadow-inner">
+                                <Music className={`w-9 h-9 text-[var(--accent-color)] transition-transform ${isPlaying ? 'animate-pulse' : ''}`} />
                             </div>
                         </div>
                     </div>
@@ -224,10 +208,10 @@ export const AudioPreview: React.FC<AudioPreviewProps> = ({
 
                 {/* Track Title */}
                 <div className="mt-8 text-center max-w-md">
-                    <h3 className="text-sm font-semibold text-zinc-200 truncate">{fileName}</h3>
-                    <p className="text-xs font-mono text-zinc-500 mt-1 flex items-center justify-center gap-1.5">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block animate-ping" />
-                        Instant Native Audio Stream
+                    <h3 className="text-sm font-semibold text-[var(--text-primary)] truncate">{fileName}</h3>
+                    <p className="text-xs font-mono text-[var(--text-muted)] mt-1 flex items-center justify-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent-color)] inline-block animate-ping" />
+                        Native Audio Stream
                     </p>
                 </div>
 
@@ -246,18 +230,18 @@ export const AudioPreview: React.FC<AudioPreviewProps> = ({
                 )}
             </div>
 
-            {/* Bottom Playback Control Bar with Emerald & Cyan theme */}
-            <div className="h-16 border-t border-white/[0.08] bg-zinc-950/90 px-6 flex items-center gap-4 flex-shrink-0 backdrop-blur-md">
+            {/* Bottom Playback Control Bar */}
+            <div className="h-16 border-t border-[var(--border-color)] bg-[var(--bg-secondary)] px-6 flex items-center gap-4 flex-shrink-0">
                 <button
                     type="button"
                     onClick={togglePlay}
                     disabled={hasError}
-                    className="p-3 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-black shadow-lg shadow-emerald-500/20 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="p-3 rounded-xl bg-[var(--accent-color)] text-white hover:opacity-90 shadow-md transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                 >
                     {isPlaying ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current ml-0.5" />}
                 </button>
 
-                <span className="text-xs font-mono text-zinc-400 min-w-[45px] text-right">
+                <span className="text-xs font-mono text-[var(--text-muted)] min-w-[45px] text-right">
                     {formatTime(currentTime)}
                 </span>
 
@@ -269,10 +253,10 @@ export const AudioPreview: React.FC<AudioPreviewProps> = ({
                     step={0.1}
                     value={currentTime}
                     onChange={handleSeek}
-                    className="flex-1 h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-emerald-400 hover:accent-cyan-400 transition-all"
+                    className="flex-1 h-1.5 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-lg appearance-none cursor-pointer accent-[var(--accent-color)] transition-all"
                 />
 
-                <span className="text-xs font-mono text-zinc-500 min-w-[45px]">
+                <span className="text-xs font-mono text-[var(--text-muted)] min-w-[45px]">
                     {formatTime(duration)}
                 </span>
 
@@ -280,7 +264,7 @@ export const AudioPreview: React.FC<AudioPreviewProps> = ({
                 <button
                     type="button"
                     onClick={toggleLoop}
-                    className={`p-2 rounded-lg transition-colors ${isLooping ? 'bg-emerald-500/20 text-emerald-400' : 'text-zinc-400 hover:text-zinc-200'}`}
+                    className={`p-2 rounded-lg transition-colors cursor-pointer ${isLooping ? 'bg-[var(--accent-color)]/20 text-[var(--accent-color)]' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}
                     title={isLooping ? 'Loop Enabled' : 'Loop Disabled'}
                 >
                     <Repeat className="w-4 h-4" />
@@ -291,7 +275,7 @@ export const AudioPreview: React.FC<AudioPreviewProps> = ({
                     <button
                         type="button"
                         onClick={toggleMute}
-                        className="p-1.5 rounded hover:bg-white/10 text-zinc-400 hover:text-white transition-colors"
+                        className="p-1.5 rounded hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
                     >
                         {isMuted || volume === 0 ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
                     </button>
@@ -302,7 +286,7 @@ export const AudioPreview: React.FC<AudioPreviewProps> = ({
                         step={0.05}
                         value={isMuted ? 0 : volume}
                         onChange={handleVolumeChange}
-                        className="w-20 h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-emerald-400"
+                        className="w-20 h-1.5 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-lg appearance-none cursor-pointer accent-[var(--accent-color)]"
                     />
                 </div>
             </div>
