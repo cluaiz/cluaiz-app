@@ -215,3 +215,99 @@ select:focus {
   cursor: ew-resize;
   cursor: col-resize;
 }
+
+/* ============================================================
+   REUSABLE THEME SYSTEM (Zero Code Scattering, 100% Theme Safe)
+   ============================================================ */
+
+/* Reusable Tab Utilities */
+.ui-tab-active {
+  position: relative;
+  background-color: color-mix(in srgb, var(--accent-color) 8%, var(--bg-primary));
+  color: var(--text-primary);
+  font-weight: 600;
+  border: none !important;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+}
+
+.ui-tab-active::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background-color: var(--accent-color);
+  box-shadow: 0 0 8px var(--accent-glow);
+  pointer-events: none;
+}
+
+.ui-tab-inactive {
+  position: relative;
+  background-color: transparent;
+  color: var(--text-muted);
+  border: none !important;
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.ui-tab-inactive:hover {
+  color: var(--text-primary);
+  background-color: color-mix(in srgb, var(--bg-primary) 50%, transparent);
+}
+
+/* Reusable Tree / Sidebar Item Utilities */
+.ui-tree-item-active {
+  position: relative;
+  background-color: color-mix(in srgb, var(--accent-color) 5%, var(--bg-tertiary)) !important;
+  color: var(--text-primary) !important;
+  font-weight: 600;
+  border: none !important;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.04);
+}
+
+/* Left vertical theme indicator line (Vertically Centered Pill) */
+.ui-tree-item-active::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 16px;
+  width: 3px;
+  background-color: var(--accent-color);
+  border-radius: 9999px;
+  box-shadow: 0 0 6px var(--accent-glow);
+}
+
+.ui-tree-item-inactive {
+  position: relative;
+  color: var(--text-secondary);
+  border: none !important;
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.ui-tree-item-inactive:hover {
+  color: var(--text-primary);
+  background-color: color-mix(in srgb, var(--bg-tertiary) 60%, transparent);
+}
+
+/* Reusable Toolbar Icon Button Utility */
+.ui-icon-btn {
+  padding: 0.375rem;
+  border-radius: 0.375rem;
+  color: var(--text-muted);
+  background-color: transparent;
+  border: none;
+  cursor: pointer;
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.ui-icon-btn:hover {
+  color: var(--text-primary);
+  background-color: var(--bg-tertiary);
+}
+
+.ui-icon-btn-active {
+  color: var(--accent-color);
+  background-color: color-mix(in srgb, var(--accent-color) 12%, transparent);
+}

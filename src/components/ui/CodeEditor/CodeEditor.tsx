@@ -3,7 +3,7 @@ import Editor, { OnMount, BeforeMount } from '@monaco-editor/react';
 import { useThemeStore } from '../../../store/ui/useThemeStore';
 import { CodeEditorProps, CodeEditorLanguage } from './types';
 import { normalizeLanguage, getMonacoLanguagesWithCategories, DEFAULT_MONACO_LANGUAGES } from './languages';
-import { setupMonacoEnvironment } from './monacoSetup';
+import { setupMonacoEnvironment, getMonacoThemeName, defineCluaizThemes } from './monacoSetup';
 import { ErrorDiagnosticsPopover, ErrorMarker } from './ErrorDiagnosticsPopover';
 import { StatusBar } from './StatusBar';
 import { 
@@ -256,7 +256,15 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
     const handleZoomOut = () => setFontSize((prev) => Math.max(prev - 1, 10));
 
     const monacoLang = normalizeLanguage(currentLanguage);
-    const activeMonacoTheme = isDark ? 'cluaiz-dark-theme' : 'cluaiz-light-theme';
+    const activeMonacoTheme = getMonacoThemeName(theme);
+
+    // Dynamic real-time theme synchronization
+    useEffect(() => {
+        if (monacoRef.current?.editor) {
+            defineCluaizThemes(monacoRef.current, accentColor);
+            monacoRef.current.editor.setTheme(activeMonacoTheme);
+        }
+    }, [theme, accentColor, activeMonacoTheme]);
 
     const filteredLanguages = useMemo(() => {
         const query = langSearch.toLowerCase().trim();
@@ -275,14 +283,14 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
         <div 
             className={
                 isFullscreen 
-                    ? `fixed inset-0 z-[9999] flex flex-col w-screen h-screen bg-[var(--bg-secondary)] shadow-2xl`
-                    : `flex flex-col w-full h-full border border-[var(--border-color)] rounded-lg overflow-hidden bg-[var(--bg-secondary)] shadow-sm ${className}`
+                    ? `fixed inset-0 z-[9999] flex flex-col w-screen h-screen bg-[var(--bg-primary)] shadow-2xl`
+                    : `flex flex-col w-full h-full border border-[var(--border-color)] rounded-lg overflow-hidden bg-[var(--bg-primary)] shadow-sm ${className}`
             }
             style={isFullscreen ? undefined : { minHeight }}
         >
             {/* Top Toolbar */}
             {showToolbar && (
-                <div className="flex items-center justify-between px-3 py-1.5 bg-[var(--bg-tertiary)] border-b border-[var(--border-color)] select-none text-xs flex-wrap gap-2">
+                <div className="flex items-center justify-between px-3 py-1.5 bg-[var(--bg-secondary)] border-b border-[var(--border-color)] select-none text-xs flex-wrap gap-2">
                     {/* Left: Language Selector & Diagnostics Badge */}
                     <div className="flex items-center gap-2 relative">
                         {allowLanguageChange ? (
@@ -578,7 +586,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
             )}
 
             {/* Monaco Editor Container with All Power Features Enabled */}
-            <div className="flex-1 w-full h-full min-h-0 relative">
+            <div className="flex-1 w-full h-full min-h-0 relative bg-[var(--bg-primary)]">
                 <Editor
                     height={height}
                     language={monacoLang}
