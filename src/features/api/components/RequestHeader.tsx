@@ -88,7 +88,7 @@ export const RequestHeader: React.FC = () => {
                     parsedHeaders['Authorization'] = token;
                     useApiStore.getState().setReqHeaders(JSON.stringify(parsedHeaders, null, 2));
                 }
-            } catch (_) {}
+            } catch (_) { }
         }
 
         try {
