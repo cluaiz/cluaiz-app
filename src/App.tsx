@@ -17,6 +17,7 @@ import { NeonPulseCursor } from './components/ui/cursor/NeonPulseCursor';
 import { CanvasCursor } from './components/ui/cursor/CanvasCursor';
 import { AuraCursor } from './components/ui/cursor/AuraCursor';
 import { parseCurrentRoute, pushSettingsRoute, pushViewRoute, SettingsTabId } from './core/router';
+import { ToastContainer } from './components/ui/toast';
 
 function MainAppContent() {
     const initialRoute = parseCurrentRoute();
@@ -173,6 +174,9 @@ function MainAppContent() {
             {cursorType === 'neon' && <NeonPulseCursor />}
             {cursorType === 'canvas' && <CanvasCursor />}
             {cursorType === 'aura' && <AuraCursor />}
+
+            {/* Global Notification & Toast Portal */}
+            <ToastContainer />
         </ClickSpark>
     );
 }

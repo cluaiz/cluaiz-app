@@ -383,7 +383,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                             className="w-full overflow-hidden select-text text-[var(--text-primary)]"
                             style={{ fontSize: 'var(--chat-bubble-font-size, 14px)' }}
                         >
-                            <MarkdownRenderer content={msg.text} />
+                            <MarkdownRenderer content={msg.text} allowWorkspaceOpen={true} />
                         </div>
                     ) : null}
 

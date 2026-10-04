@@ -1,7 +1,7 @@
 import { Settings, LayoutDashboard, Wrench, Code2, Boxes, MessageSquare, FolderGit2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLayoutStore } from '../../store/ui/useLayoutStore';
-import { useProjectStore } from '../../features/workspace/store/useProjectStore';
+import { useProjectStore } from '../../store/workspace/useProjectStore';
 
 interface BubbleLauncherProps {
     isOpen: boolean;
