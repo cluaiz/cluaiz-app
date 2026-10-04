@@ -4,7 +4,7 @@ import { useThemeStore } from '../../../store/ui/useThemeStore';
 import { DiffEditorProps, CodeEditorLanguage, DiffStats } from './types';
 import { DiffToolbar } from './DiffToolbar';
 import { normalizeLanguage } from './languages';
-import { defineCluaizThemes, registerCelLanguage } from './monacoSetup';
+import { defineCluaizThemes, registerCelLanguage, getMonacoThemeName } from './monacoSetup';
 
 export const DiffEditor: React.FC<DiffEditorProps> = ({
     original,
@@ -74,7 +74,15 @@ export const DiffEditor: React.FC<DiffEditorProps> = ({
         return normalizeLanguage(modifiedLanguage || currentLanguage);
     }, [modifiedLanguage, currentLanguage]);
 
-    const activeMonacoTheme = isDark ? 'cluaiz-dark-theme' : 'cluaiz-light-theme';
+    const activeMonacoTheme = getMonacoThemeName(theme);
+
+    // Dynamic real-time theme synchronization
+    useEffect(() => {
+        if (monacoRef.current?.editor) {
+            defineCluaizThemes(monacoRef.current, accentColor);
+            monacoRef.current.editor.setTheme(activeMonacoTheme);
+        }
+    }, [theme, accentColor, activeMonacoTheme]);
 
     // Compute Line & Diff Statistics directly from Monaco Diff Editor
     const computeDiffMetrics = useCallback((editor: any) => {
@@ -272,7 +280,7 @@ export const DiffEditor: React.FC<DiffEditorProps> = ({
             )}
 
             {/* Monaco Diff Editor Surface */}
-            <div className="flex-1 w-full h-full min-h-0 relative">
+            <div className="flex-1 w-full h-full min-h-0 relative bg-[var(--bg-primary)]">
                 <MonacoDiffEditorReact
                     height={height}
                     original={activeOriginal}
