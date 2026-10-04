@@ -20,8 +20,8 @@ const getFallbackConnection = () => {
             if (raw) {
                 const parsed = JSON.parse(raw);
                 if (parsed && typeof parsed.port === 'number') {
-                    // Discard dev server ports (1420, 5173)
-                    if (parsed.port !== 1420 && parsed.port !== 5173 && parsed.port >= 1024 && parsed.port <= 65535) {
+                    // Discard frontend dev server ports (1420, 5173) and local bridge port (1421)
+                    if (parsed.port !== 1420 && parsed.port !== 1421 && parsed.port !== 5173 && parsed.port >= 1024 && parsed.port <= 65535) {
                         return parsed;
                     }
                 }

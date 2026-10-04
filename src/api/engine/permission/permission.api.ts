@@ -15,7 +15,7 @@ export const permissionApi = {
    * Fetches the current permissions, categorized available models, and host LAN IP.
    */
   getPermission: async (): Promise<PermissionResponse> => {
-    return client.get<PermissionResponse>(PERMISSION_ENDPOINTS.PERMISSION, { skipAuth: true });
+    return client.get<PermissionResponse>(PERMISSION_ENDPOINTS.PERMISSION);
   },
 
   /**

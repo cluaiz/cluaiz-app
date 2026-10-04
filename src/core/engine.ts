@@ -2,7 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import { useEngineStore } from '../store/engine/useEngineStore';
 import { useConnectionStore } from '../store/engine/useConnectionStore';
-import { client, nativeApi } from '../api';
+import { client, nativeApi, chatApi } from '../api';
 
 export interface EngineStatus {
     status: 'offline' | 'booting' | 'online' | 'error';
@@ -225,34 +225,6 @@ export class cluaizEngine {
                 payload.tools = options.tools;
             }
 
-            const headers = client.getHeaders();
-
-            let endpoint = `${baseUrl}/v1/chat/completions`;
-            let res = await fetch(endpoint, {
-                method: 'POST',
-                headers,
-                body: JSON.stringify(payload)
-            }).catch(() => null);
-
-            if (!res || !res.ok) {
-                // Fallback to legacy /chat route if 404 or failed
-                endpoint = `${baseUrl}/chat`;
-                res = await fetch(endpoint, {
-                    method: 'POST',
-                    headers,
-                    body: JSON.stringify(payload)
-                });
-            }
-
-            if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
-            if (!res.body) throw new Error('No response body');
-
-            const reader = res.body.getReader();
-            const decoder = new TextDecoder('utf-8');
-
-            let sseBuffer = '';
-            let receivedDone = false;
-
             const emitChunk = (chunk: string | StreamChunk) => {
                 if (onChunk) {
                     try {
@@ -265,156 +237,123 @@ export class cluaizEngine {
                 }
             };
 
-            const readStream = async () => {
-                try {
-                    while (true) {
-                        const { done, value } = await reader.read();
-                        if (done) break;
+            await chatApi.streamCompletion(payload, {
+                onEvent: (parsed: any) => {
+                    if (!parsed) return;
+                    if (parsed.usage?.context_telemetry) {
+                        emitChunk({ contextTelemetry: parsed.usage.context_telemetry, usage: parsed.usage });
+                    }
+                    const delta = parsed.choices?.[0]?.delta;
+                    if (!delta) return;
 
-                        sseBuffer += decoder.decode(value, { stream: true });
-                        const events = sseBuffer.split('\n');
-                        sseBuffer = events.pop() || '';
+                    // 1. Handle tool_calls
+                    if (delta.tool_calls && Array.isArray(delta.tool_calls) && delta.tool_calls.length > 0) {
+                        for (const tc of delta.tool_calls) {
+                            const toolName = tc.function?.name || tc.name || 'tool';
+                            const toolCat = (tc.type && tc.type !== 'function')
+                                ? tc.type
+                                : (tc.category || undefined);
 
-                        for (const line of events) {
-                            const trimmed = line.trim();
-                            if (!trimmed || !trimmed.startsWith('data:')) continue;
-                            const data = trimmed.slice(5).trim();
-                            if (data === '[DONE]') {
-                                receivedDone = true;
-                                emitChunk('[DONE]');
-                                return;
+                            emitChunk({
+                                toolCall: {
+                                    id: tc.id || `call_${toolName}`,
+                                    name: toolName,
+                                    category: toolCat,
+                                    arguments: tc.function?.arguments || '',
+                                    status: 'running',
+                                    iconSvg: tc.icon_svg || tc.function?.icon_svg || undefined
+                                }
+                            });
+                        }
+                        return;
+                    }
+
+                    // 1b. Handle permission_request (HITL Stream Pause)
+                    const permReq = delta.permission_request;
+                    if (permReq) {
+                        emitChunk({
+                            permissionRequest: {
+                                requestId: permReq.request_id,
+                                toolName: permReq.tool_name,
+                                category: permReq.category,
+                                parameters: permReq.parameters,
+                                status: 'pending',
+                                timeoutSeconds: permReq.timeout_seconds || 120
                             }
+                        });
+                        return;
+                    }
 
+                    // 2. Handle tool_result
+                    const toolResult = delta.tool_result || delta.cluaiz_tool_result;
+                    if (toolResult) {
+                        const resultStr = toolResult.result
+                            || (typeof toolResult.output_result === 'object' ? JSON.stringify(toolResult.output_result, null, 2) : toolResult.output_result)
+                            || '';
+                        emitChunk({
+                            toolResult: {
+                                id: toolResult.id,
+                                name: toolResult.name,
+                                category: toolResult.category,
+                                status: 'completed',
+                                latency_ms: toolResult.latency_ms,
+                                result: resultStr,
+                                logs: toolResult.logs,
+                                input_payload: toolResult.input_payload,
+                                output_result: toolResult.output_result,
+                                iconSvg: toolResult.icon_svg || undefined
+                            }
+                        });
+                        return;
+                    }
+
+                    const reasoningPiece = delta.reasoning_content || delta.reasoning || delta.thought || '';
+                    let contentPiece = delta.content || delta.text || parsed.choices?.[0]?.text || '';
+
+                    // Real-time detection of tool_call in text stream so UI shows Running indicator without delay
+                    if (contentPiece.includes('<tool_call>')) {
+                        const match = /<tool_call>([\s\S]*?)(?:<\/tool_call>|$)/i.exec(contentPiece);
+                        if (match && match[1]) {
                             try {
-                                const parsed = JSON.parse(data);
-
-                                // Catch usage metadata (live context telemetry) even when choices is empty (Developer Hub parity)
-                                if (parsed.usage?.context_telemetry) {
-                                    emitChunk({ contextTelemetry: parsed.usage.context_telemetry, usage: parsed.usage });
-                                }
-
-                                const delta = parsed.choices?.[0]?.delta;
-                                if (!delta) continue;
-
-                                // 1. Handle tool_calls
-                                if (delta.tool_calls && Array.isArray(delta.tool_calls) && delta.tool_calls.length > 0) {
-                                    for (const tc of delta.tool_calls) {
-                                        const toolName = tc.function?.name || tc.name || 'tool';
-                                        const toolCat = (tc.type && tc.type !== 'function')
-                                            ? tc.type
-                                            : (tc.category || undefined);
-
-                                        emitChunk({
-                                            toolCall: {
-                                                id: tc.id || `call_${toolName}`,
-                                                name: toolName,
-                                                category: toolCat,
-                                                arguments: tc.function?.arguments || '',
-                                                status: 'running',
-                                                iconSvg: tc.icon_svg || tc.function?.icon_svg || undefined
-                                            }
-                                        });
+                                const toolJson = JSON.parse(match[1].trim());
+                                const toolName = toolJson.name || toolJson.function || 'execute_tool';
+                                emitChunk({
+                                    toolCall: {
+                                        id: `call_${toolName}`,
+                                        name: toolName,
+                                        category: 'skill',
+                                        arguments: typeof toolJson.arguments === 'object' ? JSON.stringify(toolJson.arguments) : String(toolJson.arguments || ''),
+                                        status: 'running'
                                     }
-                                    continue;
-                                }
-
-                                // 1b. Handle permission_request (HITL Stream Pause)
-                                const permReq = delta.permission_request;
-                                if (permReq) {
-                                    emitChunk({
-                                        permissionRequest: {
-                                            requestId: permReq.request_id,
-                                            toolName: permReq.tool_name,
-                                            category: permReq.category,
-                                            parameters: permReq.parameters,
-                                            status: 'pending',
-                                            timeoutSeconds: permReq.timeout_seconds || 120
-                                        }
-                                    });
-                                    continue;
-                                }
-
-                                // 2. Handle tool_result
-                                const toolResult = delta.tool_result || delta.cluaiz_tool_result;
-                                if (toolResult) {
-                                    const resultStr = toolResult.result
-                                        || (typeof toolResult.output_result === 'object' ? JSON.stringify(toolResult.output_result, null, 2) : toolResult.output_result)
-                                        || '';
-                                    emitChunk({
-                                        toolResult: {
-                                            id: toolResult.id,
-                                            name: toolResult.name,
-                                            category: toolResult.category,
-                                            status: 'completed',
-                                            latency_ms: toolResult.latency_ms,
-                                            result: resultStr,
-                                            logs: toolResult.logs,
-                                            input_payload: toolResult.input_payload,
-                                            output_result: toolResult.output_result,
-                                            iconSvg: toolResult.icon_svg || undefined
-                                        }
-                                    });
-                                    continue;
-                                }
-
-                                const reasoningPiece = delta.reasoning_content || delta.reasoning || delta.thought || '';
-                                let contentPiece = delta.content || delta.text || parsed.choices?.[0]?.text || '';
-
-                                // Real-time detection of tool_call in text stream so UI shows Running indicator without delay
-                                if (contentPiece.includes('<tool_call>')) {
-                                    const match = /<tool_call>([\s\S]*?)(?:<\/tool_call>|$)/i.exec(contentPiece);
-                                    if (match && match[1]) {
-                                        try {
-                                            const toolJson = JSON.parse(match[1].trim());
-                                            const toolName = toolJson.name || toolJson.function || 'execute_tool';
-                                            emitChunk({
-                                                toolCall: {
-                                                    id: `call_${toolName}`,
-                                                    name: toolName,
-                                                    category: 'skill',
-                                                    arguments: typeof toolJson.arguments === 'object' ? JSON.stringify(toolJson.arguments) : String(toolJson.arguments || ''),
-                                                    status: 'running'
-                                                }
-                                            });
-                                        } catch {
-                                            const nameMatch = /"(?:name|function)"\s*:\s*"([^"]+)"/.exec(match[1]);
-                                            if (nameMatch && nameMatch[1]) {
-                                                emitChunk({
-                                                    toolCall: {
-                                                        id: `call_${nameMatch[1]}`,
-                                                        name: nameMatch[1],
-                                                        category: 'skill',
-                                                        arguments: '',
-                                                        status: 'running'
-                                                    }
-                                                });
-                                            }
-                                        }
-                                    }
-                                }
-
-                                if (reasoningPiece) {
-                                    emitChunk({ reasoning: reasoningPiece });
-                                }
-                                if (contentPiece) {
-                                    emitChunk({ content: contentPiece });
-                                }
+                                });
                             } catch {
-                                // Incomplete chunk or parse error
+                                const nameMatch = /"(?:name|function)"\s*:\s*"([^"]+)"/.exec(match[1]);
+                                if (nameMatch && nameMatch[1]) {
+                                    emitChunk({
+                                        toolCall: {
+                                            id: `call_${nameMatch[1]}`,
+                                            name: nameMatch[1],
+                                            category: 'skill',
+                                            arguments: '',
+                                            status: 'running'
+                                        }
+                                    });
+                                }
                             }
                         }
                     }
 
-                    if (!receivedDone) {
-                        emitChunk('[DONE]');
+                    if (reasoningPiece) {
+                        emitChunk({ reasoning: reasoningPiece });
                     }
-                } catch (err) {
-                    console.error('[Engine Stream Error]:', err);
-                    throw err;
+                    if (contentPiece) {
+                        emitChunk({ content: contentPiece });
+                    }
+                },
+                onDone: () => {
+                    emitChunk('[DONE]');
                 }
-            };
-
-            await readStream();
+            });
         }
     }
 

@@ -42,6 +42,8 @@ export const usePermissionStore = create<PermissionState>((set, get) => {
     } catch {
       // Return null on failure to prevent endless retry loops
     }
+    // Auto-prompt user with AuthTokenModal if desktop token discovery fails or running in web
+    set({ isAuthModalOpen: true });
     return null;
   });
 
@@ -81,12 +83,11 @@ export const usePermissionStore = create<PermissionState>((set, get) => {
       } catch (err) {
         const msg = errorMessage(err);
         const isUnauthorized = msg.includes('401') || msg.toLowerCase().includes('unauthorized');
-        const hasNoToken = !http.getToken();
-        // ONLY prompt the user with the modal if authorization failed AND no token was found on the system
+        // Prompt the user with AuthTokenModal if authorization failed
         set({
           status: 'error',
           error: msg,
-          isAuthModalOpen: isUnauthorized && hasNoToken,
+          isAuthModalOpen: isUnauthorized,
         });
       }
     },

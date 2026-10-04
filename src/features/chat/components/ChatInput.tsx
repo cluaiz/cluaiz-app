@@ -5,6 +5,10 @@ import { Backlight } from '../../../components/ui/Backlight';
 import { useEngineStore } from '../../../store/engine/useEngineStore';
 import { useConnectionStore } from '../../../store/engine/useConnectionStore';
 import { navigateTo } from '../../../core/router';
+import { client } from '../../../api/client';
+import { modelsApi } from '../../../api/engine/models/models.api';
+import { permissionApi } from '../../../api/engine/permission/permission.api';
+import { toast } from '../../../components/ui/toast';
 
 const DynamicToolIcon: React.FC<{ iconSvg?: string | null; fallback: React.ReactNode; className?: string }> = ({ iconSvg, fallback, className = "w-3.5 h-3.5" }) => {
     if (iconSvg) {
@@ -126,9 +130,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
         const fetchTools = async () => {
             try {
-                const res = await fetch(`${getBaseUrl()}/api/components/list`);
-                if (res.ok) {
-                    const data = await res.json();
+                const data = await client.get<any>('/api/components/list');
+                if (data) {
                     const rich = data.rich || {};
                     const parseItems = (cat: string) => {
                         const richItems = rich[cat] || [];
@@ -211,9 +214,14 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     const updatePermission = useEngineStore(s => s.updatePermission);
     const fetchStatus = useEngineStore(s => s.fetchStatus);
     const initEngineSettings = useEngineStore(s => s.initEngineSettings);
+    const isEngineOnline = Boolean(permissions);
 
     const handleSendWithAttachments = () => {
         if (!inputValue.trim() && attachedFiles.length === 0) return;
+        if (!isEngineOnline) {
+            toast.error('Cluaiz Engine is offline. Start engine to chat.');
+            return;
+        }
 
         let finalMsg = inputValue.trim();
         if (attachedFiles.length > 0) {
@@ -251,10 +259,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     useEffect(() => {
         const fetchInstalledModels = async () => {
             try {
-                const res = await fetch(`${getBaseUrl()}/v1/models/installed`);
-                if (res.ok) {
-                    const data = await res.json();
-                    const raw = data.installed || data.installed_models || data.models || [];
+                const data = await modelsApi.getInstalled();
+                if (data) {
+                    const raw = (data as any).installed || (data as any).installed_models || (data as any).models || [];
                     const list = Array.isArray(raw) ? raw : Object.values(raw);
                     const chatModels = list.filter((m: any) => !m.category || m.category === 'chat');
                     if (chatModels.length > 0) {
@@ -833,22 +840,17 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                                         updatePermission('chat_models', { ...permissions?.chat_models, text: model.id });
                                     }
                                     try {
-                                        const permRes = await fetch(`${getBaseUrl()}/v1/system/permission`);
-                                        if (permRes.ok) {
-                                            const permData = await permRes.json();
+                                        const permData = await permissionApi.getPermission();
+                                        if (permData) {
                                             const newPerm = permData.permission || permData;
                                             if (!newPerm.active_slots) newPerm.active_slots = {};
                                             if (!newPerm.active_slots.chat_slot) newPerm.active_slots.chat_slot = {};
                                             newPerm.active_slots.chat_slot.model_id = model.id;
                                             if (!newPerm.chat_models) newPerm.chat_models = {};
                                             newPerm.chat_models.text = model.id;
-                                            await fetch(`${getBaseUrl()}/v1/system/permission`, {
-                                                method: 'POST',
-                                                headers: { 'Content-Type': 'application/json' },
-                                                body: JSON.stringify(newPerm)
-                                            });
+                                            await permissionApi.updatePermission(newPerm);
                                         }
-                                        fetch(`${getBaseUrl()}/v1/chat/context_telemetry?model=${encodeURIComponent(model.id)}`).catch(() => null);
+                                        client.get(`/v1/chat/context_telemetry?model=${encodeURIComponent(model.id)}`).catch(() => null);
                                     } catch (e) {
                                         console.error('Failed to sync model switch:', e);
                                     }
@@ -896,7 +898,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             <textarea
                 ref={textareaRef}
                 autoFocus
-                placeholder="Ask AI..."
+                placeholder={isEngineOnline ? "Ask AI..." : "Cluaiz Engine is offline..."}
                 className={`${isExpanded ? 'self-stretch' : 'flex-1 min-w-0'} bg-transparent border-0 outline-none text-sm font-medium text-[var(--text-primary)] placeholder-[var(--text-muted)] resize-none overflow-y-auto custom-scrollbar`}
                 style={{ minHeight: '20px', maxHeight: '144px', lineHeight: '20px' }}
                 value={inputValue}
@@ -956,7 +958,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                     <div className={`transition-all duration-100 ease-out overflow-hidden flex items-center ${(inputValue.trim() || attachedFiles.length > 0) ? 'w-[2rem] sm:w-[2.25rem] opacity-100 scale-100' : 'w-0 opacity-0 scale-0'}`}>
                         <button
                             onClick={handleSendWithAttachments}
-                            className="w-[2rem] sm:w-[2.25rem] h-[2rem] sm:h-[2.25rem] flex-shrink-0 rounded-full flex items-center justify-center bg-[var(--accent-color)] text-[var(--accent-contrast)] hover:opacity-90 transition-transform active:scale-95 cursor-pointer"
+                            disabled={!isEngineOnline}
+                            className={`w-[2rem] sm:w-[2.25rem] h-[2rem] sm:h-[2.25rem] flex-shrink-0 rounded-full flex items-center justify-center bg-[var(--accent-color)] text-[var(--accent-contrast)] hover:opacity-90 transition-transform active:scale-95 ${!isEngineOnline ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
                         >
                             <Send className="w-3.5 sm:w-4 h-3.5 sm:h-4 -ml-0.5" />
                         </button>
@@ -1024,7 +1027,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                         <div className={`transition-all duration-200 ease-out overflow-hidden flex items-center ${(inputValue.trim() || attachedFiles.length > 0) ? 'w-[2rem] sm:w-[2.25rem] opacity-100 scale-100' : 'w-0 opacity-0 scale-0'}`}>
                             <button
                                 onClick={handleSendWithAttachments}
-                                className="w-[2rem] sm:w-[2.25rem] h-[2rem] sm:h-[2.25rem] flex-shrink-0 rounded-full flex items-center justify-center bg-[var(--accent-color)] text-[var(--accent-contrast)] hover:opacity-90 transition-transform active:scale-95 cursor-pointer"
+                                disabled={!isEngineOnline}
+                                className={`w-[2rem] sm:w-[2.25rem] h-[2rem] sm:h-[2.25rem] flex-shrink-0 rounded-full flex items-center justify-center bg-[var(--accent-color)] text-[var(--accent-contrast)] hover:opacity-90 transition-transform active:scale-95 ${!isEngineOnline ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
                             >
                                 <Send className="w-3.5 sm:w-4 h-3.5 sm:h-4 -ml-0.5" />
                             </button>
