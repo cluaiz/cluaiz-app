@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Settings, Shield, Palette, Bell, HelpCircle, ExternalLink, Keyboard, Cpu, Zap, Layers, Boxes, Heart, SlidersHorizontal } from 'lucide-react';
+import { X, Settings, Shield, Palette, Bell, HelpCircle, ExternalLink, Keyboard, Cpu, Zap, Layers, Heart, SlidersHorizontal } from 'lucide-react';
 import pkg from '../../../package.json';
 import { GeneralSettings } from './GeneralSettings';
 import { SecuritySettings } from './SecuritySettings';
@@ -10,7 +10,6 @@ import { ShortcutsSettings } from './ShortcutsSettings';
 import { EngineSettings } from './EngineSettings';
 import { InferenceSettings } from './InferenceSettings';
 import { VectorSettings } from './VectorSettings';
-import { ToolsSettings } from './ToolsSettings';
 import { EngineOfflineGuard } from './EngineOfflineGuard';
 import { isTauri } from '../../core/tauri-api';
 
@@ -21,7 +20,7 @@ interface SettingsOverlayProps {
     onTabChange?: (tab: TabId) => void;
 }
 
-type TabId = 'general' | 'engine' | 'inference' | 'vector' | 'security' | 'tools' | 'theme' | 'notifications' | 'shortcuts' | 'help';
+type TabId = 'general' | 'engine' | 'inference' | 'vector' | 'security' | 'theme' | 'notifications' | 'shortcuts' | 'help';
 
 export function SettingsOverlay({ isOpen, initialTab = 'general', onClose, onTabChange }: SettingsOverlayProps) {
     const [activeTab, setActiveTab] = useState<TabId>(initialTab);
@@ -47,7 +46,6 @@ export function SettingsOverlay({ isOpen, initialTab = 'general', onClose, onTab
         { id: 'inference' as const, label: 'LLM Inference Configuration', icon: Zap, desc: 'GGUF & ONNX parameters' },
         { id: 'vector' as const, label: 'Vector Generation', icon: Layers, desc: 'Embedding engine settings' },
         { id: 'security' as const, label: 'Security & Access', icon: Shield, desc: 'SSO, credentials & permissions' },
-        { id: 'tools' as const, label: 'Tools & Plugins', icon: Boxes, desc: 'Manage installed plugins & tools' },
         { id: 'theme' as const, label: 'Theme', icon: Palette, desc: 'Themes, scaling, bubbles & fonts' },
         { id: 'notifications' as const, label: 'Notifications', icon: Bell, desc: 'Chimes, volume & email digests' },
         { id: 'shortcuts' as const, label: 'Keyboard Shortcuts', icon: Keyboard, desc: 'Global hotkeys and bindings' },
@@ -65,8 +63,6 @@ export function SettingsOverlay({ isOpen, initialTab = 'general', onClose, onTab
                 return <EngineOfflineGuard><VectorSettings /></EngineOfflineGuard>;
             case 'security':
                 return <EngineOfflineGuard><SecuritySettings /></EngineOfflineGuard>;
-            case 'tools':
-                return <EngineOfflineGuard><ToolsSettings /></EngineOfflineGuard>;
             case 'theme':
                 return <ChatsSettings />;
             case 'notifications':
@@ -271,14 +267,13 @@ export function SettingsOverlay({ isOpen, initialTab = 'general', onClose, onTab
                         <div className="h-[84px] px-8 border-b border-[var(--border-color)] flex items-center justify-between shrink-0 select-none">
                            <div>
                                 <h2 className="text-lg font-black text-[var(--text-primary)] uppercase tracking-wider">
-                                    {activeTab === 'help' ? 'Help & Support' : activeTab === 'engine' ? 'Engine & Models' : activeTab === 'security' ? 'Security & Access' : activeTab === 'shortcuts' ? 'Keyboard Shortcuts' : activeTab === 'inference' ? 'LLM Inference Configuration' : activeTab === 'vector' ? 'Vector Generation' : activeTab === 'tools' ? 'Tools & Plugins' : activeTab}
+                                    {activeTab === 'help' ? 'Help & Support' : activeTab === 'engine' ? 'Engine & Models' : activeTab === 'security' ? 'Security & Access' : activeTab === 'shortcuts' ? 'Keyboard Shortcuts' : activeTab === 'inference' ? 'LLM Inference Configuration' : activeTab === 'vector' ? 'Vector Generation' : activeTab}
                                 </h2>
                                 <p className="text-xs text-[var(--text-muted)] mt-1">
                                     {activeTab === 'general' && 'Configure startup behavior, engine communication protocols, and temporary storage.'}
                                     {activeTab === 'engine' && 'Control engine background lifecycle, model loading strategies, and memory limits.'}
                                     {activeTab === 'inference' && 'Configure deep GGUF and ONNX hardware acceleration, context buffers, and sampling.'}
                                     {activeTab === 'vector' && 'Adjust embedding model execution providers, normalization, and RAG chunk parameters.'}
-                                    {activeTab === 'tools' && 'Audit and manage active skills, runtime plugins, and external MCP servers.'}
                                     {activeTab === 'security' && 'Manage user access, biometric integrations, active SSO options, and credentials.'}
                                     {activeTab === 'theme' && 'Personalize visual theme colors, interface scaling, and chat fonts.'}
                                     {activeTab === 'notifications' && 'Tailor sound effects volume, desktop push updates, and inbox digest frequencies.'}
