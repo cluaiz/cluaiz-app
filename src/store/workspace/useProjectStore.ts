@@ -1,10 +1,11 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { Project, ProjectFile, RecentWorkspace } from '../types';
-import { normalizeLanguage } from '../../../components/ui/CodeEditor/languages';
-import { useConnectionStore } from '../../../store/engine/useConnectionStore';
+import { Project, ProjectFile, RecentWorkspace } from '../../features/workspace/types';
+import { normalizeLanguage } from '../../components/ui/CodeEditor/languages';
+import { systemApi, fsApi, nativeApi, dialogApi } from '../../api';
+import { toast } from '../../components/ui/toast';
 import { 
-    readDiskFileFast, 
+    readDiskFileFast,  
     writeDiskFileFast, 
     isTauri, 
     listDiskDirFast, 
@@ -15,9 +16,9 @@ import {
     startFsWatcher,
     stopFsWatcher,
     onFsChangeEvent
-} from '../../../core/engineBridge';
-import { toSniffedDataUri, fixDataUriMime } from '../../../utils/mimeSniffer';
-import { isMediaOrBinaryFile } from '../../../utils/mediaResolver';
+} from '../../core/engineBridge';
+import { toSniffedDataUri, fixDataUriMime } from '../../utils/mimeSniffer';
+import { isMediaOrBinaryFile } from '../../utils/mediaResolver';
 
 export const detectLanguageFromPath = (path: string): string => {
     const ext = path.split('.').pop()?.toLowerCase() || '';
@@ -26,25 +27,6 @@ export const detectLanguageFromPath = (path: string): string => {
 
 const isWindowsEnv = () => typeof navigator !== 'undefined' && (navigator.userAgent.includes('Windows') || navigator.platform?.startsWith('Win'));
 export const isMediaFileExt = (filePath: string): boolean => isMediaOrBinaryFile(filePath);
-
-// Pure browser-safe UTF-16LE Base64 encoding for Windows PowerShell -EncodedCommand
-function encodeUtf16LeBase64(str: string): string {
-    const bytes = new Uint8Array(new Uint16Array([...str].map(c => c.charCodeAt(0))).buffer);
-    return btoa(String.fromCharCode(...bytes));
-}
-
-// Low-level command runner via Cluaiz Engine
-async function runEngineCmd(cmd: string): Promise<string> {
-    try {
-        const baseUrl = useConnectionStore.getState().getBaseUrl();
-        const res = await fetch(`${baseUrl}/v1/system/cmd`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ command: cmd })
-        });
-        return res.ok ? ((await res.json()).output || '') : '';
-    } catch { return ''; }
-}
 
 export interface DiskItem {
     path: string;
@@ -55,23 +37,16 @@ export interface DiskItem {
 }
 
 // ── Physical Disk Operations via Cluaiz Engine ───────────────────────────
-async function runPowerShell(script: string): Promise<string> {
-    const encoded = encodeUtf16LeBase64(`$ProgressPreference = 'SilentlyContinue';\n${script}`);
-    return runEngineCmd(`powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand ${encoded}`);
-}
 
 export const pickFolderFromOS = async (): Promise<string> => {
     try {
-        if (isWindowsEnv()) {
-            const script = `Add-Type -AssemblyName System.Windows.Forms; $form = New-Object System.Windows.Forms.Form; $form.TopMost = $true; $form.WindowState = [System.Windows.Forms.FormWindowState]::Minimized; $form.Show(); $form.Activate(); $dialog = New-Object System.Windows.Forms.FolderBrowserDialog; $dialog.Description = 'Select Workspace Folder'; $dialog.SelectedPath = $env:USERPROFILE; $dialog.ShowNewFolderButton = $true; $res = $dialog.ShowDialog($form); $form.Dispose(); if ($res -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $dialog.SelectedPath }`;
-            const out = await runEngineCmd(`powershell -NoProfile -STA -ExecutionPolicy Bypass -EncodedCommand ${encodeUtf16LeBase64(script)}`);
-            const path = out.trim().split(/[\r\n]+/)[0]?.trim();
-            return (path && !path.startsWith('#<') && !path.includes('CLIXML') && !path.includes('Error') && /^[a-zA-Z]:[\\/]/.test(path)) ? path : '';
-        }
-        const out = await runEngineCmd(`zenity --file-selection --directory 2>/dev/null || kdialog --getexistingdirectory 2>/dev/null || true`);
-        const path = out.trim().split(/[\r\n]+/)[0]?.trim();
-        return (path && path.startsWith('/')) ? path : '';
-    } catch { return ''; }
+        const folder = await dialogApi.pickFolder();
+        return folder ? folder.trim() : '';
+    } catch (err: any) {
+        console.error('[useProjectStore] pickFolderFromOS error:', err);
+        toast.error(`Folder picker error: ${err?.message || err}`);
+        return '';
+    }
 };
 
 export const syncFileToDisk = async (rootPath: string | undefined, filePath: string, content: string): Promise<boolean> => {
@@ -106,7 +81,10 @@ export const readFileFromDisk = async (rootPath: string | undefined, filePath: s
             return '';
         }
         return content;
-    } catch { return ''; }
+    } catch (err: any) {
+        console.error('[useProjectStore] readFileFromDisk error:', err);
+        throw err;
+    }
 };
 
 export const listFilesFromDisk = async (
@@ -117,27 +95,28 @@ export const listFilesFromDisk = async (
     if (!targetDir) return [];
     try {
         const root = rootPath || targetDir;
-        if (isTauri()) return await listDiskDirFast(targetDir, root, recursive);
-        if (isWindowsEnv()) {
-            const recurseFlag = recursive ? '-Recurse' : '';
-            const out = await runPowerShell(`if (-not (Test-Path -LiteralPath '${targetDir}')) { New-Item -ItemType Directory -Path '${targetDir}' -Force | Out-Null }; $items = @(Get-ChildItem -LiteralPath '${targetDir}' ${recurseFlag} | ForEach-Object { [PSCustomObject]@{ path = $_.FullName.Substring('${root}'.Length).TrimStart('\\', '/').Replace('\\', '/'); name = $_.Name; isFolder = $_.PSIsContainer; length = if ($_.PSIsContainer) { 0 } else { $_.Length }; modified = $_.LastWriteTimeUtc.ToString('o') } }); ConvertTo-Json -InputObject $items -Compress`);
-            if (!out.trim()) return [];
-            const parsed = JSON.parse(out.trim());
-            return Array.isArray(parsed) ? parsed : [parsed];
+        const items = await listDiskDirFast(targetDir, root, recursive);
+        if (items && items.length > 0) {
+            return items.map(item => ({
+                path: item.path,
+                name: item.name,
+                isFolder: item.isFolder ?? item.is_folder ?? false,
+                length: item.length || 0,
+                modified: item.modified || ''
+            }));
         }
-        const out = await runEngineCmd(`find "${targetDir}" -maxdepth 1`);
-        return out.split('\n').filter(Boolean).map(l => ({ path: l.replace(`${root}/`, ''), name: l.split('/').pop() || l, isFolder: false, length: 0, modified: '' }));
-    } catch { return []; }
+        return [];
+    } catch (err) {
+        console.error('[useProjectStore] listFilesFromDisk error:', err);
+        throw err;
+    }
 };
 
 export const deleteFileFromDisk = async (rootPath: string | undefined, filePath: string): Promise<boolean> => {
     if (!rootPath || !filePath) return false;
     try {
         const fullPath = `${rootPath}/${filePath}`.replace(/\\/g, '/');
-        if (isTauri()) return await deleteDiskPathFast(fullPath);
-        if (isWindowsEnv()) await runPowerShell(`if (Test-Path -LiteralPath '${fullPath}') { Remove-Item -LiteralPath '${fullPath}' -Recurse -Force -ErrorAction SilentlyContinue }`);
-        else await runEngineCmd(`rm -rf "${fullPath}"`);
-        return true;
+        return await deleteDiskPathFast(fullPath);
     } catch { return false; }
 };
 
@@ -146,10 +125,7 @@ export const renameFileOnDisk = async (rootPath: string | undefined, oldPath: st
     try {
         const oldFull = `${rootPath}/${oldPath}`.replace(/\\/g, '/');
         const newFull = `${rootPath}/${newPath}`.replace(/\\/g, '/');
-        if (isTauri()) return await renameDiskPathFast(oldFull, newFull);
-        if (isWindowsEnv()) await runPowerShell(`$d = Split-Path -Path '${newFull}' -Parent; if (-not (Test-Path -LiteralPath $d)) { New-Item -ItemType Directory -Path $d -Force | Out-Null }; if (Test-Path -LiteralPath '${oldFull}') { Move-Item -LiteralPath '${oldFull}' -Destination '${newFull}' -Force }`);
-        else await runEngineCmd(`mkdir -p "$(dirname "${newFull}")" && mv -f "${oldFull}" "${newFull}"`);
-        return true;
+        return await renameDiskPathFast(oldFull, newFull);
     } catch { return false; }
 };
 
@@ -158,10 +134,7 @@ export const copyFileOnDisk = async (rootPath: string | undefined, srcPath: stri
     try {
         const srcFull = `${rootPath}/${srcPath}`.replace(/\\/g, '/');
         const destFull = `${rootPath}/${destPath}`.replace(/\\/g, '/');
-        if (isTauri()) return await copyDiskPathFast(srcFull, destFull);
-        if (isWindowsEnv()) await runPowerShell(`$d = Split-Path -Path '${destFull}' -Parent; if (-not (Test-Path -LiteralPath $d)) { New-Item -ItemType Directory -Path $d -Force | Out-Null }; Copy-Item -LiteralPath '${srcFull}' -Destination '${destFull}' -Recurse -Force`);
-        else await runEngineCmd(`mkdir -p "$(dirname "${destFull}")" && cp -rf "${srcFull}" "${destFull}"`);
-        return true;
+        return await copyDiskPathFast(srcFull, destFull);
     } catch { return false; }
 };
 
@@ -169,10 +142,7 @@ export const createFolderOnDisk = async (rootPath: string | undefined, folderPat
     if (!rootPath || !folderPath) return false;
     try {
         const fullDir = `${rootPath}/${folderPath}`.replace(/\\/g, '/');
-        if (isTauri()) return await createDirFast(fullDir);
-        if (isWindowsEnv()) await runPowerShell(`if (-not (Test-Path -LiteralPath '${fullDir}')) { New-Item -ItemType Directory -Path '${fullDir}' -Force | Out-Null }`);
-        else await runEngineCmd(`mkdir -p "${fullDir}"`);
-        return true;
+        return await createDirFast(fullDir);
     } catch { return false; }
 };
 
@@ -211,13 +181,18 @@ interface ProjectStoreState {
 }
 
 let unlistenWatcher: (() => void) | null = null;
+let currentWatchedRoot: string | null = null;
 
 async function initWorkspaceWatcher(rootPath: string) {
     if (!isTauri() || !rootPath) return;
+    if (currentWatchedRoot === rootPath && unlistenWatcher) {
+        return; // Already actively watching this workspace root!
+    }
     if (unlistenWatcher) {
         unlistenWatcher();
         unlistenWatcher = null;
     }
+    currentWatchedRoot = rootPath;
     await startFsWatcher(rootPath);
     unlistenWatcher = await onFsChangeEvent(async (event) => {
         const store = useProjectStore.getState();
@@ -342,9 +317,14 @@ export const useProjectStore = create<ProjectStoreState>()(
                 const folderName = clean.split(/[\\/]/).filter(Boolean).pop() || clean;
                 const projId = `folder_${folderName.toLowerCase().replace(/[^a-z0-9_-]/g, '_')}_${Date.now().toString(36)}`;
                 const recent = get().recentWorkspaces.filter(w => w.path !== clean && !w.path.startsWith('#<') && !w.name.includes('CLIXML'));
-                const updatedRecent: RecentWorkspace[] = [{ path: clean, name: folderName, lastOpened: Date.now() }, ...recent].slice(0, 10);
+                const updatedRecent: RecentWorkspace[] = [{ path: clean, name: folderName, lastOpened: Date.now() }, ...recent].slice(0, 5);
                 const project: Project = { id: projId, name: folderName, rootPath: clean, files: {}, folders: [], activeFilePath: '', openFilePaths: [], createdAt: Date.now(), updatedAt: Date.now() };
                 set((state) => ({ projects: { ...state.projects, [projId]: project }, activeProjectId: projId, isWorkspaceOpen: true, recentWorkspaces: updatedRecent }));
+                try {
+                    await fsApi.setWorkspace({ workspace: clean });
+                } catch (err: any) {
+                    console.warn('[useProjectStore] setWorkspace error:', err);
+                }
                 await get().syncFromDisk(projId);
             },
 
@@ -584,9 +564,11 @@ export const useProjectStore = create<ProjectStoreState>()(
                 if (!proj?.rootPath) return;
 
                 const isWin = isWindowsEnv();
+                const normRoot = proj.rootPath.replace(/[\\/]+$/, '');
+                const normFolder = folderPath.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
                 const sep = isWin ? '\\' : '/';
-                const cleanFolder = isWin ? folderPath.replace(/\//g, '\\') : folderPath;
-                const fullDir = `${proj.rootPath}${sep}${cleanFolder}`;
+                const cleanFolder = isWin ? normFolder.replace(/\//g, '\\') : normFolder;
+                const fullDir = `${normRoot}${sep}${cleanFolder}`;
 
                 const items = await listFilesFromDisk(fullDir, proj.rootPath, false);
                 if (!items || items.length === 0) return;
@@ -599,16 +581,20 @@ export const useProjectStore = create<ProjectStoreState>()(
                     const newFolders = new Set(curProj.folders || []);
 
                     for (const item of items) {
+                        const itemNormPath = (item.path || '').replace(/\\/g, '/').replace(/^\/+/, '');
+                        const fullItemPath = (itemNormPath && itemNormPath.startsWith(normFolder + '/'))
+                            ? itemNormPath
+                            : `${normFolder}/${item.name}`;
+
                         if (item.isFolder) {
-                            newFolders.add(item.path);
+                            newFolders.add(fullItemPath);
                         } else {
-                            if (item.name === '.gitkeep') continue;
-                            if (!newFiles[item.path]) {
-                                newFiles[item.path] = {
-                                    path: item.path,
+                            if (!newFiles[fullItemPath]) {
+                                newFiles[fullItemPath] = {
+                                    path: fullItemPath,
                                     name: item.name,
                                     content: '',
-                                    language: detectLanguageFromPath(item.path),
+                                    language: detectLanguageFromPath(fullItemPath),
                                     isModified: false
                                 };
                             }
@@ -649,7 +635,6 @@ export const useProjectStore = create<ProjectStoreState>()(
                         if (item.isFolder) {
                             diskFolders.push(item.path);
                         } else {
-                            if (item.name === '.gitkeep') continue;
                             const existing = currentFiles[item.path];
                             diskFiles[item.path] = {
                                 path: item.path,
@@ -660,6 +645,17 @@ export const useProjectStore = create<ProjectStoreState>()(
                             };
                         }
                     }
+
+                    // Preserve already loaded files inside subfolders so open child directories never get wiped!
+                    Object.keys(currentFiles).forEach(p => {
+                        if (p.includes('/') && !diskFiles[p]) {
+                            diskFiles[p] = currentFiles[p];
+                        }
+                    });
+
+                    // Preserve all known subfolders
+                    const preservedSubfolders = (proj.folders || []).filter(f => f.includes('/'));
+                    const mergedFolders = Array.from(new Set([...diskFolders, ...preservedSubfolders]));
 
                     set((state) => {
                         const p = state.projects[targetId];
@@ -677,7 +673,7 @@ export const useProjectStore = create<ProjectStoreState>()(
                                 [targetId]: {
                                     ...p,
                                     files: diskFiles,
-                                    folders: diskFolders,
+                                    folders: mergedFolders,
                                     activeFilePath: updatedActive,
                                     openFilePaths: updatedOpen.length > 0 ? updatedOpen : (updatedActive ? [updatedActive] : [])
                                 }
@@ -690,7 +686,12 @@ export const useProjectStore = create<ProjectStoreState>()(
                         get().loadFileContentFromDisk(curActive);
                     }
                     initWorkspaceWatcher(rootPath);
-                } catch {
+                } catch (err: any) {
+                    const errMsg = err?.message || String(err);
+                    console.error('[useProjectStore] syncFromDisk error:', err);
+                    toast.error(`Workspace sync failed: ${errMsg}`);
+                    set({ isSyncing: false });
+                } finally {
                     set({ isSyncing: false });
                 }
             },
@@ -733,9 +734,14 @@ export const useProjectStore = create<ProjectStoreState>()(
                         };
                     });
                     return content;
-                } catch {
+                } catch (err: any) {
+                    const errMsg = err?.message || String(err);
+                    console.error('[useProjectStore] loadFileContentFromDisk error:', err);
+                    toast.error(`Failed to load file: ${errMsg}`);
                     set({ isLoadingFile: false });
                     return '';
+                } finally {
+                    set({ isLoadingFile: false });
                 }
             },
 

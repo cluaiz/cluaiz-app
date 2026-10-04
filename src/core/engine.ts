@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import { useEngineStore } from '../store/engine/useEngineStore';
 import { useConnectionStore } from '../store/engine/useConnectionStore';
+import { client, nativeApi } from '../api';
 
 export interface EngineStatus {
     status: 'offline' | 'booting' | 'online' | 'error';
@@ -75,7 +76,7 @@ export interface StreamChunk {
 
 export class cluaizEngine {
     private static isBooted = false;
-    
+
     /**
      * Initializes the Co-Execution architecture.
      * Tells the native shell to spawn or link the `~/.cluaiz/bin/cluaiz` engine via FFI.
@@ -83,7 +84,7 @@ export class cluaizEngine {
     static async boot(): Promise<void> {
         if (this.isBooted) return;
         this.isBooted = true; // Set synchronously to prevent Strict Mode double-boot
-        
+
         useEngineStore.getState().setStatus('booting');
 
         if (isNative()) {
@@ -91,8 +92,18 @@ export class cluaizEngine {
             try {
                 await invoke('boot_cluaiz_engine');
                 console.log("[cluaizEngine] Engine FFI Link Established.");
+
+                try {
+                    const sessionToken = await nativeApi.getSessionToken();
+                    if (sessionToken) {
+                        client.setToken(sessionToken);
+                    }
+                } catch (e) {
+                    console.warn('[cluaizEngine] Failed to retrieve session token:', e);
+                }
+
                 useEngineStore.getState().setStatus('idle');
-                
+
                 // If Lazy Load is OFF, trigger EAGER_LOAD
                 const perms = useEngineStore.getState().permissions;
                 if (perms && !perms.lazy_load_model) {
@@ -148,7 +159,7 @@ export class cluaizEngine {
             console.log(`[CDQL Transport] Executing via HTTP REST (${baseUrl}):`, query);
             const res = await fetch(`${baseUrl}/v1/db/execute`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: client.getHeaders(),
                 body: JSON.stringify({ query })
             });
             if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
@@ -174,7 +185,7 @@ export class cluaizEngine {
      * Optionally accepts a direct per-call stream callback for guaranteed token delivery.
      */
     static async send(
-        message: string, 
+        message: string,
         options?: SendChatOptions,
         onChunk?: (token: string | StreamChunk) => void
     ): Promise<void> {
@@ -214,7 +225,7 @@ export class cluaizEngine {
                 payload.tools = options.tools;
             }
 
-            const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+            const headers = client.getHeaders();
 
             let endpoint = `${baseUrl}/v1/chat/completions`;
             let res = await fetch(endpoint, {
@@ -232,7 +243,7 @@ export class cluaizEngine {
                     body: JSON.stringify(payload)
                 });
             }
-            
+
             if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
             if (!res.body) throw new Error('No response body');
 
@@ -289,8 +300,8 @@ export class cluaizEngine {
                                 if (delta.tool_calls && Array.isArray(delta.tool_calls) && delta.tool_calls.length > 0) {
                                     for (const tc of delta.tool_calls) {
                                         const toolName = tc.function?.name || tc.name || 'tool';
-                                        const toolCat = (tc.type && tc.type !== 'function') 
-                                            ? tc.type 
+                                        const toolCat = (tc.type && tc.type !== 'function')
+                                            ? tc.type
                                             : (tc.category || undefined);
 
                                         emitChunk({
@@ -326,8 +337,8 @@ export class cluaizEngine {
                                 // 2. Handle tool_result
                                 const toolResult = delta.tool_result || delta.cluaiz_tool_result;
                                 if (toolResult) {
-                                    const resultStr = toolResult.result 
-                                        || (typeof toolResult.output_result === 'object' ? JSON.stringify(toolResult.output_result, null, 2) : toolResult.output_result) 
+                                    const resultStr = toolResult.result
+                                        || (typeof toolResult.output_result === 'object' ? JSON.stringify(toolResult.output_result, null, 2) : toolResult.output_result)
                                         || '';
                                     emitChunk({
                                         toolResult: {
@@ -420,8 +431,8 @@ export class cluaizEngine {
                 unlisten();
             };
         } else {
-            return () => { 
-                this.subscribers.delete(callback); 
+            return () => {
+                this.subscribers.delete(callback);
             };
         }
     }

@@ -1,6 +1,6 @@
-import React from 'react';
-import { FolderGit2, ArrowUpRight, CheckCircle2, FileCode } from 'lucide-react';
-import { useProjectStore } from '../store/useProjectStore';
+import React, { useState } from 'react';
+import { FolderGit2, ArrowUpRight, CheckCircle2, FileCode, Loader2 } from 'lucide-react';
+import { useProjectStore } from '../../../store/workspace/useProjectStore';
 import { useLayoutStore } from '../../../store/ui/useLayoutStore';
 
 interface ProjectCardProps {
@@ -11,18 +11,27 @@ interface ProjectCardProps {
 }
 
 export const ProjectCard: React.FC<ProjectCardProps> = ({ id, name, description, files }) => {
+    const [isOpening, setIsOpening] = useState(false);
     const { createOrUpdateProject, openWorkspace, setActiveFile } = useProjectStore();
     const { setSplitPaneWidth } = useLayoutStore();
 
     const fileList = Object.keys(files);
 
-    const handleOpenWorkspace = (specificFile?: string) => {
-        createOrUpdateProject(id, name, files, description);
-        if (specificFile) {
-            setActiveFile(specificFile);
+    const handleOpenWorkspace = async (specificFile?: string) => {
+        if (isOpening) return;
+        setIsOpening(true);
+        try {
+            await createOrUpdateProject(id, name, files, description);
+            if (specificFile) {
+                setActiveFile(specificFile);
+            }
+            openWorkspace(id);
+            setSplitPaneWidth(50);
+        } catch (err) {
+            console.error('Failed to open workspace project:', err);
+        } finally {
+            setIsOpening(false);
         }
-        openWorkspace(id);
-        setSplitPaneWidth(50);
     };
 
     return (
@@ -41,11 +50,21 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ id, name, description,
 
                 <button
                     type="button"
+                    disabled={isOpening}
                     onClick={() => handleOpenWorkspace()}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--accent-color)] text-[var(--accent-contrast, #ffffff)] text-xs font-semibold hover:opacity-90 transition-all shadow-sm active:scale-95 cursor-pointer"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--accent-color)] text-[var(--accent-contrast, #ffffff)] text-xs font-semibold hover:opacity-90 transition-all shadow-sm active:scale-95 cursor-pointer disabled:opacity-60"
                 >
-                    <span>Open in Workspace</span>
-                    <ArrowUpRight className="w-3.5 h-3.5" />
+                    {isOpening ? (
+                        <>
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            <span>Opening...</span>
+                        </>
+                    ) : (
+                        <>
+                            <span>Open in Workspace</span>
+                            <ArrowUpRight className="w-3.5 h-3.5" />
+                        </>
+                    )}
                 </button>
             </div>
 
