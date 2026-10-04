@@ -5,7 +5,6 @@ import {
     Volume2, 
     VolumeX, 
     Maximize, 
-    Download, 
     Video as VideoIcon, 
     Loader2,
     AlertCircle
@@ -162,13 +161,7 @@ export const VideoPreview: React.FC<VideoPreviewProps> = ({
         }
     };
 
-    const handleDownload = () => {
-        if (!src) return;
-        const link = document.createElement('a');
-        link.href = src;
-        link.download = fileName;
-        link.click();
-    };
+
 
     const formatTime = (seconds: number): string => {
         if (isNaN(seconds) || !isFinite(seconds)) return '00:00';
@@ -178,36 +171,27 @@ export const VideoPreview: React.FC<VideoPreviewProps> = ({
     };
 
     return (
-        <div ref={containerRef} className="h-full w-full flex flex-col bg-[#0b0f14] select-none font-sans overflow-hidden group">
+        <div ref={containerRef} className="h-full w-full flex flex-col bg-[var(--bg-primary)] select-none font-sans overflow-hidden group">
             {/* Top Header */}
-            <div className="h-10 border-b border-white/[0.08] bg-zinc-950/80 px-4 flex items-center justify-between flex-shrink-0 backdrop-blur-md z-10">
+            <div className="h-10 border-b border-[var(--border-color)] bg-[var(--bg-secondary)] px-4 flex items-center justify-between flex-shrink-0 z-10">
                 <div className="flex items-center gap-2">
-                    <VideoIcon className="w-4 h-4 text-emerald-400" />
-                    <span className="text-xs font-semibold text-zinc-200 truncate max-w-[200px]">{fileName}</span>
+                    <VideoIcon className="w-4 h-4 text-[var(--accent-color)]" />
+                    <span className="text-xs font-semibold text-[var(--text-primary)] truncate max-w-[200px]">{fileName}</span>
                     {videoDimensions && (
-                        <span className="text-[11px] font-mono text-zinc-500 bg-white/[0.04] px-2 py-0.5 rounded border border-white/5">
+                        <span className="text-[11px] font-mono text-[var(--text-muted)] bg-[var(--bg-tertiary)] px-2 py-0.5 rounded border border-[var(--border-color)]">
                             {videoDimensions.width} × {videoDimensions.height} px
                         </span>
                     )}
                 </div>
 
-                <div className="flex items-center gap-1.5">
-                    <button
-                        type="button"
-                        onClick={handleDownload}
-                        className="p-1.5 rounded hover:bg-white/10 text-zinc-400 hover:text-emerald-400 transition-colors"
-                        title="Download Video"
-                    >
-                        <Download className="w-3.5 h-3.5" />
-                    </button>
-                </div>
+                <div className="flex items-center gap-1.5" />
             </div>
 
             {/* Video Viewport */}
-            <div className="flex-1 overflow-hidden flex items-center justify-center p-4 relative bg-[#07090e]">
+            <div className="flex-1 overflow-hidden flex items-center justify-center p-4 relative bg-[var(--bg-primary)]">
                 {isLoading && !src && (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-zinc-500 bg-[#07090e]/80 z-20">
-                        <Loader2 className="w-7 h-7 animate-spin text-emerald-500" />
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-[var(--text-muted)] bg-[var(--bg-primary)]/80 z-20">
+                        <Loader2 className="w-7 h-7 animate-spin text-[var(--accent-color)]" />
                         <span className="text-xs font-mono">Streaming media bytes...</span>
                     </div>
                 )}
@@ -236,18 +220,18 @@ export const VideoPreview: React.FC<VideoPreviewProps> = ({
                 )}
             </div>
 
-            {/* Custom Bottom Control Bar with Emerald & Cyan theme */}
-            <div className="h-12 border-t border-white/[0.08] bg-zinc-950/90 px-4 flex items-center gap-3 flex-shrink-0 backdrop-blur-md">
+            {/* Bottom Control Bar */}
+            <div className="h-12 border-t border-[var(--border-color)] bg-[var(--bg-secondary)] px-4 flex items-center gap-3 flex-shrink-0">
                 <button
                     type="button"
                     onClick={togglePlay}
                     disabled={hasError}
-                    className="p-2 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 hover:text-cyan-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="p-2 rounded-lg bg-[var(--accent-color)]/10 hover:bg-[var(--accent-color)]/20 text-[var(--accent-color)] transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                 >
                     {isPlaying ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current ml-0.5" />}
                 </button>
 
-                <span className="text-[11px] font-mono text-zinc-400 min-w-[85px]">
+                <span className="text-[11px] font-mono text-[var(--text-muted)] min-w-[85px]">
                     {formatTime(currentTime)} / {formatTime(duration)}
                 </span>
 
@@ -259,7 +243,7 @@ export const VideoPreview: React.FC<VideoPreviewProps> = ({
                     step={0.1}
                     value={currentTime}
                     onChange={handleSeek}
-                    className="flex-1 h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-emerald-400 hover:accent-cyan-400 transition-all"
+                    className="flex-1 h-1.5 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-lg appearance-none cursor-pointer accent-[var(--accent-color)] transition-all"
                 />
 
                 {/* Volume Control */}
@@ -267,7 +251,7 @@ export const VideoPreview: React.FC<VideoPreviewProps> = ({
                     <button
                         type="button"
                         onClick={toggleMute}
-                        className="p-1.5 rounded hover:bg-white/10 text-zinc-400 hover:text-white transition-colors"
+                        className="p-1.5 rounded hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
                     >
                         {isMuted || volume === 0 ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
                     </button>
@@ -278,7 +262,7 @@ export const VideoPreview: React.FC<VideoPreviewProps> = ({
                         step={0.05}
                         value={isMuted ? 0 : volume}
                         onChange={handleVolumeChange}
-                        className="w-16 h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-emerald-400"
+                        className="w-16 h-1.5 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-lg appearance-none cursor-pointer accent-[var(--accent-color)]"
                     />
                 </div>
 
@@ -286,7 +270,7 @@ export const VideoPreview: React.FC<VideoPreviewProps> = ({
                 <button
                     type="button"
                     onClick={toggleFullscreen}
-                    className="p-1.5 rounded hover:bg-white/10 text-zinc-400 hover:text-white transition-colors"
+                    className="p-1.5 rounded hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
                     title="Fullscreen"
                 >
                     <Maximize className="w-4 h-4" />
