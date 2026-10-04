@@ -5,6 +5,7 @@ import { ChatWorkspace } from './features/chat/components/ChatWorkspace';
 import { SidebarContent } from './components/layout/SidebarContent';
 import { BubbleLauncher } from './components/layout/BubbleLauncher';
 import { SettingsOverlay } from './features/settings/SettingsOverlay';
+import { AuthTokenModal } from './features/settings/components/AuthTokenModal';
 import { Cpu, Database, Maximize2 } from 'lucide-react';
 import { useThemeStore } from './store/ui/useThemeStore';
 import { useLayoutStore } from './store/ui/useLayoutStore';
@@ -177,6 +178,9 @@ function MainAppContent() {
             {cursorType === 'neon' && <NeonPulseCursor />}
             {cursorType === 'canvas' && <CanvasCursor />}
             {cursorType === 'aura' && <AuraCursor />}
+
+            {/* Global Auth Disconnect Recovery Modal */}
+            <AuthTokenModal />
 
             {/* Global Notification & Toast Portal */}
             <ToastContainer />

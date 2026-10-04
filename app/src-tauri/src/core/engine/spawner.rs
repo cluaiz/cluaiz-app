@@ -367,9 +367,30 @@ pub async fn update_engine_settings(app: AppHandle, payload: serde_json::Value) 
     Err("Engine IPC or REST bridge not connected".to_string())
 }
 
+fn extract_token_from_permission_file(path: &std::path::Path) -> Option<String> {
+    if !path.exists() {
+        return None;
+    }
+    if let Ok(content) = std::fs::read_to_string(path) {
+        if let Ok(val) = serde_json::from_str::<serde_json::Value>(&content) {
+            if let Some(tokens) = val.get("api_auth").and_then(|a| a.get("tokens")).and_then(|t| t.as_array()) {
+                for token in tokens {
+                    if let Some(t_str) = token.as_str() {
+                        let trimmed = t_str.trim();
+                        if !trimmed.is_empty() {
+                            return Some(trimmed.to_string());
+                        }
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
 #[tauri::command]
 pub fn get_session_token() -> Result<String, String> {
-    // 1. Dynamic probe: check canonical workspace engine directory
+    // 1. Dynamic probe: check canonical workspace engine directory for session.token
     if let Ok(bin_dir) = get_cluaiz_bin_path() {
         if let Some(root) = bin_dir.parent() {
             let candidate = root.join("session.token");
@@ -383,14 +404,37 @@ pub fn get_session_token() -> Result<String, String> {
             }
         }
     }
+
     // 2. Standard OS home directory: ~/.cluaiz/session.token (Cross-Platform)
-    let home = dirs::home_dir().ok_or("Could not find home directory")?;
-    let token_path = home.join(".cluaiz").join("session.token");
-    if token_path.exists() {
-        std::fs::read_to_string(token_path)
-            .map(|t| t.trim().to_string())
-            .map_err(|e| e.to_string())
-    } else {
-        Err("session.token not found".to_string())
+    if let Some(home) = dirs::home_dir() {
+        let token_path = home.join(".cluaiz").join("session.token");
+        if token_path.exists() {
+            if let Ok(token) = std::fs::read_to_string(&token_path) {
+                let trimmed = token.trim();
+                if !trimmed.is_empty() {
+                    return Ok(trimmed.to_string());
+                }
+            }
+        }
     }
+
+    // 3. Fallback: Parse permission.json directly from local workspace or home config
+    if let Ok(bin_dir) = get_cluaiz_bin_path() {
+        if let Some(root) = bin_dir.parent() {
+            if let Some(t) = extract_token_from_permission_file(&root.join("permission.json"))
+                .or_else(|| extract_token_from_permission_file(&root.join("Permission.json"))) {
+                return Ok(t);
+            }
+        }
+    }
+
+    if let Some(home) = dirs::home_dir() {
+        let home_cluaiz = home.join(".cluaiz");
+        if let Some(t) = extract_token_from_permission_file(&home_cluaiz.join("permission.json"))
+            .or_else(|| extract_token_from_permission_file(&home_cluaiz.join("Permission.json"))) {
+            return Ok(t);
+        }
+    }
+
+    Err("No valid session token or configured API token found on local machine".to_string())
 }
