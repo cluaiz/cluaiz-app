@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { ToggleSwitch } from './SharedComponents';
-import { useConnectionStore } from '../../store/engine/useConnectionStore';
+import { componentsApi, skillsApi, pluginsApi, mcpApi } from '../../api';
+import { toast } from '../../components/ui/toast';
 import { 
     Zap, Blocks, Cpu, CheckCircle2, ExternalLink, RefreshCw, Loader2, 
     Search, X, Bot, UserCheck
@@ -12,13 +13,12 @@ import { CustomDropdown, DropdownOption } from '../../components/ui/dropdown/Cus
 const PAGE_SIZE = 20;
 
 const SECURITY_POLICY_OPTIONS: DropdownOption[] = [
-    { value: 'sandboxed', label: 'Inherit Global', description: 'Follows system security mode defined in Permissions' },
-    { value: 'strict', label: 'Require Approval', description: 'Always prompt for user confirmation before execution' },
-    { value: 'full_access', label: 'Always Allow', description: 'Bypass confirmation prompts and execute directly' },
+    { value: 'inherit', label: 'Inherit Global', description: 'Follows system security mode defined in Permissions' },
+    { value: 'require_approval', label: 'Require Approval', description: 'Always prompt for user confirmation before execution' },
+    { value: 'always_allow', label: 'Always Allow', description: 'Bypass confirmation prompts and execute directly' },
 ];
 
 export function ToolsSettings() {
-    const { getBaseUrl } = useConnectionStore();
     const [filter, setFilter] = useState<'all' | 'skill' | 'plugin' | 'mcp'>('all');
     const [searchQuery, setSearchQuery] = useState('');
     const [tools, setTools] = useState<ToolComponent[]>([]);
@@ -26,48 +26,47 @@ export function ToolsSettings() {
     const [isLoading, setIsLoading] = useState(true);
     const [cacheMessage, setCacheMessage] = useState<string | null>(null);
     const [selectedTool, setSelectedTool] = useState<ToolComponent | null>(null);
+    const [pendingTools, setPendingTools] = useState<Record<string, boolean>>({});
+    const [pendingExecTarget, setPendingExecTarget] = useState<Record<string, 'auto' | 'manual'>>({});
 
-    // Fetch tools list from engine backend
+    // Fetch tools list from engine backend (100% single source of truth from tools_registry.json)
     const loadTools = useCallback(async () => {
         setIsLoading(true);
-        const baseUrl = getBaseUrl();
         try {
-            const res = await fetch(`${baseUrl}/api/components/list`);
-            if (res.ok) {
-                const data = await res.json();
-                let loaded: ToolComponent[] = [];
+            const data = await componentsApi.listComponents();
+            let loaded: ToolComponent[] = [];
 
-                if (data.rich) {
-                    for (const [_, items] of Object.entries(data.rich)) {
-                        if (Array.isArray(items)) {
-                            loaded.push(...items);
-                        }
+            if (data?.rich) {
+                for (const [_, items] of Object.entries(data.rich)) {
+                    if (Array.isArray(items)) {
+                        loaded.push(...(items as ToolComponent[]));
                     }
-                } else {
-                    for (const cat of ['skill', 'plugin', 'mcp']) {
-                        if (Array.isArray(data[cat])) {
-                            for (const id of data[cat]) {
-                                loaded.push({
-                                    id,
-                                    name: id,
-                                    category: cat,
-                                    version: '1.0.0',
-                                    description: `Installed ${cat} component.`,
-                                    enabled: true,
-                                    execution_mode: 'auto'
-                                });
-                            }
+                }
+            } else if (data) {
+                for (const cat of ['skill', 'plugin', 'mcp']) {
+                    if (Array.isArray(data[cat])) {
+                        for (const id of data[cat]) {
+                            loaded.push({
+                                id,
+                                name: id,
+                                category: cat,
+                                version: '1.0.0',
+                                description: `Installed ${cat} component.`,
+                                enabled: true,
+                                execution_mode: 'auto'
+                            });
                         }
                     }
                 }
-                setTools(loaded);
             }
+
+            setTools(loaded);
         } catch (err) {
             console.error('[ToolsSettings] Failed to fetch tools from backend:', err);
         } finally {
             setIsLoading(false);
         }
-    }, [getBaseUrl]);
+    }, []);
 
     useEffect(() => {
         loadTools();
@@ -82,86 +81,145 @@ export function ToolsSettings() {
     const handleToggleTool = async (tool: ToolComponent, e?: React.MouseEvent) => {
         if (e) e.stopPropagation();
         const newEnabled = !tool.enabled;
+        setPendingTools(prev => ({ ...prev, [`${tool.id}_toggle`]: true }));
 
-        setTools(prev => prev.map(t => t.id === tool.id ? { ...t, enabled: newEnabled } : t));
-        if (selectedTool && selectedTool.id === tool.id) {
-            setSelectedTool(prev => prev ? { ...prev, enabled: newEnabled } : null);
-        }
-
-        const baseUrl = getBaseUrl();
         try {
-            await fetch(`${baseUrl}/api/components/settings`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
+            await toast.promise(
+                componentsApi.updateSettings({
                     component_type: tool.category,
                     component_id: tool.id,
                     settings: { enabled: newEnabled }
-                })
-            });
-            setCacheMessage(`${tool.name} ${newEnabled ? 'Enabled' : 'Disabled'}`);
-            setTimeout(() => setCacheMessage(null), 2500);
-        } catch (err) {
-            console.error('[ToolsSettings] Failed to sync component toggle:', err);
-            setTools(prev => prev.map(t => t.id === tool.id ? { ...t, enabled: !newEnabled } : t));
+                }),
+                {
+                    loading: `${newEnabled ? 'Enabling' : 'Disabling'} ${tool.name}...`,
+                    success: `${tool.name} ${newEnabled ? 'Enabled' : 'Disabled'}`,
+                    error: (err: any) => `Failed to update ${tool.name}: ${err?.message || 'Error'}`
+                }
+            );
+
+            // Only update UI state after backend confirms successful disk write
+            setTools(prev => prev.map(t => t.id === tool.id ? { ...t, enabled: newEnabled } : t));
             if (selectedTool && selectedTool.id === tool.id) {
-                setSelectedTool(prev => prev ? { ...prev, enabled: !newEnabled } : null);
+                setSelectedTool(prev => prev ? { ...prev, enabled: newEnabled } : null);
             }
+        } catch (err) {
+            console.error('[ToolsSettings] Failed to sync component toggle to engine:', err);
+        } finally {
+            setPendingTools(prev => ({ ...prev, [`${tool.id}_toggle`]: false }));
         }
     };
 
     // Update specific tool's execution mode (Auto / Manual)
     const handleUpdateToolExecutionMode = async (tool: ToolComponent, mode: 'auto' | 'manual', e?: React.MouseEvent) => {
         if (e) e.stopPropagation();
-        setTools(prev => prev.map(t => t.id === tool.id ? { ...t, execution_mode: mode } : t));
-        if (selectedTool && selectedTool.id === tool.id) {
-            setSelectedTool(prev => prev ? { ...prev, execution_mode: mode } : null);
-        }
-        const baseUrl = getBaseUrl();
+        if (tool.execution_mode === mode) return;
+
+        setPendingTools(prev => ({ ...prev, [`${tool.id}_exec`]: true }));
+        setPendingExecTarget(prev => ({ ...prev, [tool.id]: mode }));
+
         try {
-            await fetch(`${baseUrl}/api/components/settings`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
+            await toast.promise(
+                componentsApi.updateSettings({
                     component_type: tool.category,
                     component_id: tool.id,
                     settings: { execution_mode: mode }
-                })
-            });
-            setCacheMessage(`${tool.name} trigger set to ${mode.toUpperCase()}`);
-            setTimeout(() => setCacheMessage(null), 2500);
+                }),
+                {
+                    loading: `Setting ${tool.name} trigger mode to ${mode.toUpperCase()}...`,
+                    success: `${tool.name} trigger set to ${mode.toUpperCase()}`,
+                    error: (err: any) => `Failed to update trigger mode for ${tool.name}: ${err?.message || 'Error'}`
+                }
+            );
+
+            // Only update UI state after backend confirms successful disk write
+            setTools(prev => prev.map(t => t.id === tool.id ? { ...t, execution_mode: mode } : t));
+            if (selectedTool && selectedTool.id === tool.id) {
+                setSelectedTool(prev => prev ? { ...prev, execution_mode: mode } : null);
+            }
         } catch (err) {
             console.error('[ToolsSettings] Failed to update tool execution mode:', err);
+        } finally {
+            setPendingTools(prev => ({ ...prev, [`${tool.id}_exec`]: false }));
+            setPendingExecTarget(prev => {
+                const next = { ...prev };
+                delete next[tool.id];
+                return next;
+            });
         }
     };
 
-    // Update specific tool's security mode override
-    const handleUpdateToolSecurityMode = async (tool: ToolComponent, mode: 'sandboxed' | 'strict' | 'full_access', e?: React.MouseEvent) => {
+    // Update specific tool's security mode override (inherit / require_approval / always_allow)
+    const handleUpdateToolSecurityMode = async (tool: ToolComponent, mode: 'inherit' | 'require_approval' | 'always_allow', e?: React.MouseEvent) => {
         if (e) e.stopPropagation();
-        setTools(prev => prev.map(t => t.id === tool.id ? { ...t, security_mode: mode } : t));
-        if (selectedTool && selectedTool.id === tool.id) {
-            setSelectedTool(prev => prev ? { ...prev, security_mode: mode } : null);
-        }
-        const baseUrl = getBaseUrl();
+        if (tool.security_mode === mode) return;
+
+        setPendingTools(prev => ({ ...prev, [`${tool.id}_sec`]: true }));
+
+        const labelMap: Record<string, string> = {
+            inherit: 'Inherit Global',
+            require_approval: 'Require Approval',
+            always_allow: 'Always Allow'
+        };
+
         try {
-            await fetch(`${baseUrl}/api/components/settings`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
+            await toast.promise(
+                componentsApi.updateSettings({
                     component_type: tool.category,
                     component_id: tool.id,
                     settings: { security_mode: mode }
-                })
-            });
-            const labelMap: Record<string, string> = {
-                sandboxed: 'Inherit Global',
-                strict: 'Require Approval',
-                full_access: 'Always Allow'
-            };
-            setCacheMessage(`${tool.name} policy set to "${labelMap[mode] || mode}"`);
-            setTimeout(() => setCacheMessage(null), 2500);
+                }),
+                {
+                    loading: `Updating policy for ${tool.name}...`,
+                    success: `${tool.name} policy set to "${labelMap[mode] || mode}"`,
+                    error: (err: any) => `Failed to update policy for ${tool.name}: ${err?.message || 'Error'}`
+                }
+            );
+
+            // Only update UI state after backend confirms successful disk write
+            setTools(prev => prev.map(t => t.id === tool.id ? { ...t, security_mode: mode } : t));
+            if (selectedTool && selectedTool.id === tool.id) {
+                setSelectedTool(prev => prev ? { ...prev, security_mode: mode } : null);
+            }
         } catch (err) {
             console.error('[ToolsSettings] Failed to update tool security mode:', err);
+        } finally {
+            setPendingTools(prev => ({ ...prev, [`${tool.id}_sec`]: false }));
+        }
+    };
+
+    // Delete / Uninstall tool from engine (called from ToolInspectorModal after in-app confirmation)
+    const handleDeleteTool = async (tool: ToolComponent) => {
+        setPendingTools(prev => ({ ...prev, [`${tool.id}_delete`]: true }));
+
+        try {
+            await toast.promise(
+                async () => {
+                    if (tool.category === 'skill') {
+                        await skillsApi.removeSkill(tool.id);
+                    } else if (tool.category === 'plugin') {
+                        await pluginsApi.removePlugin(tool.id);
+                    } else if (tool.category === 'mcp') {
+                        await mcpApi.removeMcp(tool.id);
+                    } else {
+                        await skillsApi.removeSkill(tool.id);
+                    }
+                },
+                {
+                    loading: `Uninstalling ${tool.name}...`,
+                    success: `${tool.name} successfully uninstalled`,
+                    error: (err: any) => `Failed to uninstall ${tool.name}: ${err?.message || 'Error'}`
+                }
+            );
+
+            // Remove from local tools list
+            setTools(prev => prev.filter(t => t.id !== tool.id));
+            if (selectedTool && selectedTool.id === tool.id) {
+                setSelectedTool(null);
+            }
+        } catch (err) {
+            console.error('[ToolsSettings] Failed to delete tool:', err);
+        } finally {
+            setPendingTools(prev => ({ ...prev, [`${tool.id}_delete`]: false }));
         }
     };
 
@@ -188,18 +246,41 @@ export function ToolsSettings() {
 
     return (
         <div className="space-y-6 select-none pb-12">
-            {/* Top Bar: Search + Category Filter Tabs + Refresh */}
-            <div className="space-y-3">
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+            {/* Unified Responsive Toolbar: Tabs + Search + Actions */}
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 p-1.5 bg-[var(--bg-secondary)]/40 border border-[var(--border-color)]/70 rounded-2xl shadow-sm">
+                {/* Left: Category Filter Tabs */}
+                <div className="flex items-center gap-1 p-1 bg-[var(--bg-secondary)]/90 border border-[var(--border-color)]/50 rounded-xl overflow-x-auto custom-scrollbar shrink-0">
+                    {(['all', 'skill', 'plugin', 'mcp'] as const).map((tab) => (
+                        <button
+                            key={tab}
+                            type="button"
+                            onClick={() => setFilter(tab)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap ${
+                                filter === tab
+                                    ? 'bg-[var(--accent-color)] text-[var(--bg-primary)] shadow-sm'
+                                    : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/[0.04]'
+                            }`}
+                        >
+                            {tab === 'all' ? 'All' : tab === 'mcp' ? 'MCP' : `${tab}s`}
+                        </button>
+                    ))}
+                    <div className="h-4 w-px bg-[var(--border-color)]/60 my-auto mx-1 shrink-0" />
+                    <span className="text-[10px] text-[var(--text-muted)] font-mono font-bold px-2 py-0.5 rounded bg-[var(--bg-tertiary)]/70 whitespace-nowrap shrink-0">
+                        {filteredTools.length} {filteredTools.length === 1 ? 'item' : 'items'}
+                    </span>
+                </div>
+
+                {/* Right: Search Input + Refresh Button */}
+                <div className="flex items-center gap-2 flex-1 lg:max-w-md justify-end">
                     {/* Search Input */}
-                    <div className="relative flex-1 max-w-md">
-                        <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
+                    <div className="relative flex-1">
+                        <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)] pointer-events-none" />
                         <input
                             type="text"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             placeholder="Search tools, skills, or triggers..."
-                            className="w-full bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl pl-9 pr-9 py-2 text-xs text-[var(--text-primary)] outline-none focus:border-[var(--accent-color)] transition-colors shadow-sm"
+                            className="w-full bg-[var(--bg-secondary)]/90 border border-[var(--border-color)]/70 rounded-xl pl-9 pr-9 py-1.5 text-xs text-[var(--text-primary)] outline-none focus:border-[var(--accent-color)] transition-colors shadow-sm placeholder:text-[var(--text-muted)]"
                         />
                         {searchQuery && (
                             <button
@@ -213,37 +294,15 @@ export function ToolsSettings() {
                     </div>
 
                     {/* Refresh Button */}
-                    <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
-                        <button
-                            type="button"
-                            onClick={loadTools}
-                            title="Reload tools and skills"
-                            className="flex items-center gap-1.5 px-3 py-2 bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-xl text-xs font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all cursor-pointer shadow-sm"
-                        >
-                            <RefreshCw size={13} className={isLoading ? 'animate-spin' : ''} /> Refresh
-                        </button>
-                    </div>
-                </div>
-
-                {/* Category Filter Tabs */}
-                <div className="flex items-center gap-1.5 p-1 bg-[var(--bg-secondary)]/80 border border-[var(--border-color)] rounded-xl w-fit">
-                    {(['all', 'skill', 'plugin', 'mcp'] as const).map((tab) => (
-                        <button
-                            key={tab}
-                            type="button"
-                            onClick={() => setFilter(tab)}
-                            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
-                                filter === tab
-                                    ? 'bg-[var(--accent-color)] text-[var(--bg-primary)] shadow-sm'
-                                    : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-                            }`}
-                        >
-                            {tab === 'all' ? 'All' : tab === 'mcp' ? 'MCP' : `${tab}s`}
-                        </button>
-                    ))}
-                    <span className="text-[10px] text-[var(--text-muted)] px-2 font-mono">
-                        {filteredTools.length} {filteredTools.length === 1 ? 'item' : 'items'}
-                    </span>
+                    <button
+                        type="button"
+                        onClick={loadTools}
+                        title="Reload tools and skills"
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-[var(--bg-secondary)]/90 hover:bg-[var(--bg-tertiary)] border border-[var(--border-color)]/70 rounded-xl text-xs font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all cursor-pointer shadow-sm shrink-0"
+                    >
+                        <RefreshCw size={13} className={isLoading ? 'animate-spin' : ''} />
+                        <span className="hidden sm:inline">Refresh</span>
+                    </button>
                 </div>
             </div>
 
@@ -278,7 +337,12 @@ export function ToolsSettings() {
                     <div className="space-y-2">
                         {paginatedTools.map((tool) => {
                             const isAuto = (tool.execution_mode || 'auto') === 'auto';
-                            const activeSecMode = tool.security_mode || 'sandboxed';
+                            const activeSecMode = tool.security_mode || 'inherit';
+                            const isExecPending = Boolean(pendingTools[`${tool.id}_exec`]);
+                            const execTarget = pendingExecTarget[tool.id];
+                            const isSecPending = Boolean(pendingTools[`${tool.id}_sec`]);
+                            const isTogglePending = Boolean(pendingTools[`${tool.id}_toggle`]);
+                            const isAnyPending = isExecPending || isSecPending || isTogglePending;
 
                             return (
                                 <div
@@ -354,25 +418,35 @@ export function ToolsSettings() {
                                         >
                                             <button
                                                 type="button"
+                                                disabled={isExecPending}
                                                 onClick={(e) => handleUpdateToolExecutionMode(tool, 'auto', e)}
-                                                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                                                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer disabled:opacity-50 ${
                                                     isAuto
                                                         ? 'bg-[var(--accent-color)] text-[var(--bg-primary)] shadow-sm'
                                                         : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
                                                 }`}
                                             >
-                                                <Bot size={11} /> Auto
+                                                {isExecPending && execTarget === 'auto' ? (
+                                                    <Loader2 size={11} className={`animate-spin ${isAuto ? 'text-[var(--bg-primary)]' : 'text-[var(--accent-color)]'}`} />
+                                                ) : (
+                                                    <Bot size={11} />
+                                                )} Auto
                                             </button>
                                             <button
                                                 type="button"
+                                                disabled={isExecPending}
                                                 onClick={(e) => handleUpdateToolExecutionMode(tool, 'manual', e)}
-                                                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                                                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer disabled:opacity-50 ${
                                                     !isAuto
                                                         ? 'bg-[var(--accent-color)] text-[var(--bg-primary)] shadow-sm'
                                                         : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
                                                 }`}
                                             >
-                                                <UserCheck size={11} /> Manual
+                                                {isExecPending && execTarget === 'manual' ? (
+                                                    <Loader2 size={11} className={`animate-spin ${!isAuto ? 'text-[var(--bg-primary)]' : 'text-[var(--accent-color)]'}`} />
+                                                ) : (
+                                                    <UserCheck size={11} />
+                                                )} Manual
                                             </button>
                                         </div>
 
@@ -380,14 +454,18 @@ export function ToolsSettings() {
                                         <CustomDropdown
                                             value={activeSecMode}
                                             options={SECURITY_POLICY_OPTIONS}
-                                            onChange={(val) => handleUpdateToolSecurityMode(tool, val as 'sandboxed' | 'strict' | 'full_access')}
-                                            className="w-48"
+                                            onChange={(val) => handleUpdateToolSecurityMode(tool, val as 'inherit' | 'require_approval' | 'always_allow')}
+                                            className="w-44"
+                                            loading={isSecPending}
+                                            disabled={isSecPending}
                                         />
 
                                         {/* On / Off Toggle Switch */}
                                         <ToggleSwitch 
                                             active={tool.enabled} 
-                                            onToggle={() => handleToggleTool(tool)} 
+                                            onToggle={() => handleToggleTool(tool)}
+                                            loading={isTogglePending}
+                                            disabled={isTogglePending}
                                         />
                                     </div>
                                 </div>
@@ -414,7 +492,7 @@ export function ToolsSettings() {
             <ToolInspectorModal
                 tool={selectedTool}
                 onClose={() => setSelectedTool(null)}
-                getBaseUrl={getBaseUrl}
+                onDeleteTool={handleDeleteTool}
             />
 
             {/* Floating Toast Notification (Zero Layout Shift) */}
