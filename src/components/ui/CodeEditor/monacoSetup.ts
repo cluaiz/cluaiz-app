@@ -140,8 +140,8 @@ export const defineCluaizThemes = (monaco: any, accentColor?: string) => {
                 'editorLineNumber.foreground': muted,
                 'editorLineNumber.activeForeground': activeAccent,
                 'editorCursor.foreground': activeAccent,
-                'editor.lineHighlightBackground': isLightTheme ? '#f0f4f8' : `${activeAccent}0d`,
-                'editor.lineHighlightBorder': 'transparent',
+                'editor.lineHighlightBackground': isLightTheme ? '#0000000a' : `${activeAccent}12`,
+                'editor.lineHighlightBorder': '#00000000',
                 'editor.selectionBackground': isLightTheme ? '#c8e1ff' : `${activeAccent}33`,
                 'editor.inactiveSelectionBackground': isLightTheme ? '#e8f0fe' : `${activeAccent}1a`,
                 'editorGutter.background': bg,
@@ -149,7 +149,7 @@ export const defineCluaizThemes = (monaco: any, accentColor?: string) => {
                 'editorIndentGuide.activeBackground': `${activeAccent}55`,
                 'editorBracketMatch.background': `${activeAccent}18`,
                 'editorBracketMatch.border': `${activeAccent}66`,
-                'editorOverviewRuler.border': 'transparent',
+                'editorOverviewRuler.border': '#00000000',
                 'editorWidget.background': cardBg,
                 'editorWidget.border': border,
                 'editorSuggestWidget.background': cardBg,
@@ -166,7 +166,9 @@ export const defineCluaizThemes = (monaco: any, accentColor?: string) => {
         rules: [],
         colors: {
             'editor.background': accentColor ? blendAccentWithDark(accentColor, '#020306', 0.045) : '#04050b',
-            'editorGutter.background': accentColor ? blendAccentWithDark(accentColor, '#020306', 0.045) : '#04050b'
+            'editorGutter.background': accentColor ? blendAccentWithDark(accentColor, '#020306', 0.045) : '#04050b',
+            'editor.lineHighlightBackground': accentColor ? `${accentColor}12` : '#ffffff08',
+            'editor.lineHighlightBorder': '#00000000'
         }
     });
 
@@ -176,7 +178,9 @@ export const defineCluaizThemes = (monaco: any, accentColor?: string) => {
         rules: [],
         colors: {
             'editor.background': '#fafafa',
-            'editorGutter.background': '#fafafa'
+            'editorGutter.background': '#fafafa',
+            'editor.lineHighlightBackground': '#0000000a',
+            'editor.lineHighlightBorder': '#00000000'
         }
     });
 };
