@@ -725,7 +725,8 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
 
                         // Whitespace & Special Character Rendering
                         renderWhitespace: isWhitespaceEnabled ? 'all' : 'selection',
-                        renderLineHighlight: 'all',
+                        renderLineHighlight: 'line',
+                        renderLineHighlightOnlyWhenFocus: true,
                         renderControlCharacters: true,
                         colorDecorators: true,
                         links: true,
