@@ -7,6 +7,7 @@ import { ChevronDown, Copy, Trash2, X, HatGlasses, FileText, WifiOff } from 'luc
 import { toast } from '../../../components/ui/toast';
 import { MessageContextMenu } from '../../../components/ui/context-menu/MessageContextMenu';
 import { GlobalChatContextMenu } from '../../../components/ui/context-menu/GlobalChatContextMenu';
+import { DynamicGreeting } from './DynamicGreeting';
 import { DateDivider } from '../../../components/ui/DateDivider';
 import { ChatHeader } from './ChatHeader';
 import { ChatInput } from './ChatInput';
@@ -609,13 +610,7 @@ main().catch(console.error);`);
                 {messages.length === 0 ? (
                     <div className="flex-1 flex flex-col items-center justify-center p-2 sm:p-4 md:p-8 z-20 relative">
 
-                        <motion.h1
-                            initial={{ opacity: 0, y: -20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className="text-3xl font-extrabold text-center mb-8 text-[var(--text-primary)] tracking-tight"
-                        >
-                            Hi, User
-                        </motion.h1>
+                        <DynamicGreeting />
 
                         {/* Background offline watermark when engine is not connected */}
                         {!isEngineOnline && (
