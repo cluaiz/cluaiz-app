@@ -7,11 +7,17 @@ import type {
   ActiveProcess,
   CmdResponse,
   CommandExecutionEntry,
+  HardwareProfileResponse,
+  SystemLiveResponse,
+  LatencyComparePayload,
+  LatencyCompareResponse,
 } from './system.types';
 
 export interface SystemState {
   health: HealthResponse | null;
   info: SystemInfoResponse | null;
+  hardwareInfo: HardwareProfileResponse | null;
+  liveTelemetry: SystemLiveResponse | null;
   processes: ActiveProcess[];
   hardwareSnapshot: Record<string, any> | null;
   systemControl: any | null;
@@ -23,6 +29,10 @@ export interface SystemState {
   // Actions
   checkHealth: () => Promise<boolean>;
   fetchInfo: () => Promise<void>;
+  fetchHardwareInfo: () => Promise<void>;
+  fetchLiveTelemetry: () => Promise<void>;
+  compareLatency: (payload: LatencyComparePayload) => Promise<LatencyCompareResponse>;
+  planExecution: (payload: LatencyComparePayload) => Promise<LatencyCompareResponse>;
   fetchProcesses: () => Promise<void>;
   fetchSystemControl: () => Promise<void>;
   executeCommand: (command: string) => Promise<CmdResponse>;
@@ -33,6 +43,8 @@ export interface SystemState {
 export const useSystemStore = create<SystemState>((set, get) => ({
   health: null,
   info: null,
+  hardwareInfo: null,
+  liveTelemetry: null,
   processes: [],
   hardwareSnapshot: null,
   systemControl: null,
@@ -59,6 +71,32 @@ export const useSystemStore = create<SystemState>((set, get) => ({
     } catch (err) {
       set({ error: errorMessage(err) });
     }
+  },
+
+  fetchHardwareInfo: async () => {
+    try {
+      const res = await systemApi.getHardwareInfo();
+      set({ hardwareInfo: res, error: null });
+    } catch (err) {
+      set({ error: errorMessage(err) });
+    }
+  },
+
+  fetchLiveTelemetry: async () => {
+    try {
+      const res = await systemApi.getLiveTelemetry();
+      set({ liveTelemetry: res, error: null });
+    } catch (err) {
+      set({ error: errorMessage(err) });
+    }
+  },
+
+  compareLatency: async (payload: LatencyComparePayload) => {
+    return systemApi.compareLatency(payload);
+  },
+
+  planExecution: async (payload: LatencyComparePayload) => {
+    return systemApi.planExecution(payload);
   },
 
   fetchProcesses: async () => {
@@ -128,6 +166,8 @@ export const useSystemStore = create<SystemState>((set, get) => ({
     set({
       health: null,
       info: null,
+      hardwareInfo: null,
+      liveTelemetry: null,
       processes: [],
       hardwareSnapshot: null,
       systemControl: null,

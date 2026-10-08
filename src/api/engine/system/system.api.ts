@@ -8,6 +8,10 @@ import type {
   CmdResponse,
   ProcessTelemetryResponse,
   SystemControlResponse,
+  HardwareProfileResponse,
+  SystemLiveResponse,
+  LatencyComparePayload,
+  LatencyCompareResponse,
 } from './system.types';
 
 export const systemApi = {
@@ -23,6 +27,34 @@ export const systemApi = {
    */
   getSystemInfo: async (): Promise<SystemInfoResponse> => {
     return client.get<SystemInfoResponse>(SYSTEM_ENDPOINTS.INFO, { skipAuth: true });
+  },
+
+  /**
+   * Fetches calibrated host hardware profile and silicon truth: CPU GFLOPS, RAM bandwidth, GPU VRAM, PCIe Gen/width.
+   */
+  getHardwareInfo: async (): Promise<HardwareProfileResponse> => {
+    return client.get<HardwareProfileResponse>(SYSTEM_ENDPOINTS.INFO_HARDWARE);
+  },
+
+  /**
+   * Fetches live real-time system metrics: host RAM/VRAM, per-core CPU %, engine process RSS memory and CPU usage.
+   */
+  getLiveTelemetry: async (): Promise<SystemLiveResponse> => {
+    return client.get<SystemLiveResponse>(SYSTEM_ENDPOINTS.LIVE);
+  },
+
+  /**
+   * Autonomously plans model hardware placement and evaluates the 5 execution candidates.
+   */
+  planExecution: async (payload: LatencyComparePayload): Promise<LatencyCompareResponse> => {
+    return client.post<LatencyCompareResponse>(SYSTEM_ENDPOINTS.PLAN, payload);
+  },
+
+  /**
+   * Compares execution latency head-to-head between direct host RAM -> CPU vs RAM -> PCIe -> GPU streaming.
+   */
+  compareLatency: async (payload: LatencyComparePayload): Promise<LatencyCompareResponse> => {
+    return client.post<LatencyCompareResponse>(SYSTEM_ENDPOINTS.COMPARE, payload);
   },
 
   /**

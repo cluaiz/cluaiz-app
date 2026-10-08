@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useApiStore } from '../../../store/api/useApiStore';
 import { MarkdownRenderer } from '../../../components/ui/MarkdownRenderer';
 import { CodeEditor } from '../../../components/ui/CodeEditor';
-import { FileText, Code2, Braces, Sliders, Check, Copy } from 'lucide-react';
+import { FileText, Code2, Braces, Sliders, Check, Copy, Sparkles } from 'lucide-react';
 
 export const RequestTabs: React.FC = () => {
     const {
@@ -11,6 +11,7 @@ export const RequestTabs: React.FC = () => {
         reqBody,
         reqHeaders,
         reqLanguage,
+        installedModels,
         setActiveTab,
         setReqBody,
         setReqHeaders
@@ -111,11 +112,55 @@ export const RequestTabs: React.FC = () => {
                 {/* 1. Body Editor Tab */}
                 {activeTab === 'params' && (
                     <div className="h-full flex flex-col">
-                        <CodeEditor
-                            value={reqBody}
-                            onChange={setReqBody}
-                            language={reqLanguage || 'json'}
-                        />
+                        {activeEndpoint && activeEndpoint.path.includes('/plan') && (
+                            <div className="flex items-center justify-between px-3 py-1.5 mb-2 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg text-xs">
+                                <div className="flex items-center gap-1.5 font-medium text-[var(--text-muted)]">
+                                    <Sparkles className="w-3.5 h-3.5 text-[var(--accent-color)]" />
+                                    <span>Model Preset:</span>
+                                </div>
+                                <select
+                                    value={(() => {
+                                        try {
+                                            const parsed = JSON.parse(reqBody);
+                                            return parsed.model || parsed.model_path || 'bonsai-4b-gguf-q1_0';
+                                        } catch {
+                                            return 'bonsai-4b-gguf-q1_0';
+                                        }
+                                    })()}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        setReqBody(JSON.stringify({ model: val }, null, 2));
+                                    }}
+                                    className="bg-transparent border-0 text-[var(--text-primary)] text-xs font-mono focus:outline-none cursor-pointer"
+                                >
+                                    {installedModels && installedModels.length > 0 && (
+                                        <optgroup label="Installed Models" className="bg-[var(--bg-primary)] text-[var(--text-primary)]">
+                                            {installedModels.map((m) => (
+                                                <option key={m.id} value={m.id} className="bg-[var(--bg-primary)] text-[var(--text-primary)]">
+                                                    {m.id}
+                                                </option>
+                                            ))}
+                                        </optgroup>
+                                    )}
+                                    <optgroup label="Standard Models (Full ID & Quant)" className="bg-[var(--bg-primary)] text-[var(--text-primary)]">
+                                        <option value="bonsai-4b-gguf-q1_0" className="bg-[var(--bg-primary)] text-[var(--text-primary)]">bonsai-4b-gguf-q1_0 (0.82 GB, 28L)</option>
+                                        <option value="gemma-2-2b-it-q4_k_m" className="bg-[var(--bg-primary)] text-[var(--text-primary)]">gemma-2-2b-it-q4_k_m (1.96 GB, 28L)</option>
+                                        <option value="qwen2.5-0.5b-instruct-q4_k_m" className="bg-[var(--bg-primary)] text-[var(--text-primary)]">qwen2.5-0.5b-instruct-q4_k_m (0.35 GB, 24L)</option>
+                                        <option value="llama-3.2-1b-instruct-q4_k_m" className="bg-[var(--bg-primary)] text-[var(--text-primary)]">llama-3.2-1b-instruct-q4_k_m (1.24 GB, 16L)</option>
+                                        <option value="llama-3.2-3b-instruct-q4_k_m" className="bg-[var(--bg-primary)] text-[var(--text-primary)]">llama-3.2-3b-instruct-q4_k_m (3.21 GB, 28L)</option>
+                                        <option value="gemma-2-26b-moe-q4_k_m" className="bg-[var(--bg-primary)] text-[var(--text-primary)]">gemma-2-26b-moe-q4_k_m (11.96 GB, 30L)</option>
+                                        <option value="qwen2.5-7b-instruct-q4_k_m" className="bg-[var(--bg-primary)] text-[var(--text-primary)]">qwen2.5-7b-instruct-q4_k_m (4.68 GB, 28L)</option>
+                                    </optgroup>
+                                </select>
+                            </div>
+                        )}
+                        <div className="flex-1 min-h-0">
+                            <CodeEditor
+                                value={reqBody}
+                                onChange={setReqBody}
+                                language={reqLanguage || 'json'}
+                            />
+                        </div>
                     </div>
                 )}
 
