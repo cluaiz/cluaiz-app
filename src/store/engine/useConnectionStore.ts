@@ -30,7 +30,7 @@ const getFallbackConnection = () => {
             // Ignore storage parse errors
         }
     }
-    return { protocol: 'http', host: '0.0.0.0', port: 8080 };
+    return { protocol: 'http', host: '0.0.0.0', port: 8000 };
 };
 
 export const saveFallbackConnection = (conn: { protocol?: string; host?: string; port?: number }) => {

@@ -495,7 +495,7 @@ export function useChatTelemetry() {
             const res = await fetch(url).catch(() => null);
             if (res && res.ok) {
                 const data = await res.json();
-                const telemetry = data.context_telemetry?.context_breakdown || data.context_telemetry;
+                const telemetry = data.context_telemetry?.context_breakdown || data.context_telemetry || data.telemetry?.context_breakdown || data.telemetry;
                 if (telemetry) {
                     setBreakdown(prev => {
                         const safeMessagesTokens = telemetry.messages_tokens > 0 
