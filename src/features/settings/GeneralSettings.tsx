@@ -144,15 +144,21 @@ export function GeneralSettings() {
         try {
             await toast.promise(
                 async () => {
-                    await systemApi.updatePermission({ api_port: targetPort });
+                    // Immediately switch client connection port to target port
+                    useConnectionStore.getState().setPort(targetPort);
+                    try {
+                        await systemApi.updatePermission({ api_port: targetPort });
+                    } catch {
+                        // Backend may be currently on another port or restart pending
+                    }
                     await initEngineSettings();
                     setIsOffline(false);
                     setShowPortModal(false);
                     setPendingPort(null);
                 },
                 {
-                    loading: `Setting gateway port to ${targetPort} in permission.json...`,
-                    success: `Gateway port set to ${targetPort}. Please restart engine daemon to apply.`,
+                    loading: `Connecting to gateway port ${targetPort}...`,
+                    success: `Gateway port set to ${targetPort} and connected.`,
                     error: (err) => err?.message || 'Failed to sync port to engine'
                 }
             );

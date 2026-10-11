@@ -42,8 +42,10 @@ export const usePermissionStore = create<PermissionState>((set, get) => {
     } catch {
       // Return null on failure to prevent endless retry loops
     }
-    // Auto-prompt user with AuthTokenModal if desktop token discovery fails or running in web
-    set({ isAuthModalOpen: true });
+    // Auto-prompt user with AuthTokenModal strictly if engine explicitly enforces authentication
+    if (get().permissions?.api_auth?.required) {
+      set({ isAuthModalOpen: true });
+    }
     return null;
   });
 

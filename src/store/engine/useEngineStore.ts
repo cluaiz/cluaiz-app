@@ -161,15 +161,6 @@ export const useEngineStore = create<EngineState>()((set, get) => ({
                 }
 
                 // 2. Dynamic Engine Liveness Probe via public /health endpoint (Zero Hardcoded Magic Ports)
-                const configuredPort = useConnectionStore.getState().port;
-                if (configuredPort === 1420 || configuredPort === 1421 || configuredPort === 5173) {
-                    useConnectionStore.getState().setPort(8080);
-                }
-                const envPort = Number((import.meta as any).env?.VITE_ENGINE_PORT);
-                if (envPort && envPort >= 1024 && envPort <= 65535 && envPort !== 1420 && envPort !== 1421 && envPort !== 5173 && envPort !== useConnectionStore.getState().port) {
-                    useConnectionStore.getState().setPort(envPort);
-                }
-
                 try {
                     await client.get('/health', { skipAuth: true, timeoutMs: 1500 });
                 } catch (probeErr) {
@@ -202,14 +193,11 @@ export const useEngineStore = create<EngineState>()((set, get) => ({
                 }
 
                 if (!permData && !optData && !hwData) {
-                    const isAuthError = [permRes, optRes, hwRes, modelsRes].some(
-                        (r) =>
-                            r.status === 'rejected' &&
-                            ((r.reason as any)?.status === 401 ||
-                             String((r.reason as any)?.message || '').includes('401') ||
-                             String((r.reason as any)?.message || '').toLowerCase().includes('unauthorized'))
+                    // Strict 401 verification from server response — never trigger auth modal on network/offline errors
+                    const isStrictAuthError = [permRes, optRes, hwRes, modelsRes].some(
+                        (r) => r.status === 'rejected' && (r.reason as any)?.status === 401
                     );
-                    if (isAuthError) {
+                    if (isStrictAuthError) {
                         set({ fetchStatus: 'auth_required' });
                         usePermissionStore.getState().setAuthModalOpen(true);
                         return;

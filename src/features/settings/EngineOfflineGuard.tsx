@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { ServerOff, RefreshCw, Play, Loader2, Key } from 'lucide-react';
+import { ServerOff, RefreshCw, Play, Loader2, Key, Network } from 'lucide-react';
 import { useEngineStore } from '../../store/engine/useEngineStore';
 import { usePermissionStore } from '../../api';
 import { cluaizEngine } from '../../core/engine';
 import { toast } from '../../components/ui/toast';
+import { ConfigurePortModal } from './components/ConfigurePortModal';
 
 interface EngineOfflineGuardProps {
     children: React.ReactNode;
@@ -14,6 +15,7 @@ export const EngineOfflineGuard: React.FC<EngineOfflineGuardProps> = ({ children
     const fetchStatus = useEngineStore((state) => state.fetchStatus);
     const initEngineSettings = useEngineStore((state) => state.initEngineSettings);
     const [isActionLoading, setIsActionLoading] = useState(false);
+    const [isPortModalOpen, setIsPortModalOpen] = useState(false);
 
     // Auto-probe on initial mount if state is idle
     useEffect(() => {
@@ -115,6 +117,15 @@ export const EngineOfflineGuard: React.FC<EngineOfflineGuardProps> = ({ children
 
                         <button
                             type="button"
+                            onClick={() => setIsPortModalOpen(true)}
+                            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[var(--text-primary)] hover:bg-white/5 transition-all cursor-pointer"
+                        >
+                            <Network className="w-4 h-4" />
+                            Change Port
+                        </button>
+
+                        <button
+                            type="button"
                             onClick={handleRetry}
                             disabled={isActionLoading}
                             className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[var(--text-primary)] hover:bg-white/5 transition-all disabled:opacity-50 cursor-pointer"
@@ -123,6 +134,11 @@ export const EngineOfflineGuard: React.FC<EngineOfflineGuardProps> = ({ children
                             Retry Connection
                         </button>
                     </div>
+
+                    <ConfigurePortModal
+                        isOpen={isPortModalOpen}
+                        onClose={() => setIsPortModalOpen(false)}
+                    />
                 </div>
             );
         }
@@ -141,12 +157,12 @@ export const EngineOfflineGuard: React.FC<EngineOfflineGuardProps> = ({ children
                     Settings cannot be loaded or configured because the local Cluaiz Engine is not running. All configuration is strictly synchronized directly with the Engine backend.
                 </p>
 
-                <div className="flex items-center justify-center gap-3">
+                <div className="grid grid-cols-2 gap-3 w-full max-w-sm mx-auto">
                     <button
                         type="button"
                         onClick={handleStartEngine}
                         disabled={isActionLoading}
-                        className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold bg-[var(--accent-color)] text-white hover:opacity-90 transition-all shadow-md disabled:opacity-50"
+                        className="flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-semibold bg-[var(--accent-color)] text-white hover:opacity-90 transition-all shadow-md disabled:opacity-50 cursor-pointer"
                     >
                         {isActionLoading ? (
                             <Loader2 className="w-4 h-4 animate-spin" />
@@ -158,9 +174,19 @@ export const EngineOfflineGuard: React.FC<EngineOfflineGuardProps> = ({ children
 
                     <button
                         type="button"
+                        onClick={() => setIsPortModalOpen(true)}
+                        disabled={isActionLoading}
+                        className="flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-semibold bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[var(--text-primary)] hover:bg-white/5 transition-all disabled:opacity-50 cursor-pointer"
+                    >
+                        <Network className="w-4 h-4" />
+                        Change Port
+                    </button>
+
+                    <button
+                        type="button"
                         onClick={handleRetry}
                         disabled={isActionLoading}
-                        className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[var(--text-primary)] hover:bg-white/5 transition-all disabled:opacity-50"
+                        className="flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-semibold bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[var(--text-primary)] hover:bg-white/5 transition-all disabled:opacity-50 cursor-pointer"
                     >
                         <RefreshCw className={`w-4 h-4 ${isActionLoading ? 'animate-spin' : ''}`} />
                         Retry Connection
@@ -169,13 +195,18 @@ export const EngineOfflineGuard: React.FC<EngineOfflineGuardProps> = ({ children
                     <button
                         type="button"
                         onClick={() => usePermissionStore.getState().setAuthModalOpen(true)}
-                        className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/5 transition-all cursor-pointer"
+                        className="flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-semibold bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/5 transition-all cursor-pointer"
                         title="Enter API Bearer Token"
                     >
                         <Key className="w-4 h-4" />
                         Enter Token
                     </button>
                 </div>
+
+                <ConfigurePortModal
+                    isOpen={isPortModalOpen}
+                    onClose={() => setIsPortModalOpen(false)}
+                />
             </div>
         );
     }
