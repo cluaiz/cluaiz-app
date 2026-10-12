@@ -7,7 +7,15 @@ import { GripHorizontal, GripVertical } from 'lucide-react';
 
 export const ApiWorkspace: React.FC = () => {
     const { loadApiData, apiData, selectEndpoint, layoutOrientation } = useApiStore();
-    const [splitRatio, setSplitRatio] = useState<number>(55);
+    const [splitRatio, setSplitRatio] = useState<number>(() => {
+        if (typeof localStorage === 'undefined') return 55;
+        const saved = localStorage.getItem('cluaiz_api_split_ratio');
+        if (saved) {
+            const val = parseFloat(saved);
+            if (!isNaN(val) && val >= 20 && val <= 80) return val;
+        }
+        return 55;
+    });
     const isDraggingRef = useRef<boolean>(false);
     const containerRef = useRef<HTMLDivElement>(null);
 
@@ -16,26 +24,36 @@ export const ApiWorkspace: React.FC = () => {
         loadApiData();
     }, [loadApiData]);
 
-    // Handle deep linking from URL params e.g. ?endpoint=/v1/chat/completions
+    // Handle deep linking from URL params & browser back/forward (popstate)
     useEffect(() => {
-        if (apiData.length === 0) return;
-        const params = new URLSearchParams(window.location.search);
-        const targetPath = params.get('endpoint');
-        const targetMethod = params.get('method');
+        const syncFromUrl = () => {
+            if (apiData.length === 0) return;
+            const params = new URLSearchParams(window.location.search);
+            const targetPath = params.get('endpoint');
+            const targetMethod = params.get('method');
+            const targetTab = params.get('tab');
 
-        if (targetPath) {
-            for (const group of apiData) {
-                const found = group.endpoints.find(
-                    (e) =>
-                        e.path === targetPath &&
-                        (!targetMethod || e.method.toUpperCase() === targetMethod.toUpperCase())
-                );
-                if (found) {
-                    selectEndpoint(found);
-                    break;
+            if (targetPath) {
+                for (const group of apiData) {
+                    const found = group.endpoints.find(
+                        (e) =>
+                            e.path === targetPath &&
+                            (!targetMethod || e.method.toUpperCase() === targetMethod.toUpperCase())
+                    );
+                    if (found) {
+                        selectEndpoint(found);
+                        if (targetTab && ['params', 'headers', 'docs', 'snippets'].includes(targetTab)) {
+                            useApiStore.getState().setActiveTab(targetTab as any);
+                        }
+                        break;
+                    }
                 }
             }
-        }
+        };
+
+        syncFromUrl();
+        window.addEventListener('popstate', syncFromUrl);
+        return () => window.removeEventListener('popstate', syncFromUrl);
     }, [apiData, selectEndpoint]);
 
     // Split pane dragging (supports both Vertical Y-axis and Horizontal X-axis)
@@ -47,14 +65,19 @@ export const ApiWorkspace: React.FC = () => {
             if (!isDraggingRef.current || !containerRef.current) return;
             const rect = containerRef.current.getBoundingClientRect();
             
+            let newPercentage: number;
             if (layoutOrientation === 'right') {
                 const relativeX = moveEvent.clientX - rect.left;
-                const newPercentage = Math.min(Math.max((relativeX / rect.width) * 100, 20), 80);
-                setSplitRatio(newPercentage);
+                newPercentage = Math.min(Math.max((relativeX / rect.width) * 100, 20), 80);
             } else {
                 const relativeY = moveEvent.clientY - rect.top;
-                const newPercentage = Math.min(Math.max((relativeY / rect.height) * 100, 20), 80);
-                setSplitRatio(newPercentage);
+                newPercentage = Math.min(Math.max((relativeY / rect.height) * 100, 20), 80);
+            }
+            setSplitRatio(newPercentage);
+            if (typeof localStorage !== 'undefined') {
+                try {
+                    localStorage.setItem('cluaiz_api_split_ratio', String(newPercentage));
+                } catch (_) { }
             }
         };
 
