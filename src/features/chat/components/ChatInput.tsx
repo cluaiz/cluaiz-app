@@ -97,7 +97,10 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     const [isEffortMenuOpen, setIsEffortMenuOpen] = useState(false);
     const [isThinkModeMenuOpen, setIsThinkModeMenuOpen] = useState(false);
     const [thinkMode, setThinkMode] = useState<'auto' | 'on' | 'off'>('auto');
-    const [effort, setEffort] = useState<'auto' | 'low' | 'medium' | 'high' | 'max'>('auto');
+    const [effort, setEffort] = useState<string | number>('auto');
+    const [customEffort, setCustomEffort] = useState('');
+    const [budgetMessage, setBudgetMessage] = useState('');
+    const [isEffortSettingsOpen, setIsEffortSettingsOpen] = useState(false);
     const [isRecentMenuOpen, setIsRecentMenuOpen] = useState(false);
     const [isSkillsMenuOpen, setIsSkillsMenuOpen] = useState(false);
     const [isPluginsMenuOpen, setIsPluginsMenuOpen] = useState(false);
@@ -215,6 +218,36 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     const fetchStatus = useEngineStore(s => s.fetchStatus);
     const initEngineSettings = useEngineStore(s => s.initEngineSettings);
     const isEngineOnline = Boolean(permissions);
+
+    // Effort and thinking mode start from the user's saved defaults (engine settings)
+    useEffect(() => {
+        if (booster?.reasoning_effort !== undefined) setEffort(booster.reasoning_effort);
+        setBudgetMessage((booster?.reasoning_budget_message ?? '').trim());
+        const savedThink = String(booster?.think_mode || '').toLowerCase();
+        if (savedThink === 'auto' || savedThink === 'on' || savedThink === 'off') setThinkMode(savedThink);
+    }, [booster?.reasoning_effort, booster?.think_mode, booster?.reasoning_budget_message]);
+
+    // Choosing an effort uses it now and saves it as the default
+    const chooseEffort = (value: string | number) => {
+        setEffort(value);
+        if (updateBooster) updateBooster('reasoning_effort', value);
+    };
+
+    const applyCustomEffort = () => {
+        const tokens = Number(customEffort);
+        if (customEffort.trim() === '' || !Number.isInteger(tokens) || tokens < 0) {
+            toast.error('Enter a whole number of thinking tokens (0 or more).');
+            return;
+        }
+        chooseEffort(tokens);
+        setCustomEffort('');
+    };
+
+    // Saved setting; empty = nothing is written when the thinking budget runs out
+    const saveBudgetMessage = () => {
+        const text = budgetMessage.trim();
+        if (updateBooster) updateBooster('reasoning_budget_message', text === '' ? null : ` ${text}`);
+    };
 
     const handleSendWithAttachments = () => {
         if (!inputValue.trim() && attachedFiles.length === 0) return;
@@ -755,7 +788,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                     </div>
                     <div className="flex items-center gap-1.5">
                         <span className="text-[10px] text-[var(--accent-color)] capitalize font-mono">
-                            {effort}
+                            {typeof effort === 'number' ? `${effort} tok` : effort}
                         </span>
                         <ChevronRight className="w-3.5 h-3.5 text-[var(--text-muted)]" />
                     </div>
@@ -764,8 +797,22 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 {isEffortMenuOpen && (
                     <div className="absolute left-8 sm:left-[97%] bottom-0 pl-1 z-50">
                         <div className="w-52 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-xl shadow-2xl p-1.5 flex flex-col gap-0.5">
-                            <div className="px-2 py-1 text-[10px] text-[var(--text-muted)] leading-tight">
-                                Thinking token budget for reasoning.
+                            <div className="flex items-start justify-between gap-1 px-2 py-1">
+                                <span className="text-[10px] text-[var(--text-muted)] leading-tight">
+                                    Thinking token budget for reasoning.
+                                </span>
+                                <button
+                                    type="button"
+                                    title="Thinking settings: custom tokens, budget end message"
+                                    onClick={() => setIsEffortSettingsOpen(open => !open)}
+                                    className={`p-0.5 rounded-md cursor-pointer transition-colors ${
+                                        isEffortSettingsOpen
+                                            ? 'text-[var(--accent-color)] bg-[var(--bg-secondary)]'
+                                            : 'text-[var(--text-muted)] hover:text-[var(--accent-color)]'
+                                    }`}
+                                >
+                                    <SlidersHorizontal className="w-3.5 h-3.5" />
+                                </button>
                             </div>
 
                             <div className="flex flex-col gap-0.5">
@@ -779,9 +826,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                                     <button
                                         key={item.id}
                                         type="button"
-                                        onClick={() => {
-                                            setEffort(item.id as any);
-                                        }}
+                                        onClick={() => chooseEffort(item.id)}
                                         className={`group w-full flex items-center justify-between px-2 py-1.5 rounded-md text-xs font-medium transition-all cursor-pointer ${
                                             effort === item.id
                                                 ? 'bg-[var(--bg-secondary)] text-[var(--accent-color)] font-semibold shadow-sm'
@@ -804,7 +849,82 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                                         )}
                                     </button>
                                 ))}
+                                {/* A saved custom number shows as the selected row */}
+                                {typeof effort === 'number' && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsEffortSettingsOpen(true)}
+                                        className="w-full flex items-center justify-between px-2 py-1.5 rounded-md text-xs font-semibold bg-[var(--bg-secondary)] text-[var(--accent-color)] shadow-sm cursor-pointer"
+                                    >
+                                        <span>Custom · {effort} tok</span>
+                                        <Check className="w-3.5 h-3.5" />
+                                    </button>
+                                )}
                             </div>
+
+                            {isEffortSettingsOpen && (<>
+                            {/* Custom thinking budget in tokens */}
+                            <div className="mt-1 pt-1.5 border-t border-[var(--border-color)] px-2 pb-1">
+                                <div className="text-xs font-medium text-[var(--text-primary)]">Custom tokens</div>
+                                <div className="mt-1 flex items-center gap-1">
+                                    <input
+                                        type="number"
+                                        min={0}
+                                        step={1}
+                                        inputMode="numeric"
+                                        placeholder="tokens, e.g. 2000"
+                                        value={customEffort}
+                                        onChange={e => setCustomEffort(e.target.value)}
+                                        onKeyDown={e => {
+                                            e.stopPropagation();
+                                            if (e.key === 'Enter') {
+                                                e.preventDefault();
+                                                applyCustomEffort();
+                                            }
+                                        }}
+                                        className="w-full min-w-0 px-2 py-1 rounded-md bg-[var(--bg-secondary)] border border-[var(--border-color)] text-xs text-[var(--text-primary)] outline-none focus:border-[var(--accent-color)]"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={applyCustomEffort}
+                                        className="px-2 py-1 rounded-md text-xs font-medium text-[var(--accent-color)] hover:bg-[var(--bg-secondary)] cursor-pointer"
+                                    >
+                                        Set
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Text written when the budget runs out, before the model's end-of-thinking tag */}
+                            <div className="mt-1 pt-1.5 border-t border-[var(--border-color)] px-2 pb-1">
+                                <div className="text-xs font-medium text-[var(--text-primary)]">Budget end message</div>
+                                <div className="text-[10px] text-[var(--text-muted)] leading-tight mt-0.5">
+                                    Written when the thinking budget runs out, so the model wraps up. Empty = nothing.
+                                </div>
+                                <div className="mt-1 flex items-center gap-1">
+                                    <input
+                                        type="text"
+                                        placeholder="e.g. I have to answer now."
+                                        value={budgetMessage}
+                                        onChange={e => setBudgetMessage(e.target.value)}
+                                        onKeyDown={e => {
+                                            e.stopPropagation();
+                                            if (e.key === 'Enter') {
+                                                e.preventDefault();
+                                                saveBudgetMessage();
+                                            }
+                                        }}
+                                        className="w-full min-w-0 px-2 py-1 rounded-md bg-[var(--bg-secondary)] border border-[var(--border-color)] text-xs text-[var(--text-primary)] outline-none focus:border-[var(--accent-color)]"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={saveBudgetMessage}
+                                        className="px-2 py-1 rounded-md text-xs font-medium text-[var(--accent-color)] hover:bg-[var(--bg-secondary)] cursor-pointer"
+                                    >
+                                        Save
+                                    </button>
+                                </div>
+                            </div>
+                            </>)}
                         </div>
                     </div>
                 )}

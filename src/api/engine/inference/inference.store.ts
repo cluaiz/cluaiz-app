@@ -8,7 +8,6 @@ import type {
   OnnxConfig,
   GgufSamplers,
   GgufHardwareExecution,
-  GgufTemplatingFlags,
   UserMovedFlags,
 } from './inference.types';
 
@@ -27,11 +26,9 @@ interface InferenceState {
   // Granular update actions with debounce
   updateGgufSampler: <K extends keyof GgufSamplers>(key: K, value: GgufSamplers[K]) => void;
   updateGgufHardware: <K extends keyof GgufHardwareExecution>(key: K, value: GgufHardwareExecution[K]) => void;
-  updateGgufTemplate: <K extends keyof GgufTemplatingFlags>(key: K, value: GgufTemplatingFlags[K]) => void;
   updateGgufUserMoved: <K extends keyof UserMovedFlags>(key: K, value: UserMovedFlags[K]) => void;
 
   updateOnnxField: <K extends keyof OnnxConfig>(key: K, value: OnnxConfig[K]) => void;
-  updateOnnxUserMoved: <K extends keyof UserMovedFlags>(key: K, value: UserMovedFlags[K]) => void;
 }
 
 let ggufSaveTimer: ReturnType<typeof setTimeout> | null = null;
@@ -135,26 +132,6 @@ export const useInferenceStore = create<InferenceState>((set, get) => ({
     }, 300);
   },
 
-  updateGgufTemplate: (key, value) => {
-    const current = get().gguf;
-    if (!current) return;
-
-    const next: GgufConfig = {
-      ...current,
-      templating_flags: {
-        ...current.templating_flags,
-        [key]: value,
-      },
-    };
-
-    set({ gguf: next });
-
-    if (ggufSaveTimer) clearTimeout(ggufSaveTimer);
-    ggufSaveTimer = setTimeout(() => {
-      get().saveGguf(next);
-    }, 300);
-  },
-
   updateGgufUserMoved: (key, value) => {
     const current = get().gguf;
     if (!current) return;
@@ -192,23 +169,4 @@ export const useInferenceStore = create<InferenceState>((set, get) => ({
     }, 300);
   },
 
-  updateOnnxUserMoved: (key, value) => {
-    const current = get().onnx;
-    if (!current) return;
-
-    const next: OnnxConfig = {
-      ...current,
-      user_moved_flags: {
-        ...current.user_moved_flags,
-        [key]: value,
-      },
-    };
-
-    set({ onnx: next });
-
-    if (onnxSaveTimer) clearTimeout(onnxSaveTimer);
-    onnxSaveTimer = setTimeout(() => {
-      get().saveOnnx(next);
-    }, 300);
-  },
 }));

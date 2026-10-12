@@ -21,7 +21,8 @@ export interface ChatCompletionRequest {
   temporary_chat?: TemporaryChatMode;
   session_id?: string;
   think_mode?: boolean | string;
-  reasoning_effort?: 'low' | 'medium' | 'high' | string;
+  /** Thinking budget: 'auto' | 'low' | 'medium' | 'high' | 'max' or a number of tokens */
+  reasoning_effort?: 'auto' | 'low' | 'medium' | 'high' | 'max' | string | number;
   skip_reasoning?: boolean;
   keep_alive?: number;
   min_p?: number;
