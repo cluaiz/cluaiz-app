@@ -15,11 +15,9 @@ export function InferenceSettings() {
         error,
         load,
         updateGgufHardware,
-        updateGgufTemplate,
         updateGgufSampler,
         updateGgufUserMoved,
         updateOnnxField,
-        updateOnnxUserMoved,
     } = useInferenceStore();
 
     // Fetch initial configs on mount
@@ -125,19 +123,8 @@ export function InferenceSettings() {
                             label="No MMAP (no_mmap)"
                             description="Bypasses mmap() file I/O calls. Reads tensor weights directly into physical host RAM."
                             toggle
-                            active={ggufConfig.hardware_and_execution.no_mmap}
+                            active={Boolean(ggufConfig.hardware_and_execution.no_mmap)}
                             onToggle={() => updateGgufHardware('no_mmap', !ggufConfig.hardware_and_execution.no_mmap)}
-                        />
-                        <SettingItem
-                            label="Override Tensor (override_tensor)"
-                            description="Regex tensor placement rules. Forces designated layers (e.g. FFN blocks) to host RAM."
-                            select={[
-                                { value: '', label: 'Auto - Full GPU' },
-                                { value: 'blk\\.(1[0-9]|2[0-9])\\.ffn_.*=CPU', label: 'Offload Middle Layers (8B/7B)' },
-                                { value: 'blk\\.(2[0-9]|3[0-9]|4[0-3])\\.ffn_.*=CPU', label: 'Offload Middle Layers (70B)' }
-                            ]}
-                            value={ggufConfig.hardware_and_execution.override_tensor || ''}
-                            onChange={(val) => updateGgufHardware('override_tensor', val)}
                         />
                         <SettingItem
                             label="Batch Size (batch_size)"
@@ -151,7 +138,7 @@ export function InferenceSettings() {
                                 { value: '4096', label: '4096' },
                                 { value: '8192', label: '8192' }
                             ]}
-                            value={String(ggufConfig.hardware_and_execution.batch_size)}
+                            value={String(ggufConfig.hardware_and_execution.batch_size ?? 512)}
                             onChange={(val) => updateGgufHardware('batch_size', parseInt(val, 10))}
                         />
                         <SettingItem
@@ -164,83 +151,8 @@ export function InferenceSettings() {
                                 { value: '1024', label: '1024' },
                                 { value: '2048', label: '2048' }
                             ]}
-                            value={String(ggufConfig.hardware_and_execution.ubatch_size)}
+                            value={String(ggufConfig.hardware_and_execution.ubatch_size ?? 512)}
                             onChange={(val) => updateGgufHardware('ubatch_size', parseInt(val, 10))}
-                        />
-                        <SettingItem
-                            label="Parallel Sequences (parallel)"
-                            description="Maximum concurrent sequence slots allocated in KV cache state."
-                            select={[
-                                { value: '1', label: '1 (Single User)' },
-                                { value: '2', label: '2 Sequences' },
-                                { value: '4', label: '4 Sequences' },
-                                { value: '8', label: '8 Sequences' }
-                            ]}
-                            value={String(ggufConfig.hardware_and_execution.parallel)}
-                            onChange={(val) => updateGgufHardware('parallel', parseInt(val, 10))}
-                        />
-                        <SettingItem
-                            label="Speculative Type (spec_type)"
-                            description="Speculative decoding strategy (draft-mtp or n-gram) for lookahead proposal."
-                            select={[
-                                { value: '', label: 'None (Disabled)' },
-                                { value: 'draft-mtp', label: 'draft-mtp' },
-                                { value: 'ngram-mod', label: 'ngram-mod' }
-                            ]}
-                            value={ggufConfig.hardware_and_execution.spec_type || ''}
-                            onChange={(val) => updateGgufHardware('spec_type', val)}
-                        />
-                        <SettingItem
-                            label="Speculative Draft Max (spec_draft_n_max)"
-                            description="Max sequence depth for speculative draft lookahead verification."
-                            select={[
-                                { value: '0', label: '0 (Disabled)' },
-                                { value: '1', label: '1 Token' },
-                                { value: '2', label: '2 Tokens' },
-                                { value: '3', label: '3 Tokens' },
-                                { value: '5', label: '5 Tokens' }
-                            ]}
-                            value={String(ggufConfig.hardware_and_execution.spec_draft_n_max)}
-                            onChange={(val) => updateGgufHardware('spec_draft_n_max', parseInt(val, 10))}
-                        />
-                    </SettingSection>
-
-                    {/* GGUF: Templating Flags */}
-                    <SettingSection title="Templating Flags">
-                        <SettingItem
-                            label="Chat Template File"
-                            description="Jinja2 template path for conversation formatting. Empty reads header default."
-                            select={[
-                                { value: '', label: 'Auto (Read from Model)' }
-                            ]}
-                            value={ggufConfig.templating_flags.chat_template_file || ''}
-                            onChange={(val) => updateGgufTemplate('chat_template_file', val)}
-                        />
-                        <SettingItem
-                            label="Chat Template Kwargs"
-                            description="JSON parameters merged into Jinja evaluation context (e.g. {'preserve_thinking': true})."
-                            select={[
-                                { value: '', label: 'Auto (Default Kwargs)' }
-                            ]}
-                            value={ggufConfig.templating_flags.chat_template_kwargs || ''}
-                            onChange={(val) => updateGgufTemplate('chat_template_kwargs', val)}
-                        />
-                        <SettingItem
-                            label="Enable Jinja (jinja)"
-                            description="Toggles Jinja2 template processing engine versus native string formatting."
-                            toggle
-                            active={ggufConfig.templating_flags.jinja}
-                            onToggle={() => updateGgufTemplate('jinja', !ggufConfig.templating_flags.jinja)}
-                        />
-                        <SettingItem
-                            label="Fit (fit)"
-                            description="Context window overflow strategy when prompt exceeds maximum context limit."
-                            select={[
-                                { value: 'off', label: 'Off (Default Error)' },
-                                { value: 'on', label: 'On (Fit Context Window)' }
-                            ]}
-                            value={ggufConfig.templating_flags.fit || 'off'}
-                            onChange={(val) => updateGgufTemplate('fit', val)}
                         />
                     </SettingSection>
 
@@ -255,11 +167,13 @@ export function InferenceSettings() {
                             { key: 'repeat_penalty', label: 'Repeat Penalty', min: 1, max: 2, step: 0.01, desc: 'Discourages repeating identical token sequences.' },
                             { key: 'frequency_penalty', label: 'Frequency Penalty', min: 0, max: 2, step: 0.01, desc: 'Penalizes tokens proportionally based on frequency.' }
                         ].map((item) => {
-                            const val = ggufConfig.samplers[item.key as keyof GgufSamplers] ?? item.min;
+                            // null = not set: the model's own default (then llama.cpp's) is used
+                            const saved = ggufConfig.samplers[item.key as keyof GgufSamplers];
+                            const val = saved ?? item.min;
                             return (
                                 <SettingSlider
                                     key={item.key}
-                                    label={item.label}
+                                    label={saved == null ? `${item.label} (model default)` : item.label}
                                     description={item.desc}
                                     min={item.min}
                                     max={item.max}
@@ -272,32 +186,18 @@ export function InferenceSettings() {
                         })}
                     </SettingSection>
 
-                    {/* GGUF: Reasoning & Style Defaults */}
-                    <SettingSection title="Reasoning & Style Defaults">
+                    {/* GGUF: Reasoning Default */}
+                    <SettingSection title="Reasoning Default">
                         <SettingItem
                             label="Think Mode"
-                            description="Controls Chain-of-Thought (CoT) reasoning token emission and budget."
+                            description="Default for chats that do not choose: Auto / On = the model may think and decides itself, Off = no thinking."
                             select={[
-                                { value: 'Auto', label: 'Auto (Model Default)' },
-                                { value: 'Off', label: 'Off (Think Tag Prefill)' },
-                                { value: 'Low', label: 'Low (512 Tokens)' },
-                                { value: 'Medium', label: 'Medium (1024 Tokens)' },
-                                { value: 'High', label: 'High (Full Reasoning)' }
+                                { value: 'Auto', label: 'Auto (Default)' },
+                                { value: 'On', label: 'On' },
+                                { value: 'Off', label: 'Off' }
                             ]}
                             value={ggufConfig.user_moved_flags.think_mode || 'Auto'}
                             onChange={(val) => updateGgufUserMoved('think_mode', val)}
-                        />
-                        <SettingItem
-                            label="Response Length"
-                            description="Progressive logit-level EOS bias for graceful answer completion."
-                            select={[
-                                { value: 'auto', label: 'Auto (Default)' },
-                                { value: 'short', label: 'Short (Concise Answers)' },
-                                { value: 'medium', label: 'Medium (Standard Length)' },
-                                { value: 'long', label: 'Long (Detailed Answers)' }
-                            ]}
-                            value={ggufConfig.user_moved_flags.response_length || 'auto'}
-                            onChange={(val) => updateGgufUserMoved('response_length', val)}
                         />
                     </SettingSection>
                 </>
@@ -309,29 +209,11 @@ export function InferenceSettings() {
                             label="Hardware Offload (n_gpu_layers)"
                             description="Target Execution Provider backend driver (DirectML / CUDA vs CPU)."
                             select={[
-                                { value: '-1', label: 'GPU Full Load (DirectML / CUDA)' },
-                                { value: '0', label: 'CPU Only' },
-                                { value: '16', label: '16 Layers' },
-                                { value: '24', label: '24 Layers' },
-                                { value: '32', label: '32 Layers' }
+                                { value: '-1', label: 'GPU when available (DirectML / CUDA)' },
+                                { value: '0', label: 'CPU Only' }
                             ]}
                             value={String(onnxConfig.n_gpu_layers)}
                             onChange={(val) => updateOnnxField('n_gpu_layers', parseInt(val, 10))}
-                        />
-                        <SettingItem
-                            label="Context Window Size (n_ctx)"
-                            description="Token context window size. -1 for maximum model limit, 0 for dynamic auto sizing."
-                            select={[
-                                { value: '0', label: 'Dynamic Auto (0)' },
-                                { value: '-1', label: 'Max Native (-1)' },
-                                { value: '2048', label: '2,048 Tokens' },
-                                { value: '4096', label: '4,096 Tokens (Standard)' },
-                                { value: '8192', label: '8,192 Tokens' },
-                                { value: '16384', label: '16,384 Tokens' },
-                                { value: '32768', label: '32,768 Tokens' }
-                            ]}
-                            value={String(onnxConfig.n_ctx)}
-                            onChange={(val) => updateOnnxField('n_ctx', parseInt(val, 10))}
                         />
                         <SettingItem
                             label="Intra-Op Threads (Node Execution)"
@@ -347,66 +229,16 @@ export function InferenceSettings() {
                             value={String(onnxConfig.intra_op_num_threads)}
                             onChange={(val) => updateOnnxField('intra_op_num_threads', parseInt(val, 10))}
                         />
-                        <SettingItem
-                            label="Graph Optimization Level"
-                            description="ONNX Runtime graph transformation pass level."
-                            select={[
-                                { value: 'ORT_ENABLE_ALL', label: 'ORT_ENABLE_ALL (Recommended)' },
-                                { value: 'ORT_ENABLE_EXTENDED', label: 'ORT_ENABLE_EXTENDED' },
-                                { value: 'ORT_ENABLE_BASIC', label: 'ORT_ENABLE_BASIC' },
-                                { value: 'ORT_DISABLE_ALL', label: 'ORT_DISABLE_ALL' }
-                            ]}
-                            value={onnxConfig.graph_optimization_level}
-                            onChange={(val) => updateOnnxField('graph_optimization_level', val)}
-                        />
-                        <SettingItem
-                            label="Enable Profiling"
-                            description="Emits Chrome trace JSON profiling logs for operator execution runtimes."
-                            toggle
-                            active={onnxConfig.enable_profiling}
-                            onToggle={() => updateOnnxField('enable_profiling', !onnxConfig.enable_profiling)}
-                        />
                     </SettingSection>
 
                     {/* ONNX: Memory & Hardware Control */}
                     <SettingSection title="Memory & Hardware Control">
-                        <SettingItem
-                            label="Inter-Op Threads (Graph Execution)"
-                            description="Thread count for concurrent graph branch operators. 0 recommended for transformers."
-                            select={[
-                                { value: '0', label: 'Auto (0 - Recommended for Transformers)' },
-                                { value: '1', label: '1 Thread' },
-                                { value: '2', label: '2 Threads' },
-                                { value: '4', label: '4 Threads' },
-                                { value: '8', label: '8 Threads' },
-                                { value: '16', label: '16 Threads' }
-                            ]}
-                            value={String(onnxConfig.inter_op_num_threads)}
-                            onChange={(val) => updateOnnxField('inter_op_num_threads', parseInt(val, 10))}
-                        />
-                        <SettingItem
-                            label="Enable Memory Pattern"
-                            description="Pre-allocates static memory layout patterns for intermediate tensor shapes."
-                            toggle
-                            active={onnxConfig.enable_mem_pattern}
-                            onToggle={() => updateOnnxField('enable_mem_pattern', !onnxConfig.enable_mem_pattern)}
-                        />
                         <SettingItem
                             label="Enable CPU Memory Arena"
                             description="Uses arena memory allocator for host CPU allocations to eliminate heap fragmentation."
                             toggle
                             active={onnxConfig.enable_cpu_mem_arena}
                             onToggle={() => updateOnnxField('enable_cpu_mem_arena', !onnxConfig.enable_cpu_mem_arena)}
-                        />
-                        <SettingItem
-                            label="Execution Mode"
-                            description="ONNX operator execution strategy (ORT_SEQUENTIAL vs ORT_PARALLEL)."
-                            select={[
-                                { value: 'ORT_SEQUENTIAL', label: 'ORT_SEQUENTIAL (Default)' },
-                                { value: 'ORT_PARALLEL', label: 'ORT_PARALLEL' }
-                            ]}
-                            value={onnxConfig.execution_mode}
-                            onChange={(val) => updateOnnxField('execution_mode', val)}
                         />
                         <SettingItem
                             label="GPU Memory Limit Bytes"
@@ -432,26 +264,8 @@ export function InferenceSettings() {
                         />
                     </SettingSection>
 
-                    {/* ONNX: Quantization & Graph Transformer */}
-                    <SettingSection title="Quantization & Graph Transformer">
-                        <SettingItem
-                            label="Enable ORT Transformers Opt."
-                            description="Enables specialized fused operator kernels (MultiHeadAttention, FastGelu) for Transformer graphs."
-                            toggle
-                            active={onnxConfig.enable_ort_transformers_optimization}
-                            onToggle={() => updateOnnxField('enable_ort_transformers_optimization', !onnxConfig.enable_ort_transformers_optimization)}
-                        />
-                        <SettingItem
-                            label="KV Cache Data Type"
-                            description="KV cache precision representation for sequence memory footprint."
-                            select={[
-                                { value: 'ort_fp16', label: 'ort_fp16 (Half memory - Recommended)' },
-                                { value: 'ort_fp32', label: 'ort_fp32 (Highest Quality)' },
-                                { value: 'ort_int8', label: 'ort_int8 (Quarter memory)' }
-                            ]}
-                            value={onnxConfig.kv_cache_data_type}
-                            onChange={(val) => updateOnnxField('kv_cache_data_type', val)}
-                        />
+                    {/* ONNX: Determinism */}
+                    <SettingSection title="Determinism">
                         <SettingItem
                             label="Use Deterministic Compute"
                             description="Enforces deterministic kernel execution pathways across floating-point compute steps."
@@ -461,34 +275,6 @@ export function InferenceSettings() {
                         />
                     </SettingSection>
 
-                    {/* ONNX: Reasoning & Style Defaults */}
-                    <SettingSection title="Reasoning & Style Defaults">
-                        <SettingItem
-                            label="Think Mode"
-                            description="Controls Chain-of-Thought (CoT) reasoning token emission and budget."
-                            select={[
-                                { value: 'Auto', label: 'Auto (Model Default)' },
-                                { value: 'Off', label: 'Off (Think Tag Prefill)' },
-                                { value: 'Low', label: 'Low (512 Tokens)' },
-                                { value: 'Medium', label: 'Medium (1024 Tokens)' },
-                                { value: 'High', label: 'High (Full Reasoning)' }
-                            ]}
-                            value={onnxConfig.user_moved_flags.think_mode || 'Auto'}
-                            onChange={(val) => updateOnnxUserMoved('think_mode', val)}
-                        />
-                        <SettingItem
-                            label="Response Length"
-                            description="Progressive logit-level EOS bias for graceful answer completion."
-                            select={[
-                                { value: 'auto', label: 'Auto (Default)' },
-                                { value: 'short', label: 'Short (Concise Answers)' },
-                                { value: 'medium', label: 'Medium (Standard Length)' },
-                                { value: 'long', label: 'Long (Detailed Answers)' }
-                            ]}
-                            value={onnxConfig.user_moved_flags.response_length || 'auto'}
-                            onChange={(val) => updateOnnxUserMoved('response_length', val)}
-                        />
-                    </SettingSection>
                 </>
             ) : null}
         </div>

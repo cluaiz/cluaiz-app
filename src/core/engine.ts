@@ -29,7 +29,7 @@ export interface SendChatOptions {
     session_id?: string;
     messages?: Array<{ role: string; content: string }>;
     think_mode?: 'auto' | 'on' | 'off' | string;
-    reasoning_effort?: 'auto' | 'low' | 'medium' | 'high' | 'max' | string;
+    reasoning_effort?: 'auto' | 'low' | 'medium' | 'high' | 'max' | string | number;
     temperature?: number;
     tools?: any[];
 }
@@ -215,7 +215,7 @@ export class cluaizEngine {
             if (options?.think_mode) {
                 payload.think_mode = options.think_mode;
             }
-            if (options?.reasoning_effort && options.reasoning_effort !== 'auto') {
+            if (options?.reasoning_effort !== undefined && options.reasoning_effort !== '') {
                 payload.reasoning_effort = options.reasoning_effort;
             }
             if (options?.temperature !== undefined) {

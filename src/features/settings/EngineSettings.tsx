@@ -18,13 +18,8 @@ const DESC_CONTEXT: Record<string, string> = {
 
 const DESC_BRAIN_MODE = (active: boolean) => active ? 'Enabled: LLM is completely turned off. Only database and tools will run.' : 'Disabled: Normal mode. Generative AI is active.';
 const DESC_LAZY_LOAD = (active: boolean) => active ? 'Enabled: Model loads only on first message. Saves RAM while idle.' : 'Disabled: Model loads instantly on startup.';
-const DESC_MLOCK: Record<string, string> = { 'Auto': 'System decides based on RAM availability.', 'On': 'Forces the OS to lock the model in RAM. Prevents swapping and stuttering.', 'Off': 'Allows the OS to swap memory if needed.' };
-const DESC_BOOSTER_PROFILE: Record<string, string> = { 'balance': 'Balances speed, memory, and CPU usage.', 'multitasking': 'Leaves room for background apps.', 'max_boost': 'High performance, uses more resources.', 'ultra_max_boost': 'Extreme performance, will lag background apps.', 'hyper_cluster': 'For multi-GPU setups only.', 'edge': 'Optimized for low-power devices and laptops.' };
 const DESC_FLASH_ATTN: Record<string, string> = { 'Auto': 'System uses Flash Attention if supported by your hardware.', 'On': 'Forces Flash Attention. Very fast for long contexts.', 'Off': 'Disables Flash Attention. Useful if the model hallucinates.' };
 const DESC_KV_QUANT: Record<string, string> = { 'Auto': 'System decides the best quantization level.', 'Kv16': 'Highest quality, uses more RAM.', 'Kv8': 'Good balance of quality and RAM usage.', 'Kv4': 'Maximum compression. Saves massive RAM but may reduce long-context quality slightly.' };
-const DESC_SPEC_DEC: Record<string, string> = { 'Auto': 'System decides whether to use a draft model.', 'On': 'Accelerates inference using secondary draft models or lookup tables.', 'Off': 'Generates token-by-token normally.' };
-const DESC_MOE: Record<string, string> = { 'Auto': 'System decides MoE expert routing.', 'On': 'Zero-RAM out-of-core streaming for MoE models directly from NVMe SSD with DMA staging.', 'Off': 'Standard in-memory MoE execution.' };
-const DESC_HYBRID_MEMORY: Record<string, string> = { 'Auto': 'Dynamically balances layers across VRAM and host RAM.', 'On': 'Forces unified allocation across VRAM and RAM.', 'Off': 'Strict device boundaries.' };
 
 export function EngineSettings() {
     const [activeSubTab, setActiveSubTab] = useState<'models' | 'optimization'>('models');
@@ -585,72 +580,6 @@ export function EngineSettings() {
                             dynamicDescription={DESC_KV_QUANT[booster.kv_cache_quantization]}
                         />
 
-                        {/* 6. Speculative Decoding */}
-                        <SettingItem
-                            label="Speculative Decoding (--draft)"
-                            description="Accelerates inference using secondary draft models or lookup tables."
-                            select={['Auto', 'On', 'Off']}
-                            value={booster.speculative_decoding}
-                            loading={Boolean(pendingKeys['speculative_decoding'])}
-                            disabled={Boolean(pendingKeys['speculative_decoding'])}
-                            onChange={(v) => updateBooster('speculative_decoding', v)}
-                            dynamicDescription={DESC_SPEC_DEC[booster.speculative_decoding]}
-                        />
-
-                        {/* 7. Extreme MoE SSD Streaming */}
-                        <SettingItem
-                            label="Extreme MoE SSD Streaming"
-                            description="Zero-RAM out-of-core streaming for MoE models directly from NVMe SSD with DMA staging."
-                            select={['Auto', 'On', 'Off']}
-                            value={booster.moe_vram_routing}
-                            loading={Boolean(pendingKeys['moe_vram_routing'])}
-                            disabled={Boolean(pendingKeys['moe_vram_routing'])}
-                            onChange={(v) => updateBooster('moe_vram_routing', v)}
-                            dynamicDescription={DESC_MOE[booster.moe_vram_routing]}
-                        />
-
-                        {/* 8. Hybrid Memory Mode */}
-                        <SettingItem
-                            label="Hybrid Memory Mode (VRAM + RAM)"
-                            description="Dynamically balances layer placement across GPU VRAM and host RAM."
-                            select={['Auto', 'On', 'Off']}
-                            value={booster.force_vram_reclaim || 'Off'}
-                            loading={Boolean(pendingKeys['force_vram_reclaim'])}
-                            disabled={Boolean(pendingKeys['force_vram_reclaim'])}
-                            onChange={(v) => updateBooster('force_vram_reclaim', v)}
-                            dynamicDescription={DESC_HYBRID_MEMORY[booster.force_vram_reclaim || 'Off']}
-                        />
-
-                        {/* 9. Memory Lock (use_mlock) */}
-                        <SettingItem
-                            label="Memory Lock (use_mlock)"
-                            description="Locks model weights in RAM/VRAM to prevent OS pagefile swapping and latency spikes."
-                            select={['Auto', 'On', 'Off']}
-                            value={booster.force_memory_lock}
-                            loading={Boolean(pendingKeys['force_memory_lock'])}
-                            disabled={Boolean(pendingKeys['force_memory_lock'])}
-                            onChange={(v) => updateBooster('force_memory_lock', v)}
-                            dynamicDescription={DESC_MLOCK[booster.force_memory_lock]}
-                        />
-
-                        {/* 10. Optimization Profile */}
-                        <SettingItem
-                            label="Llama Optimization Profile"
-                            description="Pre-configured profiles determining how aggressively cluaiz reclaims system resources."
-                            select={[
-                                { label: 'Edge (Low Power)', value: 'edge' },
-                                { label: 'Multitasking', value: 'multitasking' },
-                                { label: 'Balanced', value: 'balance' },
-                                { label: 'Max Boost', value: 'max_boost' },
-                                { label: 'Ultra Max Boost', value: 'ultra_max_boost' },
-                                { label: 'Hyper Cluster', value: 'hyper_cluster' }
-                            ]}
-                            value={booster.mode_run}
-                            loading={Boolean(pendingKeys['mode_run'])}
-                            disabled={Boolean(pendingKeys['mode_run'])}
-                            onChange={(v) => updateBooster('mode_run', v)}
-                            dynamicDescription={DESC_BOOSTER_PROFILE[booster.mode_run]}
-                        />
                     </SettingSection>
                 </div>
             )}

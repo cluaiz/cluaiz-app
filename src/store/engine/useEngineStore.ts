@@ -45,21 +45,17 @@ export interface InstalledModelDetail {
 
 
 export interface BoosterControl {
-    mode_run: string;
-    turbo_quant: string;
     flash_attention: string;
-    speculative_decoding: string;
-    auto_round: string;
-    dflash: string;
     kv_cache_quantization: string;
     context_shifting: string;
-    force_vram_reclaim: string;
     n_gpu_layers: number;
     think_mode: string;
-    force_memory_lock: string;
-    moe_vram_routing: string;
     custom_vram_buffer_gb?: number | null;
     custom_ram_buffer_gb?: number | null;
+    /** Default thinking budget: 'auto' | 'low' | 'medium' | 'high' | 'max' | number of tokens */
+    reasoning_effort?: string | number;
+    /** Written before the end-of-thinking tag when the budget runs out (null = nothing) */
+    reasoning_budget_message?: string | null;
 }
 
 export interface HardwareInfo {
@@ -253,21 +249,15 @@ export const useEngineStore = create<EngineState>()((set, get) => ({
                 const cpu_cores = rawHw?.cpu?.physical_cores || 8;
 
                 const booster: BoosterControl = {
-                    mode_run: rawOpt.mode_run || 'balance',
-                    turbo_quant: rawOpt.turbo_quant || 'Auto',
-                    flash_attention: rawOpt.flash_attention || (hasGpu ? 'On' : 'Auto'),
-                    speculative_decoding: rawOpt.speculative_decoding || 'Off',
-                    auto_round: rawOpt.auto_round || 'Auto',
-                    dflash: rawOpt.dflash || 'Auto',
+                    flash_attention: rawOpt.flash_attention || 'Auto',
                     kv_cache_quantization: rawOpt.kv_cache_quantization || 'Auto',
                     context_shifting: rawOpt.context_shifting || 'Auto',
-                    force_vram_reclaim: rawOpt.force_vram_reclaim || 'Off',
-                    n_gpu_layers: rawOpt.n_gpu_layers ?? (hasGpu ? -1 : 0),
+                    n_gpu_layers: rawOpt.n_gpu_layers ?? -1,
                     think_mode: rawOpt.think_mode || 'Auto',
-                    force_memory_lock: rawOpt.force_memory_lock || 'Auto',
-                    moe_vram_routing: rawOpt.extreme_moe_streaming || rawOpt.moe_vram_routing || 'Off',
                     custom_vram_buffer_gb: rawOpt.custom_vram_buffer_gb ?? null,
                     custom_ram_buffer_gb: rawOpt.custom_ram_buffer_gb ?? null,
+                    reasoning_effort: rawOpt.reasoning_effort ?? 'auto',
+                    reasoning_budget_message: rawOpt.reasoning_budget_message ?? null,
                 };
 
                 const permissions: PermissionSchema = {
@@ -343,8 +333,6 @@ export const useEngineStore = create<EngineState>()((set, get) => ({
 
         if (shouldUseFFI) {
             try {
-                const { invoke } = await import('@tauri-apps/api/core');
-                const { listen } = await import('@tauri-apps/api/event');
                 const { cluaizEngine } = await import('../../core/engine');
 
                 // Force boot the engine if it's not already online
@@ -356,38 +344,8 @@ export const useEngineStore = create<EngineState>()((set, get) => ({
                     }
                 }
 
-                // Listen for the FFI response on the system response channel
-                const unlisten = await listen<string>('engine_sys_response', (event) => {
-                    try {
-                        const data = JSON.parse(event.payload);
-                        if (data.permissions && data.booster) {
-                            set({
-                                permissions: data.permissions,
-                                booster: data.booster,
-                                hardware: data.hardware || null,
-                                activeChatModel: data.active_chat_model || null,
-                                activeVectorModel: data.active_vector_model || null,
-                                brainMode: data.brainMode === "on",
-                                fetchStatus: 'success'
-                            });
-                            unlisten();
-                        }
-                    } catch (e) {
-                        // Ignore non-JSON responses
-                    }
-                });
-
-                await invoke('update_engine_settings', {
-                    payload: { action: "GET_SETTINGS" }
-                });
-
-                // Safety fallback: if FFI event is not received within 1.5s, fetch over HTTP
-                setTimeout(() => {
-                    if (get().fetchStatus === 'loading') {
-                        console.warn("[useEngineStore] FFI event timed out, falling back to HTTP...");
-                        fetchViaHttp();
-                    }
-                }, 1500);
+                // Settings are read from the engine's HTTP API in every mode
+                await fetchViaHttp();
                 return;
             } catch (error) {
                 console.warn("[useEngineStore] FFI init failed, falling back to HTTP:", error);
@@ -403,26 +361,10 @@ export const useEngineStore = create<EngineState>()((set, get) => ({
         set((state) => ({ pendingKeys: { ...state.pendingKeys, [keyStr]: true } }));
 
         const label = keyStr.replace(/_/g, ' ');
-        const { protocol } = useConnectionStore.getState();
-        const shouldUseFFI = protocol === 'ffi' && isTauri();
 
         try {
             await toast.promise(
                 async () => {
-                    if (shouldUseFFI) {
-                        try {
-                            const { invoke } = await import('@tauri-apps/api/core');
-                            await invoke('update_engine_settings', {
-                                payload: { action: "UPDATE_PERMISSION", payload: { key, value } }
-                            });
-                            set((state) => ({
-                                permissions: state.permissions ? { ...state.permissions, [key]: value } : null
-                            }));
-                            return;
-                        } catch (error) {
-                            console.warn("[useEngineStore] FFI updatePermission failed, falling back to HTTP:", error);
-                        }
-                    }
                     await systemApi.updatePermission({ [key]: value });
                     // Only update local state after backend successfully responds
                     set((state) => ({
@@ -545,26 +487,10 @@ export const useEngineStore = create<EngineState>()((set, get) => ({
         set((state) => ({ pendingKeys: { ...state.pendingKeys, [keyStr]: true } }));
 
         const label = keyStr.replace(/_/g, ' ');
-        const { protocol } = useConnectionStore.getState();
-        const shouldUseFFI = protocol === 'ffi' && isTauri();
 
         try {
             await toast.promise(
                 async () => {
-                    if (shouldUseFFI) {
-                        try {
-                            const { invoke } = await import('@tauri-apps/api/core');
-                            await invoke('update_engine_settings', {
-                                payload: { action: "UPDATE_BOOSTER", payload: { key, value } }
-                            });
-                            set((state) => ({
-                                booster: state.booster ? { ...state.booster, [key]: value } : null
-                            }));
-                            return;
-                        } catch (error) {
-                            console.warn("[useEngineStore] FFI updateBooster failed, falling back to HTTP:", error);
-                        }
-                    }
                     await optimizationApi.updateBooster({ [key]: value });
                     // Only update local state after backend successfully responds
                     set((state) => ({
@@ -589,26 +515,10 @@ export const useEngineStore = create<EngineState>()((set, get) => ({
         set((state) => ({ pendingKeys: { ...state.pendingKeys, [key]: true } }));
 
         const label = `${type.toUpperCase()} buffer`;
-        const { protocol } = useConnectionStore.getState();
-        const shouldUseFFI = protocol === 'ffi' && isTauri();
 
         try {
             await toast.promise(
                 async () => {
-                    if (shouldUseFFI) {
-                        try {
-                            const { invoke } = await import('@tauri-apps/api/core');
-                            await invoke('update_engine_settings', {
-                                payload: { action: "UPDATE_BOOSTER", payload: { [key]: value } }
-                            });
-                            set((state) => ({
-                                booster: state.booster ? { ...state.booster, [key]: value } : null
-                            }));
-                            return;
-                        } catch (e) {
-                            console.warn("[useEngineStore] FFI buffer update failed, falling back to HTTP:", e);
-                        }
-                    }
                     await optimizationApi.updateBooster({ [key]: value });
                     // Only update local state after backend successfully responds
                     set((state) => ({
@@ -693,28 +603,10 @@ export const useEngineStore = create<EngineState>()((set, get) => ({
         delete postPayload.available_devices;
         delete postPayload.status;
 
-        const { protocol, getBaseUrl } = useConnectionStore.getState();
-        const shouldUseFFI = protocol === 'ffi' && isTauri();
 
         try {
             await toast.promise(
                 async () => {
-                    if (shouldUseFFI) {
-                        try {
-                            const { invoke } = await import('@tauri-apps/api/core');
-                            await invoke('update_engine_settings', {
-                                payload: {
-                                    action: "UPDATE_PERMISSION",
-                                    payload: postPayload
-                                }
-                            });
-                            // Only update local state after backend successfully responds
-                            set({ permissions: updatedPerms });
-                            return;
-                        } catch (e) {
-                            console.warn("[useEngineStore] FFI updateModelSlot failed, falling back to HTTP:", e);
-                        }
-                    }
                     await systemApi.updatePermission(postPayload);
                     // Only update local state after backend successfully responds
                     set({ permissions: updatedPerms });
@@ -732,24 +624,10 @@ export const useEngineStore = create<EngineState>()((set, get) => ({
 
     setBrainMode: async (value) => {
         set((state) => ({ pendingKeys: { ...state.pendingKeys, brain_mode: true } }));
-        const { protocol } = useConnectionStore.getState();
-        const shouldUseFFI = protocol === 'ffi' && isTauri();
 
         try {
             await toast.promise(
                 async () => {
-                    if (shouldUseFFI) {
-                        try {
-                            const { invoke } = await import('@tauri-apps/api/core');
-                            await invoke('update_engine_settings', {
-                                payload: { action: "SYSTEM_BRAIN", payload: { state: value } }
-                            });
-                            set({ brainMode: value });
-                            return;
-                        } catch (error) {
-                            console.warn("[useEngineStore] FFI setBrainMode failed:", error);
-                        }
-                    }
                     await systemApi.updateSystemControl({ brain_mode: value });
                     // Only update local state after backend successfully responds
                     set({ brainMode: value });
@@ -767,48 +645,24 @@ export const useEngineStore = create<EngineState>()((set, get) => ({
 
     resetBooster: async () => {
         set((state) => ({ pendingKeys: { ...state.pendingKeys, reset_optimization: true } }));
-        const { hardware } = get();
-        const hasGpu = hardware?.has_gpu ?? false;
 
-        // Safe defaults that adapt to basic hardware presence
+        // The engine's own defaults (n_gpu_layers null = the planner decides)
         const safeDefaults: Record<string, any> = {
-            mode_run: 'balance',
-            turbo_quant: 'Auto',
-            flash_attention: hasGpu ? 'On' : 'Auto',
-            speculative_decoding: 'Off',
-            auto_round: 'Auto',
-            dflash: 'Auto',
+            flash_attention: 'Auto',
             kv_cache_quantization: 'Auto',
             context_shifting: 'Auto',
-            force_vram_reclaim: 'Off',
-            n_gpu_layers: hasGpu ? -1 : 0,
+            n_gpu_layers: null,
             think_mode: 'Auto',
-            force_memory_lock: 'Off',
-            moe_vram_routing: 'Off',
+            custom_vram_buffer_gb: null,
+            custom_ram_buffer_gb: null,
+            reasoning_effort: 'auto',
+            reasoning_budget_message: null,
         };
 
-        const { protocol } = useConnectionStore.getState();
-        const shouldUseFFI = protocol === 'ffi' && isTauri();
 
         try {
             await toast.promise(
                 async () => {
-                    if (shouldUseFFI) {
-                        try {
-                            const { invoke } = await import('@tauri-apps/api/core');
-                            for (const [key, value] of Object.entries(safeDefaults)) {
-                                await invoke('update_engine_settings', {
-                                    payload: { action: "UPDATE_BOOSTER", payload: { key, value } }
-                                });
-                            }
-                            set((state) => ({
-                                booster: state.booster ? { ...state.booster, ...safeDefaults } : null
-                            }));
-                            return;
-                        } catch (err) {
-                            console.warn("[useEngineStore] FFI resetBooster failed, falling back to HTTP:", err);
-                        }
-                    }
                     await optimizationApi.updateBooster(safeDefaults);
                     // Only update local state after backend successfully responds
                     set((state) => ({
