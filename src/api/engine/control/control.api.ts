@@ -15,9 +15,12 @@ export const controlApi = {
   },
 
   /**
-   * Triggers an isolated hardware stress test and benchmark run.
+   * Hardware stress test and benchmark is executed locally via CLI (`cluaiz bench`).
    */
   runBenchmark: async (): Promise<BenchmarkRunResponse> => {
-    return client.post<BenchmarkRunResponse>(CONTROL_ENDPOINTS.BENCHMARK_RUN, {});
+    return {
+      status: 'unsupported',
+      message: 'Benchmark is executed locally via CLI (cluaiz bench). HTTP remote execution is not exposed.',
+    };
   },
 };
