@@ -167,3 +167,40 @@ export function navigateTo(target: { view?: MainViewId; isSettingsOpen?: boolean
     }
 }
 
+/**
+ * Updates URL for /apis with active endpoint, method, and tab.
+ */
+export function pushApiRoute(
+    endpointPath: string,
+    method?: string,
+    tab?: string,
+    replace: boolean = false
+): void {
+    if (typeof window === 'undefined') return;
+
+    const params = new URLSearchParams();
+    if (endpointPath) {
+        params.set('endpoint', endpointPath);
+    }
+    if (method) {
+        params.set('method', method.toUpperCase());
+    }
+    if (tab && tab !== 'params') {
+        params.set('tab', tab);
+    }
+
+    const queryString = params.toString();
+    const targetUrl = queryString ? `/apis?${queryString}` : '/apis';
+    const currentUrl = `${window.location.pathname}${window.location.search}`;
+
+    if (currentUrl === targetUrl) {
+        return;
+    }
+
+    if (replace) {
+        window.history.replaceState({ isApi: true, endpoint: endpointPath, method, tab }, '', targetUrl);
+    } else {
+        window.history.pushState({ isApi: true, endpoint: endpointPath, method, tab }, '', targetUrl);
+    }
+}
+

@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { ApiEndpoint, ApiGroup, ApiProtocol, ExecutionMetrics, HttpMethod, InstalledModel, VoiceOption } from '../../features/api/types';
 import { useConnectionStore } from '../engine/useConnectionStore';
 import { http, modelsApi } from '../../api';
+import { pushApiRoute } from '../../core/router';
 
 interface ApiStoreState {
     apiData: ApiGroup[];
@@ -90,7 +91,7 @@ export const useApiStore = create<ApiStoreState>()((set, get) => ({
     isExecuting: false,
     activeTab: 'params',
     activeResTab: 'json',
-    layoutOrientation: 'bottom',
+    layoutOrientation: typeof localStorage !== 'undefined' && localStorage.getItem('cluaiz_api_layout_orientation') === 'right' ? 'right' : 'bottom',
 
     loadApiData: async () => {
         set({ isLoadingData: true });
@@ -121,9 +122,71 @@ export const useApiStore = create<ApiStoreState>()((set, get) => ({
                 console.warn('[useApiStore] Could not fetch installed models from gateway:', err);
             }
 
-            // If no active endpoint is selected, pick the first one
-            if (!get().activeEndpoint && validGroups.length > 0 && validGroups[0].endpoints.length > 0) {
-                get().selectEndpoint(validGroups[0].endpoints[0]);
+            // Resolve target endpoint & tab:
+            // 1. URL search params (?endpoint=...&method=...&tab=...)
+            // 2. localStorage last visited endpoint
+            // 3. Fallback to first endpoint in validGroups
+            let targetEp: ApiEndpoint | null = null;
+            let targetTab: 'params' | 'headers' | 'docs' | 'snippets' | null = null;
+
+            if (typeof window !== 'undefined') {
+                const params = new URLSearchParams(window.location.search);
+                const urlPath = params.get('endpoint');
+                const urlMethod = params.get('method');
+                const urlTab = params.get('tab');
+
+                if (urlTab && ['params', 'headers', 'docs', 'snippets'].includes(urlTab)) {
+                    targetTab = urlTab as 'params' | 'headers' | 'docs' | 'snippets';
+                }
+
+                if (urlPath) {
+                    for (const group of validGroups) {
+                        const found = group.endpoints.find(
+                            (e) =>
+                                e.path === urlPath &&
+                                (!urlMethod || e.method.toUpperCase() === urlMethod.toUpperCase())
+                        );
+                        if (found) {
+                            targetEp = found;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // Fallback to localStorage if no URL endpoint
+            if (!targetEp && typeof localStorage !== 'undefined') {
+                try {
+                    const saved = localStorage.getItem('cluaiz_api_last_endpoint');
+                    if (saved) {
+                        const parsed = JSON.parse(saved);
+                        if (parsed?.path) {
+                            for (const group of validGroups) {
+                                const found = group.endpoints.find(
+                                    (e) =>
+                                        e.path === parsed.path &&
+                                        (!parsed.method || e.method.toUpperCase() === parsed.method.toUpperCase())
+                                );
+                                if (found) {
+                                    targetEp = found;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                } catch (_) { }
+            }
+
+            // Fallback to first available endpoint
+            if (!targetEp && validGroups.length > 0 && validGroups[0].endpoints.length > 0) {
+                targetEp = validGroups[0].endpoints[0];
+            }
+
+            if (targetEp) {
+                get().selectEndpoint(targetEp);
+                if (targetTab) {
+                    get().setActiveTab(targetTab);
+                }
             }
 
             // Auto-fetch active token and sync into reqHeaders
@@ -209,6 +272,19 @@ export const useApiStore = create<ApiStoreState>()((set, get) => ({
             activeResTab: 'json'
         });
 
+        // Persist last selected endpoint for seamless session restoration on refresh
+        if (typeof localStorage !== 'undefined') {
+            try {
+                localStorage.setItem(
+                    'cluaiz_api_last_endpoint',
+                    JSON.stringify({ path: ep.path, method: ep.method })
+                );
+            } catch (_) { }
+        }
+
+        // Synchronize browser URL query with selected endpoint and activeTab
+        pushApiRoute(ep.path, ep.method, get().activeTab);
+
         // Ensure Authorization header stays in sync with active token
         const currentHeaders = get().reqHeaders;
         try {
@@ -255,13 +331,22 @@ export const useApiStore = create<ApiStoreState>()((set, get) => ({
     setSearchQuery: (searchQuery) => set({ searchQuery }),
     setSelectedModel: (selectedModel) => {
         set({ selectedModel });
-        // Dynamically update model field inside JSON payload if valid JSON
+        const ep = get().activeEndpoint;
+        const isModelEndpoint = ep && (
+            ep.path.toLowerCase().includes('/chat') ||
+            ep.path.toLowerCase().includes('/completion') ||
+            ep.path.toLowerCase().includes('/embedding')
+        );
+
+        // Dynamically update model field inside JSON payload only for model-compatible endpoints
         try {
             const current = get().reqBody;
             if (current.trim().startsWith('{')) {
                 const obj = JSON.parse(current);
-                obj.model = selectedModel;
-                set({ reqBody: JSON.stringify(obj, null, 2) });
+                if (isModelEndpoint || 'model' in obj) {
+                    obj.model = selectedModel;
+                    set({ reqBody: JSON.stringify(obj, null, 2) });
+                }
             }
         } catch {
             // Ignore non-JSON payloads
@@ -300,9 +385,22 @@ export const useApiStore = create<ApiStoreState>()((set, get) => ({
         }
     },
     setReqLanguage: (reqLanguage) => set({ reqLanguage }),
-    setActiveTab: (activeTab) => set({ activeTab }),
+    setActiveTab: (activeTab) => {
+        set({ activeTab });
+        const ep = get().activeEndpoint;
+        if (ep) {
+            pushApiRoute(ep.path, ep.method, activeTab, true);
+        }
+    },
     setActiveResTab: (activeResTab) => set({ activeResTab }),
-    setLayoutOrientation: (layoutOrientation) => set({ layoutOrientation }),
+    setLayoutOrientation: (layoutOrientation) => {
+        if (typeof localStorage !== 'undefined') {
+            try {
+                localStorage.setItem('cluaiz_api_layout_orientation', layoutOrientation);
+            } catch (_) { }
+        }
+        set({ layoutOrientation });
+    },
     setExecuting: (isExecuting) => set({ isExecuting }),
     setResponse: (responseMetrics, responseBody, audioData = null) => {
         set({
