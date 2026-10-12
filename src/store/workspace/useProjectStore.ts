@@ -321,9 +321,13 @@ export const useProjectStore = create<ProjectStoreState>()(
                 const project: Project = { id: projId, name: folderName, rootPath: clean, files: {}, folders: [], activeFilePath: '', openFilePaths: [], createdAt: Date.now(), updatedAt: Date.now() };
                 set((state) => ({ projects: { ...state.projects, [projId]: project }, activeProjectId: projId, isWorkspaceOpen: true, recentWorkspaces: updatedRecent }));
                 try {
-                    await fsApi.setWorkspace({ workspace: clean });
+                    const res = await fsApi.setWorkspace({ workspace: clean });
+                    if (res && res.status !== 'success') {
+                        toast.error(`Engine setWorkspace: ${res.message || 'Operation failed'}`);
+                    }
                 } catch (err: any) {
                     console.warn('[useProjectStore] setWorkspace error:', err);
+                    toast.error(`Engine workspace error: ${err?.message || err}`);
                 }
                 await get().syncFromDisk(projId);
             },

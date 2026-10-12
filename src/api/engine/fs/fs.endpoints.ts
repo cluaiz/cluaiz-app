@@ -6,5 +6,6 @@ export const FS_ENDPOINTS = {
   RENAME: '/v1/fs/rename',
   COPY: '/v1/fs/copy',
   MKDIR: '/v1/fs/mkdir',
+  PICK_FOLDER: '/v1/fs/pick_folder',
   WORKSPACE: '/v1/workspace',
 } as const;

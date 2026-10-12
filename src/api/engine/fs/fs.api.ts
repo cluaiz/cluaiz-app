@@ -12,6 +12,7 @@ import type {
   WorkspaceResponse,
   SetWorkspaceRequest,
   FsActionResponse,
+  PickFolderResponse,
 } from './fs.types';
 
 export const fsApi = {
@@ -78,4 +79,17 @@ export const fsApi = {
   setWorkspace: async (payload: SetWorkspaceRequest): Promise<WorkspaceResponse> => {
     return client.post<WorkspaceResponse>(FS_ENDPOINTS.WORKSPACE, payload);
   },
+
+  /**
+   * Triggers native host OS folder picker dialog via Cluaiz Engine.
+   */
+  pickFolder: async (): Promise<PickFolderResponse> => {
+    return client.post<PickFolderResponse>(
+      FS_ENDPOINTS.PICK_FOLDER,
+      { caller: 'user' },
+      { timeoutMs: 0 }
+    );
+  },
 };
+
+
