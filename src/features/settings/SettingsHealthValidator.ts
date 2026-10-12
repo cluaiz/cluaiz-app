@@ -1,12 +1,12 @@
-import { BoosterControl, HardwareInfo, SettingAlert } from '../../store/engine/useEngineStore';
+import { OptimizationControl, type BoosterControl, HardwareInfo, SettingAlert } from '../../store/engine/useEngineStore';
 
 /**
- * Validates booster settings against real hardware and returns alerts.
+ * Validates optimization settings against real hardware and returns alerts.
  * This is the intelligent status system that prevents users from
  * setting dangerous combinations that break the engine.
  */
 export function validateSettings(
-    booster: BoosterControl,
+    booster: OptimizationControl,
     hardware: HardwareInfo | null,
     activeChatModel: any | null,
     activeVectorModel: any | null

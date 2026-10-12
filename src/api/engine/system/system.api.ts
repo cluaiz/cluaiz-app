@@ -51,10 +51,10 @@ export const systemApi = {
   },
 
   /**
-   * Compares execution latency head-to-head between direct host RAM -> CPU vs RAM -> PCIe -> GPU streaming.
+   * Evaluates execution plan and latency between direct host RAM -> CPU vs RAM -> PCIe -> GPU streaming.
    */
   compareLatency: async (payload: LatencyComparePayload): Promise<LatencyCompareResponse> => {
-    return client.post<LatencyCompareResponse>(SYSTEM_ENDPOINTS.COMPARE, payload);
+    return client.post<LatencyCompareResponse>(SYSTEM_ENDPOINTS.PLAN, payload);
   },
 
   /**

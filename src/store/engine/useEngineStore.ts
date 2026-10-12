@@ -2,9 +2,10 @@ import { create } from 'zustand';
 import { sendFFIMessage, listenToEngineStream, isTauri } from '../../core/tauri-api';
 import { UnlistenFn } from '@tauri-apps/api/event';
 import { useConnectionStore, saveFallbackConnection } from './useConnectionStore';
-import { http, systemApi, optimizationApi, modelsApi, nativeApi, type PermissionSchema, client, usePermissionStore } from '../../api';
+import { http, systemApi, optimizationApi, modelsApi, nativeApi, type PermissionSchema, type OptimizationControl, client, usePermissionStore } from '../../api';
 import { toast } from '../../components/ui/toast';
-export type { PermissionSchema } from '../../api';
+export type { PermissionSchema, OptimizationControl } from '../../api';
+export type BoosterControl = OptimizationControl;
 
 export interface ChatMessage {
     id: string;
@@ -40,22 +41,6 @@ export interface InstalledModelDetail {
     supported_tasks: string[];
     requires_gpu: boolean;
     metadata: InstalledModelMetadata;
-}
-
-
-
-export interface BoosterControl {
-    flash_attention: string;
-    kv_cache_quantization: string;
-    context_shifting: string;
-    n_gpu_layers: number;
-    think_mode: string;
-    custom_vram_buffer_gb?: number | null;
-    custom_ram_buffer_gb?: number | null;
-    /** Default thinking budget: 'auto' | 'low' | 'medium' | 'high' | 'max' | number of tokens */
-    reasoning_effort?: string | number;
-    /** Written before the end-of-thinking tag when the budget runs out (null = nothing) */
-    reasoning_budget_message?: string | null;
 }
 
 export interface HardwareInfo {
@@ -248,7 +233,7 @@ export const useEngineStore = create<EngineState>()((set, get) => ({
                 const gpu_name = rawHw?.active_drivers?.[0]?.driver_id || (hasGpu ? 'Discrete GPU' : 'None');
                 const cpu_cores = rawHw?.cpu?.physical_cores || 8;
 
-                const booster: BoosterControl = {
+                const booster: OptimizationControl = {
                     flash_attention: rawOpt.flash_attention || 'Auto',
                     kv_cache_quantization: rawOpt.kv_cache_quantization || 'Auto',
                     context_shifting: rawOpt.context_shifting || 'Auto',
@@ -256,7 +241,21 @@ export const useEngineStore = create<EngineState>()((set, get) => ({
                     think_mode: rawOpt.think_mode || 'Auto',
                     custom_vram_buffer_gb: rawOpt.custom_vram_buffer_gb ?? null,
                     custom_ram_buffer_gb: rawOpt.custom_ram_buffer_gb ?? null,
+                    batch_size: rawOpt.batch_size ?? null,
+                    ubatch_size: rawOpt.ubatch_size ?? null,
+                    use_mmap: rawOpt.use_mmap ?? null,
+                    custom_context_window: rawOpt.custom_context_window ?? null,
+                    n_cpu_moe: rawOpt.n_cpu_moe ?? null,
+                    offload_kqv: rawOpt.offload_kqv ?? null,
+                    n_threads: rawOpt.n_threads ?? null,
+                    n_threads_batch: rawOpt.n_threads_batch ?? null,
+                    op_offload: rawOpt.op_offload ?? null,
                     reasoning_effort: rawOpt.reasoning_effort ?? 'auto',
+                    thinking_presets: rawOpt.thinking_presets || {
+                        low: { share: 0.1, max_tokens: 1024 },
+                        medium: { share: 0.25, max_tokens: 4096 },
+                        high: { share: 0.5, max_tokens: 8192 },
+                    },
                     reasoning_budget_message: rawOpt.reasoning_budget_message ?? null,
                 };
 

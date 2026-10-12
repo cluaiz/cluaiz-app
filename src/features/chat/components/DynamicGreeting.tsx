@@ -189,14 +189,18 @@ const ControlledLottie: React.FC<{ path: string; alt: string }> = ({ path, alt }
             onMouseEnter={handleMouseEnter}
             title={alt}
         >
-            <Lottie
-                lottieRef={lottieRef}
-                src={animationData}
-                animationData={animationData}
-                loop={false}
-                autoplay={true}
-                style={{ width: 40, height: 40 }}
-            />
+            {(Lottie as any) && (
+                <Lottie
+                    {...({
+                        lottieRef,
+                        src: animationData,
+                        animationData,
+                        loop: false,
+                        autoplay: true,
+                        style: { width: 40, height: 40 }
+                    } as any)}
+                />
+            )}
         </div>
     );
 };
