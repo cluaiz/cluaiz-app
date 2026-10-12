@@ -1,31 +1,31 @@
 import { ipc, isTauri } from '../../client';
-import { TAURI_COMMANDS, getNativeBridgeUrl } from '../native';
-import { DIALOG_ENDPOINTS } from './dialog.endpoints';
+import { TAURI_COMMANDS } from '../native';
+import { fsApi } from '../../engine/fs';
 
 export const dialogApi = {
   /**
-   * Triggers native OS folder picker dialog via Tauri IPC.
-   * On Windows, forces foreground top-most focus so the dialog never hides behind windows.
+   * Triggers host native folder picker dialog.
+   * - Desktop Mode (Tauri WebView): Direct Tauri IPC to pick_folder.
+   * - Web Browser Mode: Direct Cluaiz Engine native endpoint (/v1/fs/pick_folder) with Bearer token authentication.
    */
   pickFolder: async (): Promise<string | null> => {
     // 1. Desktop Mode (Tauri WebView) — Direct IPC to mod.rs pick_folder
     if (isTauri()) {
-      return (await ipc.invoke<string | null>(TAURI_COMMANDS.PICK_FOLDER)) ?? null;
-    }
-
-    // 2. Web Browser Mode (Chrome / Edge at http://localhost:1420 or LAN IP / custom domain)
-    // Calls the local Tauri HTTP bridge dynamically resolved from active host & port
-    try {
-      const bridgeUrl = getNativeBridgeUrl();
-      const res = await fetch(`${bridgeUrl}${DIALOG_ENDPOINTS.PICK_FOLDER}`);
-      if (res.ok) {
-        const data = await res.json();
-        return data.path ?? null;
+      try {
+        return (await ipc.invoke<string | null>(TAURI_COMMANDS.PICK_FOLDER)) ?? null;
+      } catch (err: any) {
+        console.error('[dialogApi.pickFolder] Tauri IPC pick_folder error:', err);
+        throw new Error(err?.message || 'Tauri folder picker failed');
       }
-    } catch (err) {
-      console.warn('[dialogApi.pickFolder] Local Tauri bridge unavailable:', err);
     }
 
+    // 2. Web Browser Mode — Direct Cluaiz Engine native endpoint with Bearer auth token
+    const res = await fsApi.pickFolder();
+    if (res && res.status === 'success' && res.path) {
+      return res.path;
+    }
     return null;
   },
 };
+
+

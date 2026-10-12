@@ -124,10 +124,13 @@ class HttpClient {
       }
     }
 
-    // Abort timeout setup
-    const timeout = options.timeoutMs ?? this.defaultTimeoutMs;
+    // Abort timeout setup (timeoutMs: 0 disables timeout for user dialogs)
+    const timeout = options.timeoutMs !== undefined ? options.timeoutMs : this.defaultTimeoutMs;
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeout);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    if (timeout > 0) {
+      timer = setTimeout(() => controller.abort(), timeout);
+    }
 
     let response: Response;
     try {
@@ -138,15 +141,16 @@ class HttpClient {
         body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
       });
     } catch (netErr: unknown) {
-      clearTimeout(timer);
+      if (timer !== undefined) clearTimeout(timer);
       const isAbort = (netErr as Error)?.name === 'AbortError';
       const msg = isAbort
         ? `Request timed out after ${timeout}ms: ${url}`
         : `Engine connection failed (${url}): ${(netErr as Error)?.message || String(netErr)}`;
       throw new ApiError(msg, 0, isAbort ? 'TIMEOUT' : 'OFFLINE', url);
     } finally {
-      clearTimeout(timer);
+      if (timer !== undefined) clearTimeout(timer);
     }
+
 
     // Handle 401 via pluggable domain handler (ZERO hardcoded endpoints)
     if (

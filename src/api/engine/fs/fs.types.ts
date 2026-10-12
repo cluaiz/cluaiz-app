@@ -76,3 +76,9 @@ export interface FsActionResponse {
   status: string;
   message?: string;
 }
+
+export interface PickFolderResponse {
+  status: string;
+  path?: string | null;
+  message?: string;
+}

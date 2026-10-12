@@ -26,6 +26,7 @@ export interface FsState {
   renamePath: (oldPath: string, newPath: string) => Promise<boolean>;
   copyPath: (srcPath: string, destPath: string) => Promise<boolean>;
   createDir: (path: string) => Promise<boolean>;
+  pickFolder: () => Promise<string | null>;
   clearActiveFile: () => void;
   reset: () => void;
 }
@@ -64,6 +65,23 @@ export const useFsStore = create<FsState>((set, get) => ({
     } catch (err) {
       set({ error: errorMessage(err) });
       return false;
+    }
+  },
+
+  pickFolder: async () => {
+    set({ status: 'pending', error: null });
+    try {
+      const res = await fsApi.pickFolder();
+      if (res && res.status === 'success' && res.path) {
+        await get().setWorkspace(res.path);
+        set({ status: 'success', error: null });
+        return res.path;
+      }
+      set({ status: 'idle' });
+      return null;
+    } catch (err) {
+      set({ status: 'error', error: errorMessage(err) });
+      throw err;
     }
   },
 
