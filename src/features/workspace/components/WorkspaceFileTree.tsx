@@ -294,6 +294,16 @@ export const WorkspaceFileTree: React.FC<WorkspaceFileTreeProps> = ({
                                 target: { type: 'folder', path: node.path, name: node.name }
                             });
                         }}
+                        draggable={true}
+                        onDragStart={(e) => {
+                            const full = rootPath ? `${rootPath}/${node.path}`.replace(/\\/g, '/').replace(/\/{2,}/g, '/') : node.path;
+                            e.dataTransfer.setData('text/plain', full);
+                            e.dataTransfer.setData('application/cluaiz-path', JSON.stringify({
+                                path: full,
+                                isFolder: true,
+                                name: node.name
+                            }));
+                        }}
                         className={`flex items-center gap-1.5 py-1 px-2 rounded-md cursor-pointer transition-colors text-xs font-mono group select-none ${
                             isFolderSelected ? 'ui-tree-item-active' : 'ui-tree-item-inactive'
                         } ${isCut ? 'opacity-40 transition-opacity' : ''} ${isCopied && clipboard.targetPath === node.path ? 'ring-1 ring-cyan-500/50 bg-cyan-500/10' : ''}`}
@@ -400,6 +410,16 @@ export const WorkspaceFileTree: React.FC<WorkspaceFileTreeProps> = ({
                         y: e.clientY,
                         target: { type: 'file', path: node.path, name: node.name }
                     });
+                }}
+                draggable={true}
+                onDragStart={(e) => {
+                    const full = rootPath ? `${rootPath}/${node.path}`.replace(/\\/g, '/').replace(/\/{2,}/g, '/') : node.path;
+                    e.dataTransfer.setData('text/plain', full);
+                    e.dataTransfer.setData('application/cluaiz-path', JSON.stringify({
+                        path: full,
+                        isFolder: false,
+                        name: node.name
+                    }));
                 }}
                 className={`flex items-center gap-1.5 py-1 px-2 rounded-md cursor-pointer transition-colors text-xs font-mono select-none group ${
                     isActive ? 'ui-tree-item-active' : 'ui-tree-item-inactive'

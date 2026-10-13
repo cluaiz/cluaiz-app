@@ -9,6 +9,8 @@ import { client } from '../../../api/client';
 import { modelsApi } from '../../../api/engine/models/models.api';
 import { permissionApi } from '../../../api/engine/permission/permission.api';
 import { toast } from '../../../components/ui/toast';
+import { InlinePromptInput, InlinePromptInputHandle } from '../../../components/ui/InlinePromptInput';
+import { extractBaseName } from '../../../utils/filePath';
 
 const DynamicToolIcon: React.FC<{ iconSvg?: string | null; fallback: React.ReactNode; className?: string }> = ({ iconSvg, fallback, className = "w-3.5 h-3.5" }) => {
     if (iconSvg) {
@@ -108,10 +110,17 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     const [isExpanded, setIsExpanded] = useState(false);
     const [wrapThreshold, setWrapThreshold] = useState<number>(Number.MAX_SAFE_INTEGER);
 
+    // Inline Prompt Input Ref (Text + Embedded Context Chips)
+    const inlineInputRef = useRef<InlinePromptInputHandle>(null);
+
     // Real File Attachments State
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [attachedFiles, setAttachedFiles] = useState<{ id: string; name: string; size: number; type: string }[]>([]);
     const [recentFiles, setRecentFiles] = useState<{ name: string; size: number; timestamp: number }[]>([]);
+
+    // Dynamic Local Path Chips (Folder / File drag-and-drop & context pills)
+    const [pathChips, setPathChips] = useState<{ id: string; rawPath: string; isFolder: boolean; name: string; lineRange?: string }[]>([]);
+    const [isDraggingOver, setIsDraggingOver] = useState(false);
 
     // Real Dynamic Tools from Engine backend (/api/components/list)
     const { getBaseUrl } = useConnectionStore();
@@ -191,6 +200,14 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
         setAttachedFiles(prev => [...prev, ...newFiles]);
 
+        newFiles.forEach(f => {
+            inlineInputRef.current?.insertChip({
+                type: 'file',
+                name: f.name,
+                rawPath: f.name
+            });
+        });
+
         try {
             const stored = localStorage.getItem('cluaiz_recent_attached_files');
             const existing: { name: string; size: number; timestamp: number }[] = stored ? JSON.parse(stored) : [];
@@ -249,20 +266,104 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         if (updateBooster) updateBooster('reasoning_budget_message', text === '' ? null : ` ${text}`);
     };
 
-    const handleSendWithAttachments = () => {
-        if (!inputValue.trim() && attachedFiles.length === 0) return;
+    const addPathChip = (rawPath: string, isFolder: boolean, name?: string, lineRange?: string) => {
+        if (!rawPath || rawPath.startsWith('http://') || rawPath.startsWith('https://')) return;
+        const cleanPath = rawPath.trim();
+        inlineInputRef.current?.insertChip({
+            type: isFolder ? 'folder' : 'file',
+            name: name || extractBaseName(cleanPath),
+            rawPath: cleanPath,
+            lineRange
+        });
+    };
+
+    const handleDragOver = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDraggingOver(true);
+    };
+
+    const handleDragLeave = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDraggingOver(false);
+    };
+
+    const handleDrop = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDraggingOver(false);
+
+        // 1. Check custom application/cluaiz-path from workspace tree
+        const customData = e.dataTransfer.getData('application/cluaiz-path');
+        if (customData) {
+            try {
+                const parsed = JSON.parse(customData);
+                if (parsed.path) {
+                    addPathChip(parsed.path, Boolean(parsed.isFolder), parsed.name);
+                    return;
+                }
+            } catch (err) {}
+        }
+
+        // 2. Check dropped files
+        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            Array.from(e.dataTransfer.files).forEach((file: any) => {
+                const realPath = file.path || file.name;
+                const isDir = Boolean((file as any).isDirectory || (!file.type && !file.name.includes('.')));
+                addPathChip(realPath, isDir, file.name);
+            });
+            return;
+        }
+
+        // 3. Check plain text
+        const text = e.dataTransfer.getData('text/plain');
+        if (text) {
+            const trimmed = text.trim();
+            if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://') &&
+                (trimmed.match(/^[a-zA-Z]:[\\/]/) || trimmed.startsWith('/') || trimmed.startsWith('./') || trimmed.startsWith('.\\'))) {
+                addPathChip(trimmed, false);
+            } else {
+                inlineInputRef.current?.insertText(trimmed);
+            }
+        }
+    };
+
+    // Global listener for code selection "Ask AI" context injection
+    useEffect(() => {
+        const handleInsertContext = (e: any) => {
+            const detail = e.detail;
+            if (!detail) return;
+            if (detail.path) {
+                addPathChip(detail.path, Boolean(detail.isFolder), detail.name, detail.lineRange);
+            }
+            inlineInputRef.current?.focus();
+        };
+        document.addEventListener('insert-chat-context', handleInsertContext);
+        return () => document.removeEventListener('insert-chat-context', handleInsertContext);
+    }, []);
+
+    const handlePromptSubmit = (
+        serializedText: string,
+        contextData: {
+            files: { path: string; lineRange?: string; name: string }[];
+            skills: string[];
+        }
+    ) => {
+        if (!serializedText.trim() && contextData.files.length === 0 && contextData.skills.length === 0 && attachedFiles.length === 0) return;
         if (!isEngineOnline) {
             toast.error('Cluaiz Engine is offline. Start engine to chat.');
             return;
         }
 
-        let finalMsg = inputValue.trim();
+        let finalMsg = serializedText.trim();
+
         if (attachedFiles.length > 0) {
             const filesSummary = `[Attached Files: ${attachedFiles.map(f => `${f.name} (${formatBytes(f.size)})`).join(', ')}]`;
             finalMsg = finalMsg ? `${finalMsg}\n\n${filesSummary}` : filesSummary;
         }
 
-        const activeTools = selectedSkills
+        const activeTools = contextData.skills
             .filter(s => !['Think Deep', 'Think Lite', 'Long Answer', 'Short Answer'].includes(s))
             .map(s => ({ name: s, id: s }));
 
@@ -276,6 +377,14 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         handleSendMessage(finalMsg, options);
         setInputValue('');
         setAttachedFiles([]);
+        inlineInputRef.current?.clear();
+    };
+
+    const handleSendWithAttachments = () => {
+        const content = inlineInputRef.current?.getSerializedContent();
+        if (content) {
+            handlePromptSubmit(content.text, { files: content.files, skills: content.skills });
+        }
     };
 
 
@@ -414,6 +523,11 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     }, [isExpanded]);
 
     const toggleSkill = (skill: string) => {
+        inlineInputRef.current?.insertChip({
+            type: 'skill',
+            name: skill,
+            icon: getSelectedToolIcon(skill)
+        });
         setSelectedSkills(prev => {
             if (prev.includes(skill)) return prev.filter(s => s !== skill);
             return [...prev, skill];
@@ -488,6 +602,11 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                                     <button
                                         key={idx}
                                         onClick={() => {
+                                            inlineInputRef.current?.insertChip({
+                                                type: 'file',
+                                                name: rf.name,
+                                                rawPath: rf.name
+                                            });
                                             setAttachedFiles(prev => [...prev, { id: `${rf.name}-${Date.now()}`, name: rf.name, size: rf.size, type: '' }]);
                                             setIsAttachOpen(false);
                                         }}
@@ -1000,162 +1119,58 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 className="hidden"
             />
 
-            {/* ---------------- SINGLE LINE LAYOUT (Left Buttons) ---------------- */}
-            {!isExpanded && (
-                <div className="flex-shrink-0 relative" ref={attachRef}>
+            {/* ---------------- ROW 1: INLINE PROMPT INPUT (Text + Embedded Context Chips) ---------------- */}
+            <InlinePromptInput
+                ref={inlineInputRef}
+                placeholder={isEngineOnline ? "Ask AI..." : "Cluaiz Engine is offline..."}
+                onTextChange={(val) => setInputValue(val)}
+                onSubmit={handlePromptSubmit}
+                disabled={!isEngineOnline}
+                minHeight="22px"
+                maxHeight="160px"
+            />
+
+            {/* ---------------- ROW 2: CLEAN BOTTOM TOOLBAR ---------------- */}
+            <div className="flex items-center justify-between pt-1 border-t border-[var(--border-color)]/20">
+                {/* Left: [+] Attach button */}
+                <div className="relative" ref={attachRef}>
                     <button
+                        type="button"
                         onClick={() => setIsAttachOpen(!isAttachOpen)}
-                        className={`transition-colors p-2 rounded-full mb-[2px] ${isAttachOpen ? 'text-[var(--accent-color)] bg-[var(--bg-secondary)]' : 'text-[var(--text-muted)] hover:bg-[var(--bg-secondary)] hover:text-[var(--accent-color)]'}`}
+                        className={`transition-colors p-1.5 pl-0 rounded-full cursor-pointer ${isAttachOpen ? 'text-[var(--accent-color)] bg-[var(--bg-secondary)]' : 'text-[var(--text-muted)] hover:bg-[var(--bg-secondary)] hover:text-[var(--accent-color)]'}`}
+                        title="Add context, files, or skills"
                     >
                         <Plus className={`w-5 h-5 transition-transform duration-300 ${isAttachOpen ? 'rotate-45' : 'rotate-0'}`} />
                     </button>
 
                     {isAttachOpen && attachmentMenu}
                 </div>
-            )}
 
-            {/* ---------------- MIDDLE TEXTAREA (Shared) ---------------- */}
-            <textarea
-                ref={textareaRef}
-                autoFocus
-                placeholder={isEngineOnline ? "Ask AI..." : "Cluaiz Engine is offline..."}
-                className={`${isExpanded ? 'self-stretch' : 'flex-1 min-w-0'} bg-transparent border-0 outline-none text-sm font-medium text-[var(--text-primary)] placeholder-[var(--text-muted)] resize-none overflow-y-auto custom-scrollbar`}
-                style={{ minHeight: '20px', maxHeight: '144px', lineHeight: '20px' }}
-                value={inputValue}
-                onChange={handleTextareaChange}
-                onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        handleSendWithAttachments();
-                    }
-                }}
-                rows={1}
-            />
-
-            {/* ---------------- SINGLE LINE LAYOUT (Right Buttons) ---------------- */}
-            {!isExpanded && (
-                <div className="flex-shrink-0 flex items-center gap-1 mb-[2px]">
-                    {/* ---------------- RENDER ATTACHED FILE CHIPS ---------------- */}
-                    {attachedFiles.map(file => (
-                        <div
-                            key={file.id}
-                            title={`${file.name} (${formatBytes(file.size)})`}
-                            className="group relative flex items-center gap-1.5 px-2 sm:px-2.5 py-1 bg-[var(--bg-secondary)] rounded-lg border border-[var(--border-color)] text-[0.7rem] sm:text-xs font-medium text-[var(--text-primary)] hover:border-[var(--accent-color)] transition-colors"
-                        >
-                            <FileText className="w-3.5 h-3.5 text-[var(--accent-color)] flex-shrink-0" />
-                            <span className="truncate max-w-[100px] sm:max-w-[140px]">{file.name}</span>
-                            <span className="text-[10px] text-[var(--text-muted)] font-mono hidden sm:inline">({formatBytes(file.size)})</span>
-                            <button
-                                type="button"
-                                onClick={() => removeFile(file.id)}
-                                className="text-[var(--text-muted)] hover:text-[var(--text-primary)] p-0.5 rounded transition-colors cursor-pointer"
-                            >
-                                <X className="w-3 h-3" />
-                            </button>
-                        </div>
-                    ))}
-
-                    {/* ---------------- RENDER CHIPS ---------------- */}
-                    {selectedSkills.map(skill => (
-                        <div key={skill} title={skill} onClick={() => removeSkill(skill)} className="group relative flex items-center gap-1.5 px-2 sm:px-2.5 py-1.5 sm:py-1 bg-transparent rounded-lg border border-[var(--border-color)] text-[0.7rem] sm:text-xs font-medium text-[var(--text-primary)] whitespace-nowrap overflow-hidden cursor-pointer sm:cursor-default hover:border-[var(--text-muted)] transition-colors">
-                            {getSelectedToolIcon(skill)}
-                            <span className="hidden sm:inline">{skill}</span>
-                            <button
-                                onClick={(e) => { e.stopPropagation(); removeSkill(skill); }}
-                                className="hidden sm:flex absolute right-0 top-0 bottom-0 px-1.5 items-center justify-center bg-[var(--bg-primary)]/90 backdrop-blur-sm text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-secondary)] opacity-0 group-hover:opacity-100 transition-all"
-                            >
-                                <X className="w-3.5 h-3.5" />
-                            </button>
-                        </div>
-                    ))}
-
+                {/* Right: Model Selector + Voice Mic + Send Button */}
+                <div className="flex items-center gap-1.5 flex-shrink-0">
                     {renderModelSelector()}
 
-                    <button className="w-[2rem] sm:w-[2.25rem] h-[2rem] sm:h-[2.25rem] flex-shrink-0 rounded-full flex items-center justify-center hover:bg-[var(--bg-secondary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors">
+                    <button
+                        type="button"
+                        className="w-[2rem] sm:w-[2.25rem] h-[2rem] sm:h-[2.25rem] flex-shrink-0 rounded-full flex items-center justify-center hover:bg-[var(--bg-secondary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
+                        title="Voice input"
+                    >
                         <Mic className="w-4 sm:w-5 h-4 sm:h-5" />
                     </button>
 
-                    <div className={`transition-all duration-100 ease-out overflow-hidden flex items-center ${(inputValue.trim() || attachedFiles.length > 0) ? 'w-[2rem] sm:w-[2.25rem] opacity-100 scale-100' : 'w-0 opacity-0 scale-0'}`}>
+                    <div className={`transition-all duration-100 ease-out overflow-hidden flex items-center ${(inputValue.trim() || !inlineInputRef.current?.isEmpty()) ? 'w-[2rem] sm:w-[2.25rem] opacity-100 scale-100' : 'w-0 opacity-0 scale-0'}`}>
                         <button
+                            type="button"
                             onClick={handleSendWithAttachments}
                             disabled={!isEngineOnline}
                             className={`w-[2rem] sm:w-[2.25rem] h-[2rem] sm:h-[2.25rem] flex-shrink-0 rounded-full flex items-center justify-center bg-[var(--accent-color)] text-[var(--accent-contrast)] hover:opacity-90 transition-transform active:scale-95 ${!isEngineOnline ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
+                            title="Send message"
                         >
                             <Send className="w-3.5 sm:w-4 h-3.5 sm:h-4 -ml-0.5" />
                         </button>
                     </div>
                 </div>
-            )}
-
-            {/* ---------------- MULTI LINE LAYOUT (Bottom Toolbar) ---------------- */}
-            {isExpanded && (
-                <div className="flex items-center justify-between ">
-                    <div className="flex items-center gap-2">
-                        <div className="relative" ref={attachRef}>
-                            <button
-                                onClick={() => setIsAttachOpen(!isAttachOpen)}
-                                className={`transition-colors p-1.5 pl-0 rounded-full ${isAttachOpen ? 'text-[var(--accent-color)] bg-[var(--bg-secondary)]' : 'text-[var(--text-muted)] hover:bg-[var(--bg-secondary)] hover:text-[var(--accent-color)]'}`}
-                            >
-                                <Plus className={`w-5 h-5 transition-transform duration-300 ${isAttachOpen ? 'rotate-45' : 'rotate-0'}`} />
-                            </button>
-
-                            {isAttachOpen && attachmentMenu}
-                        </div>
-                    </div>
-
-                    <div className="flex items-center gap-1 flex-wrap max-w-full">
-                        {/* ---------------- RENDER ATTACHED FILE CHIPS ---------------- */}
-                        {attachedFiles.map(file => (
-                            <div
-                                key={file.id}
-                                title={`${file.name} (${formatBytes(file.size)})`}
-                                className="group relative flex items-center gap-1.5 px-2 sm:px-2.5 py-1 bg-[var(--bg-secondary)] rounded-lg border border-[var(--border-color)] text-[0.7rem] sm:text-xs font-medium text-[var(--text-primary)] hover:border-[var(--accent-color)] transition-colors"
-                            >
-                                <FileText className="w-3.5 h-3.5 text-[var(--accent-color)] flex-shrink-0" />
-                                <span className="truncate max-w-[100px] sm:max-w-[140px]">{file.name}</span>
-                                <span className="text-[10px] text-[var(--text-muted)] font-mono hidden sm:inline">({formatBytes(file.size)})</span>
-                                <button
-                                    type="button"
-                                    onClick={() => removeFile(file.id)}
-                                    className="text-[var(--text-muted)] hover:text-[var(--text-primary)] p-0.5 rounded transition-colors cursor-pointer"
-                                >
-                                    <X className="w-3 h-3" />
-                                </button>
-                            </div>
-                        ))}
-
-                        {/* ---------------- RENDER CHIPS ---------------- */}
-                        {selectedSkills.map(skill => (
-                            <div key={skill} title={skill} onClick={() => removeSkill(skill)} className="group relative flex items-center gap-1.5 px-2 sm:px-2.5 py-1.5 sm:py-1 bg-transparent rounded-lg border border-[var(--border-color)] text-[0.7rem] sm:text-xs font-medium text-[var(--text-primary)] whitespace-nowrap overflow-hidden cursor-pointer sm:cursor-default hover:border-[var(--text-muted)] transition-colors">
-                                {getSelectedToolIcon(skill)}
-                                <span className="hidden sm:inline">{skill}</span>
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); removeSkill(skill); }}
-                                    className="hidden sm:flex absolute right-0 top-0 bottom-0 px-1.5 items-center justify-center bg-[var(--bg-primary)]/90 backdrop-blur-sm text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-secondary)] opacity-0 group-hover:opacity-100 transition-all"
-                                >
-                                    <X className="w-3.5 h-3.5" />
-                                </button>
-                            </div>
-                        ))}
-
-                        {renderModelSelector()}
-
-                        <button className="w-[2rem] sm:w-[2.25rem] h-[2rem] sm:h-[2.25rem] flex-shrink-0 rounded-full flex items-center justify-center hover:bg-[var(--bg-secondary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors">
-                            <Mic className="w-4 sm:w-5 h-4 sm:h-5" />
-                        </button>
-
-                        <div className={`transition-all duration-200 ease-out overflow-hidden flex items-center ${(inputValue.trim() || attachedFiles.length > 0) ? 'w-[2rem] sm:w-[2.25rem] opacity-100 scale-100' : 'w-0 opacity-0 scale-0'}`}>
-                            <button
-                                onClick={handleSendWithAttachments}
-                                disabled={!isEngineOnline}
-                                className={`w-[2rem] sm:w-[2.25rem] h-[2rem] sm:h-[2.25rem] flex-shrink-0 rounded-full flex items-center justify-center bg-[var(--accent-color)] text-[var(--accent-contrast)] hover:opacity-90 transition-transform active:scale-95 ${!isEngineOnline ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
-                            >
-                                <Send className="w-3.5 sm:w-4 h-3.5 sm:h-4 -ml-0.5" />
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            </div>
         </>
     );
 
@@ -1251,9 +1266,15 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                     colors={['#c084fc', '#f472b6', '#38bdf8']}
                 >
                     <div
-                        className={`relative z-10 flex flex-wrap gap-2 bg-[var(--bg-primary)] rounded-[20px] border border-[var(--border-color)] focus-within:border-[rgba(var(--accent-color-rgb),0.1)] focus-within:shadow-[0_0_0_1px_rgba(var(--accent-color-rgb),0.4)] transition-all duration-200 ${isExpanded ? 'flex-col p-3.5 max-[300px]:p-2' : 'items-center p-3.5 max-[300px]:p-2'}`}
+                        onDragOver={handleDragOver}
+                        onDragLeave={handleDragLeave}
+                        onDrop={handleDrop}
+                        className={`relative z-10 flex flex-col w-full gap-2 bg-[var(--bg-primary)] rounded-[20px] border p-3 sm:p-3.5 max-[300px]:p-2 transition-all duration-200 ${
+                            isDraggingOver 
+                                ? 'border-[var(--accent-color)] ring-2 ring-[var(--accent-color)]/30 bg-[var(--accent-color)]/5' 
+                                : 'border-[var(--border-color)] focus-within:border-[rgba(var(--accent-color-rgb),0.1)] focus-within:shadow-[0_0_0_1px_rgba(var(--accent-color-rgb),0.4)]'
+                        }`}
                         style={{ borderStyle: 'var(--border-style)' }}
-
                     >
                         {renderInputContent()}
                     </div>
@@ -1261,7 +1282,14 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             ) : (
                 <div className="relative w-full z-10">
                     <div
-                        className={`relative z-10 flex w-full flex-wrap min-w-0 gap-2 bg-[var(--bg-primary)] rounded-[20px] border border-[var(--border-color)] focus-within:border-[rgba(var(--accent-color-rgb),0.1)] focus-within:shadow-[0_0_0_1px_rgba(var(--accent-color-rgb),0.4)] transition-all duration-200 ${isExpanded ? 'flex-col p-3.5 max-[300px]:p-2' : 'items-center p-3.5 max-[300px]:p-2'}`}
+                        onDragOver={handleDragOver}
+                        onDragLeave={handleDragLeave}
+                        onDrop={handleDrop}
+                        className={`relative z-10 flex flex-col w-full min-w-0 gap-2 bg-[var(--bg-primary)] rounded-[20px] border p-3 sm:p-3.5 max-[300px]:p-2 transition-all duration-200 ${
+                            isDraggingOver 
+                                ? 'border-[var(--accent-color)] ring-2 ring-[var(--accent-color)]/30 bg-[var(--accent-color)]/5' 
+                                : 'border-[var(--border-color)] focus-within:border-[rgba(var(--accent-color-rgb),0.1)] focus-within:shadow-[0_0_0_1px_rgba(var(--accent-color-rgb),0.4)]'
+                        }`}
                         style={{ borderStyle: 'var(--border-style)' }}
                     >
                         {renderInputContent()}

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -7,50 +7,103 @@ interface TooltipProps {
     title: string;
     subtitle?: string;
     disabled?: boolean;
-    position?: 'right' | 'top' | 'bottom' | 'bottom-end' | 'left'; // Currently supports right, bottom, bottom-end
+    position?: 'right' | 'top' | 'bottom' | 'bottom-end' | 'left';
     className?: string;
 }
 
-export function Tooltip({ children, title, subtitle, disabled = false, position = 'right', className = '' }: TooltipProps) {
-    const [isVisible, setIsVisible] = useState(false);
-    const triggerRef = useRef<HTMLDivElement>(null);
-    const [coords, setCoords] = useState({ x: 0, y: 0 });
+interface CoordsState {
+    x: number;
+    y: number;
+    arrowX: number;
+    actualPosition: 'top' | 'bottom' | 'right';
+}
 
-    const updateCoords = () => {
-        if (triggerRef.current) {
-            const rect = triggerRef.current.getBoundingClientRect();
-            if (position === 'bottom') {
-                setCoords({
-                    x: rect.left + (rect.width / 2),
-                    y: rect.bottom + 12
-                });
-            } else if (position === 'bottom-end') {
-                setCoords({
-                    x: rect.right,
-                    y: rect.bottom + 12
-                });
+export function Tooltip({ children, title, subtitle, disabled = false, position = 'top', className = '' }: TooltipProps) {
+    const [isVisible, setIsVisible] = useState(false);
+    const triggerRef = useRef<HTMLElement>(null);
+    const tooltipRef = useRef<HTMLDivElement>(null);
+    const [coords, setCoords] = useState<CoordsState>({
+        x: 0,
+        y: 0,
+        arrowX: 0,
+        actualPosition: position === 'bottom' || position === 'bottom-end' ? 'bottom' : 'top'
+    });
+
+    const updateCoords = useCallback(() => {
+        if (!triggerRef.current) return;
+        const rect = triggerRef.current.getBoundingClientRect();
+        const tooltipEl = tooltipRef.current;
+
+        const tooltipWidth = tooltipEl ? tooltipEl.offsetWidth : 260;
+        const tooltipHeight = tooltipEl ? tooltipEl.offsetHeight : 44;
+        const padding = 12;
+
+        const triggerCenterX = rect.left + (rect.width / 2);
+
+        // Horizontal position with smart viewport clamping
+        const halfWidth = tooltipWidth / 2;
+        const idealLeft = triggerCenterX - halfWidth;
+        const minLeft = padding;
+        const maxLeft = Math.max(minLeft, window.innerWidth - tooltipWidth - padding);
+        const clampedLeft = Math.max(minLeft, Math.min(maxLeft, idealLeft));
+        const arrowX = Math.max(14, Math.min(tooltipWidth - 14, triggerCenterX - clampedLeft));
+
+        // Vertical position with smart space detection & flip
+        let actualPos: 'top' | 'bottom' | 'right' = 'top';
+        let finalTop = 0;
+
+        if (position === 'bottom' || position === 'bottom-end') {
+            actualPos = 'bottom';
+            finalTop = rect.bottom + 8;
+        } else if (position === 'right') {
+            actualPos = 'right';
+            finalTop = rect.top + (rect.height / 2) - (tooltipHeight / 2);
+        } else {
+            // 'top' is preferred: check if enough room above
+            const roomAbove = rect.top;
+            if (roomAbove < tooltipHeight + 16) {
+                // Not enough room above, flip to bottom
+                actualPos = 'bottom';
+                finalTop = rect.bottom + 8;
             } else {
-                setCoords({
-                    x: rect.right + 12,
-                    y: rect.top + (rect.height / 2)
-                });
+                actualPos = 'top';
+                finalTop = rect.top - tooltipHeight - 8;
             }
         }
-    };
+
+        // Clamp vertically
+        finalTop = Math.max(padding, Math.min(window.innerHeight - tooltipHeight - padding, finalTop));
+
+        setCoords({
+            x: Math.round(clampedLeft),
+            y: Math.round(finalTop),
+            arrowX: Math.round(arrowX),
+            actualPosition: actualPos
+        });
+    }, [position]);
 
     useEffect(() => {
         if (isVisible) {
             updateCoords();
+            // Re-measure after element is mounted to get exact DOM dimensions
+            const raf = requestAnimationFrame(() => {
+                updateCoords();
+            });
             const handleScroll = () => setIsVisible(false);
             window.addEventListener('scroll', handleScroll, true);
-            return () => window.removeEventListener('scroll', handleScroll, true);
+            window.addEventListener('resize', updateCoords);
+            return () => {
+                cancelAnimationFrame(raf);
+                window.removeEventListener('scroll', handleScroll, true);
+                window.removeEventListener('resize', updateCoords);
+            };
         }
-    }, [isVisible]);
+    }, [isVisible, updateCoords]);
 
     return (
-        <div
-            ref={triggerRef}
-            className={`relative flex items-center justify-center cursor-pointer ${className}`}
+        <span
+            ref={triggerRef as any}
+            className={`relative inline-flex items-center align-middle cursor-pointer ${className}`}
             onMouseEnter={() => {
                 if (!disabled) {
                     updateCoords();
@@ -66,45 +119,40 @@ export function Tooltip({ children, title, subtitle, disabled = false, position 
                 <AnimatePresence>
                     {isVisible && (
                         <motion.div
-                            initial={position.startsWith('bottom') ? { opacity: 0, y: -8, scale: 0.95 } : { opacity: 0, x: -8, scale: 0.95 }}
-                            animate={position.startsWith('bottom') ? { opacity: 1, y: 0, scale: 1 } : { opacity: 1, x: 0, scale: 1 }}
-                            exit={position.startsWith('bottom') ? { opacity: 0, y: -8, scale: 0.95 } : { opacity: 0, x: -8, scale: 0.95 }}
-                            transition={{ duration: 0.15, ease: 'easeOut' }}
-                            style={position.startsWith('bottom') ? {
+                            ref={tooltipRef}
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            transition={{ duration: 0.12, ease: 'easeOut' }}
+                            style={{
                                 position: 'fixed',
                                 left: coords.x,
                                 top: coords.y,
-                                x: position === 'bottom-end' ? 'calc(-100% + 8px)' : '-50%', // align to right or center
-                                zIndex: 99999,
-                            } : {
-                                position: 'fixed',
-                                left: coords.x,
-                                top: coords.y,
-                                y: '-50%', // center vertically relative to the trigger
+                                maxWidth: 'min(420px, calc(100vw - 24px))',
                                 zIndex: 99999,
                             }}
-                            className={`bg-[var(--bg-tertiary)] z-10 shadow-xl rounded-xl pointer-events-none max-w-[260px] backdrop-blur-xl ${position.startsWith('bottom') ? 'p-2' : 'p-1 pl-1.5'}`}
+                            className="bg-[var(--bg-tertiary)] z-10 shadow-2xl rounded-lg pointer-events-none border border-[var(--border-color)]/80 backdrop-blur-xl py-1 px-2.5 transition-none"
                         >
-                            <div className="text-[var(--text-primary)] font-bold text-[13px]  truncate">
+                            <div className="text-[var(--text-primary)] font-semibold text-[10px] font-mono break-all leading-tight">
                                 {title}
                             </div>
                             {subtitle && (
-                                <div className="text-[var(--text-muted)] text-[11px] font-medium leading-relaxed line-clamp-2">
+                                <div className="text-[var(--text-muted)] text-[9px] font-sans mt-0.5 leading-snug">
                                     {subtitle}
                                 </div> 
                             )}
 
-                            {position === 'bottom' ? (
+                            {/* Dynamic Tracking Arrow */}
+                            {coords.actualPosition === 'top' && (
                                 <div
-                                    className="absolute -z-10 top-[-4px] left-1/2 -translate-x-1/2 w-3 h-3 bg-[var(--bg-tertiary)] rotate-45"
+                                    style={{ left: coords.arrowX }}
+                                    className="absolute -z-10 bottom-[-4px] -translate-x-1/2 w-2.5 h-2.5 bg-[var(--bg-tertiary)] border-b border-r border-[var(--border-color)]/80 rotate-45"
                                 />
-                            ) : position === 'bottom-end' ? (
+                            )}
+                            {coords.actualPosition === 'bottom' && (
                                 <div
-                                    className="absolute -z-10 top-[-4px] right-[18px] w-3 h-3 bg-[var(--bg-tertiary)] rotate-45"
-                                />
-                            ) : (
-                                <div
-                                    className="absolute -z-10 top-1/2 -translate-y-1/2 -left-1 w-3 h-3 bg-[var(--bg-tertiary)] rotate-45"
+                                    style={{ left: coords.arrowX }}
+                                    className="absolute -z-10 top-[-4px] -translate-x-1/2 w-2.5 h-2.5 bg-[var(--bg-tertiary)] border-t border-l border-[var(--border-color)]/80 rotate-45"
                                 />
                             )}
                         </motion.div>
@@ -112,6 +160,6 @@ export function Tooltip({ children, title, subtitle, disabled = false, position 
                 </AnimatePresence>,
                 document.body
             )}
-        </div>
+        </span>
     );
 }

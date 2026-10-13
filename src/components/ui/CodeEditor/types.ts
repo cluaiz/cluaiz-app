@@ -22,6 +22,8 @@ export interface CodeEditorProps {
     extraToolbarActions?: ReactNode;
     disableNativeContextMenu?: boolean;
     onContextMenu?: (e: { x: number; y: number; editor: any; monaco: any }) => void;
+    filePath?: string;
+    fileName?: string;
 }
 
 export interface DiffStats {

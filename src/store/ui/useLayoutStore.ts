@@ -25,6 +25,7 @@ interface LayoutState {
     rightPanelOpen: boolean;
     rightPanelWidth: number;
     splitPaneWidth: number;
+    splitReversed: boolean;
     dateRange: DateRange | undefined;
     toggleSidebar: () => void;
     setSidebarWidth: (width: number) => void;
@@ -35,6 +36,7 @@ interface LayoutState {
     toggleRightPanel: () => void;
     setRightPanelWidth: (width: number) => void;
     setSplitPaneWidth: (width: number) => void;
+    toggleSplitReversed: () => void;
     setDateRange: (range: DateRange | undefined) => void;
     activeChatData: ActiveChatData | null;
     setActiveChatData: (data: ActiveChatData | null) => void;
@@ -53,6 +55,7 @@ export const useLayoutStore = create<LayoutState>()(
             rightPanelOpen: false,
             rightPanelWidth: 320,
             splitPaneWidth: 100, // default 100% (hidden right pane)
+            splitReversed: false,
             dateRange: undefined,
             toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
             setSidebarWidth: (width) => set({ sidebarWidth: width }),
@@ -63,6 +66,7 @@ export const useLayoutStore = create<LayoutState>()(
             toggleRightPanel: () => set((state) => ({ rightPanelOpen: !state.rightPanelOpen })),
             setRightPanelWidth: (rightPanelWidth) => set({ rightPanelWidth }),
             setSplitPaneWidth: (splitPaneWidth) => set({ splitPaneWidth }),
+            toggleSplitReversed: () => set((state) => ({ splitReversed: !state.splitReversed })),
             setDateRange: (dateRange) => set({ dateRange }),
             activeChatData: null,
             setActiveChatData: (activeChatData) => set({ activeChatData }),
@@ -79,6 +83,7 @@ export const useLayoutStore = create<LayoutState>()(
                 rightPanelOpen: state.rightPanelOpen,
                 rightPanelWidth: state.rightPanelWidth,
                 splitPaneWidth: state.splitPaneWidth,
+                splitReversed: state.splitReversed,
                 activeView: state.activeView,
             }),
         }
