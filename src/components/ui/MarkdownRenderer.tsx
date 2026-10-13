@@ -7,6 +7,8 @@ import { ProjectCard } from '../../features/workspace/components/ProjectCard';
 import { useProjectStore } from '../../store/workspace/useProjectStore';
 import { useLayoutStore } from '../../store/ui/useLayoutStore';
 import { cn } from '../../lib/utils';
+import { ContextChip } from './ContextChip';
+import { extractBaseName } from '../../utils/filePath';
 
 export interface MarkdownRendererProps {
     content: string;
@@ -521,8 +523,21 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
 
     const { metadata, cleanBody } = parseMarkdownWithFrontmatter(content);
 
+    const parsedBody = React.useMemo(() => {
+        if (!cleanBody) return '';
+        return cleanBody.replace(/@\[([^\]]+)\]/g, (_m, inner) => {
+            const trimmed = inner.trim();
+            const lineMatch = trimmed.match(/:(L\d+(?:-L\d+)?)$/i);
+            const pathOnly = lineMatch ? trimmed.slice(0, -lineMatch[0].length) : trimmed;
+            const lineSuffix = lineMatch ? `#${lineMatch[1]}` : '';
+            const baseName = extractBaseName(pathOnly) || pathOnly;
+            const targetUrl = pathOnly.startsWith('file://') ? `${pathOnly}${lineSuffix}` : `file:///${pathOnly.replace(/\\/g, '/')}${lineSuffix}`;
+            return `[${baseName}](${targetUrl})`;
+        });
+    }, [cleanBody]);
+
     return (
-        <article className={cn("max-w-none w-full markdown-body leading-relaxed select-text text-[var(--text-primary)]", className)}>
+        <article className={cn("max-w-none w-full markdown-body leading-relaxed select-text text-[var(--text-primary)] [&_hr+*]:!mt-3.5", className)}>
             {metadata && <FrontmatterCard metadata={metadata} />}
             <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
@@ -691,6 +706,59 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
                         );
                     },
                     a({ children, href, ...props }: any) {
+                        let isFilePath = false;
+                        let cleanPath = href || '';
+                        let lineRange: string | undefined = undefined;
+
+                        if (cleanPath.startsWith('file:///') || cleanPath.startsWith('file://')) {
+                            cleanPath = cleanPath.replace(/^file:\/\/\/?/i, '');
+                            if (!cleanPath.match(/^[a-zA-Z]:/) && href.startsWith('file:///')) {
+                                cleanPath = '/' + cleanPath;
+                            }
+                            isFilePath = true;
+                        } else if (cleanPath.match(/^[a-zA-Z]:[\\/]/)) {
+                            isFilePath = true;
+                        } else if (
+                            !cleanPath.startsWith('http://') &&
+                            !cleanPath.startsWith('https://') &&
+                            !cleanPath.startsWith('mailto:') &&
+                            !cleanPath.startsWith('#')
+                        ) {
+                            const lastSegment = cleanPath.split(/[\\/]/).pop() || '';
+                            const hasExt = lastSegment.includes('.');
+                            const project = useProjectStore.getState().getActiveProject();
+                            const existsInProject = Boolean(project?.files && project.files[cleanPath]);
+                            if (hasExt || existsInProject) {
+                                isFilePath = true;
+                            }
+                        }
+
+                        if (isFilePath) {
+                            try {
+                                cleanPath = decodeURIComponent(cleanPath);
+                            } catch {}
+
+                            const lineMatch = cleanPath.match(/[#|:](L\d+(?:-L\d+)?)$/i);
+                            if (lineMatch) {
+                                lineRange = lineMatch[1];
+                                cleanPath = cleanPath.slice(0, -lineMatch[0].length);
+                            }
+
+                            const displayName = (typeof children === 'string' && children.trim() && !children.startsWith('file://'))
+                                ? children.trim()
+                                : extractBaseName(cleanPath);
+
+                            return (
+                                <ContextChip
+                                    id={cleanPath}
+                                    rawPath={cleanPath}
+                                    name={displayName}
+                                    lineRange={lineRange}
+                                    className="inline-flex align-middle mx-1 my-0.5 shadow-xs"
+                                />
+                            );
+                        }
+
                         return (
                             <a
                                 href={href}
@@ -704,7 +772,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
                         );
                     },
                     hr() {
-                        return <hr className="my-12 border-0 h-px bg-gradient-to-r from-transparent via-[var(--border-color)] to-transparent" />;
+                        return <hr className="my-3.5 border-0 h-px bg-gradient-to-r from-transparent via-[var(--border-color)] to-transparent" />;
                     },
                     img({ src, alt }: any) {
                         return (
@@ -726,7 +794,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
                     }
                 }}
             >
-                {cleanBody}
+                {parsedBody}
             </ReactMarkdown>
         </article>
     );

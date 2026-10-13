@@ -2,6 +2,17 @@
 @plugin "@tailwindcss/typography";
 @source "..";
 
+/* Global theme selection color — eliminates browser default blue */
+::selection {
+  background-color: var(--accent-color, #f97316) !important;
+  color: var(--accent-contrast, #ffffff) !important;
+}
+
+::-moz-selection {
+  background-color: var(--accent-color, #f97316) !important;
+  color: var(--accent-contrast, #ffffff) !important;
+}
+
 /* Set base styles to leverage theme variables */
 body {
   background-color: var(--bg-primary);

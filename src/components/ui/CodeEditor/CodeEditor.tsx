@@ -24,7 +24,8 @@ import {
     Terminal,
     Eye,
     FolderMinus,
-    FolderPlus
+    FolderPlus,
+    Sparkles
 } from 'lucide-react';
 
 export const CodeEditor: React.FC<CodeEditorProps> = ({
@@ -43,7 +44,9 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
     onMount: userOnMount,
     extraToolbarActions,
     disableNativeContextMenu = false,
-    onContextMenu
+    onContextMenu,
+    filePath,
+    fileName
 }) => {
     const { theme, darkAccent, lightAccent } = useThemeStore();
     const isDark = theme !== 'light';
@@ -67,6 +70,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
     const [isDiagnosticsOpen, setIsDiagnosticsOpen] = useState<boolean>(false);
     const [cursorPosition, setCursorPosition] = useState<{ line: number; column: number }>({ line: 1, column: 1 });
     const [selectedLength, setSelectedLength] = useState<number>(0);
+    const [floatingAiAction, setFloatingAiAction] = useState<{ x: number; y: number; text: string; lineRange: string } | null>(null);
 
     // Language States
     const [currentLanguage, setCurrentLanguage] = useState<CodeEditorLanguage>(language);
@@ -133,12 +137,36 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
         });
 
         // Listen for selection changes
-        const disposableSelection = editor.onDidChangeCursorSelection((e) => {
+        const disposableSelection = editor.onDidChangeCursorSelection((e: any) => {
             const model = editor.getModel();
             if (model) {
                 const text = model.getValueInRange(e.selection);
                 setSelectedLength(text.length);
+
+                if (text.trim().length > 0) {
+                    const startLine = e.selection.startLineNumber;
+                    const endLine = e.selection.endLineNumber;
+                    const lineRange = startLine === endLine ? `L${startLine}` : `L${startLine}-L${endLine}`;
+                    const pos = { lineNumber: endLine, column: e.selection.endColumn };
+                    const coords = editor.getScrolledVisiblePosition(pos);
+                    const domNode = editor.getDomNode();
+                    if (coords && domNode) {
+                        const rect = domNode.getBoundingClientRect();
+                        setFloatingAiAction({
+                            x: Math.max(20, Math.min(window.innerWidth - 80, rect.left + coords.left)),
+                            y: Math.max(40, rect.top + coords.top - 16),
+                            text,
+                            lineRange
+                        });
+                    }
+                } else {
+                    setFloatingAiAction(null);
+                }
             }
+        });
+
+        const disposableScroll = editor.onDidScrollChange(() => {
+            setFloatingAiAction(null);
         });
 
         // Custom Right-Click Context Menu Listener
@@ -162,6 +190,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
             disposableMarkers.dispose();
             disposableCursor.dispose();
             disposableSelection.dispose();
+            disposableScroll.dispose();
             if (disposableContextMenu) {
                 disposableContextMenu.dispose();
             }
@@ -588,6 +617,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
             {/* Monaco Editor Container with All Power Features Enabled */}
             <div className="flex-1 w-full h-full min-h-0 relative bg-[var(--bg-primary)]">
                 <Editor
+                    path={filePath || undefined}
                     height={height}
                     language={monacoLang}
                     value={value}
@@ -760,6 +790,36 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
                 isWhitespace={isWhitespaceEnabled}
                 onToggleWhitespace={toggleWhitespace}
             />
+
+            {/* Floating Selection "Ask AI" Action Popover */}
+            {floatingAiAction && (
+                <div
+                    className="fixed z-[100] -translate-x-1/2 -translate-y-full bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg shadow-2xl p-1 flex items-center gap-1 backdrop-blur-md"
+                    style={{ left: floatingAiAction.x, top: floatingAiAction.y }}
+                >
+                    <button
+                        type="button"
+                        onClick={() => {
+                            const targetPath = filePath || (editorRef.current?.getModel()?.uri?.toString() || '').replace(/^file:\/\/\/?/, '');
+                            const targetName = fileName || (targetPath ? targetPath.split(/[\\/]/).pop() : 'snippet');
+                            document.dispatchEvent(new CustomEvent('insert-chat-context', {
+                                detail: {
+                                    path: targetPath,
+                                    name: targetName,
+                                    selectedText: floatingAiAction.text,
+                                    lineRange: floatingAiAction.lineRange,
+                                    language: currentLanguage
+                                }
+                            }));
+                            setFloatingAiAction(null);
+                        }}
+                        className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-md bg-[var(--accent-color)] text-white hover:opacity-90 transition-all cursor-pointer shadow-xs"
+                    >
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>Ask AI ({floatingAiAction.lineRange})</span>
+                    </button>
+                </div>
+            )}
         </div>
     );
 };

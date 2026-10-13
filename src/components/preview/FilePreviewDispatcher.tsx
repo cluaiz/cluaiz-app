@@ -80,6 +80,7 @@ export const FilePreviewDispatcher: React.FC<FilePreviewDispatcherProps> = ({
     if (isMarkdownFile(fileName)) {
         return (
             <MarkdownPreview
+                filePath={filePath}
                 fileName={fileName}
                 content={content}
                 onChange={onChangeContent}

@@ -44,7 +44,10 @@ export const pickFolderFromOS = async (): Promise<string> => {
         return folder ? folder.trim() : '';
     } catch (err: any) {
         console.error('[useProjectStore] pickFolderFromOS error:', err);
-        toast.error(`Folder picker error: ${err?.message || err}`);
+        const msg = String(err?.message || err);
+        if (!msg.includes('404') && !msg.includes('AbortError') && !msg.includes('cancelled')) {
+            toast.error(`Folder picker error: ${msg}`);
+        }
         return '';
     }
 };
@@ -356,17 +359,28 @@ export const useProjectStore = create<ProjectStoreState>()(
                 const activeId = get().activeProjectId;
                 if (!activeId) return;
                 const curProj = get().projects[activeId];
-                if (!curProj || !curProj.files[path]) return;
-                const targetFile = curProj.files[path];
+                if (!curProj) return;
+
+                const normalizedPath = path.replace(/\\/g, '/').replace(/^\/+/, '');
+                const matchedKey = Object.keys(curProj.files).find(k => 
+                    k === path || 
+                    k.replace(/\\/g, '/') === normalizedPath ||
+                    normalizedPath.endsWith(k.replace(/\\/g, '/')) ||
+                    k.replace(/\\/g, '/').endsWith(normalizedPath)
+                ) || path;
+
+                const targetFile = curProj.files[matchedKey];
+                if (!targetFile) return;
+
                 const isErrorString = typeof targetFile.content === 'string' && (targetFile.content.includes('#< CLIXML') || targetFile.content.includes('[System.IO.File]::ReadAllText'));
-                const hasLoaded = isMediaFileExt(path) || (typeof targetFile.content === 'string' && targetFile.content.length > 0 && !isErrorString);
+                const hasLoaded = isMediaFileExt(matchedKey) || (typeof targetFile.content === 'string' && targetFile.content.length > 0 && !isErrorString);
                 set((state) => {
                     const proj = state.projects[activeId];
-                    if (!proj || !proj.files[path]) return state;
-                    const openFiles = proj.openFilePaths.includes(path) ? proj.openFilePaths : [...proj.openFilePaths, path];
-                    return { isLoadingFile: !hasLoaded, projects: { ...state.projects, [activeId]: { ...proj, activeFilePath: path, openFilePaths: openFiles } } };
+                    if (!proj || !proj.files[matchedKey]) return state;
+                    const openFiles = proj.openFilePaths.includes(matchedKey) ? proj.openFilePaths : [...proj.openFilePaths, matchedKey];
+                    return { isLoadingFile: !hasLoaded, projects: { ...state.projects, [activeId]: { ...proj, activeFilePath: matchedKey, openFilePaths: openFiles } } };
                 });
-                if (!hasLoaded) get().loadFileContentFromDisk(path);
+                if (!hasLoaded) get().loadFileContentFromDisk(matchedKey);
             },
 
             openFile: (path) => get().setActiveFile(path),

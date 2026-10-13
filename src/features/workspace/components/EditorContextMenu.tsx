@@ -12,7 +12,8 @@ import {
     Copy,
     Clipboard,
     CheckSquare,
-    X
+    X,
+    Sparkles
 } from 'lucide-react';
 
 interface EditorContextMenuProps {
@@ -65,6 +66,27 @@ export const EditorContextMenu: React.FC<EditorContextMenuProps> = ({
         editor.focus();
 
         switch (actionId) {
+            case 'ask_ai': {
+                const sel = editor.getSelection();
+                const model = editor.getModel();
+                if (sel && model) {
+                    const text = model.getValueInRange(sel);
+                    const startLine = sel.startLineNumber;
+                    const endLine = sel.endLineNumber;
+                    const lineRange = startLine === endLine ? `L${startLine}` : `L${startLine}-L${endLine}`;
+                    const uri = model.uri?.toString() || '';
+                    const cleanPath = uri.replace(/^file:\/\/\/?/, '');
+                    document.dispatchEvent(new CustomEvent('insert-chat-context', {
+                        detail: {
+                            path: cleanPath,
+                            selectedText: text,
+                            lineRange,
+                            language: model.getLanguageId?.() || 'plaintext'
+                        }
+                    }));
+                }
+                break;
+            }
             case 'command_palette':
                 editor.getAction('editor.action.quickCommand')?.run();
                 break;
@@ -128,6 +150,8 @@ export const EditorContextMenu: React.FC<EditorContextMenuProps> = ({
     };
 
     const menuItems = [
+        { id: 'ask_ai', label: 'Ask AI with Selection', icon: Sparkles, shortcut: 'Ctrl+Shift+A' },
+        { id: 'divider-0', isDivider: true },
         { id: 'command_palette', label: 'Command Palette', icon: Command, shortcut: 'F1' },
         { id: 'format', label: 'Format Document', icon: AlignLeft, shortcut: 'Shift+Alt+F' },
         { id: 'find', label: 'Find & Replace', icon: Search, shortcut: 'Ctrl+F' },

@@ -3,7 +3,7 @@ import { useLayoutStore } from '../../../store/ui/useLayoutStore';
 import { useThemeStore } from '../../../store/ui/useThemeStore';
 import { useEngineStore } from '../../../store/engine/useEngineStore';
 import { useChatStore } from '../../../store/chat/useChatStore';
-import { ChevronDown, Copy, Trash2, X, HatGlasses, FileText, WifiOff } from 'lucide-react';
+import { ChevronDown, Copy, Trash2, X, HatGlasses, FileText, WifiOff, ArrowLeftRight } from 'lucide-react';
 import { toast } from '../../../components/ui/toast';
 import { MessageContextMenu } from '../../../components/ui/context-menu/MessageContextMenu';
 import { GlobalChatContextMenu } from '../../../components/ui/context-menu/GlobalChatContextMenu';
@@ -19,9 +19,10 @@ import { Tooltip } from '../../../components/ui/tooltip';
 import { LiveTelemetryBar } from './LiveTelemetryBar';
 import { useChatTelemetry } from '../hooks/useChatTelemetry';
 import { WorkspaceEditorPane } from '../../workspace';
+import { ResizableDivider } from '../../../components/ui/ResizableDivider';
 
 export function ChatWorkspace() {
-    const { splitPaneWidth, setSplitPaneWidth, activeChatData } = useLayoutStore();
+    const { splitPaneWidth, setSplitPaneWidth, splitReversed, toggleSplitReversed, activeChatData } = useLayoutStore();
     const { chatBackground } = useThemeStore();
     const [isDragging, setIsDragging] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -535,8 +536,9 @@ main().catch(console.error);`);
             const relativeX = e.clientX - containerRect.left;
             const percentage = (relativeX / containerRect.width) * 100;
 
-            if (percentage >= 20 && percentage <= 80) {
-                setSplitPaneWidth(percentage);
+            const targetWidth = splitReversed ? 100 - percentage : percentage;
+            if (targetWidth >= 20 && targetWidth <= 80) {
+                setSplitPaneWidth(targetWidth);
             }
         };
 
@@ -555,10 +557,10 @@ main().catch(console.error);`);
             document.removeEventListener('mousemove', handleMouseMove);
             document.removeEventListener('mouseup', handleMouseUp);
         };
-    }, [isDragging, setSplitPaneWidth]);
+    }, [isDragging, splitReversed, setSplitPaneWidth]);
 
     return (
-        <div ref={containerRef} className="flex-1 flex overflow-hidden relative themed-border border-0">
+        <div ref={containerRef} className={`flex-1 flex overflow-hidden relative ${splitReversed ? 'flex-row-reverse' : 'flex-row'}`}>
 
             <div
                 style={{ width: `${splitPaneWidth}%` }}
@@ -840,11 +842,15 @@ main().catch(console.error);`);
 
             {splitPaneWidth < 100 && (
                 <>
-                    <div
-                        className="w-1.5 h-full cursor-col-resize z-20 bg-transparent relative resizer-hover select-none flex-shrink-0"
+                    <ResizableDivider
                         onMouseDown={(e) => {
                             e.preventDefault();
                             setIsDragging(true);
+                        }}
+                        centerAction={{
+                            icon: <ArrowLeftRight className="w-3.5 h-3.5" />,
+                            tooltip: splitReversed ? "Swap Layout (Chat on Left)" : "Swap Layout (Chat on Right)",
+                            onClick: () => toggleSplitReversed()
                         }}
                     />
 

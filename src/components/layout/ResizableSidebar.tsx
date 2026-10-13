@@ -40,18 +40,22 @@ export function ResizableSidebar({ children }: ResizableSidebarProps) {
 
         const handleMouseUp = () => {
             setIsResizing(false);
-            document.body.style.cursor = 'default';
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
         };
 
         if (isResizing && !sidebarCollapsed) {
             document.addEventListener('mousemove', handleMouseMove);
             document.addEventListener('mouseup', handleMouseUp);
             document.body.style.cursor = 'col-resize';
+            document.body.style.userSelect = 'none';
         }
 
         return () => {
             document.removeEventListener('mousemove', handleMouseMove);
             document.removeEventListener('mouseup', handleMouseUp);
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
         };
     }, [isResizing, sidebarPosition, sidebarCollapsed, setSidebarWidth]);
 
@@ -62,8 +66,8 @@ export function ResizableSidebar({ children }: ResizableSidebarProps) {
     const desktopClasses = sidebarPeeked
         ? `absolute inset-y-0 ${
               sidebarPosition === 'left' ? 'left-0 border-r shadow-[5px_0_25px_rgba(0,0,0,0.5)]' : 'right-0 border-l shadow-[-5px_0_25px_rgba(0,0,0,0.5)]'
-          } z-50 bg-[var(--bg-secondary)] text-[var(--text-primary)] flex flex-col overflow-hidden ${isResizing ? '' : 'transition-all duration-300 ease-in-out'}`
-        : `relative h-full flex-shrink-0 bg-[var(--bg-secondary)] text-[var(--text-primary)] flex flex-col overflow-hidden ${isResizing ? '' : 'transition-all duration-300 ease-in-out'}`;
+          } z-50 bg-[var(--bg-secondary)] text-[var(--text-primary)] flex flex-col overflow-visible ${isResizing ? '' : 'transition-all duration-300 ease-in-out'}`
+        : `relative h-full flex-shrink-0 bg-[var(--bg-secondary)] text-[var(--text-primary)] flex flex-col overflow-visible ${isResizing ? '' : 'transition-all duration-300 ease-in-out'}`;
 
     return (
         <div
@@ -71,27 +75,29 @@ export function ResizableSidebar({ children }: ResizableSidebarProps) {
             className={desktopClasses}
             style={{ 
                 width: `${currentWidth}px`, 
-                borderRightWidth: sidebarPosition === 'left' ? '1px' : '0px',
-                borderLeftWidth: sidebarPosition === 'right' ? '1px' : '0px',
-                borderStyle: 'var(--border-style)',
-                borderColor: 'var(--border-color)'
+                borderRight: sidebarPosition === 'left' ? '1px solid var(--border-color)' : 'none',
+                borderLeft: sidebarPosition === 'right' ? '1px solid var(--border-color)' : 'none'
             }}
         >
             <div className="flex-1 overflow-y-auto flex flex-col overflow-x-hidden">
                 {children}
             </div>
-            
-            {/* Resizer Edge Bar */}
+
+            {/* Centered Border Resizer Overlay - 1 single line, 0 black gap, glowing hover */}
             {!sidebarCollapsed && (
                 <div
-                    className={`absolute top-0 w-1.5 h-full cursor-col-resize z-30 resizer-hover ${
-                        sidebarPosition === 'left' ? 'right-0 -mr-1.25' : 'left-0 ml-0.75'
+                    className={`absolute top-0 h-full w-2 cursor-col-resize z-30 group ${
+                        sidebarPosition === 'left' ? 'right-0 translate-x-1/2' : 'left-0 -translate-x-1/2'
                     }`}
                     onMouseDown={(e) => {
                         e.preventDefault();
                         setIsResizing(true);
                     }}
-                />
+                    title="Drag to resize sidebar"
+                >
+                    {/* Glowing Accent Line Indicator directly on the single 1px border */}
+                    <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-[2px] opacity-0 group-hover:opacity-100 group-hover:bg-[var(--accent-color)] group-hover:shadow-[0_0_8px_var(--accent-color)] transition-all duration-150 pointer-events-none" />
+                </div>
             )}
         </div>
     );

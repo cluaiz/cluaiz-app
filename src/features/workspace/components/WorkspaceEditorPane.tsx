@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { 
     Maximize2, 
     Minimize2, 
@@ -15,7 +15,8 @@ import {
     LogOut,
     LayoutGrid,
     Pin,
-    Loader2
+    Loader2,
+    ArrowLeftRight
 } from 'lucide-react';
 import { useProjectStore, pickFolderFromOS, syncFileToDisk } from '../../../store/workspace/useProjectStore';
 import { WorkspaceFileTree, getFileExtension } from './WorkspaceFileTree';
@@ -23,6 +24,7 @@ import { WorkspaceTerminal } from './WorkspaceTerminal';
 import { EditorContextMenu } from './EditorContextMenu';
 import { EditorTabContextMenu } from './EditorTabContextMenu';
 import { CodeEditor } from '../../../components/ui/CodeEditor/CodeEditor';
+import { ResizableDivider } from '../../../components/ui/ResizableDivider';
 import { useLayoutStore } from '../../../store/ui/useLayoutStore';
 import { Tooltip } from '../../../components/ui/tooltip';
 import { FileIcon } from 'react-material-icon-theme';
@@ -56,7 +58,7 @@ export const WorkspaceEditorPane: React.FC = () => {
         openWorkspace
     } = useProjectStore();
 
-    const { splitPaneWidth, setSplitPaneWidth } = useLayoutStore();
+    const { splitPaneWidth, setSplitPaneWidth, splitReversed, toggleSplitReversed } = useLayoutStore();
     const [isMaximized, setIsMaximized] = useState(false);
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [sidebarWidth, setSidebarWidth] = useState(230);
@@ -285,15 +287,68 @@ export const WorkspaceEditorPane: React.FC = () => {
         }
     };
 
+    const pendingNavRef = useRef<{ path: string; startLine: number; endLine?: number } | null>(null);
+
+    const applyLineHighlight = useCallback((startLine: number, endLine?: number) => {
+        if (!editorInstanceRef.current) return;
+        const editor = editorInstanceRef.current;
+        const end = endLine || startLine;
+        try {
+            editor.revealLineInCenter(startLine);
+            const model = editor.getModel();
+            const maxCol = model ? model.getLineMaxColumn(end) : 1;
+            editor.setSelection({
+                startLineNumber: startLine,
+                startColumn: 1,
+                endLineNumber: end,
+                endColumn: maxCol
+            });
+            editor.focus();
+        } catch (e) {
+            console.error('Failed to apply line highlight:', e);
+        }
+    }, []);
+
+    // When activeFile changes, apply pending line navigation
+    useEffect(() => {
+        if (activeFile && pendingNavRef.current && (activeFile.path === pendingNavRef.current.path || pendingNavRef.current.path.endsWith(activeFile.path))) {
+            const { startLine, endLine } = pendingNavRef.current;
+            pendingNavRef.current = null;
+            const timer = setTimeout(() => {
+                applyLineHighlight(startLine, endLine);
+            }, 120);
+            return () => clearTimeout(timer);
+        }
+    }, [activeFile?.path, applyLineHighlight]);
+
+    // Global listener for workspace-navigate-file event
+    useEffect(() => {
+        const handleNavigate = (e: any) => {
+            const detail = e.detail;
+            if (!detail || !detail.path) return;
+            const startLine = detail.startLine;
+            const endLine = detail.endLine || startLine;
+
+            if (startLine) {
+                pendingNavRef.current = { path: detail.path, startLine, endLine };
+            }
+
+            if (activeFile && (activeFile.path === detail.path || detail.path.endsWith(activeFile.path)) && startLine) {
+                applyLineHighlight(startLine, endLine);
+                pendingNavRef.current = null;
+            }
+        };
+
+        document.addEventListener('workspace-navigate-file', handleNavigate);
+        return () => document.removeEventListener('workspace-navigate-file', handleNavigate);
+    }, [activeFile?.path, applyLineHighlight]);
+
     const handleSelectFile = (path: string, lineNumber?: number) => {
         setActiveFile(path);
         if (lineNumber) {
+            pendingNavRef.current = { path, startLine: lineNumber, endLine: lineNumber };
             setTimeout(() => {
-                if (editorInstanceRef.current) {
-                    editorInstanceRef.current.revealLineInCenter(lineNumber);
-                    editorInstanceRef.current.setPosition({ lineNumber, column: 1 });
-                    editorInstanceRef.current.focus();
-                }
+                applyLineHighlight(lineNumber, lineNumber);
             }, 80);
         }
     };
@@ -591,6 +646,8 @@ export const WorkspaceEditorPane: React.FC = () => {
                         onChange={handleOpenFile}
                     />
 
+
+
                     <Tooltip title={isMaximized ? "Restore split" : "Maximize editor"}>
                         <button
                             type="button"
@@ -647,9 +704,8 @@ export const WorkspaceEditorPane: React.FC = () => {
 
                 {/* Resizer Handle */}
                 {isSidebarOpen && (
-                    <div
+                    <ResizableDivider
                         onMouseDown={handleMouseDownResize}
-                        className="w-1 hover:w-1.5 active:w-1.5 -ml-0.5 cursor-col-resize hover:bg-[var(--accent-color)]/60 active:bg-[var(--accent-color)] transition-all z-20 flex-shrink-0 select-none"
                         title="Drag to resize explorer"
                     />
                 )}
@@ -680,32 +736,50 @@ export const WorkspaceEditorPane: React.FC = () => {
 
                             {/* Monaco Editor or Rich Preview / Loading Skeleton */}
                             <div className="flex-1 overflow-hidden relative">
-                                {isLoadingFile ? (
-                                    <EditorLoadingSkeleton fileName={activeFile.name} />
-                                ) : isPreviewableFile(activeFile.name) ? (
-                                    <FilePreviewDispatcher
-                                        filePath={activeFile.path}
-                                        fileName={activeFile.name}
-                                        content={activeFile.content}
-                                        rootPath={activeProject?.rootPath || ''}
-                                        onChangeContent={(newVal) => updateFileContent(activeFile.path, newVal)}
-                                    />
-                                ) : (
-                                    <CodeEditor
-                                        value={activeFile.content}
-                                        language={activeFile.language}
-                                        onChange={(newVal) => updateFileContent(activeFile.path, newVal)}
-                                        height="100%"
-                                        className="h-full border-0 rounded-none shadow-none"
-                                        showToolbar={false}
-                                        onMount={(editor) => {
-                                            editorInstanceRef.current = editor;
-                                        }}
-                                        onContextMenu={(coords) => {
-                                            setContextMenu(coords);
-                                        }}
-                                    />
-                                )}
+                                {(() => {
+                                    const fullFilePath = resolveDiskPath(activeProject?.rootPath || '', activeFile.path) || activeFile.path;
+                                    if (isLoadingFile) {
+                                        return <EditorLoadingSkeleton fileName={activeFile.name} />;
+                                    }
+                                    if (isPreviewableFile(activeFile.name)) {
+                                        return (
+                                            <FilePreviewDispatcher
+                                                filePath={fullFilePath}
+                                                fileName={activeFile.name}
+                                                content={activeFile.content}
+                                                rootPath={activeProject?.rootPath || ''}
+                                                onChangeContent={(newVal) => updateFileContent(activeFile.path, newVal)}
+                                            />
+                                        );
+                                    }
+                                    return (
+                                        <CodeEditor
+                                            value={activeFile.content}
+                                            language={activeFile.language}
+                                            filePath={fullFilePath}
+                                            fileName={activeFile.name}
+                                            onChange={(newVal) => updateFileContent(activeFile.path, newVal)}
+                                            height="100%"
+                                            className="h-full border-0 rounded-none shadow-none"
+                                            showToolbar={false}
+                                            onMount={(editor) => {
+                                                editorInstanceRef.current = editor;
+                                                if (pendingNavRef.current && activeFile && (
+                                                    activeFile.path === pendingNavRef.current.path || 
+                                                    pendingNavRef.current.path.endsWith(activeFile.path) ||
+                                                    fullFilePath === pendingNavRef.current.path
+                                                )) {
+                                                    const { startLine, endLine } = pendingNavRef.current;
+                                                    pendingNavRef.current = null;
+                                                    setTimeout(() => applyLineHighlight(startLine, endLine), 100);
+                                                }
+                                            }}
+                                            onContextMenu={(coords) => {
+                                                setContextMenu(coords);
+                                            }}
+                                        />
+                                    );
+                                })()}
                             </div>
                         </>
                     ) : (

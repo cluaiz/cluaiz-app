@@ -2,6 +2,8 @@ import React from 'react';
 import { CheckCheck, ChevronDown } from 'lucide-react';
 import { LottieEmoji } from '../../../components/ui/context-menu/LottieEmoji';
 import { EmojiMeta } from '../../../assets/EmojiMeta';
+import { ContextChip } from '../../../components/ui/ContextChip';
+import { extractBaseName } from '../../../utils/filePath';
 
 const getEmojiCodepoint = (emoji: string) => {
     return [...emoji]
@@ -238,6 +240,75 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             return part;
         });
     };
+
+    const renderUserMessageContent = (text: string, highlights?: string[]) => {
+        if (!text) return null;
+
+        // Matches context chip tags like @[path] or @[path:lineRange]
+        const chipPattern = /(@\[[^\]]+\])/g;
+        const parts = text.split(chipPattern);
+
+        return parts.map((part, idx) => {
+            if (part.startsWith('@[') && part.endsWith(']')) {
+                const inner = part.slice(2, -1).trim();
+                if (!inner) return null;
+
+                // Check if ends with line range (e.g. :L15-L18 or :L1)
+                const lineMatch = inner.match(/:(L\d+(?:-L\d+)?)$/i);
+                const rawPath = lineMatch ? inner.slice(0, -lineMatch[0].length) : inner;
+                const lineRange = lineMatch ? lineMatch[1] : undefined;
+                const fileName = extractBaseName(rawPath);
+
+                return (
+                    <ContextChip
+                        key={`msg-chip-${idx}`}
+                        id={rawPath}
+                        rawPath={rawPath}
+                        name={fileName}
+                        lineRange={lineRange}
+                        className="inline-flex align-middle mx-0.5 my-0.5 shadow-xs"
+                    />
+                );
+            }
+
+            const prevIsChip = idx > 0 && parts[idx - 1]?.startsWith('@[') && parts[idx - 1]?.endsWith(']');
+            const nextIsChip = idx < parts.length - 1 && parts[idx + 1]?.startsWith('@[') && parts[idx + 1]?.endsWith(']');
+
+            // 1. Pure whitespace between chips or at message boundaries
+            if (!part.trim()) {
+                // If purely whitespace between two chips, ALWAYS stay inline with a single space
+                if (prevIsChip && nextIsChip) {
+                    return ' ';
+                }
+                // If boundary whitespace before first chip or after last chip, trim it
+                if ((idx === 0 && nextIsChip) || (idx === parts.length - 1 && prevIsChip)) {
+                    return null;
+                }
+                return ' ';
+            }
+
+            // 2. Text adjacent to chips: normalize single newlines to spaces so chips flow inline with text
+            let normalizedText = part;
+            if (nextIsChip) {
+                // Trailing single newline before a chip -> space, but preserve double newlines
+                if (/\n\s*$/.test(normalizedText) && !/\n\s*\n\s*$/.test(normalizedText)) {
+                    normalizedText = normalizedText.replace(/\n\s*$/, ' ');
+                }
+            }
+            if (prevIsChip) {
+                // Leading single newline after a chip -> space, but preserve double newlines
+                if (/^\s*\n/.test(normalizedText) && !/^\s*\n\s*\n/.test(normalizedText)) {
+                    normalizedText = normalizedText.replace(/^\s*\n/, ' ');
+                }
+            }
+
+            return (
+                <React.Fragment key={`text-${idx}`}>
+                    {renderTextWithHighlights(normalizedText, highlights)}
+                </React.Fragment>
+            );
+        });
+    };
     
     return (
         <div 
@@ -283,13 +354,13 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                     )}
 
                     {msg.text && (
-                        <pre
-                            className="whitespace-pre-wrap font-sans font-medium select-text break-words"
+                        <div
+                            className="whitespace-pre-wrap font-sans font-medium select-text break-words leading-relaxed"
                             style={{ fontSize: 'var(--chat-bubble-font-size, 14px)' }}
                             onMouseUp={handleMouseUp}
                         >
-                            {renderTextWithHighlights(msg.text, msg.highlights)}
-                        </pre>
+                            {renderUserMessageContent(msg.text, msg.highlights)}
+                        </div>
                     )}
 
                     <div 
