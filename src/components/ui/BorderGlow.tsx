@@ -13,6 +13,8 @@ interface BorderGlowProps {
     animated?: boolean;
     colors?: string[];
     fillOpacity?: number;
+    active?: boolean;
+    frequency?: number;
 }
 
 function parseHSL(hslStr: string): { h: number; s: number; l: number } {
@@ -90,12 +92,17 @@ const BorderGlow: React.FC<BorderGlowProps> = ({
     animated = false,
     colors = ['#c084fc', '#f472b6', '#38bdf8'],
     fillOpacity = 0.5,
+    active = false,
+    frequency = 0,
 }) => {
     const cardRef = useRef<HTMLDivElement>(null);
     const [isHovered, setIsHovered] = useState(false);
     const [cursorAngle, setCursorAngle] = useState(45);
     const [edgeProximity, setEdgeProximity] = useState(0);
     const [sweepActive, setSweepActive] = useState(false);
+    const angleStart = 110;
+    const angleEnd = 465;
+    const voiceAngle = angleStart + (angleEnd - angleStart) * Math.min(1, Math.max(0, frequency));
 
     const getCenterOfElement = useCallback((el: HTMLElement) => {
         const { width, height } = el.getBoundingClientRect();
@@ -160,18 +167,25 @@ const BorderGlow: React.FC<BorderGlowProps> = ({
     }, [animated]);
 
     const colorSensitivity = edgeSensitivity + 20;
-    const isVisible = isHovered || sweepActive;
+    const isVoiceGlowing = active && frequency > 0.04;
+    const isVisible = isVoiceGlowing || (!active && (isHovered || sweepActive));
+    const effectiveProximity = isVoiceGlowing
+        ? Math.min(1, 0.25 + frequency * 0.75)
+        : edgeProximity;
+    const currentAngle = active ? voiceAngle : cursorAngle;
+
     const borderOpacity = isVisible
-        ? Math.max(0, (edgeProximity * 100 - colorSensitivity) / (100 - colorSensitivity))
+        ? Math.max(0, (effectiveProximity * 100 - colorSensitivity) / (100 - colorSensitivity))
         : 0;
     const glowOpacity = isVisible
-        ? Math.max(0, (edgeProximity * 100 - edgeSensitivity) / (100 - edgeSensitivity))
+        ? Math.max(0, (effectiveProximity * 100 - edgeSensitivity) / (100 - edgeSensitivity))
         : 0;
 
     const meshGradients = buildMeshGradients(colors);
     const borderBg = meshGradients.map(g => `${g} border-box`);
     const fillBg = meshGradients.map(g => `${g} padding-box`);
-    const angleDeg = `${cursorAngle.toFixed(3)}deg`;
+    const angleDeg = `${currentAngle.toFixed(3)}deg`;
+    const effectiveSpread = active ? Math.round(coneSpread + frequency * 16) : coneSpread;
 
     return (
         <div
@@ -197,9 +211,9 @@ const BorderGlow: React.FC<BorderGlowProps> = ({
                         ...borderBg,
                     ].join(', '),
                     opacity: borderOpacity,
-                    maskImage: `conic-gradient(from ${angleDeg} at center, black ${coneSpread}%, transparent ${coneSpread + 15}%, transparent ${100 - coneSpread - 15}%, black ${100 - coneSpread}%)`,
-                    WebkitMaskImage: `conic-gradient(from ${angleDeg} at center, black ${coneSpread}%, transparent ${coneSpread + 15}%, transparent ${100 - coneSpread - 15}%, black ${100 - coneSpread}%)`,
-                    transition: isVisible ? 'opacity 0.25s ease-out' : 'opacity 0.75s ease-in-out',
+                    maskImage: `conic-gradient(from ${angleDeg} at center, black ${effectiveSpread}%, transparent ${effectiveSpread + 15}%, transparent ${100 - effectiveSpread - 15}%, black ${100 - effectiveSpread}%)`,
+                    WebkitMaskImage: `conic-gradient(from ${angleDeg} at center, black ${effectiveSpread}%, transparent ${effectiveSpread + 15}%, transparent ${100 - effectiveSpread - 15}%, black ${100 - effectiveSpread}%)`,
+                    transition: active ? 'opacity 0.08s ease-out' : (isVisible ? 'opacity 0.25s ease-out' : 'opacity 0.5s ease-in-out'),
                 }}
             />
 
@@ -246,14 +260,14 @@ const BorderGlow: React.FC<BorderGlowProps> = ({
                     WebkitMaskImage: `conic-gradient(from ${angleDeg} at center, black 2.5%, transparent 10%, transparent 90%, black 97.5%)`,
                     opacity: glowOpacity,
                     mixBlendMode: 'plus-lighter',
-                    transition: isVisible ? 'opacity 0.25s ease-out' : 'opacity 0.75s ease-in-out',
+                    transition: active ? 'opacity 0.08s ease-out' : (isVisible ? 'opacity 0.25s ease-out' : 'opacity 0.5s ease-in-out'),
                 } as React.CSSProperties}
             >
                 <span
                     className="absolute rounded-[inherit]"
                     style={{
                         inset: `${glowRadius}px`,
-                        boxShadow: buildBoxShadow(glowColor, glowIntensity),
+                        boxShadow: buildBoxShadow(glowColor, active ? glowIntensity * (0.6 + frequency * 0.9) : glowIntensity),
                     }}
                 />
             </span>
