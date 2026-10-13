@@ -1,9 +1,10 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect } from 'react';
 import { useApiStore, fetchActiveBearerToken } from '../../../store/api/useApiStore';
 import { useConnectionStore } from '../../../store/engine/useConnectionStore';
 import { ApiProtocol } from '../types';
 import { executeApiRequest } from '../services/apiTransport';
 import { CustomDropdown } from '../../../components/ui/dropdown/CustomDropdown';
+import { getFilteredModelsForEndpoint } from '../utils/modelFilter';
 import { Play, RotateCcw, Loader2 } from 'lucide-react';
 
 export const RequestHeader: React.FC = () => {
@@ -46,13 +47,30 @@ export const RequestHeader: React.FC = () => {
         }
     };
 
-    // Model selector is only applicable for Chat/Completions/Embedding endpoints
+    // Model selector is applicable for Chat, Audio (STT/TTS), Embeddings, and Hardware Plan endpoints
     const isModelEndpoint = useMemo(() => {
         if (!activeEndpoint) return false;
         const p = activeEndpoint.path.toLowerCase();
+
+        // 1. Endpoints that explicitly take models
         if (
             p.includes('/plan') ||
-            p.includes('/system') ||
+            p.includes('/chat/completions') ||
+            p.includes('/completion') ||
+            p.includes('/embedding') ||
+            p.includes('/audio/transcriptions') ||
+            p.includes('/audio/speech') ||
+            p.includes('/ingest')
+        ) {
+            return true;
+        }
+
+        // 2. Control/diagnostic endpoints that do not take a model selector
+        if (
+            p.includes('/chat/cancel') ||
+            p.includes('/chat/skip-reasoning') ||
+            p.includes('/chat/context_telemetry') ||
+            p.includes('/system/') ||
             p.includes('/storage') ||
             p.includes('/config') ||
             p.includes('/health') ||
@@ -60,11 +78,16 @@ export const RequestHeader: React.FC = () => {
         ) {
             return false;
         }
-        return (
-            p.includes('/chat') ||
-            p.includes('/completion') ||
-            p.includes('/embedding')
-        );
+
+        // 3. Fallback: payload inspection
+        if (activeEndpoint.request_payload && activeEndpoint.request_payload.includes('"model"')) {
+            return true;
+        }
+        if (activeEndpoint.params && activeEndpoint.params.some(param => param.name === 'model')) {
+            return true;
+        }
+
+        return p.includes('/chat');
     }, [activeEndpoint]);
 
     const protocolOptions = useMemo(
@@ -75,16 +98,32 @@ export const RequestHeader: React.FC = () => {
         [host, port]
     );
 
-    const modelOptions = useMemo(
-        () => [
-            { value: 'auto', label: 'Model: Auto' },
-            ...installedModels.map((m) => ({
-                value: m.id,
-                label: m.id
-            }))
-        ],
-        [installedModels]
-    );
+    // Filter models specifically for the active endpoint's task
+    const modelOptions = useMemo(() => {
+        if (!activeEndpoint) return [];
+        const filtered = getFilteredModelsForEndpoint(activeEndpoint.path, installedModels);
+        const p = activeEndpoint.path.toLowerCase();
+
+        const allowsAuto = p.includes('/chat') || p.includes('/plan');
+        const opts = filtered.map((m) => ({
+            value: m.id,
+            label: m.id
+        }));
+
+        if (allowsAuto) {
+            return [{ value: 'auto', label: 'Model: Auto' }, ...opts];
+        }
+        return opts;
+    }, [activeEndpoint, installedModels]);
+
+    // Ensure selected model is always valid for the active endpoint's filtered list
+    useEffect(() => {
+        if (!isModelEndpoint || !modelOptions.length) return;
+        const exists = modelOptions.some(o => o.value === selectedModel);
+        if (!exists && modelOptions[0]) {
+            setSelectedModel(modelOptions[0].value);
+        }
+    }, [isModelEndpoint, modelOptions, selectedModel, setSelectedModel]);
 
     const voiceOptions = useMemo(
         () =>

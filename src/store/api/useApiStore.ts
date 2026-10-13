@@ -335,7 +335,10 @@ export const useApiStore = create<ApiStoreState>()((set, get) => ({
         const isModelEndpoint = ep && (
             ep.path.toLowerCase().includes('/chat') ||
             ep.path.toLowerCase().includes('/completion') ||
-            ep.path.toLowerCase().includes('/embedding')
+            ep.path.toLowerCase().includes('/embedding') ||
+            ep.path.toLowerCase().includes('/plan') ||
+            ep.path.toLowerCase().includes('/audio') ||
+            ep.path.toLowerCase().includes('/ingest')
         );
 
         // Dynamically update model field inside JSON payload only for model-compatible endpoints
