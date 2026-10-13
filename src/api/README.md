@@ -131,6 +131,7 @@ Every single route declared in `cluaiz/inference-engine/api/src/routes.rs` is ma
 | | `/v1/fs/rename` | `POST` | `fsApi.renamePath()` | |
 | | `/v1/fs/copy` | `POST` | `fsApi.copyPath()` | |
 | | `/v1/fs/mkdir` | `POST` | `fsApi.createDir()` | |
+| | `/v1/fs/pick_folder` | `POST` | `fsApi.pickFolder()` | |
 | | `/v1/workspace` | `GET` / `POST` | `fsApi.getWorkspace()` / `setWorkspace()` | |
 | **`audio/`** | `/v1/audio/speech` | `POST` | `audioApi.speech()` | `useAudioStore` |
 | | `/v1/audio/transcriptions` | `POST` | `audioApi.transcriptions()` | |
