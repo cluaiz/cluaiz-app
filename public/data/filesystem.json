@@ -210,6 +210,42 @@
       ]
     },
     {
+      "method": "POST",
+      "path": "/v1/fs/pick_folder",
+      "desc": "Triggers the host OS native folder picker dialog (Windows File Explorer, macOS Finder, or Linux GTK/Portal) and returns the chosen directory path.",
+      "docs_url": "/docs/api/fs/filesystem.md",
+      "params": [
+        {
+          "name": "title",
+          "type": "string",
+          "req": false,
+          "desc": "Optional title for the native folder selection dialog window.",
+          "default": "Select Workspace Folder"
+        },
+        {
+          "name": "default_path",
+          "type": "string",
+          "req": false,
+          "desc": "Optional initial folder path where the picker dialog starts browsing.",
+          "default": "C:\\Users\\Aryan"
+        }
+      ],
+      "request_payload": "{\n  \"caller\": \"user\",\n  \"title\": \"Select Workspace Folder\"\n}",
+      "response": "{\n  \"status\": \"success\",\n  \"path\": \"C:\\\\Users\\\\Aryan\\\\Downloads\"\n}",
+      "examples": [
+        {
+          "language": "curl",
+          "title": "cURL",
+          "code": "curl -X POST http://localhost:8000/v1/fs/pick_folder \\\n  -H 'Authorization: Bearer sk-cluaiz-e46c11e877b20afb49c4df0fcfa44351' \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"caller\": \"user\"}'"
+        },
+        {
+          "language": "python",
+          "title": "Python",
+          "code": "import requests\n\nheaders = {'Authorization': 'Bearer sk-cluaiz-e46c11e877b20afb49c4df0fcfa44351'}\nres = requests.post('http://localhost:8000/v1/fs/pick_folder', json={'caller': 'user'}, headers=headers)\nprint(res.json())"
+        }
+      ]
+    },
+    {
       "method": "GET",
       "path": "/v1/workspace",
       "desc": "Retrieves the current canonical workspace directory of the engine.",
