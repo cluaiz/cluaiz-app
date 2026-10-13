@@ -256,8 +256,12 @@ const BorderGlow: React.FC<BorderGlowProps> = ({
                 className="absolute pointer-events-none z-[1] rounded-[inherit]"
                 style={{
                     inset: `${-glowRadius}px`,
-                    maskImage: `conic-gradient(from ${angleDeg} at center, black 2.5%, transparent 10%, transparent 90%, black 97.5%)`,
-                    WebkitMaskImage: `conic-gradient(from ${angleDeg} at center, black 2.5%, transparent 10%, transparent 90%, black 97.5%)`,
+                    maskImage: active
+                        ? `conic-gradient(from ${angleDeg} at center, black ${effectiveSpread}%, transparent ${effectiveSpread + 15}%, transparent ${100 - effectiveSpread - 15}%, black ${100 - effectiveSpread}%)`
+                        : `conic-gradient(from ${angleDeg} at center, black 2.5%, transparent 10%, transparent 90%, black 97.5%)`,
+                    WebkitMaskImage: active
+                        ? `conic-gradient(from ${angleDeg} at center, black ${effectiveSpread}%, transparent ${effectiveSpread + 15}%, transparent ${100 - effectiveSpread - 15}%, black ${100 - effectiveSpread}%)`
+                        : `conic-gradient(from ${angleDeg} at center, black 2.5%, transparent 10%, transparent 90%, black 97.5%)`,
                     opacity: glowOpacity,
                     mixBlendMode: 'plus-lighter',
                     transition: active ? 'opacity 0.08s ease-out' : (isVisible ? 'opacity 0.25s ease-out' : 'opacity 0.5s ease-in-out'),
@@ -267,7 +271,7 @@ const BorderGlow: React.FC<BorderGlowProps> = ({
                     className="absolute rounded-[inherit]"
                     style={{
                         inset: `${glowRadius}px`,
-                        boxShadow: buildBoxShadow(glowColor, active ? glowIntensity * (0.6 + frequency * 0.9) : glowIntensity),
+                        boxShadow: buildBoxShadow(glowColor, active ? glowIntensity * frequency : glowIntensity),
                     }}
                 />
             </span>

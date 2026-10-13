@@ -1278,13 +1278,6 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                             }`}
                         style={{
                             borderStyle: 'var(--border-style)',
-                            borderColor: isVoiceActive
-                                ? `rgba(var(--accent-color-rgb), ${(0.35 + voiceFrequency * 0.65).toFixed(2)})`
-                                : undefined,
-                            boxShadow: isVoiceActive
-                                ? `0 0 ${Math.round(4 + voiceFrequency * 22)}px rgba(var(--accent-color-rgb), ${(0.25 + voiceFrequency * 0.6).toFixed(2)}), inset 0 0 ${Math.round(6 + voiceFrequency * 16)}px rgba(var(--accent-color-rgb), ${(0.1 + voiceFrequency * 0.25).toFixed(2)})`
-                                : undefined,
-                            transition: isVoiceActive ? 'border-color 0.05s ease-out, box-shadow 0.05s ease-out' : undefined,
                         }}
                     >
                         {renderInputContent()}
@@ -1315,13 +1308,6 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                             }`}
                         style={{
                             borderStyle: 'var(--border-style)',
-                            borderColor: isVoiceActive
-                                ? `rgba(var(--accent-color-rgb), ${(0.35 + voiceFrequency * 0.65).toFixed(2)})`
-                                : undefined,
-                            boxShadow: isVoiceActive
-                                ? `0 0 ${Math.round(4 + voiceFrequency * 22)}px rgba(var(--accent-color-rgb), ${(0.25 + voiceFrequency * 0.6).toFixed(2)}), inset 0 0 ${Math.round(6 + voiceFrequency * 16)}px rgba(var(--accent-color-rgb), ${(0.1 + voiceFrequency * 0.25).toFixed(2)})`
-                                : undefined,
-                            transition: isVoiceActive ? 'border-color 0.05s ease-out, box-shadow 0.05s ease-out' : undefined,
                         }}
                     >
                         {renderInputContent()}
