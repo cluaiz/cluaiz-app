@@ -10,6 +10,7 @@ import { modelsApi } from '../../../api/engine/models/models.api';
 import { permissionApi } from '../../../api/engine/permission/permission.api';
 import { toast } from '../../../components/ui/toast';
 import { InlinePromptInput, InlinePromptInputHandle } from '../../../components/ui/InlinePromptInput';
+import { VoiceInputControl, VoiceMode } from '../../../components/ui/VoiceInputControl';
 import { extractBaseName } from '../../../utils/filePath';
 
 const DynamicToolIcon: React.FC<{ iconSvg?: string | null; fallback: React.ReactNode; className?: string }> = ({ iconSvg, fallback, className = "w-3.5 h-3.5" }) => {
@@ -94,6 +95,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 }) => {
     const [isAttachOpen, setIsAttachOpen] = useState(false);
     const [isModelOpen, setIsModelOpen] = useState(false);
+    const [isVoiceActive, setIsVoiceActive] = useState(false);
+    const [voiceMode, setVoiceMode] = useState<VoiceMode>('record_send');
+    const [voiceFrequency, setVoiceFrequency] = useState(0);
     const [modelTextWidth, setModelTextWidth] = useState(200);
     const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
     const [isEffortMenuOpen, setIsEffortMenuOpen] = useState(false);
@@ -138,7 +142,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         try {
             const stored = localStorage.getItem('cluaiz_recent_attached_files');
             if (stored) setRecentFiles(JSON.parse(stored));
-        } catch (e) {}
+        } catch (e) { }
 
         const fetchTools = async () => {
             try {
@@ -217,7 +221,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             ].slice(0, 10);
             localStorage.setItem('cluaiz_recent_attached_files', JSON.stringify(updated));
             setRecentFiles(updated);
-        } catch (err) {}
+        } catch (err) { }
 
         e.target.value = '';
         setIsAttachOpen(false);
@@ -303,7 +307,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                     addPathChip(parsed.path, Boolean(parsed.isFolder), parsed.name);
                     return;
                 }
-            } catch (err) {}
+            } catch (err) { }
         }
 
         // 2. Check dropped files
@@ -870,11 +874,10 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                                             setThinkMode(item.id as any);
                                             if (updateBooster) updateBooster('think_mode', item.id);
                                         }}
-                                        className={`group w-full flex items-center justify-between px-2 py-1.5 rounded-md text-xs font-medium transition-all cursor-pointer ${
-                                            thinkMode === item.id
-                                                ? 'bg-[var(--bg-secondary)] text-[var(--accent-color)] font-semibold shadow-sm'
-                                                : 'text-[var(--text-primary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--accent-color)]'
-                                        }`}
+                                        className={`group w-full flex items-center justify-between px-2 py-1.5 rounded-md text-xs font-medium transition-all cursor-pointer ${thinkMode === item.id
+                                            ? 'bg-[var(--bg-secondary)] text-[var(--accent-color)] font-semibold shadow-sm'
+                                            : 'text-[var(--text-primary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--accent-color)]'
+                                            }`}
                                     >
                                         <div className="flex items-center gap-2">
                                             <span className="capitalize">{item.label}</span>
@@ -924,11 +927,10 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                                     type="button"
                                     title="Thinking settings: custom tokens, budget end message"
                                     onClick={() => setIsEffortSettingsOpen(open => !open)}
-                                    className={`p-0.5 rounded-md cursor-pointer transition-colors ${
-                                        isEffortSettingsOpen
-                                            ? 'text-[var(--accent-color)] bg-[var(--bg-secondary)]'
-                                            : 'text-[var(--text-muted)] hover:text-[var(--accent-color)]'
-                                    }`}
+                                    className={`p-0.5 rounded-md cursor-pointer transition-colors ${isEffortSettingsOpen
+                                        ? 'text-[var(--accent-color)] bg-[var(--bg-secondary)]'
+                                        : 'text-[var(--text-muted)] hover:text-[var(--accent-color)]'
+                                        }`}
                                 >
                                     <SlidersHorizontal className="w-3.5 h-3.5" />
                                 </button>
@@ -946,11 +948,10 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                                         key={item.id}
                                         type="button"
                                         onClick={() => chooseEffort(item.id)}
-                                        className={`group w-full flex items-center justify-between px-2 py-1.5 rounded-md text-xs font-medium transition-all cursor-pointer ${
-                                            effort === item.id
-                                                ? 'bg-[var(--bg-secondary)] text-[var(--accent-color)] font-semibold shadow-sm'
-                                                : 'text-[var(--text-primary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--accent-color)]'
-                                        }`}
+                                        className={`group w-full flex items-center justify-between px-2 py-1.5 rounded-md text-xs font-medium transition-all cursor-pointer ${effort === item.id
+                                            ? 'bg-[var(--bg-secondary)] text-[var(--accent-color)] font-semibold shadow-sm'
+                                            : 'text-[var(--text-primary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--accent-color)]'
+                                            }`}
                                     >
                                         <div className="flex items-center gap-2">
                                             <span>{item.label}</span>
@@ -982,67 +983,67 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                             </div>
 
                             {isEffortSettingsOpen && (<>
-                            {/* Custom thinking budget in tokens */}
-                            <div className="mt-1 pt-1.5 border-t border-[var(--border-color)] px-2 pb-1">
-                                <div className="text-xs font-medium text-[var(--text-primary)]">Custom tokens</div>
-                                <div className="mt-1 flex items-center gap-1">
-                                    <input
-                                        type="number"
-                                        min={0}
-                                        step={1}
-                                        inputMode="numeric"
-                                        placeholder="tokens, e.g. 2000"
-                                        value={customEffort}
-                                        onChange={e => setCustomEffort(e.target.value)}
-                                        onKeyDown={e => {
-                                            e.stopPropagation();
-                                            if (e.key === 'Enter') {
-                                                e.preventDefault();
-                                                applyCustomEffort();
-                                            }
-                                        }}
-                                        className="w-full min-w-0 px-2 py-1 rounded-md bg-[var(--bg-secondary)] border border-[var(--border-color)] text-xs text-[var(--text-primary)] outline-none focus:border-[var(--accent-color)]"
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={applyCustomEffort}
-                                        className="px-2 py-1 rounded-md text-xs font-medium text-[var(--accent-color)] hover:bg-[var(--bg-secondary)] cursor-pointer"
-                                    >
-                                        Set
-                                    </button>
+                                {/* Custom thinking budget in tokens */}
+                                <div className="mt-1 pt-1.5 border-t border-[var(--border-color)] px-2 pb-1">
+                                    <div className="text-xs font-medium text-[var(--text-primary)]">Custom tokens</div>
+                                    <div className="mt-1 flex items-center gap-1">
+                                        <input
+                                            type="number"
+                                            min={0}
+                                            step={1}
+                                            inputMode="numeric"
+                                            placeholder="tokens, e.g. 2000"
+                                            value={customEffort}
+                                            onChange={e => setCustomEffort(e.target.value)}
+                                            onKeyDown={e => {
+                                                e.stopPropagation();
+                                                if (e.key === 'Enter') {
+                                                    e.preventDefault();
+                                                    applyCustomEffort();
+                                                }
+                                            }}
+                                            className="w-full min-w-0 px-2 py-1 rounded-md bg-[var(--bg-secondary)] border border-[var(--border-color)] text-xs text-[var(--text-primary)] outline-none focus:border-[var(--accent-color)]"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={applyCustomEffort}
+                                            className="px-2 py-1 rounded-md text-xs font-medium text-[var(--accent-color)] hover:bg-[var(--bg-secondary)] cursor-pointer"
+                                        >
+                                            Set
+                                        </button>
+                                    </div>
                                 </div>
-                            </div>
 
-                            {/* Text written when the budget runs out, before the model's end-of-thinking tag */}
-                            <div className="mt-1 pt-1.5 border-t border-[var(--border-color)] px-2 pb-1">
-                                <div className="text-xs font-medium text-[var(--text-primary)]">Budget end message</div>
-                                <div className="text-[10px] text-[var(--text-muted)] leading-tight mt-0.5">
-                                    Written when the thinking budget runs out, so the model wraps up. Empty = nothing.
+                                {/* Text written when the budget runs out, before the model's end-of-thinking tag */}
+                                <div className="mt-1 pt-1.5 border-t border-[var(--border-color)] px-2 pb-1">
+                                    <div className="text-xs font-medium text-[var(--text-primary)]">Budget end message</div>
+                                    <div className="text-[10px] text-[var(--text-muted)] leading-tight mt-0.5">
+                                        Written when the thinking budget runs out, so the model wraps up. Empty = nothing.
+                                    </div>
+                                    <div className="mt-1 flex items-center gap-1">
+                                        <input
+                                            type="text"
+                                            placeholder="e.g. I have to answer now."
+                                            value={budgetMessage}
+                                            onChange={e => setBudgetMessage(e.target.value)}
+                                            onKeyDown={e => {
+                                                e.stopPropagation();
+                                                if (e.key === 'Enter') {
+                                                    e.preventDefault();
+                                                    saveBudgetMessage();
+                                                }
+                                            }}
+                                            className="w-full min-w-0 px-2 py-1 rounded-md bg-[var(--bg-secondary)] border border-[var(--border-color)] text-xs text-[var(--text-primary)] outline-none focus:border-[var(--accent-color)]"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={saveBudgetMessage}
+                                            className="px-2 py-1 rounded-md text-xs font-medium text-[var(--accent-color)] hover:bg-[var(--bg-secondary)] cursor-pointer"
+                                        >
+                                            Save
+                                        </button>
+                                    </div>
                                 </div>
-                                <div className="mt-1 flex items-center gap-1">
-                                    <input
-                                        type="text"
-                                        placeholder="e.g. I have to answer now."
-                                        value={budgetMessage}
-                                        onChange={e => setBudgetMessage(e.target.value)}
-                                        onKeyDown={e => {
-                                            e.stopPropagation();
-                                            if (e.key === 'Enter') {
-                                                e.preventDefault();
-                                                saveBudgetMessage();
-                                            }
-                                        }}
-                                        className="w-full min-w-0 px-2 py-1 rounded-md bg-[var(--bg-secondary)] border border-[var(--border-color)] text-xs text-[var(--text-primary)] outline-none focus:border-[var(--accent-color)]"
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={saveBudgetMessage}
-                                        className="px-2 py-1 rounded-md text-xs font-medium text-[var(--accent-color)] hover:bg-[var(--bg-secondary)] cursor-pointer"
-                                    >
-                                        Save
-                                    </button>
-                                </div>
-                            </div>
                             </>)}
                         </div>
                     </div>
@@ -1150,13 +1151,13 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 <div className="flex items-center gap-1.5 flex-shrink-0">
                     {renderModelSelector()}
 
-                    <button
-                        type="button"
-                        className="w-[2rem] sm:w-[2.25rem] h-[2rem] sm:h-[2.25rem] flex-shrink-0 rounded-full flex items-center justify-center hover:bg-[var(--bg-secondary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
-                        title="Voice input"
-                    >
-                        <Mic className="w-4 sm:w-5 h-4 sm:h-5" />
-                    </button>
+                    <VoiceInputControl
+                        onVoiceStateChange={(active, currentMode) => {
+                            setIsVoiceActive(active);
+                            setVoiceMode(currentMode);
+                        }}
+                        onVoiceFrequencyChange={(freq) => setVoiceFrequency(freq)}
+                    />
 
                     <div className={`transition-all duration-100 ease-out overflow-hidden flex items-center ${(inputValue.trim() || !inlineInputRef.current?.isEmpty()) ? 'w-[2rem] sm:w-[2.25rem] opacity-100 scale-100' : 'w-0 opacity-0 scale-0'}`}>
                         <button
@@ -1264,37 +1265,68 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                     coneSpread={20}
                     animated={true}
                     colors={['#c084fc', '#f472b6', '#38bdf8']}
+                    active={isVoiceActive}
+                    frequency={voiceFrequency}
                 >
                     <div
                         onDragOver={handleDragOver}
                         onDragLeave={handleDragLeave}
                         onDrop={handleDrop}
-                        className={`relative z-10 flex flex-col w-full gap-2 bg-[var(--bg-primary)] rounded-[20px] border p-3 sm:p-3.5 max-[300px]:p-2 transition-all duration-200 ${
-                            isDraggingOver 
-                                ? 'border-[var(--accent-color)] ring-2 ring-[var(--accent-color)]/30 bg-[var(--accent-color)]/5' 
-                                : 'border-[var(--border-color)] focus-within:border-[rgba(var(--accent-color-rgb),0.1)] focus-within:shadow-[0_0_0_1px_rgba(var(--accent-color-rgb),0.4)]'
-                        }`}
-                        style={{ borderStyle: 'var(--border-style)' }}
+                        className={`relative z-10 flex flex-col w-full gap-2 bg-[var(--bg-primary)] rounded-[20px] border p-3 sm:p-3.5 max-[300px]:p-2 transition-all duration-200 ${isDraggingOver
+                            ? 'border-[var(--accent-color)] ring-2 ring-[var(--accent-color)]/30 bg-[var(--accent-color)]/5'
+                            : 'border-[var(--border-color)] focus-within:border-[rgba(var(--accent-color-rgb),0.1)] focus-within:shadow-[0_0_0_1px_rgba(var(--accent-color-rgb),0.4)]'
+                            }`}
+                        style={{
+                            borderStyle: 'var(--border-style)',
+                            borderColor: isVoiceActive
+                                ? `rgba(var(--accent-color-rgb), ${(0.35 + voiceFrequency * 0.65).toFixed(2)})`
+                                : undefined,
+                            boxShadow: isVoiceActive
+                                ? `0 0 ${Math.round(4 + voiceFrequency * 22)}px rgba(var(--accent-color-rgb), ${(0.25 + voiceFrequency * 0.6).toFixed(2)}), inset 0 0 ${Math.round(6 + voiceFrequency * 16)}px rgba(var(--accent-color-rgb), ${(0.1 + voiceFrequency * 0.25).toFixed(2)})`
+                                : undefined,
+                            transition: isVoiceActive ? 'border-color 0.05s ease-out, box-shadow 0.05s ease-out' : undefined,
+                        }}
                     >
                         {renderInputContent()}
                     </div>
                 </BorderGlow>
             ) : (
-                <div className="relative w-full z-10">
+                <BorderGlow
+                    className="w-full z-10"
+                    edgeSensitivity={0}
+                    glowColor="var(--accent-color-rgb)"
+                    backgroundColor="var(--bg-primary)"
+                    borderRadius={20}
+                    glowRadius={60}
+                    glowIntensity={1}
+                    coneSpread={20}
+                    animated={false}
+                    colors={['#c084fc', '#f472b6', '#38bdf8']}
+                    active={isVoiceActive}
+                    frequency={voiceFrequency}
+                >
                     <div
                         onDragOver={handleDragOver}
                         onDragLeave={handleDragLeave}
                         onDrop={handleDrop}
-                        className={`relative z-10 flex flex-col w-full min-w-0 gap-2 bg-[var(--bg-primary)] rounded-[20px] border p-3 sm:p-3.5 max-[300px]:p-2 transition-all duration-200 ${
-                            isDraggingOver 
-                                ? 'border-[var(--accent-color)] ring-2 ring-[var(--accent-color)]/30 bg-[var(--accent-color)]/5' 
-                                : 'border-[var(--border-color)] focus-within:border-[rgba(var(--accent-color-rgb),0.1)] focus-within:shadow-[0_0_0_1px_rgba(var(--accent-color-rgb),0.4)]'
-                        }`}
-                        style={{ borderStyle: 'var(--border-style)' }}
+                        className={`relative z-10 flex flex-col w-full min-w-0 gap-2 bg-[var(--bg-primary)] rounded-[20px] border p-3 sm:p-3.5 max-[300px]:p-2 transition-all duration-200 ${isDraggingOver
+                            ? 'border-[var(--accent-color)] ring-2 ring-[var(--accent-color)]/30 bg-[var(--accent-color)]/5'
+                            : 'border-[var(--border-color)] focus-within:border-[rgba(var(--accent-color-rgb),0.1)] focus-within:shadow-[0_0_0_1px_rgba(var(--accent-color-rgb),0.4)]'
+                            }`}
+                        style={{
+                            borderStyle: 'var(--border-style)',
+                            borderColor: isVoiceActive
+                                ? `rgba(var(--accent-color-rgb), ${(0.35 + voiceFrequency * 0.65).toFixed(2)})`
+                                : undefined,
+                            boxShadow: isVoiceActive
+                                ? `0 0 ${Math.round(4 + voiceFrequency * 22)}px rgba(var(--accent-color-rgb), ${(0.25 + voiceFrequency * 0.6).toFixed(2)}), inset 0 0 ${Math.round(6 + voiceFrequency * 16)}px rgba(var(--accent-color-rgb), ${(0.1 + voiceFrequency * 0.25).toFixed(2)})`
+                                : undefined,
+                            transition: isVoiceActive ? 'border-color 0.05s ease-out, box-shadow 0.05s ease-out' : undefined,
+                        }}
                     >
                         {renderInputContent()}
                     </div>
-                </div>
+                </BorderGlow>
             )}
         </div>
     );
