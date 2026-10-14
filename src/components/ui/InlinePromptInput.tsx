@@ -43,6 +43,7 @@ export interface InlinePromptInputProps {
         }
     ) => void;
     onDropFiles?: (files: FileList | any) => void;
+    onPasteLargeText?: (text: string) => boolean;
     className?: string;
     minHeight?: string;
     maxHeight?: string;
@@ -54,6 +55,7 @@ export const InlinePromptInput = forwardRef<InlinePromptInputHandle, InlinePromp
     onTextChange,
     onSubmit,
     onDropFiles,
+    onPasteLargeText,
     className = '',
     minHeight = '24px',
     maxHeight = '160px'
@@ -426,11 +428,29 @@ export const InlinePromptInput = forwardRef<InlinePromptInputHandle, InlinePromp
         }
     }, [handleCopy, checkEmpty, onTextChange, serializeEditor]);
 
-    // Clean paste handling (strip rich external styles)
+    // Clean paste handling (intercept large text for staging deck, and file clipboard data)
     const handlePaste = (e: React.ClipboardEvent) => {
-        e.preventDefault();
+        // If files are in clipboard (e.g. pasted screenshots, images):
+        if (e.clipboardData.files && e.clipboardData.files.length > 0) {
+            e.preventDefault();
+            if (onDropFiles) {
+                onDropFiles(e.clipboardData.files);
+                return;
+            }
+        }
+
         const text = e.clipboardData.getData('text/plain');
         if (text) {
+            // Check for large text paste (market standard: >800 chars or >12 lines)
+            const lineCount = text.split('\n').length;
+            if (onPasteLargeText && (text.length >= 800 || lineCount >= 12)) {
+                const handled = onPasteLargeText(text);
+                if (handled) {
+                    e.preventDefault();
+                    return;
+                }
+            }
+            e.preventDefault();
             insertText(text);
         }
     };
@@ -448,6 +468,13 @@ export const InlinePromptInput = forwardRef<InlinePromptInputHandle, InlinePromp
                 sel?.addRange(range);
                 lastSavedRangeRef.current = range;
             }
+        }
+
+        // 0. Dragged pasted text snippet from staging deck back into input
+        const pastedSnippet = e.dataTransfer.getData('application/cluaiz-pasted-text');
+        if (pastedSnippet) {
+            insertText(pastedSnippet);
+            return;
         }
 
         // 1. Custom workspace path

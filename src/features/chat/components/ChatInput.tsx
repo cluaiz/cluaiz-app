@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, FileCode, FileText, Plus, ChevronDown, Mic, Zap, Sparkles, Globe, Brain, Image as ImageIcon, Video, File, X, Clock, ChevronRight, UploadCloud, Link as LinkIcon, Layers, FolderUp, Database, BookOpen, ZapOff, Telescope, CornerDownRight, Check, AlignLeft, AlignJustify, Box, Server, Info, SlidersHorizontal } from 'lucide-react';
-import BorderGlow from '../../../components/ui/BorderGlow';
+import { Send, FileCode, FileText, Plus, ChevronDown, Mic, Zap, Sparkles, Globe, Brain, Image as ImageIcon, Video, X, Clock, ChevronRight, UploadCloud, Link as LinkIcon, Layers, FolderUp, Database, BookOpen, ZapOff, Telescope, CornerDownRight, Check, AlignLeft, AlignJustify, Box, Server, Info, SlidersHorizontal } from 'lucide-react';
 import { Backlight } from '../../../components/ui/Backlight';
 import { useEngineStore } from '../../../store/engine/useEngineStore';
 import { useConnectionStore } from '../../../store/engine/useConnectionStore';
@@ -12,6 +11,7 @@ import { toast } from '../../../components/ui/toast';
 import { InlinePromptInput, InlinePromptInputHandle } from '../../../components/ui/InlinePromptInput';
 import { VoiceInputControl, VoiceMode } from '../../../components/ui/VoiceInputControl';
 import { extractBaseName } from '../../../utils/filePath';
+import { AttachmentStagingDeck, StagedAttachment } from './AttachmentStagingDeck';
 
 const DynamicToolIcon: React.FC<{ iconSvg?: string | null; fallback: React.ReactNode; className?: string }> = ({ iconSvg, fallback, className = "w-3.5 h-3.5" }) => {
     if (iconSvg) {
@@ -113,7 +113,6 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     const [customEffort, setCustomEffort] = useState('');
     const [budgetMessage, setBudgetMessage] = useState('');
     const [isEffortSettingsOpen, setIsEffortSettingsOpen] = useState(false);
-    const [isRecentMenuOpen, setIsRecentMenuOpen] = useState(false);
     const [isSkillsMenuOpen, setIsSkillsMenuOpen] = useState(false);
     const [isPluginsMenuOpen, setIsPluginsMenuOpen] = useState(false);
     const [isMcpMenuOpen, setIsMcpMenuOpen] = useState(false);
@@ -123,10 +122,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     // Inline Prompt Input Ref (Text + Embedded Context Chips)
     const inlineInputRef = useRef<InlinePromptInputHandle>(null);
 
-    // Real File Attachments State
+    // Real Staged File Attachments & Pasted Snippets State (Above Input Deck)
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const [attachedFiles, setAttachedFiles] = useState<{ id: string; name: string; size: number; type: string }[]>([]);
-    const [recentFiles, setRecentFiles] = useState<{ name: string; size: number; timestamp: number }[]>([]);
+    const [stagedAttachments, setStagedAttachments] = useState<StagedAttachment[]>([]);
 
     // Dynamic Local Path Chips (Folder / File drag-and-drop & context pills)
     const [pathChips, setPathChips] = useState<{ id: string; rawPath: string; isFolder: boolean; name: string; lineRange?: string }[]>([]);
@@ -145,11 +143,6 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     });
 
     useEffect(() => {
-        try {
-            const stored = localStorage.getItem('cluaiz_recent_attached_files');
-            if (stored) setRecentFiles(JSON.parse(stored));
-        } catch (e) { }
-
         const fetchTools = async () => {
             try {
                 const data = await client.get<any>('/api/components/list');
@@ -197,44 +190,75 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         return getSkillIcon(name);
     };
 
+    const handleStageFiles = (files: FileList | any[] | any) => {
+        if (!files || files.length === 0) return;
+        const newAttachments: StagedAttachment[] = Array.from(files).map((file: any) => {
+            const name = file.name || 'attachment';
+            const size = typeof file.size === 'number' ? file.size : 0;
+            const type = file.type || '';
+            const isImg = type.startsWith('image/') || /\.(png|jpe?g|webp|gif|svg|bmp|ico)$/i.test(name);
+            const isVid = type.startsWith('video/') || /\.(mp4|mov|avi|mkv|webm)$/i.test(name);
+            let previewUrl: string | undefined = undefined;
+            if ((isImg || isVid) && typeof URL !== 'undefined' && URL.createObjectURL) {
+                try {
+                    previewUrl = URL.createObjectURL(file as Blob);
+                } catch { }
+            }
+            return {
+                id: `${name}-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+                name,
+                size,
+                type: type || 'application/octet-stream',
+                file: typeof file === 'object' ? file : undefined,
+                previewUrl
+            };
+        });
+        setStagedAttachments(prev => [...prev, ...newAttachments]);
+    };
+
     const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = e.target.files;
         if (!files || files.length === 0) return;
-
-        const newFiles = Array.from(files).map(file => ({
-            id: `${file.name}-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-            name: file.name,
-            size: file.size,
-            type: file.type
-        }));
-
-        setAttachedFiles(prev => [...prev, ...newFiles]);
-
-        newFiles.forEach(f => {
-            inlineInputRef.current?.insertChip({
-                type: 'file',
-                name: f.name,
-                rawPath: f.name
-            });
-        });
-
-        try {
-            const stored = localStorage.getItem('cluaiz_recent_attached_files');
-            const existing: { name: string; size: number; timestamp: number }[] = stored ? JSON.parse(stored) : [];
-            const updated = [
-                ...newFiles.map(f => ({ name: f.name, size: f.size, timestamp: Date.now() })),
-                ...existing.filter(e => !newFiles.some(n => n.name === e.name))
-            ].slice(0, 10);
-            localStorage.setItem('cluaiz_recent_attached_files', JSON.stringify(updated));
-            setRecentFiles(updated);
-        } catch (err) { }
-
+        handleStageFiles(files);
         e.target.value = '';
         setIsAttachOpen(false);
     };
 
-    const removeFile = (id: string) => {
-        setAttachedFiles(prev => prev.filter(f => f.id !== id));
+    const handleRemoveAttachment = (id: string) => {
+        setStagedAttachments(prev => {
+            const target = prev.find(a => a.id === id);
+            if (target?.previewUrl) {
+                try { URL.revokeObjectURL(target.previewUrl); } catch { }
+            }
+            return prev.filter(a => a.id !== id);
+        });
+    };
+
+    const handlePasteLargeText = (text: string) => {
+        const lines = text.split('\n').length;
+        const snippetId = `snippet-${Date.now()}-${Math.random().toString(36).substring(2, 5)}`;
+        const firstLine = text.trim().split('\n')[0].slice(0, 24);
+        const snippetName = firstLine ? `Pasted: "${firstLine}..."` : `Pasted Document (${lines} lines)`;
+
+        const newSnippet: StagedAttachment = {
+            id: snippetId,
+            name: snippetName,
+            size: new Blob([text]).size,
+            type: 'text/plain',
+            isPastedText: true,
+            pastedContent: text,
+            lineCount: lines
+        };
+        setStagedAttachments(prev => [...prev, newSnippet]);
+        toast.info(`Converted large text (${lines} lines) to staged document`);
+        return true;
+    };
+
+    const handleExpandPastedText = (item: StagedAttachment) => {
+        if (item.pastedContent) {
+            inlineInputRef.current?.insertText(item.pastedContent);
+            setStagedAttachments(prev => prev.filter(a => a.id !== item.id));
+        }
     };
 
     // Engine State for Think Mode
@@ -304,6 +328,13 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         e.stopPropagation();
         setIsDraggingOver(false);
 
+        // 0. Dragged pasted-text snippet from staging deck back into input
+        const pastedSnippet = e.dataTransfer.getData('application/cluaiz-pasted-text');
+        if (pastedSnippet) {
+            inlineInputRef.current?.insertText(pastedSnippet);
+            return;
+        }
+
         // 1. Check custom application/cluaiz-path from workspace tree
         const customData = e.dataTransfer.getData('application/cluaiz-path');
         if (customData) {
@@ -316,13 +347,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             } catch (err) { }
         }
 
-        // 2. Check dropped files
+        // 2. Check dropped files from OS -> Stage in AttachmentStagingDeck
         if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-            Array.from(e.dataTransfer.files).forEach((file: any) => {
-                const realPath = file.path || file.name;
-                const isDir = Boolean((file as any).isDirectory || (!file.type && !file.name.includes('.')));
-                addPathChip(realPath, isDir, file.name);
-            });
+            handleStageFiles(e.dataTransfer.files);
             return;
         }
 
@@ -360,7 +387,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             skills: string[];
         }
     ) => {
-        if (!serializedText.trim() && contextData.files.length === 0 && contextData.skills.length === 0 && attachedFiles.length === 0) return;
+        if (!serializedText.trim() && contextData.files.length === 0 && contextData.skills.length === 0 && stagedAttachments.length === 0) return;
         if (!isEngineOnline) {
             toast.error('Cluaiz Engine is offline. Start engine to chat.');
             return;
@@ -368,9 +395,22 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
         let finalMsg = serializedText.trim();
 
-        if (attachedFiles.length > 0) {
-            const filesSummary = `[Attached Files: ${attachedFiles.map(f => `${f.name} (${formatBytes(f.size)})`).join(', ')}]`;
-            finalMsg = finalMsg ? `${finalMsg}\n\n${filesSummary}` : filesSummary;
+        if (stagedAttachments.length > 0) {
+            const pastedSnippets = stagedAttachments.filter(a => a.isPastedText && a.pastedContent);
+            const regularFiles = stagedAttachments.filter(a => !a.isPastedText);
+
+            let attachmentsSummary = '';
+            if (regularFiles.length > 0) {
+                attachmentsSummary += `[Attached Files: ${regularFiles.map(f => `${f.name} (${formatBytes(f.size)})`).join(', ')}]`;
+            }
+            if (pastedSnippets.length > 0) {
+                const snippetsText = pastedSnippets.map(s => `\n\`\`\`\n// ${s.name}\n${s.pastedContent}\n\`\`\``).join('\n');
+                attachmentsSummary += (attachmentsSummary ? '\n\n' : '') + snippetsText;
+            }
+
+            if (attachmentsSummary) {
+                finalMsg = finalMsg ? `${finalMsg}\n\n${attachmentsSummary}` : attachmentsSummary;
+            }
         }
 
         const activeTools = contextData.skills
@@ -386,7 +426,12 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
         handleSendMessage(finalMsg, options);
         setInputValue('');
-        setAttachedFiles([]);
+        stagedAttachments.forEach(a => {
+            if (a.previewUrl) {
+                try { URL.revokeObjectURL(a.previewUrl); } catch { }
+            }
+        });
+        setStagedAttachments([]);
         inlineInputRef.current?.clear();
     };
 
@@ -394,6 +439,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         const content = inlineInputRef.current?.getSerializedContent();
         if (content) {
             handlePromptSubmit(content.text, { files: content.files, skills: content.skills });
+        } else if (stagedAttachments.length > 0) {
+            handlePromptSubmit('', { files: [], skills: [] });
         }
     };
 
@@ -477,7 +524,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
     const currentModel = modelOptions.find(m => m.id === activeModelId) || modelOptions[0];
 
-    const attachRef = useRef<HTMLDivElement>(null);
+    const attachMenuRef = useRef<HTMLDivElement>(null);
+    const attachButtonRef = useRef<HTMLButtonElement>(null);
     const modelRef = useRef<HTMLDivElement>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const thinkingRef = useRef<HTMLDivElement>(null);
@@ -487,11 +535,16 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             const target = event.target as Node;
-            if (attachRef.current && !attachRef.current.contains(target)) {
+            if (
+                isAttachOpen &&
+                attachMenuRef.current &&
+                !attachMenuRef.current.contains(target) &&
+                attachButtonRef.current &&
+                !attachButtonRef.current.contains(target)
+            ) {
                 setIsAttachOpen(false);
                 setIsEffortMenuOpen(false);
                 setIsThinkModeMenuOpen(false);
-                setIsRecentMenuOpen(false);
                 setIsSkillsMenuOpen(false);
                 setIsPluginsMenuOpen(false);
                 setIsMcpMenuOpen(false);
@@ -552,10 +605,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
     const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    const openSubmenu = (menu: 'recent' | 'skills' | 'plugins' | 'mcp' | 'effort' | 'think_mode') => {
+    const openSubmenu = (menu: 'skills' | 'plugins' | 'mcp' | 'effort' | 'think_mode') => {
         if (timeoutRef.current) clearTimeout(timeoutRef.current);
         timeoutRef.current = setTimeout(() => {
-            setIsRecentMenuOpen(menu === 'recent');
             setIsSkillsMenuOpen(menu === 'skills');
             setIsPluginsMenuOpen(menu === 'plugins');
             setIsMcpMenuOpen(menu === 'mcp');
@@ -567,7 +619,6 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     const closeAllSubmenus = () => {
         if (timeoutRef.current) clearTimeout(timeoutRef.current);
         timeoutRef.current = setTimeout(() => {
-            setIsRecentMenuOpen(false);
             setIsSkillsMenuOpen(false);
             setIsPluginsMenuOpen(false);
             setIsMcpMenuOpen(false);
@@ -576,66 +627,35 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         }, 120);
     };
 
+    const closeAllSubmenusImmediate = () => {
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
+        setIsSkillsMenuOpen(false);
+        setIsPluginsMenuOpen(false);
+        setIsMcpMenuOpen(false);
+        setIsEffortMenuOpen(false);
+        setIsThinkModeMenuOpen(false);
+    };
+
     const attachmentMenu = (
-        <div className="absolute bottom-full left-0 mb-2 w-56 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-xl shadow-2xl p-1 z-50 flex flex-col gap-0.5" onMouseLeave={closeAllSubmenus}>
+        <div
+            ref={attachMenuRef}
+            className="absolute bottom-[calc(100%+8px)] left-2 w-56 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-xl shadow-2xl p-1 z-50 flex flex-col gap-0.5"
+            onMouseLeave={closeAllSubmenus}
+        >
             {/* Real File Upload */}
             <button
                 onClick={() => {
                     fileInputRef.current?.click();
                     setIsAttachOpen(false);
                 }}
+                onMouseEnter={closeAllSubmenusImmediate}
                 className="w-full flex items-center gap-3 px-2.5 py-2 text-[0.7rem] sm:text-xs font-medium hover:bg-[var(--bg-secondary)] text-[var(--text-primary)] hover:text-[var(--accent-color)] transition-colors text-left group rounded-md cursor-pointer"
             >
                 <UploadCloud className="w-4 h-4 text-[var(--text-muted)] group-hover:text-[var(--accent-color)] transition-colors" />
                 Upload File
             </button>
 
-            {/* Real Recent Files Submenu */}
-            <div className={`relative ${isRecentMenuOpen ? 'z-50' : ''}`} onMouseEnter={() => openSubmenu('recent')}>
-                <button
-                    className="w-full flex items-center justify-between px-2.5 py-2 text-[0.7rem] sm:text-xs font-medium hover:bg-[var(--bg-secondary)] text-[var(--text-primary)] hover:text-[var(--accent-color)] transition-colors text-left group rounded-md cursor-pointer"
-                >
-                    <div className="flex items-center gap-3">
-                        <Clock className="w-4 h-4 text-[var(--text-muted)] group-hover:text-[var(--accent-color)] transition-colors" />
-                        Recent Files
-                    </div>
-                    <ChevronRight className="w-3.5 h-3.5 text-[var(--text-muted)]" />
-                </button>
-
-                {isRecentMenuOpen && (
-                    <div className="absolute left-8 sm:left-[97%] top-0 pl-1 z-50">
-                        <div className="w-52 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-xl shadow-2xl p-1 flex flex-col gap-0.5 max-h-56 overflow-y-auto custom-scrollbar">
-                            {recentFiles.length === 0 ? (
-                                <div className="p-2.5 text-[11px] text-[var(--text-muted)] text-center italic">No recent files</div>
-                            ) : (
-                                recentFiles.map((rf, idx) => (
-                                    <button
-                                        key={idx}
-                                        onClick={() => {
-                                            inlineInputRef.current?.insertChip({
-                                                type: 'file',
-                                                name: rf.name,
-                                                rawPath: rf.name
-                                            });
-                                            setAttachedFiles(prev => [...prev, { id: `${rf.name}-${Date.now()}`, name: rf.name, size: rf.size, type: '' }]);
-                                            setIsAttachOpen(false);
-                                        }}
-                                        className="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 text-xs font-medium hover:bg-[var(--bg-secondary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors text-left group rounded-md cursor-pointer"
-                                    >
-                                        <div className="flex items-center gap-2 truncate">
-                                            <FileText className="w-3.5 h-3.5 shrink-0 text-[var(--accent-color)]" />
-                                            <span className="truncate">{rf.name}</span>
-                                        </div>
-                                        <span className="text-[10px] text-[var(--text-muted)] font-mono shrink-0">{formatBytes(rf.size)}</span>
-                                    </button>
-                                ))
-                            )}
-                        </div>
-                    </div>
-                )}
-            </div>
-
-            <div className="h-px bg-[var(--border-color)] my-1 mx-2" />
+            <div className="h-px bg-[var(--border-color)] my-1 mx-2" onMouseEnter={closeAllSubmenusImmediate} />
 
             {/* Real Dynamic Skills Submenu */}
             <div className={`relative ${isSkillsMenuOpen ? 'z-50' : ''}`} onMouseEnter={() => openSubmenu('skills')}>
@@ -1126,12 +1146,21 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 className="hidden"
             />
 
+            {/* Dedicated Attachment Staging Deck (Inside Chat Input Container) */}
+            <AttachmentStagingDeck
+                attachments={stagedAttachments}
+                onRemove={handleRemoveAttachment}
+                onExpandPastedText={handleExpandPastedText}
+            />
+
             {/* ---------------- ROW 1: INLINE PROMPT INPUT (Text + Embedded Context Chips) ---------------- */}
             <InlinePromptInput
                 ref={inlineInputRef}
                 placeholder={isEngineOnline ? "Ask AI..." : "Cluaiz Engine is offline..."}
                 onTextChange={(val) => setInputValue(val)}
                 onSubmit={handlePromptSubmit}
+                onDropFiles={handleStageFiles}
+                onPasteLargeText={handlePasteLargeText}
                 disabled={!isEngineOnline}
                 minHeight="22px"
                 maxHeight="160px"
@@ -1140,8 +1169,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             {/* ---------------- ROW 2: CLEAN BOTTOM TOOLBAR ---------------- */}
             <div className="flex items-center justify-between pt-1 border-t border-[var(--border-color)]/20">
                 {/* Left: [+] Attach button */}
-                <div className="relative" ref={attachRef}>
+                <div className="relative">
                     <button
+                        ref={attachButtonRef}
                         type="button"
                         onClick={() => setIsAttachOpen(!isAttachOpen)}
                         className={`transition-colors p-1.5 pl-0 rounded-full cursor-pointer ${isAttachOpen ? 'text-[var(--accent-color)] bg-[var(--bg-secondary)]' : 'text-[var(--text-muted)] hover:bg-[var(--bg-secondary)] hover:text-[var(--accent-color)]'}`}
@@ -1149,8 +1179,6 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                     >
                         <Plus className={`w-5 h-5 transition-transform duration-300 ${isAttachOpen ? 'rotate-45' : 'rotate-0'}`} />
                     </button>
-
-                    {isAttachOpen && attachmentMenu}
                 </div>
 
                 {/* Right: Model Selector + Voice Mic + Send Button */}
@@ -1165,7 +1193,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                         onVoiceFrequencyChange={(freq) => setVoiceFrequency(freq)}
                     />
 
-                    <div className={`transition-all duration-100 ease-out overflow-hidden flex items-center ${(inputValue.trim() || !inlineInputRef.current?.isEmpty()) ? 'w-[2rem] sm:w-[2.25rem] opacity-100 scale-100' : 'w-0 opacity-0 scale-0'}`}>
+                    <div className={`transition-all duration-100 ease-out overflow-hidden flex items-center ${(inputValue.trim() || !inlineInputRef.current?.isEmpty() || stagedAttachments.length > 0) ? 'w-[2rem] sm:w-[2.25rem] opacity-100 scale-100' : 'w-0 opacity-0 scale-0'}`}>
                         <button
                             type="button"
                             onClick={handleSendWithAttachments}
@@ -1258,68 +1286,24 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 </div>
             )}
 
-            {/* Input Container Wrapper */}
-            {isFloating ? (
-                <BorderGlow
-                    className="w-full z-10"
-                    edgeSensitivity={0}
-                    glowColor="var(--accent-color-rgb)"
-                    backgroundColor="var(--bg-primary)"
-                    borderRadius={20}
-                    glowRadius={80}
-                    glowIntensity={1}
-                    coneSpread={20}
-                    animated={true}
-                    colors={['#c084fc', '#f472b6', '#38bdf8']}
-                    active={isVoiceActive}
-                    frequency={voiceFrequency}
-                >
-                    <div
-                        onDragOver={handleDragOver}
-                        onDragLeave={handleDragLeave}
-                        onDrop={handleDrop}
-                        className={`relative z-10 flex flex-col w-full gap-2 bg-[var(--bg-primary)] rounded-[20px] border p-3 sm:p-3.5 max-[300px]:p-2 transition-all duration-200 ${isDraggingOver
-                            ? 'border-[var(--accent-color)] ring-2 ring-[var(--accent-color)]/30 bg-[var(--accent-color)]/5'
-                            : 'border-[var(--border-color)] focus-within:border-[rgba(var(--accent-color-rgb),0.1)] focus-within:shadow-[0_0_0_1px_rgba(var(--accent-color-rgb),0.4)]'
-                            }`}
-                        style={{
-                            borderStyle: 'var(--border-style)',
-                        }}
-                    >
-                        {renderInputContent()}
-                    </div>
-                </BorderGlow>
-            ) : (
-                <BorderGlow
-                    className="w-full z-10"
-                    edgeSensitivity={0}
-                    glowColor="var(--accent-color-rgb)"
-                    backgroundColor="var(--bg-primary)"
-                    borderRadius={20}
-                    glowRadius={60}
-                    glowIntensity={1}
-                    coneSpread={20}
-                    animated={false}
-                    colors={['#c084fc', '#f472b6', '#38bdf8']}
-                    active={isVoiceActive}
-                    frequency={voiceFrequency}
-                >
-                    <div
-                        onDragOver={handleDragOver}
-                        onDragLeave={handleDragLeave}
-                        onDrop={handleDrop}
-                        className={`relative z-10 flex flex-col w-full min-w-0 gap-2 bg-[var(--bg-primary)] rounded-[20px] border p-3 sm:p-3.5 max-[300px]:p-2 transition-all duration-200 ${isDraggingOver
-                            ? 'border-[var(--accent-color)] ring-2 ring-[var(--accent-color)]/30 bg-[var(--accent-color)]/5'
-                            : 'border-[var(--border-color)] focus-within:border-[rgba(var(--accent-color-rgb),0.1)] focus-within:shadow-[0_0_0_1px_rgba(var(--accent-color-rgb),0.4)]'
-                            }`}
-                        style={{
-                            borderStyle: 'var(--border-style)',
-                        }}
-                    >
-                        {renderInputContent()}
-                    </div>
-                </BorderGlow>
-            )}
+            {/* Input Container Wrapper - Clean, Dynamic, Crisp Border (No BorderGlow / No Ghera) */}
+            <div
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                className={`relative z-10 flex flex-col w-full max-w-full min-w-0 gap-1.5 bg-[var(--bg-primary)] rounded-[20px] border p-2.5 sm:p-3 max-[300px]:p-1.5 transition-all duration-200 ${isDraggingOver
+                    ? 'border-[var(--accent-color)] ring-2 ring-[var(--accent-color)]/30 bg-[var(--accent-color)]/5'
+                    : isVoiceActive
+                        ? 'border-[var(--accent-color)] shadow-[0_0_15px_rgba(var(--accent-color-rgb),0.25)]'
+                        : 'border-[var(--border-color)] focus-within:border-[rgba(var(--accent-color-rgb),0.5)] focus-within:shadow-[0_0_0_1px_rgba(var(--accent-color-rgb),0.3)]'
+                    }`}
+                style={{
+                    borderStyle: 'var(--border-style)',
+                }}
+            >
+                {isAttachOpen && attachmentMenu}
+                {renderInputContent()}
+            </div>
         </div>
     );
 };
