@@ -1,8 +1,20 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Mic, MicOff, ChevronDown, Check, AudioLines } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 export type VoiceMode = 'record_send' | 'live_interaction';
+
+const VOICE_MODE_STORAGE_KEY = 'cluaiz_voice_mode';
+
+const getStoredVoiceMode = (): VoiceMode => {
+    try {
+        const saved = localStorage.getItem(VOICE_MODE_STORAGE_KEY);
+        if (saved === 'record_send' || saved === 'live_interaction') {
+            return saved;
+        }
+    } catch { }
+    return 'record_send';
+};
 
 export interface VoiceInputControlProps {
     disabled?: boolean;
@@ -17,7 +29,7 @@ export const VoiceInputControl: React.FC<VoiceInputControlProps> = ({
     onVoiceStateChange,
     onVoiceFrequencyChange,
 }) => {
-    const [mode, setMode] = useState<VoiceMode>('record_send');
+    const [mode, setMode] = useState<VoiceMode>(getStoredVoiceMode);
     const [isActive, setIsActive] = useState(false);
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [liveFrequency, setLiveFrequency] = useState(0);
@@ -26,6 +38,11 @@ export const VoiceInputControl: React.FC<VoiceInputControlProps> = ({
     const animRef = useRef<number | null>(null);
     const audioCtxRef = useRef<AudioContext | null>(null);
     const mediaStreamRef = useRef<MediaStream | null>(null);
+
+    // Notify initial persisted mode to parent on mount
+    useEffect(() => {
+        onVoiceStateChange?.(false, mode);
+    }, []);
 
     // Close menu on click outside
     useEffect(() => {
@@ -66,8 +83,14 @@ export const VoiceInputControl: React.FC<VoiceInputControlProps> = ({
 
     const startMicrophone = useCallback(async () => {
         try {
-            // Direct request in click gesture
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            // Direct request with hardware noise cancellation enabled to reject ambient noise
+            const stream = await navigator.mediaDevices.getUserMedia({
+                audio: {
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: true,
+                }
+            });
             mediaStreamRef.current = stream;
 
             const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
@@ -80,7 +103,7 @@ export const VoiceInputControl: React.FC<VoiceInputControlProps> = ({
 
             const analyser = audioCtx.createAnalyser();
             analyser.fftSize = 64;
-            analyser.smoothingTimeConstant = 0.55;
+            analyser.smoothingTimeConstant = 0.80;
 
             const source = audioCtx.createMediaStreamSource(stream);
             source.connect(analyser);
@@ -94,14 +117,17 @@ export const VoiceInputControl: React.FC<VoiceInputControlProps> = ({
                 analyser.getByteFrequencyData(dataArray);
 
                 let sum = 0;
-                for (let i = 0; i < dataArray.length; i++) {
+                // Focus on human vocal spectrum (bins 1 to 24), ignoring low rumble/electrical DC offset (bin 0)
+                const startBin = 1;
+                const endBin = Math.min(dataArray.length, 24);
+                for (let i = startBin; i < endBin; i++) {
                     sum += dataArray[i];
                 }
-                const average = sum / dataArray.length;
+                const average = sum / (endBin - startBin);
 
-                // Exact subtle smooth sensitivity curve from old-cluaiz voice_input.js
-                const rawNorm = Math.min(1, Math.max(0, (average - 12) / 70));
-                const norm = Math.pow(rawNorm, 1.8);
+                // Balanced noise gate: completely reject ambient sounds below threshold 20, natural curve
+                const rawNorm = Math.min(1, Math.max(0, (average - 20) / 80));
+                const norm = Math.pow(rawNorm, 2.0);
 
                 setLiveFrequency(norm);
                 onVoiceFrequencyChange?.(norm);
@@ -139,6 +165,9 @@ export const VoiceInputControl: React.FC<VoiceInputControlProps> = ({
     const selectMode = (newMode: VoiceMode, e: React.MouseEvent) => {
         e.stopPropagation();
         setMode(newMode);
+        try {
+            localStorage.setItem(VOICE_MODE_STORAGE_KEY, newMode);
+        } catch { }
         setIsMenuOpen(false);
         if (isActive) {
             onVoiceStateChange?.(isActive, newMode);
@@ -150,6 +179,49 @@ export const VoiceInputControl: React.FC<VoiceInputControlProps> = ({
         if (disabled) return;
         setIsMenuOpen(prev => !prev);
     };
+
+    // [P2] Dynamic frequency brightness & luminous aura for icons (tight, no outer cloud)
+    const iconGlow = useMemo(() => {
+        if (!isActive) return undefined;
+        // As liveFrequency rises (0 to 1), blend towards bright luminous white/electric accent
+        const blendPercent = Math.min(65, Math.round(liveFrequency * 70));
+        const color = liveFrequency > 0.04
+            ? `color-mix(in srgb, var(--accent-color) ${100 - blendPercent}%, #ffffff ${blendPercent}%)`
+            : 'var(--accent-color)';
+        const brightness = (1 + liveFrequency * 0.25).toFixed(2);
+        const filter = liveFrequency > 0.08
+            ? `drop-shadow(0 0 1.5px var(--accent-color)) brightness(${brightness})`
+            : undefined;
+
+        return {
+            color,
+            filter,
+            transition: 'color 0.06s ease-out, filter 0.06s ease-out'
+        };
+    }, [isActive, liveFrequency]);
+
+    // [P1] Capsule outer boundary glow & dynamic frequency-reactive border
+    const capsuleStyle = useMemo(() => {
+        if (!isActive) return undefined;
+        // When quiet / idle (no voice sound), keep it completely dim with zero glow
+        if (liveFrequency < 0.04) {
+            return {
+                boxShadow: 'none',
+                borderColor: 'var(--border-color)',
+                transition: 'box-shadow 0.15s ease-out, border-color 0.15s ease-out'
+            };
+        }
+        // As voice sound comes in (liveFrequency >= 0.04), glow lights up dynamically
+        const normFreq = Math.min(1, (liveFrequency - 0.04) / 0.96);
+        const blur = (3 + normFreq * 3.5).toFixed(1);
+        const shadowAlpha = (0.35 + normFreq * 0.35).toFixed(2);
+        const borderAlpha = (0.35 + normFreq * 0.50).toFixed(2);
+        return {
+            boxShadow: `0 0 ${blur}px rgba(var(--accent-color-rgb, 255, 255, 255), ${shadowAlpha})`,
+            borderColor: `rgba(var(--accent-color-rgb, 255, 255, 255), ${borderAlpha})`,
+            transition: 'box-shadow 0.08s ease-out, border-color 0.08s ease-out'
+        };
+    }, [isActive, liveFrequency]);
 
     return (
         <div className={`relative flex items-center ${className}`} ref={menuRef}>
@@ -164,8 +236,8 @@ export const VoiceInputControl: React.FC<VoiceInputControlProps> = ({
                         type="button"
                         onClick={(e) => selectMode('record_send', e)}
                         className={`w-full flex items-center justify-between px-2 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer ${mode === 'record_send'
-                                ? 'bg-[var(--bg-tertiary)] text-[var(--accent-color)] font-semibold'
-                                : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
+                            ? 'bg-[var(--bg-tertiary)] text-[var(--accent-color)] font-semibold'
+                            : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
                             }`}
                     >
                         <div className="flex items-center gap-2">
@@ -180,8 +252,8 @@ export const VoiceInputControl: React.FC<VoiceInputControlProps> = ({
                         type="button"
                         onClick={(e) => selectMode('live_interaction', e)}
                         className={`w-full flex items-center justify-between px-2 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer ${mode === 'live_interaction'
-                                ? 'bg-[var(--bg-tertiary)] text-[var(--accent-color)] font-semibold'
-                                : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
+                            ? 'bg-[var(--bg-tertiary)] text-[var(--accent-color)] font-semibold'
+                            : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
                             }`}
                     >
                         <div className="flex items-center gap-2">
@@ -195,21 +267,23 @@ export const VoiceInputControl: React.FC<VoiceInputControlProps> = ({
 
             {/* Compact Capsule with 1-2px gap between icon and chevron */}
             <div
-                className={`flex items-center gap-[2px] h-[2rem] sm:h-[2.25rem] px-2 rounded-full transition-all duration-150 ${disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'
+                className={`flex items-center gap-[2px] h-[2rem] sm:h-[2.25rem] px-2 rounded-full border border-transparent transition-all duration-150 ${disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'
                     } ${isActive
-                        ? 'bg-[var(--bg-secondary)] text-[var(--accent-color)]'
+                        ? 'bg-[var(--bg-secondary)]'
                         : 'text-[var(--text-muted)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
                     }`}
+                style={capsuleStyle}
             >
                 {/* Mode Icon:
-                    - In Record mode: Idle shows <Mic />, Active shows <MicOff /> (cut/slash icon)
+                    - In Record mode: Idle shows <MicOff />, Active shows <Mic /> with bright dynamic frequency glow
                     - In Voice Mode: Animated 5 vertical sound bars responding to voice frequency
                 */}
                 <button
                     type="button"
                     onClick={toggleVoiceState}
                     disabled={disabled}
-                    className="flex items-center justify-center p-0.5 rounded-full hover:text-[var(--accent-color)] transition-colors cursor-pointer"
+                    className="flex items-center justify-center p-0.5 rounded-full transition-colors cursor-pointer"
+                    style={iconGlow}
                     title={
                         isActive
                             ? 'Stop voice'
@@ -247,7 +321,7 @@ export const VoiceInputControl: React.FC<VoiceInputControlProps> = ({
                             />
                         </div>
                     ) : isActive ? (
-                        <Mic className="w-4 sm:w-4.5 h-4 sm:h-4.5 text-[var(--accent-color)]" />
+                        <Mic className="w-4 sm:w-4.5 h-4 sm:h-4.5" />
                     ) : (
                         <MicOff className="w-4 sm:w-4.5 h-4 sm:h-4.5 text-[var(--text-muted)]" />
                     )}
@@ -258,12 +332,12 @@ export const VoiceInputControl: React.FC<VoiceInputControlProps> = ({
                     type="button"
                     onClick={toggleMenu}
                     disabled={disabled}
-                    className="flex items-center justify-center p-0.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
+                    className="flex items-center justify-center p-0.5 transition-colors cursor-pointer"
+                    style={iconGlow}
                     title="Change voice mode"
                 >
                     <ChevronDown
-                        className={`w-3 h-3 transition-transform duration-150 ${isMenuOpen ? 'rotate-180 text-[var(--accent-color)]' : ''
-                            }`}
+                        className={`w-3 h-3 transition-transform duration-150 ${isMenuOpen ? 'rotate-180' : ''}`}
                     />
                 </button>
             </div>

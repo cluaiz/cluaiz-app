@@ -96,7 +96,13 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     const [isAttachOpen, setIsAttachOpen] = useState(false);
     const [isModelOpen, setIsModelOpen] = useState(false);
     const [isVoiceActive, setIsVoiceActive] = useState(false);
-    const [voiceMode, setVoiceMode] = useState<VoiceMode>('record_send');
+    const [voiceMode, setVoiceMode] = useState<VoiceMode>(() => {
+        try {
+            const saved = localStorage.getItem('cluaiz_voice_mode');
+            if (saved === 'record_send' || saved === 'live_interaction') return saved;
+        } catch { }
+        return 'record_send';
+    });
     const [voiceFrequency, setVoiceFrequency] = useState(0);
     const [modelTextWidth, setModelTextWidth] = useState(200);
     const [selectedSkills, setSelectedSkills] = useState<string[]>([]);

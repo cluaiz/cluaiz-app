@@ -21,8 +21,15 @@ import {
     FolderPlus,
     NotebookPen,
     MessageCircleWarning,
-    Code2
+    Code2,
+    FolderGit2,
+    LayoutDashboard,
+    Wrench,
+    Boxes,
+    Settings
 } from 'lucide-react';
+import { useProjectStore } from '../../store/workspace/useProjectStore';
+import { pushViewRoute } from '../../core/router';
 import { ApiSidebar } from '../../features/api/components/ApiSidebar';
 import { Tag } from '../ui/Tag';
 import { ChatRibbon } from '../ui/ChatRibbon';
@@ -102,6 +109,44 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
     const { dateRange, setDateRange } = useLayoutStore();
     const [isCalendarOpen, setIsCalendarOpen] = useState(false);
     const calendarBtnRef = useRef<HTMLButtonElement>(null);
+
+    // 🚀 Collapsed Sidebar Floating Flyout State
+    const [isFlyoutOpen, setIsFlyoutOpen] = useState(false);
+    const flyoutCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const flyoutRef = useRef<HTMLDivElement>(null);
+
+    const handleFlyoutOpen = () => {
+        if (flyoutCloseTimerRef.current) {
+            clearTimeout(flyoutCloseTimerRef.current);
+            flyoutCloseTimerRef.current = null;
+        }
+        setIsFlyoutOpen(true);
+    };
+
+    const handleFlyoutLeave = () => {
+        if (flyoutCloseTimerRef.current) clearTimeout(flyoutCloseTimerRef.current);
+        flyoutCloseTimerRef.current = setTimeout(() => {
+            setIsFlyoutOpen(false);
+        }, 220);
+    };
+
+    useEffect(() => {
+        if (!isFlyoutOpen) return;
+        const handleClickOutside = (e: MouseEvent) => {
+            if (flyoutRef.current && !flyoutRef.current.contains(e.target as Node)) {
+                setIsFlyoutOpen(false);
+            }
+        };
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') setIsFlyoutOpen(false);
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        document.addEventListener('keydown', handleKeyDown);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+            document.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [isFlyoutOpen]);
 
     // 💬 Dynamic interactive chats state matching screenshot visual layouts
     const { sessions, activeSessionId, switchSession, updateSession, deleteSession } = useChatStore();
@@ -426,6 +471,305 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
 
     const targetChatForModal = chats.find(c => c.id === labelTargetId);
 
+    // 🔄 100% Reusable Chat Directory (Search + Categories + List + Select Mode)
+    const renderChatDirectory = (inFlyout: boolean = false) => (
+        <>
+            {/* Search Bar */}
+            <div className={inFlyout ? "px-3 py-2" : "px-4 py-2"}>
+                <div
+                    className="flex items-center gap-2 px-3 py-2 bg-[var(--bg-primary)] themed-border rounded-lg focus-within:border-[var(--accent-color)] transition-all duration-200 relative"
+                    style={{ borderStyle: 'var(--border-style)' }}
+                >
+                    <AnimatedSearch className="w-4 h-4 text-[var(--text-muted)] flex-shrink-0" size={16} />
+                    <input
+                        type="text"
+                        placeholder={activeFilter !== 'All' ? `Filtered by ${activeFilter}...` : "Search chats..."}
+                        className="bg-transparent border-0 outline-none w-full text-xs text-[var(--text-primary)] placeholder-[var(--text-muted)] font-medium"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        autoFocus={inFlyout}
+                    />
+
+                    {searchQuery && (
+                        <button
+                            onClick={() => setSearchQuery('')}
+                            className="p-0.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer shrink-0"
+                            title="Clear search"
+                        >
+                            <X className="w-3.5 h-3.5" />
+                        </button>
+                    )}
+
+                    <button
+                        ref={filterBtnRef}
+                        onClick={() => setIsFilterOpen(!isFilterOpen)}
+                        className={`p-0.5 rounded transition-colors cursor-pointer shrink-0 ${activeFilter !== 'All'
+                            ? 'text-[var(--accent-color)] bg-[var(--accent-color)]/10'
+                            : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                            }`}
+                        title="Advanced Filters"
+                    >
+                        <AnimatedSliders className="w-3.5 h-3.5" size={14} animate={isFilterOpen} />
+                    </button>
+
+                    <FilterDropdown
+                        isOpen={isFilterOpen}
+                        onClose={() => setIsFilterOpen(false)}
+                        activeFilter={activeFilter}
+                        onFilterChange={(filter) => {
+                            setActiveFilter(filter);
+                            setActiveCategory('All');
+                        }}
+                        align="right"
+                        triggerRef={filterBtnRef}
+                    />
+
+                    {dateRange?.from && (
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setDateRange(undefined);
+                            }}
+                            className="p-0.5 text-[var(--text-muted)] hover:text-red-500 transition-colors cursor-pointer shrink-0"
+                            title="Reset Date Filter"
+                        >
+                            <X className="w-3.5 h-3.5" />
+                        </button>
+                    )}
+
+                    <button
+                        ref={calendarBtnRef}
+                        onClick={() => setIsCalendarOpen(!isCalendarOpen)}
+                        className={`p-0.5 rounded transition-colors cursor-pointer shrink-0 ${dateRange?.from
+                            ? 'text-[var(--accent-color)] bg-[var(--accent-color)]/10'
+                            : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                            }`}
+                        title="Date Filter"
+                    >
+                        <AnimatedCalendar className="w-3.5 h-3.5" size={14} animate={isCalendarOpen} />
+                    </button>
+
+                    <CalendarDropdown
+                        isOpen={isCalendarOpen}
+                        onClose={() => setIsCalendarOpen(false)}
+                        dateRange={dateRange}
+                        onDateRangeChange={setDateRange}
+                        bookedDates={bookedDates}
+                        filteredChatsCount={filteredChats.length}
+                        align="right"
+                        triggerRef={calendarBtnRef}
+                    />
+                </div>
+            </div>
+
+            {/* Category Filter Chips (using reusable Tag component) */}
+            <div className={`${inFlyout ? "px-3 py-1.5" : "px-4 py-1.5"} overflow-x-auto flex gap-1.5 no-scrollbar scroll-smooth flex-shrink-0 select-none`}>
+                {categories.map((cat) => (
+                    <Tag
+                        key={cat}
+                        name={cat}
+                        active={activeCategory === cat}
+                        onClick={() => {
+                            setActiveCategory(cat);
+                            setActiveFilter('All');
+                        }}
+                    >
+                        {cat}
+                    </Tag>
+                ))}
+            </div>
+
+            {/* Chat list viewport */}
+            <div className={`flex-1 overflow-y-auto py-1 space-y-0 custom-scrollbar ${inFlyout ? 'px-1' : ''}`}>
+                {filteredChats.map((chat) => {
+                    const isSelected = selectMode ? selectedIds.has(chat.id) : (activeSessionId === chat.id);
+                    return (
+                        <div
+                            key={chat.id}
+                            onContextMenu={(e) => !selectMode && handleContextMenu(e, chat.id)}
+                            onClick={() => {
+                                if (selectMode) {
+                                    toggleSelectChat(chat.id);
+                                } else {
+                                    switchSession(chat.id);
+                                    setActiveChatData({
+                                        id: chat.id,
+                                        name: chat.name,
+                                        avatar: chat.avatar,
+                                        status: chat.status,
+                                        totalMessages: chat.message ? 1 : 0
+                                    });
+                                    if (inFlyout) {
+                                        setIsFlyoutOpen(false);
+                                    }
+                                }
+                            }}
+                            className={`flex items-center transition-colors duration-150 cursor-pointer group relative overflow-hidden ${isSelected
+                                ? 'bg-[var(--accent-color)]/10 text-[var(--accent-color)]'
+                                : chat.pinned
+                                    ? 'bg-[var(--bg-tertiary)]/40'
+                                    : 'hover:bg-[var(--bg-tertiary)]/60'
+                                } ${chat.archived ? 'opacity-[0.6]' : ''} ${inFlyout ? 'rounded-xl mx-1 gap-2.5 p-2' : 'gap-3 p-2.5'}`}
+                        >
+                            {/* 🎀 Ribbon Tag overlay sticker */}
+                            {chat.tags && chat.tags.length > 0 && (
+                                <ChatRibbon tags={chat.tags} />
+                            )}
+
+                            {/* Checkbox in select mode OR Avatar */}
+                            <div className="relative flex-shrink-0">
+                                {selectMode ? (
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all ${selectedIds.has(chat.id)
+                                        ? 'bg-[var(--accent-color)] border-[var(--accent-color)]'
+                                        : 'border-[var(--border-color)] bg-[var(--bg-tertiary)]/50'
+                                        }`}>
+                                        {selectedIds.has(chat.id) && (
+                                            <CheckCheck className="w-5 h-5 text-white" />
+                                        )}
+                                    </div>
+                                ) : (
+                                    <>
+                                        {chat.avatar?.startsWith('http') || chat.avatar?.startsWith('/') ? (
+                                            <img
+                                                src={chat.avatar}
+                                                alt={chat.name}
+                                                className="w-10 h-10 rounded-full object-cover border border-[var(--border-color)]"
+                                                style={{ borderStyle: 'var(--border-style)' }}
+                                            />
+                                        ) : (
+                                            <div
+                                                className="w-10 h-10 rounded-full border border-[var(--border-color)] bg-[var(--bg-tertiary)] flex items-center justify-center text-xl select-none"
+                                                style={{ borderStyle: 'var(--border-style)' }}
+                                            >
+                                                {chat.avatar}
+                                            </div>
+                                        )}
+                                        {chat.status === 'online' && (
+                                            <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 rounded-full border-2 border-[var(--bg-secondary)] shadow-[0_0_8px_rgba(16,185,129,0.4)]" />
+                                        )}
+                                    </>
+                                )}
+                            </div>
+
+                            {/* Chat Details */}
+                            <div className="flex-1 min-w-0">
+                                <div className="flex items-baseline justify-between mb-0.5">
+                                    <h3 className="text-xs font-bold text-[var(--text-primary)] truncate group-hover:text-[var(--accent-color)] transition-colors flex items-center gap-1.5">
+                                        {chat.name}
+                                        {chat.favourite && (
+                                            <Heart className="w-2.5 h-2.5 text-red-500 fill-red-500 shrink-0" />
+                                        )}
+                                        {chat.muted && (
+                                            <BellOff className="w-2.5 h-2.5 text-[var(--text-muted)] shrink-0" />
+                                        )}
+                                    </h3>
+                                    <span className={`text-[9px] font-bold ${chat.unread > 0 ? 'text-[var(--accent-color)]' : 'text-[var(--text-muted)]'}`}>
+                                        {chat.time}
+                                    </span>
+                                </div>
+                                <div className="flex items-center justify-between min-w-0">
+                                    <div className="flex items-center gap-1 text-[11px] text-[var(--text-secondary)] min-w-0 flex-1">
+                                        {chat.sent && (
+                                            <CheckCheck className="w-3.5 h-3.5 text-sky-400 flex-shrink-0" />
+                                        )}
+                                        <p className="truncate font-medium flex-1">{chat.message}</p>
+                                    </div>
+
+                                    {/* Right side: pin/unread OR three-dot menu button */}
+                                    <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                                        {!selectMode && (
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    const rect = e.currentTarget.getBoundingClientRect();
+                                                    setContextMenu({
+                                                        x: rect.left,
+                                                        y: rect.bottom + 4,
+                                                        chatId: chat.id
+                                                    });
+                                                }}
+                                                className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-[var(--bg-primary)]/60 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-all duration-150 cursor-pointer"
+                                                title="More options"
+                                            >
+                                                <MoreVertical className="w-3.5 h-3.5" />
+                                            </button>
+                                        )}
+                                        {chat.pinned && !selectMode && (
+                                            <Pin className="w-3 h-3 text-[var(--accent-color)] fill-[var(--accent-color)] rotate-45 flex-shrink-0" />
+                                        )}
+                                        {chat.unread > 0 && !selectMode && (
+                                            <span className="min-w-[15px] h-[15px] px-1 bg-[var(--accent-color)] text-[var(--accent-contrast)] text-[9px] font-black rounded-full flex items-center justify-center shrink-0">
+                                                {chat.unread}
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    );
+                })}
+
+                {filteredChats.length === 0 && (
+                    <div className={`py-8 flex flex-col items-center justify-center text-[var(--text-muted)] ${inFlyout ? 'px-2' : 'px-4'}`}>
+                        <MessageCircleWarning className="w-8 h-8 opacity-20 mb-3" />
+                        <span className="text-center text-[11px] font-medium uppercase tracking-wider opacity-60">
+                            No active chats found
+                        </span>
+                    </div>
+                )}
+            </div>
+
+            {/* Select Mode Bottom Action Bar */}
+            {selectMode && (
+                <div className="flex-shrink-0 bg-[var(--bg-primary)] border-t border-[var(--border-color)] shadow-[0_-4px_24px_rgba(0,0,0,0.3)]">
+                    <div className="flex items-center justify-between px-4 py-2.5">
+                        <span className="text-xs font-black text-[var(--text-primary)]">
+                            {selectedIds.size} Selected
+                        </span>
+                        <div className="flex items-center gap-3">
+                            <button
+                                onClick={selectAll}
+                                className="text-[10px] font-black text-[var(--text-muted)] hover:text-[var(--text-primary)] uppercase tracking-widest transition-colors cursor-pointer"
+                            >
+                                SELECT ALL
+                            </button>
+                            <button
+                                onClick={exitSelectMode}
+                                className="p-1 rounded hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
+                            >
+                                <X className="w-3.5 h-3.5" />
+                            </button>
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 px-3 pb-3">
+                        <button
+                            onClick={() => {
+                                setChats(prev => prev.map(c =>
+                                    selectedIds.has(c.id) ? { ...c, archived: !c.archived } : c
+                                ));
+                                exitSelectMode();
+                            }}
+                            className="flex items-center justify-center gap-2 py-2.5 bg-[var(--bg-tertiary)] hover:bg-[var(--bg-tertiary)]/80 text-[var(--text-primary)] text-[11px] font-black uppercase tracking-wider rounded-lg transition-colors cursor-pointer"
+                        >
+                            <Archive className="w-3.5 h-3.5" />
+                            ARCHIVE
+                        </button>
+                        <button
+                            onClick={() => {
+                                setChats(prev => prev.filter(c => !selectedIds.has(c.id)));
+                                exitSelectMode();
+                            }}
+                            className="flex items-center justify-center gap-2 py-2.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-[11px] font-black uppercase tracking-wider rounded-lg transition-colors cursor-pointer"
+                        >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            DELETE
+                        </button>
+                    </div>
+                </div>
+            )}
+        </>
+    );
+
     return (
         <>
             <div className="flex flex-col h-full bg-[var(--bg-secondary)] overflow-hidden font-sans select-none relative">
@@ -453,7 +797,7 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                                     )}
                                 </Tooltip>
                             </div>
-                            {!sidebarCollapsed && <span className="font-extrabold text-lg tracking-widest text-[var(--text-primary)]">cluaiz</span>}
+                            {!sidebarCollapsed && <span className="font-extrabold text-lg tracking-widest text-[var(--text-primary)]">Cluaiz</span>}
                         </div>
                         {!sidebarCollapsed && (
                             <div className="flex items-center gap-1">
@@ -486,37 +830,150 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
 
                 {/* Chats Sub-Header: Title + Actions */}
                 {sidebarCollapsed ? (
-                    <div className={`pt-4 pb-2 flex flex-col items-center gap-3 relative ${inTauri ? 'border-b border-[var(--border-color)]' : ''}`} style={{ borderStyle: 'var(--border-style)' }}>
-                        {activeView === 'apis' ? (
-                            <Tooltip title="APIs Registry" position="right">
-                                <button
-                                    onClick={() => setSidebarCollapsed(false)}
-                                    className="p-1.5 rounded-full hover:bg-[var(--bg-tertiary)] text-[var(--text-primary)] transition-colors active:scale-95 cursor-pointer"
-                                >
-                                    <Code2 className="w-4.5 h-4.5" />
-                                </button>
-                            </Tooltip>
-                        ) : (
+                    <div className="flex-1 flex flex-col justify-between items-center py-2 w-full min-h-0 select-none">
+                        {/* Top Action Icons */}
+                        <div className="flex flex-col items-center gap-2 w-full">
+                            {/* 1. New Chat Button */}
                             <Tooltip title="New Chat" position="right">
                                 <button 
                                     onClick={() => {
+                                        useLayoutStore.getState().setActiveView('chat');
                                         document.dispatchEvent(new CustomEvent('start-new-chat'));
+                                        setIsFlyoutOpen(false);
                                     }}
-                                    className="p-1.5 rounded-full hover:bg-[var(--bg-tertiary)] text-[var(--text-primary)] transition-colors active:scale-95 cursor-pointer"
+                                    className="p-2 rounded-xl hover:bg-[var(--bg-tertiary)] text-[var(--text-primary)] transition-colors active:scale-95 cursor-pointer"
                                 >
-                                    <Plus className="w-4.5 h-4.5" />
+                                    <Plus className="w-5 h-5" />
                                 </button>
                             </Tooltip>
-                        )}
 
-                        <Tooltip title={activeView === 'apis' ? "Search Endpoints" : "Search Chat"} position="right">
-                            <button
-                                onClick={() => setSidebarCollapsed(false)}
-                                className="p-1.5 rounded-full hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors active:scale-95 cursor-pointer"
+                            {/* 2. Search & Chats Flyout Trigger Button */}
+                            <div
+                                onMouseEnter={handleFlyoutOpen}
+                                onMouseLeave={handleFlyoutLeave}
+                                className="relative flex items-center justify-center"
                             >
-                                <AnimatedSearch className="w-4.5 h-4.5" size={18} />
-                            </button>
-                        </Tooltip>
+                                <Tooltip title={isFlyoutOpen ? "" : (activeView === 'apis' ? "Search Endpoints" : "Search & Chats")} position="right">
+                                    <button
+                                        onClick={() => setIsFlyoutOpen(prev => !prev)}
+                                        className={`p-2 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer ${
+                                            isFlyoutOpen
+                                                ? 'bg-[var(--accent-color)] text-[var(--accent-contrast)] shadow-md'
+                                                : 'hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                                        }`}
+                                    >
+                                        <AnimatedSearch className="w-5 h-5" size={20} />
+                                    </button>
+                                </Tooltip>
+                            </div>
+
+                            {/* Divider */}
+                            <div className="w-6 h-[1px] bg-[var(--border-color)] my-0.5 opacity-60" />
+
+                            {/* 3. Open Workspace */}
+                            <Tooltip title="Open Workspace" position="right">
+                                <button
+                                    onClick={() => {
+                                        useLayoutStore.getState().setActiveView('chat');
+                                        useProjectStore.getState().openWorkspace();
+                                        useLayoutStore.getState().setSplitPaneWidth(50);
+                                        setIsFlyoutOpen(false);
+                                    }}
+                                    className="p-2 rounded-xl hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors active:scale-95 cursor-pointer"
+                                >
+                                    <FolderGit2 className="w-5 h-5" />
+                                </button>
+                            </Tooltip>
+
+                            {/* 4. Dashboard */}
+                            <Tooltip title="Dashboard" position="right">
+                                <button
+                                    onClick={() => {
+                                        useLayoutStore.getState().setActiveView('dashboard');
+                                        document.dispatchEvent(new CustomEvent('open-dashboard'));
+                                        setIsFlyoutOpen(false);
+                                    }}
+                                    className={`p-2 rounded-xl transition-colors active:scale-95 cursor-pointer ${
+                                        activeView === 'dashboard'
+                                            ? 'bg-[var(--accent-color)]/10 text-[var(--accent-color)]'
+                                            : 'hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                                    }`}
+                                >
+                                    <LayoutDashboard className="w-5 h-5" />
+                                </button>
+                            </Tooltip>
+
+                            {/* 5. Tools */}
+                            <Tooltip title="Tools" position="right">
+                                <button
+                                    onClick={() => {
+                                        useLayoutStore.getState().setActiveView('tools');
+                                        pushViewRoute('tools');
+                                        document.dispatchEvent(new CustomEvent('open-tools'));
+                                        setIsFlyoutOpen(false);
+                                    }}
+                                    className={`p-2 rounded-xl transition-colors active:scale-95 cursor-pointer ${
+                                        activeView === 'tools'
+                                            ? 'bg-[var(--accent-color)]/10 text-[var(--accent-color)]'
+                                            : 'hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                                    }`}
+                                >
+                                    <Wrench className="w-5 h-5" />
+                                </button>
+                            </Tooltip>
+
+                            {/* 6. APIs */}
+                            <Tooltip title="APIs" position="right">
+                                <button
+                                    onClick={() => {
+                                        useLayoutStore.getState().setActiveView('apis');
+                                        document.dispatchEvent(new CustomEvent('open-apis'));
+                                        setIsFlyoutOpen(false);
+                                    }}
+                                    className={`p-2 rounded-xl transition-colors active:scale-95 cursor-pointer ${
+                                        activeView === 'apis'
+                                            ? 'bg-[var(--accent-color)]/10 text-[var(--accent-color)]'
+                                            : 'hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                                    }`}
+                                >
+                                    <Code2 className="w-5 h-5" />
+                                </button>
+                            </Tooltip>
+
+                            {/* 7. Toolkit */}
+                            <Tooltip title="Toolkit" position="right">
+                                <button
+                                    onClick={() => {
+                                        useLayoutStore.getState().setActiveView('toolkit');
+                                        document.dispatchEvent(new CustomEvent('open-toolkit'));
+                                        setIsFlyoutOpen(false);
+                                    }}
+                                    className={`p-2 rounded-xl transition-colors active:scale-95 cursor-pointer ${
+                                        activeView === 'toolkit'
+                                            ? 'bg-[var(--accent-color)]/10 text-[var(--accent-color)]'
+                                            : 'hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                                    }`}
+                                >
+                                    <Boxes className="w-5 h-5" />
+                                </button>
+                            </Tooltip>
+                        </div>
+
+                        {/* Bottom Pinned Icon: Settings */}
+                        <div className="flex flex-col items-center gap-2 w-full pb-1">
+                            <div className="w-6 h-[1px] bg-[var(--border-color)] my-0.5 opacity-60" />
+                            <Tooltip title="Settings" position="right">
+                                <button
+                                    onClick={() => {
+                                        document.dispatchEvent(new CustomEvent('open-settings', { detail: { tab: 'general' } }));
+                                        setIsFlyoutOpen(false);
+                                    }}
+                                    className="p-2 rounded-xl hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors active:scale-95 cursor-pointer"
+                                >
+                                    <Settings className="w-5 h-5" />
+                                </button>
+                            </Tooltip>
+                        </div>
                     </div>
                 ) : (
                     <div className={`px-4 ${inTauri ? 'py-3 border-b border-[var(--border-color)]' : 'py-2 pb-1'} flex items-center justify-between`} style={{ borderStyle: 'var(--border-style)' }}>
@@ -574,304 +1031,7 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                             <ApiSidebar />
                         </div>
                     ) : (
-                        <>
-                            <div className="px-4 py-2">
-                        <div
-                            className="flex items-center gap-2 px-3 py-2 bg-[var(--bg-primary)] themed-border rounded-lg focus-within:border-[var(--accent-color)] transition-all duration-200 relative"
-                            style={{ borderStyle: 'var(--border-style)' }}
-                        >
-                            <AnimatedSearch className="w-4 h-4 text-[var(--text-muted)] flex-shrink-0" size={16} />
-                            <input
-                                type="text"
-                                placeholder={activeFilter !== 'All' ? `Filtered by ${activeFilter}...` : "Search chats..."}
-                                className="bg-transparent border-0 outline-none w-full text-xs text-[var(--text-primary)] placeholder-[var(--text-muted)] font-medium"
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                            />
-
-                            <button
-                                ref={filterBtnRef}
-                                onClick={() => setIsFilterOpen(!isFilterOpen)}
-                                className={`p-0.5 rounded transition-colors cursor-pointer shrink-0 ${activeFilter !== 'All'
-                                    ? 'text-[var(--accent-color)] bg-[var(--accent-color)]/10'
-                                    : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-                                    }`}
-                                title="Advanced Filters"
-                            >
-                                <AnimatedSliders className="w-3.5 h-3.5" size={14} animate={isFilterOpen} />
-                            </button>
-
-                            <FilterDropdown
-                                isOpen={isFilterOpen}
-                                onClose={() => setIsFilterOpen(false)}
-                                activeFilter={activeFilter}
-                                onFilterChange={(filter) => {
-                                    setActiveFilter(filter);
-                                    setActiveCategory('All');
-                                }}
-                                align="right"
-                                triggerRef={filterBtnRef}
-                            />
-
-                            {dateRange?.from && (
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        setDateRange(undefined);
-                                    }}
-                                    className="p-0.5 text-[var(--text-muted)] hover:text-red-500 transition-colors cursor-pointer shrink-0"
-                                    title="Reset Date Filter"
-                                >
-                                    <X className="w-3.5 h-3.5" />
-                                </button>
-                            )}
-
-                            <button
-                                ref={calendarBtnRef}
-                                onClick={() => setIsCalendarOpen(!isCalendarOpen)}
-                                className={`p-0.5 rounded transition-colors cursor-pointer shrink-0 ${dateRange?.from
-                                    ? 'text-[var(--accent-color)] bg-[var(--accent-color)]/10'
-                                    : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-                                    }`}
-                                title="Date Filter"
-                            >
-                                <AnimatedCalendar className="w-3.5 h-3.5" size={14} animate={isCalendarOpen} />
-                            </button>
-
-                            <CalendarDropdown
-                                isOpen={isCalendarOpen}
-                                onClose={() => setIsCalendarOpen(false)}
-                                dateRange={dateRange}
-                                onDateRangeChange={setDateRange}
-                                bookedDates={bookedDates}
-                                filteredChatsCount={filteredChats.length}
-                                align="right"
-                                triggerRef={calendarBtnRef}
-                            />
-                        </div>
-                    </div>
-
-                    {/* Category Filter Chips (using naye Reusable Tag component) */}
-                    <div className="px-4 py-1.5 overflow-x-auto flex gap-1.5 no-scrollbar scroll-smooth flex-shrink-0 select-none">
-                        {categories.map((cat) => (
-                            <Tag
-                                key={cat}
-                                name={cat}
-                                active={activeCategory === cat}
-                                onClick={() => {
-                                    setActiveCategory(cat);
-                                    setActiveFilter('All');
-                                }}
-                            >
-                                {cat}
-                            </Tag>
-                        ))}
-                    </div>
-
-                {/* Chat list viewport */}
-                <div className={`flex-1 overflow-y-auto py-1 space-y-0 ${sidebarCollapsed ? 'no-scrollbar' : ''}`}>
-                    {filteredChats.map((chat) => {
-                        const isSelected = selectedIds.has(chat.id);
-                        return (
-                            <div
-                                key={chat.id}
-                                onContextMenu={(e) => !selectMode && handleContextMenu(e, chat.id)}
-                                onClick={() => {
-                                    if (selectMode) {
-                                        toggleSelectChat(chat.id);
-                                    } else {
-                                        // Set active chat data for header
-                                        setActiveChatData({
-                                            id: chat.id,
-                                            name: chat.name,
-                                            avatar: chat.avatar,
-                                            status: chat.status,
-                                            totalMessages: chat.message ? 1 : 0
-                                        });
-                                    }
-                                }}
-                                className={`flex items-center transition-colors duration-150 cursor-pointer group relative overflow-hidden ${isSelected
-                                    ? 'bg-[var(--accent-color)]/10'
-                                    : chat.pinned
-                                        ? 'bg-[var(--bg-tertiary)]/40'
-                                        : 'hover:bg-[var(--bg-tertiary)]/60'
-                                    } ${chat.archived ? 'opacity-[0.6]' : ''} ${sidebarCollapsed ? 'justify-center p-2 gap-0' : 'gap-3 p-2.5'}`}
-                            >
-                                {/* 🎀 Ribbon Tag overlay sticker */}
-                                {chat.tags && chat.tags.length > 0 && !sidebarCollapsed && (
-                                    <ChatRibbon tags={chat.tags} />
-                                )}
-
-                                {/* Checkbox in select mode OR Avatar */}
-                                <Tooltip disabled={!sidebarCollapsed} title={chat.name} subtitle={chat.message}>
-                                    <div className="relative flex-shrink-0">
-                                        {selectMode && !sidebarCollapsed ? (
-                                            <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all ${isSelected
-                                                ? 'bg-[var(--accent-color)] border-[var(--accent-color)]'
-                                                : 'border-[var(--border-color)] bg-[var(--bg-tertiary)]/50'
-                                                }`}>
-                                                {isSelected && (
-                                                    <CheckCheck className="w-5 h-5 text-white" />
-                                                )}
-                                            </div>
-                                        ) : (
-                                            <>
-                                                {chat.avatar?.startsWith('http') || chat.avatar?.startsWith('/') ? (
-                                                    <img
-                                                        src={chat.avatar}
-                                                        alt={chat.name}
-                                                        className="w-10 h-10 rounded-full object-cover border border-[var(--border-color)]"
-                                                        style={{ borderStyle: 'var(--border-style)' }}
-                                                    />
-                                                ) : (
-                                                    <div
-                                                        className="w-10 h-10 rounded-full border border-[var(--border-color)] bg-[var(--bg-tertiary)] flex items-center justify-center text-xl select-none"
-                                                        style={{ borderStyle: 'var(--border-style)' }}
-                                                    >
-                                                        {chat.avatar}
-                                                    </div>
-                                                )}
-                                                {chat.status === 'online' && (
-                                                    <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 rounded-full border-2 border-[var(--bg-secondary)] shadow-[0_0_8px_rgba(16,185,129,0.4)]" />
-                                                )}
-                                                {sidebarCollapsed && chat.unread > 0 && (
-                                                    <span className="absolute -top-1 -right-1 min-w-[14px] h-[14px] px-0.5 bg-[var(--accent-color)] text-[var(--accent-contrast)] text-[8px] font-black rounded-full flex items-center justify-center border border-[var(--bg-secondary)] shadow-sm animate-scale-in">
-                                                        {chat.unread}
-                                                    </span>
-                                                )}
-                                                {sidebarCollapsed && chat.favourite && (
-                                                    <span className="absolute -top-1 -left-1 flex items-center justify-center w-3.5 h-3.5 bg-red-500 rounded-full border border-[var(--bg-secondary)] shadow-sm animate-scale-in">
-                                                        <Heart className="w-2 h-2 text-white fill-white" />
-                                                    </span>
-                                                )}
-                                            </>
-                                        )}
-                                    </div>
-                                </Tooltip>
-
-                                {/* Chat Details */}
-                                {!sidebarCollapsed && (
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex items-baseline justify-between mb-0.5">
-                                            <h3 className="text-xs font-bold text-[var(--text-primary)] truncate group-hover:text-[var(--accent-color)] transition-colors flex items-center gap-1.5">
-                                                {chat.name}
-                                                {chat.favourite && (
-                                                    <Heart className="w-2.5 h-2.5 text-red-500 fill-red-500 shrink-0" />
-                                                )}
-                                                {chat.muted && (
-                                                    <BellOff className="w-2.5 h-2.5 text-[var(--text-muted)] shrink-0" />
-                                                )}
-                                            </h3>
-                                            <span className={`text-[9px] font-bold ${chat.unread > 0 ? 'text-[var(--accent-color)]' : 'text-[var(--text-muted)]'}`}>
-                                                {chat.time}
-                                            </span>
-                                        </div>
-                                        <div className="flex items-center justify-between min-w-0">
-                                            <div className="flex items-center gap-1 text-[11px] text-[var(--text-secondary)] min-w-0 flex-1">
-                                                {chat.sent && (
-                                                    <CheckCheck className="w-3.5 h-3.5 text-sky-400 flex-shrink-0" />
-                                                )}
-                                                <p className="truncate font-medium flex-1">{chat.message}</p>
-                                            </div>
-
-                                            {/* Right side: pin/unread OR three-dot menu button */}
-                                            <div className="flex items-center gap-1.5 shrink-0 ml-2">
-                                                {!selectMode && (
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            const rect = e.currentTarget.getBoundingClientRect();
-                                                            setContextMenu({
-                                                                x: rect.left,
-                                                                y: rect.bottom + 4,
-                                                                chatId: chat.id
-                                                            });
-                                                        }}
-                                                        className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-[var(--bg-primary)]/60 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-all duration-150 cursor-pointer"
-                                                        title="More options"
-                                                    >
-                                                        <MoreVertical className="w-3.5 h-3.5" />
-                                                    </button>
-                                                )}
-                                                {chat.pinned && !selectMode && (
-                                                    <Pin className="w-3 h-3 text-[var(--accent-color)] fill-[var(--accent-color)] rotate-45 flex-shrink-0" />
-                                                )}
-                                                {chat.unread > 0 && !selectMode && (
-                                                    <span className="min-w-[15px] h-[15px] px-1 bg-[var(--accent-color)] text-[var(--accent-contrast)] text-[9px] font-black rounded-full flex items-center justify-center shrink-0">
-                                                        {chat.unread}
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        );
-                    })}
-
-                    {filteredChats.length === 0 && (
-                        <div className={`py-8 flex flex-col items-center justify-center text-[var(--text-muted)] ${sidebarCollapsed ? 'px-2' : 'px-4'}`}>
-                            <Tooltip disabled={!sidebarCollapsed} title="No active chats" position="right">
-                                <MessageCircleWarning className={`w-8 h-8 opacity-20 mb-3`} />
-                            </Tooltip>
-                            {!sidebarCollapsed && (
-                                <span className="text-center text-[11px] font-medium uppercase tracking-wider opacity-60">
-                                    No active chats found
-                                </span>
-                            )}
-                        </div>
-                    )}
-                </div>
-
-                {/* ✅ Select Mode Bottom Action Bar */}
-                {selectMode && (
-                    <div className="flex-shrink-0 bg-[var(--bg-primary)] border-t border-[var(--border-color)] shadow-[0_-4px_24px_rgba(0,0,0,0.3)]">
-                        <div className="flex items-center justify-between px-4 py-2.5">
-                            <span className="text-xs font-black text-[var(--text-primary)]">
-                                {selectedIds.size} Selected
-                            </span>
-                            <div className="flex items-center gap-3">
-                                <button
-                                    onClick={selectAll}
-                                    className="text-[10px] font-black text-[var(--text-muted)] hover:text-[var(--text-primary)] uppercase tracking-widest transition-colors cursor-pointer"
-                                >
-                                    SELECT ALL
-                                </button>
-                                <button
-                                    onClick={exitSelectMode}
-                                    className="p-1 rounded hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
-                                >
-                                    <X className="w-3.5 h-3.5" />
-                                </button>
-                            </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-2 px-3 pb-3">
-                            <button
-                                onClick={() => {
-                                    setChats(prev => prev.map(c =>
-                                        selectedIds.has(c.id) ? { ...c, archived: !c.archived } : c
-                                    ));
-                                    exitSelectMode();
-                                }}
-                                className="flex items-center justify-center gap-2 py-2.5 bg-[var(--bg-tertiary)] hover:bg-[var(--bg-tertiary)]/80 text-[var(--text-primary)] text-[11px] font-black uppercase tracking-wider rounded-lg transition-colors cursor-pointer"
-                            >
-                                <Archive className="w-3.5 h-3.5" />
-                                ARCHIVE
-                            </button>
-                            <button
-                                onClick={() => {
-                                    setChats(prev => prev.filter(c => !selectedIds.has(c.id)));
-                                    exitSelectMode();
-                                }}
-                                className="flex items-center justify-center gap-2 py-2.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-[11px] font-black uppercase tracking-wider rounded-lg transition-colors cursor-pointer"
-                            >
-                                <Trash2 className="w-3.5 h-3.5" />
-                                DELETE
-                            </button>
-                        </div>
-                    </div>
-                )}
-                    </>
+                        renderChatDirectory(false)
                     )
                 )}
 
@@ -953,6 +1113,65 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                             setChats(prev => prev.map(c => c.id === id ? { ...c, name, avatar: emoji } : c));
                         }}
                     />
+
+                    {/* Floating Flyout Drawer for Collapsed Sidebar */}
+                    {sidebarCollapsed && isFlyoutOpen && (
+                        <div
+                            ref={flyoutRef}
+                            onMouseEnter={handleFlyoutOpen}
+                            onMouseLeave={handleFlyoutLeave}
+                            className="fixed top-3 bottom-3 w-80 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-2xl shadow-[0_16px_50px_rgba(0,0,0,0.5)] z-[9999] flex flex-col overflow-hidden backdrop-blur-2xl animate-fade-in"
+                            style={{
+                                left: sidebarPosition === 'left' ? '72px' : 'auto',
+                                right: sidebarPosition === 'right' ? '72px' : 'auto',
+                                borderStyle: 'var(--border-style)'
+                            }}
+                        >
+                            {/* Header */}
+                            <div className="p-3.5 pb-2.5 flex items-center justify-between border-b border-[var(--border-color)]" style={{ borderStyle: 'var(--border-style)' }}>
+                                <div className="flex items-center gap-2">
+                                    <h3 className="text-sm font-extrabold tracking-wide text-[var(--text-primary)]">
+                                        {activeView === 'apis' ? 'APIs' : 'Chats'}
+                                    </h3>
+                                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[var(--bg-tertiary)] text-[var(--text-muted)] border border-[var(--border-color)]">
+                                        {activeView === 'apis' ? '' : filteredChats.length}
+                                    </span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                    {activeView !== 'apis' && (
+                                        <Tooltip title="New Chat" position="bottom">
+                                            <button
+                                                onClick={() => {
+                                                    document.dispatchEvent(new CustomEvent('start-new-chat'));
+                                                    setIsFlyoutOpen(false);
+                                                }}
+                                                className="p-1.5 rounded-lg hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
+                                            >
+                                                <Plus className="w-4 h-4" />
+                                            </button>
+                                        </Tooltip>
+                                    )}
+                                    <Tooltip title="Close" position="bottom">
+                                        <button
+                                            onClick={() => setIsFlyoutOpen(false)}
+                                            className="p-1.5 rounded-lg hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
+                                        >
+                                            <X className="w-4 h-4" />
+                                        </button>
+                                    </Tooltip>
+                                </div>
+                            </div>
+
+                            {/* Content Body Reused! (100% DRY) */}
+                            {activeView === 'apis' ? (
+                                <div className="flex-1 overflow-hidden flex flex-col min-h-0">
+                                    <ApiSidebar />
+                                </div>
+                            ) : (
+                                renderChatDirectory(true)
+                            )}
+                        </div>
+                    )}
 
                 </>,
                 document.body
