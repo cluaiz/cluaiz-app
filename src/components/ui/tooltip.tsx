@@ -40,29 +40,34 @@ export function Tooltip({ children, title, subtitle, disabled = false, position 
 
         const triggerCenterX = rect.left + (rect.width / 2);
 
-        // Horizontal position with smart viewport clamping
-        const halfWidth = tooltipWidth / 2;
-        const idealLeft = triggerCenterX - halfWidth;
-        const minLeft = padding;
-        const maxLeft = Math.max(minLeft, window.innerWidth - tooltipWidth - padding);
-        const clampedLeft = Math.max(minLeft, Math.min(maxLeft, idealLeft));
-        const arrowX = Math.max(14, Math.min(tooltipWidth - 14, triggerCenterX - clampedLeft));
-
-        // Vertical position with smart space detection & flip
+        // Horizontal and Vertical position with smart space detection & flip
         let actualPos: 'top' | 'bottom' | 'right' = 'top';
+        let finalLeft = 0;
         let finalTop = 0;
+        let arrowX = 0;
 
-        if (position === 'bottom' || position === 'bottom-end') {
-            actualPos = 'bottom';
-            finalTop = rect.bottom + 8;
-        } else if (position === 'right') {
+        if (position === 'right') {
             actualPos = 'right';
+            finalLeft = rect.right + 10;
+            if (finalLeft + tooltipWidth > window.innerWidth - padding) {
+                finalLeft = Math.max(padding, rect.left - tooltipWidth - 10);
+            }
             finalTop = rect.top + (rect.height / 2) - (tooltipHeight / 2);
+        } else if (position === 'bottom' || position === 'bottom-end') {
+            actualPos = 'bottom';
+            const halfWidth = tooltipWidth / 2;
+            const idealLeft = triggerCenterX - halfWidth;
+            finalLeft = Math.max(padding, Math.min(window.innerWidth - tooltipWidth - padding, idealLeft));
+            arrowX = Math.max(14, Math.min(tooltipWidth - 14, triggerCenterX - finalLeft));
+            finalTop = rect.bottom + 8;
         } else {
             // 'top' is preferred: check if enough room above
+            const halfWidth = tooltipWidth / 2;
+            const idealLeft = triggerCenterX - halfWidth;
+            finalLeft = Math.max(padding, Math.min(window.innerWidth - tooltipWidth - padding, idealLeft));
+            arrowX = Math.max(14, Math.min(tooltipWidth - 14, triggerCenterX - finalLeft));
             const roomAbove = rect.top;
             if (roomAbove < tooltipHeight + 16) {
-                // Not enough room above, flip to bottom
                 actualPos = 'bottom';
                 finalTop = rect.bottom + 8;
             } else {
@@ -75,7 +80,7 @@ export function Tooltip({ children, title, subtitle, disabled = false, position 
         finalTop = Math.max(padding, Math.min(window.innerHeight - tooltipHeight - padding, finalTop));
 
         setCoords({
-            x: Math.round(clampedLeft),
+            x: Math.round(finalLeft),
             y: Math.round(finalTop),
             arrowX: Math.round(arrowX),
             actualPosition: actualPos
@@ -153,6 +158,11 @@ export function Tooltip({ children, title, subtitle, disabled = false, position 
                                 <div
                                     style={{ left: coords.arrowX }}
                                     className="absolute -z-10 top-[-4px] -translate-x-1/2 w-2.5 h-2.5 bg-[var(--bg-tertiary)] border-t border-l border-[var(--border-color)]/80 rotate-45"
+                                />
+                            )}
+                            {coords.actualPosition === 'right' && (
+                                <div
+                                    className="absolute -z-10 left-[-4px] top-1/2 -translate-y-1/2 w-2.5 h-2.5 bg-[var(--bg-tertiary)] border-b border-l border-[var(--border-color)]/80 rotate-45"
                                 />
                             )}
                         </motion.div>
