@@ -17,6 +17,7 @@ export interface SerializedAttachmentsResult {
     parts: ChatMessagePart[];
     hasMultimodal: boolean;
     summary: string;
+    attachmentsMeta: Array<{ name: string; size?: number; type?: string; previewUrl?: string }>;
 }
 
 /**
@@ -36,6 +37,8 @@ export async function serializeStagedAttachments(
     let hasMultimodal = false;
     const summaryNames: string[] = [];
 
+    const attachmentsMeta: Array<{ name: string; size?: number; type?: string; previewUrl?: string }> = [];
+
     // 1. Process attachments
     for (const att of attachments) {
         summaryNames.push(att.name);
@@ -45,6 +48,11 @@ export async function serializeStagedAttachments(
             parts.push({
                 type: 'text',
                 text: `\`\`\`\n// Snippet: ${att.name}\n${att.pastedContent}\n\`\`\``
+            });
+            attachmentsMeta.push({
+                name: att.name,
+                size: att.size,
+                type: 'text/plain'
             });
             continue;
         }
@@ -64,6 +72,12 @@ export async function serializeStagedAttachments(
                             detail: 'auto'
                         }
                     });
+                    attachmentsMeta.push({
+                        name: att.name,
+                        size: att.size,
+                        type: att.type || mime,
+                        previewUrl: dataUri
+                    });
                 } else if (mime.startsWith('video/')) {
                     hasMultimodal = true;
                     parts.push({
@@ -72,6 +86,12 @@ export async function serializeStagedAttachments(
                             url: dataUri,
                             fps: 1
                         }
+                    });
+                    attachmentsMeta.push({
+                        name: att.name,
+                        size: att.size,
+                        type: att.type || mime,
+                        previewUrl: att.previewUrl
                     });
                 } else if (mime.startsWith('audio/')) {
                     hasMultimodal = true;
@@ -84,6 +104,11 @@ export async function serializeStagedAttachments(
                             format
                         }
                     });
+                    attachmentsMeta.push({
+                        name: att.name,
+                        size: att.size,
+                        type: att.type || mime
+                    });
                 } else {
                     // Documents: PDF, DOCX, TXT, JSON, etc.
                     hasMultimodal = true;
@@ -95,9 +120,19 @@ export async function serializeStagedAttachments(
                             detail: 'full'
                         }
                     });
+                    attachmentsMeta.push({
+                        name: att.name,
+                        size: att.size,
+                        type: att.type || mime
+                    });
                 }
             } catch (err) {
                 console.error(`[attachmentSerializer] Failed to convert ${att.name} to Data URI:`, err);
+                attachmentsMeta.push({
+                    name: att.name,
+                    size: att.size,
+                    type: att.type
+                });
             }
         }
     }
@@ -114,6 +149,7 @@ export async function serializeStagedAttachments(
     return {
         parts,
         hasMultimodal,
-        summary: summaryNames.join(', ')
+        summary: summaryNames.join(', '),
+        attachmentsMeta
     };
 }

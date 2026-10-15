@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, FileCode, FileText, Plus, ChevronDown, Mic, Zap, Sparkles, Globe, Brain, Image as ImageIcon, Video, X, Clock, ChevronRight, UploadCloud, Link as LinkIcon, Layers, FolderUp, Database, BookOpen, ZapOff, Telescope, CornerDownRight, Check, AlignLeft, AlignJustify, Box, Server, Info, SlidersHorizontal } from 'lucide-react';
+import { Send, Square, FileCode, FileText, Plus, ChevronDown, Mic, Zap, Sparkles, Globe, Brain, Image as ImageIcon, Video, X, Clock, ChevronRight, UploadCloud, Link as LinkIcon, Layers, FolderUp, Database, BookOpen, ZapOff, Telescope, CornerDownRight, Check, AlignLeft, AlignJustify, Box, Server, Info, SlidersHorizontal } from 'lucide-react';
 import BorderGlow from '../../../components/ui/BorderGlow';
 import { Backlight } from '../../../components/ui/Backlight';
 import { useEngineStore } from '../../../store/engine/useEngineStore';
@@ -8,11 +8,13 @@ import { navigateTo } from '../../../core/router';
 import { client } from '../../../api/client';
 import { modelsApi } from '../../../api/engine/models/models.api';
 import { permissionApi } from '../../../api/engine/permission/permission.api';
+import { systemApi } from '../../../api/engine/system/system.api';
 import { toast } from '../../../components/ui/toast';
 import { InlinePromptInput, InlinePromptInputHandle } from '../../../components/ui/InlinePromptInput';
 import { VoiceInputControl, VoiceMode } from '../../../components/ui/VoiceInputControl';
 import { extractBaseName } from '../../../utils/filePath';
 import { AttachmentStagingDeck, StagedAttachment } from './AttachmentStagingDeck';
+import { serializeStagedAttachments } from '../utils/attachmentSerializer';
 
 const DynamicToolIcon: React.FC<{ iconSvg?: string | null; fallback: React.ReactNode; className?: string }> = ({ iconSvg, fallback, className = "w-3.5 h-3.5" }) => {
     if (iconSvg) {
@@ -77,6 +79,22 @@ const getSkillIcon = (skill: string) => {
     }
 };
 
+const checkModelVisionSupport = (modelId: string, map?: Record<string, any>): boolean => {
+    if (!modelId) return false;
+    if (map && map[modelId]) {
+        const detail = map[modelId];
+        if (detail.metadata?.capabilities?.vision === true) return true;
+        if (detail.extra_files?.some((f: string) => f.toLowerCase().includes('mmproj'))) return true;
+        if (detail.supported_tasks?.includes('vision')) return true;
+        if (detail.metadata?.inputs?.some((i: any) => (i.type === 'image' || i.type === 'vision') && i.available === true)) return true;
+    }
+    const lower = modelId.toLowerCase();
+    if (lower.includes('-vl') || lower.includes('-vision') || lower.includes('llava') || lower.includes('qwen2-vl') || lower.includes('minicpm-v')) {
+        return true;
+    }
+    return false;
+};
+
 interface ChatInputProps {
     inputValue: string;
     setInputValue: (val: string) => void;
@@ -84,6 +102,8 @@ interface ChatInputProps {
     replyingTo?: { text: string; messageIndex: number; type?: 'message' | 'selection' } | null;
     setReplyingTo?: (val: { text: string; messageIndex: number; type?: 'message' | 'selection' } | null) => void;
     isFloating?: boolean;
+    isStreaming?: boolean;
+    onStopStreaming?: () => void;
 }
 
 export const ChatInput: React.FC<ChatInputProps> = ({
@@ -92,7 +112,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     handleSendMessage,
     replyingTo,
     setReplyingTo,
-    isFloating = false
+    isFloating = false,
+    isStreaming = false,
+    onStopStreaming
 }) => {
     const [isAttachOpen, setIsAttachOpen] = useState(false);
     const [isModelOpen, setIsModelOpen] = useState(false);
@@ -191,9 +213,56 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         return getSkillIcon(name);
     };
 
+// Strict format whitelists: zero archives (.zip, .tar), zero executables (.exe)
+const BASE_DOC_AND_CODE_ACCEPT = ".pdf,.docx,.doc,.txt,.md,.csv,.json,.toml,.yaml,.yml,.rs,.ts,.tsx,.js,.jsx,.py,.c,.cpp,.h,.go,.html,.css,.sql,.sh,.log";
+const VISION_MEDIA_ACCEPT = ".png,.jpg,.jpeg,.webp,.gif,.bmp,image/*";
+const BANNED_ARCHIVE_OR_BINARY_REGEX = /\.(zip|tar|gz|tgz|rar|7z|bz2|xz|exe|msi|bin|dll|iso|dmg|apk|sys)$/i;
+
     const handleStageFiles = (files: FileList | any[] | any) => {
         if (!files || files.length === 0) return;
-        const newAttachments: StagedAttachment[] = Array.from(files).map((file: any) => {
+        const rawFiles = Array.from(files);
+
+        const rejectedBanned: string[] = [];
+        const rejectedVisuals: string[] = [];
+        const acceptedFiles: any[] = [];
+
+        for (const file of rawFiles as any[]) {
+            const name = (file?.name as string) || 'attachment';
+            const type = (file?.type as string) || '';
+
+            // Reject archives (.zip, .tar) and executable binaries (.exe)
+            if (BANNED_ARCHIVE_OR_BINARY_REGEX.test(name)) {
+                rejectedBanned.push(name);
+                continue;
+            }
+
+            const isImg = type.startsWith('image/') || /\.(png|jpe?g|webp|gif|svg|bmp|ico)$/i.test(name);
+            const isVid = type.startsWith('video/') || /\.(mp4|mov|avi|mkv|webm)$/i.test(name);
+
+            if ((isImg || isVid) && !isVisionSupported) {
+                rejectedVisuals.push(name);
+            } else {
+                acceptedFiles.push(file);
+            }
+        }
+
+        if (rejectedBanned.length > 0) {
+            toast.error(
+                `Archive and executable files (.zip, .exe, etc.) are not supported. Only documents and supported model media can be attached.`,
+                { duration: 4500 }
+            );
+        }
+
+        if (rejectedVisuals.length > 0) {
+            toast.error(
+                `"${currentModel?.shortName || 'Selected model'}" does not support visual attachments. Select a vision model (e.g. Gemma with mmproj) to process images.`,
+                { duration: 4500 }
+            );
+        }
+
+        if (acceptedFiles.length === 0) return;
+
+        const newAttachments: StagedAttachment[] = acceptedFiles.map((file: any) => {
             const name = file.name || 'attachment';
             const size = typeof file.size === 'number' ? file.size : 0;
             const type = file.type || '';
@@ -266,6 +335,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     const booster = useEngineStore(s => s.booster);
     const updateBooster = useEngineStore(s => s.updateBooster);
     const permissions = useEngineStore(s => s.permissions);
+    const installedModelsMap = useEngineStore(s => s.installedModelsMap);
     const updatePermission = useEngineStore(s => s.updatePermission);
     const fetchStatus = useEngineStore(s => s.fetchStatus);
     const initEngineSettings = useEngineStore(s => s.initEngineSettings);
@@ -331,8 +401,12 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
         // 0. Dragged pasted-text snippet from staging deck back into input
         const pastedSnippet = e.dataTransfer.getData('application/cluaiz-pasted-text');
+        const snippetId = e.dataTransfer.getData('application/cluaiz-snippet-id');
         if (pastedSnippet) {
             inlineInputRef.current?.insertText(pastedSnippet);
+            if (snippetId) {
+                handleRemoveAttachment(snippetId);
+            }
             return;
         }
 
@@ -363,6 +437,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 addPathChip(trimmed, false);
             } else {
                 inlineInputRef.current?.insertText(trimmed);
+                if (snippetId) {
+                    handleRemoveAttachment(snippetId);
+                }
             }
         }
     };
@@ -381,7 +458,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         return () => document.removeEventListener('insert-chat-context', handleInsertContext);
     }, []);
 
-    const handlePromptSubmit = (
+    const handlePromptSubmit = async (
         serializedText: string,
         contextData: {
             files: { path: string; lineRange?: string; name: string }[];
@@ -393,24 +470,29 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             toast.error('Cluaiz Engine is offline. Start engine to chat.');
             return;
         }
+        if (isStreaming) {
+            toast.info('Response is currently generating. Stop or wait for it to complete.');
+            return;
+        }
 
-        let finalMsg = serializedText.trim();
+        const promptText = serializedText.trim();
+        let finalParts: import('../../../api/engine/chat/chat.types').ChatMessagePart[] | undefined = undefined;
+        let attachmentsMeta: Array<{ name: string; size?: number; type?: string; previewUrl?: string }> | undefined = undefined;
 
         if (stagedAttachments.length > 0) {
-            const pastedSnippets = stagedAttachments.filter(a => a.isPastedText && a.pastedContent);
-            const regularFiles = stagedAttachments.filter(a => !a.isPastedText);
-
-            let attachmentsSummary = '';
-            if (regularFiles.length > 0) {
-                attachmentsSummary += `[Attached Files: ${regularFiles.map(f => `${f.name} (${formatBytes(f.size)})`).join(', ')}]`;
-            }
-            if (pastedSnippets.length > 0) {
-                const snippetsText = pastedSnippets.map(s => `\n\`\`\`\n// ${s.name}\n${s.pastedContent}\n\`\`\``).join('\n');
-                attachmentsSummary += (attachmentsSummary ? '\n\n' : '') + snippetsText;
-            }
-
-            if (attachmentsSummary) {
-                finalMsg = finalMsg ? `${finalMsg}\n\n${attachmentsSummary}` : attachmentsSummary;
+            try {
+                const serializedResult = await serializeStagedAttachments(stagedAttachments, promptText);
+                finalParts = serializedResult.parts;
+                attachmentsMeta = serializedResult.attachmentsMeta || stagedAttachments.map(a => ({
+                    name: a.name,
+                    size: a.size,
+                    type: a.type,
+                    previewUrl: a.previewUrl
+                }));
+            } catch (err) {
+                console.error('[ChatInput] Attachment serialization error:', err);
+                toast.error('Failed to prepare attachments.');
+                return;
             }
         }
 
@@ -423,15 +505,12 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             reasoning_effort: effort,
             model: permissions?.chat_models?.text || undefined,
             tools: activeTools.length > 0 ? activeTools : undefined,
+            parts: finalParts,
+            attachments: attachmentsMeta
         };
 
-        handleSendMessage(finalMsg, options);
+        handleSendMessage(promptText, options);
         setInputValue('');
-        stagedAttachments.forEach(a => {
-            if (a.previewUrl) {
-                try { URL.revokeObjectURL(a.previewUrl); } catch { }
-            }
-        });
         setStagedAttachments([]);
         inlineInputRef.current?.clear();
     };
@@ -523,7 +602,43 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         return () => window.removeEventListener('resize', calculateWidth);
     }, [selectedSkills.length]);
 
-    const currentModel = modelOptions.find(m => m.id === activeModelId) || modelOptions[0];
+    const currentModel = modelOptions.find(m => m.id === activeModelId) || modelOptions[0] || { id: 'default', fullName: 'Default Model', shortName: 'Default' };
+
+    const [isVisionSupported, setIsVisionSupported] = useState<boolean>(() => {
+        return checkModelVisionSupport(currentModel?.id || activeModelId, installedModelsMap);
+    });
+
+    useEffect(() => {
+        let isMounted = true;
+        const modelId = currentModel?.id;
+        if (!modelId || modelId === 'default' || modelId === 'Unknown Model') return;
+
+        const fastCheck = checkModelVisionSupport(modelId, installedModelsMap);
+        setIsVisionSupported(fastCheck);
+
+        systemApi.planExecution({ model: modelId })
+            .then(plan => {
+                if (!isMounted || !plan) return;
+                const imageInput = (plan as any).model_info?.inputs?.find((i: any) => i.type === 'image');
+                if (imageInput) {
+                    setIsVisionSupported(Boolean(imageInput.available));
+                }
+            })
+            .catch(() => {});
+
+        return () => { isMounted = false; };
+    }, [currentModel?.id, installedModelsMap]);
+
+    // Automatically remove visual attachments if user switches to a text-only model
+    useEffect(() => {
+        if (!isVisionSupported && stagedAttachments.length > 0) {
+            const hasVisual = stagedAttachments.some(a => a.type.startsWith('image/') || a.type.startsWith('video/') || /\.(png|jpe?g|webp|gif|svg|bmp|ico|mp4|mov|avi|mkv|webm)$/i.test(a.name));
+            if (hasVisual) {
+                setStagedAttachments(prev => prev.filter(a => !a.type.startsWith('image/') && !a.type.startsWith('video/') && !/\.(png|jpe?g|webp|gif|svg|bmp|ico|mp4|mov|avi|mkv|webm)$/i.test(a.name)));
+                toast.info(`Removed visual attachments: "${currentModel.shortName}" is a text-only model.`);
+            }
+        }
+    }, [isVisionSupported, currentModel.shortName]);
 
     const attachMenuRef = useRef<HTMLDivElement>(null);
     const attachButtonRef = useRef<HTMLButtonElement>(null);
@@ -650,10 +765,17 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                     setIsAttachOpen(false);
                 }}
                 onMouseEnter={closeAllSubmenusImmediate}
-                className="w-full flex items-center gap-3 px-2.5 py-2 text-[0.7rem] sm:text-xs font-medium hover:bg-[var(--bg-secondary)] text-[var(--text-primary)] hover:text-[var(--accent-color)] transition-colors text-left group rounded-md cursor-pointer"
+                className="w-full flex items-center justify-between px-2.5 py-2 text-[0.7rem] sm:text-xs font-medium hover:bg-[var(--bg-secondary)] text-[var(--text-primary)] hover:text-[var(--accent-color)] transition-colors text-left group rounded-md cursor-pointer"
             >
-                <UploadCloud className="w-4 h-4 text-[var(--text-muted)] group-hover:text-[var(--accent-color)] transition-colors" />
-                Upload File
+                <div className="flex items-center gap-3">
+                    <UploadCloud className="w-4 h-4 text-[var(--text-muted)] group-hover:text-[var(--accent-color)] transition-colors" />
+                    <span>Upload File</span>
+                </div>
+                {!isVisionSupported && (
+                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[var(--text-muted)] font-mono">
+                        Docs only
+                    </span>
+                )}
             </button>
 
             <div className="h-px bg-[var(--border-color)] my-1 mx-2" onMouseEnter={closeAllSubmenusImmediate} />
@@ -1143,6 +1265,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 type="file"
                 ref={fileInputRef}
                 multiple
+                accept={isVisionSupported ? `${BASE_DOC_AND_CODE_ACCEPT},${VISION_MEDIA_ACCEPT}` : BASE_DOC_AND_CODE_ACCEPT}
                 onChange={handleFileSelect}
                 className="hidden"
             />
@@ -1196,16 +1319,27 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                         onVoiceFrequencyChange={(freq) => setVoiceFrequency(freq)}
                     />
 
-                    <div className={`transition-all duration-100 ease-out overflow-hidden flex items-center ${(inputValue.trim() || !inlineInputRef.current?.isEmpty() || stagedAttachments.length > 0) ? 'w-[2rem] sm:w-[2.25rem] opacity-100 scale-100' : 'w-0 opacity-0 scale-0'}`}>
-                        <button
-                            type="button"
-                            onClick={handleSendWithAttachments}
-                            disabled={!isEngineOnline}
-                            className={`w-[2rem] sm:w-[2.25rem] h-[2rem] sm:h-[2.25rem] flex-shrink-0 rounded-full flex items-center justify-center bg-[var(--accent-color)] text-[var(--accent-contrast)] hover:opacity-90 transition-transform active:scale-95 ${!isEngineOnline ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
-                            title="Send message"
-                        >
-                            <Send className="w-3.5 sm:w-4 h-3.5 sm:h-4 -ml-0.5" />
-                        </button>
+                    <div className={`transition-all duration-100 ease-out overflow-hidden flex items-center ${(isStreaming || inputValue.trim() || !inlineInputRef.current?.isEmpty() || stagedAttachments.length > 0) ? 'w-[2rem] sm:w-[2.25rem] opacity-100 scale-100' : 'w-0 opacity-0 scale-0'}`}>
+                        {isStreaming ? (
+                            <button
+                                type="button"
+                                onClick={onStopStreaming}
+                                className="w-[2rem] sm:w-[2.25rem] h-[2rem] sm:h-[2.25rem] flex-shrink-0 rounded-full flex items-center justify-center bg-[var(--accent-color)] text-[var(--accent-contrast)] hover:opacity-90 shadow-md transition-transform active:scale-95 cursor-pointer"
+                                title="Stop generating"
+                            >
+                                <Square className="w-3 sm:w-3.5 h-3 sm:h-3.5 fill-current" />
+                            </button>
+                        ) : (
+                            <button
+                                type="button"
+                                onClick={handleSendWithAttachments}
+                                disabled={!isEngineOnline}
+                                className={`w-[2rem] sm:w-[2.25rem] h-[2rem] sm:h-[2.25rem] flex-shrink-0 rounded-full flex items-center justify-center bg-[var(--accent-color)] text-[var(--accent-contrast)] hover:opacity-90 transition-transform active:scale-95 ${!isEngineOnline ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
+                                title="Send message"
+                            >
+                                <Send className="w-3.5 sm:w-4 h-3.5 sm:h-4 -ml-0.5" />
+                            </button>
+                        )}
                     </div>
                 </div>
             </div>

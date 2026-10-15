@@ -1,9 +1,17 @@
 import React from 'react';
-import { CheckCheck, ChevronDown, ChevronUp } from 'lucide-react';
+import { CheckCheck, ChevronDown, ChevronUp, FileText, FileCode, Image as ImageIcon, Film, Music, Zap } from 'lucide-react';
 import { LottieEmoji } from '../../../components/ui/context-menu/LottieEmoji';
 import { EmojiMeta } from '../../../assets/EmojiMeta';
 import { ContextChip } from '../../../components/ui/ContextChip';
 import { extractBaseName } from '../../../utils/filePath';
+
+function formatBytes(bytes?: number | null): string {
+    if (!bytes || bytes === 0) return '';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
+}
 
 const getEmojiCodepoint = (emoji: string) => {
     return [...emoji]
@@ -41,9 +49,10 @@ interface ThoughtProcessCardProps {
     thinking: string;
     isStreaming?: boolean;
     duration?: string | number;
+    onSkipThinking?: () => void;
 }
 
-const ThoughtProcessCard: React.FC<ThoughtProcessCardProps> = ({ thinking, isStreaming = false, duration }) => {
+const ThoughtProcessCard: React.FC<ThoughtProcessCardProps> = ({ thinking, isStreaming = false, duration, onSkipThinking }) => {
     const [isOpen, setIsOpen] = React.useState(isStreaming);
     const scrollRef = React.useRef<HTMLDivElement>(null);
     const userInteractedRef = React.useRef(false);
@@ -93,33 +102,51 @@ const ThoughtProcessCard: React.FC<ThoughtProcessCardProps> = ({ thinking, isStr
 
     return (
         <div className="w-full my-1 select-none text-left" style={{ fontSize: 'calc(var(--chat-bubble-font-size, 14.5px) * 0.92)' }}>
-            <button
-                type="button"
-                onClick={() => {
-                    userInteractedRef.current = true;
-                    setIsOpen(prev => !prev);
-                }}
-                className="inline-flex items-center gap-1 text-zinc-400 hover:text-zinc-200 transition-colors py-1 cursor-pointer group/thought"
-                style={{ fontSize: 'inherit' }}
-            >
-                {isStreaming ? (
-                    <span className="font-normal flex items-center text-zinc-400 group-hover/thought:text-zinc-200" style={{ fontSize: 'inherit' }}>
-                        <span>Thinking</span>
-                        <span className="inline-flex items-baseline font-mono tracking-wider ml-0.5 text-zinc-400" style={{ fontSize: 'inherit' }}>
-                            <span className="inline-block animate-bounce leading-none" style={{ animationDelay: '0ms' }}>.</span>
-                            <span className="inline-block animate-bounce leading-none" style={{ animationDelay: '150ms' }}>.</span>
-                            <span className="inline-block animate-bounce leading-none" style={{ animationDelay: '300ms' }}>.</span>
+            <div className="inline-flex items-center gap-2">
+                <button
+                    type="button"
+                    onClick={() => {
+                        userInteractedRef.current = true;
+                        setIsOpen(prev => !prev);
+                    }}
+                    className="inline-flex items-center gap-1 text-zinc-400 hover:text-zinc-200 transition-colors py-1 cursor-pointer group/thought"
+                    style={{ fontSize: 'inherit' }}
+                >
+                    {isStreaming ? (
+                        <span className="font-normal flex items-center text-zinc-400 group-hover/thought:text-zinc-200" style={{ fontSize: 'inherit' }}>
+                            <span>Thinking</span>
+                            <span className="inline-flex items-baseline font-mono tracking-wider ml-0.5 text-zinc-400" style={{ fontSize: 'inherit' }}>
+                                <span className="inline-block animate-bounce leading-none" style={{ animationDelay: '0ms' }}>.</span>
+                                <span className="inline-block animate-bounce leading-none" style={{ animationDelay: '150ms' }}>.</span>
+                                <span className="inline-block animate-bounce leading-none" style={{ animationDelay: '300ms' }}>.</span>
+                            </span>
                         </span>
-                    </span>
-                ) : (
-                    <span className="font-normal text-zinc-400 group-hover/thought:text-zinc-200" style={{ fontSize: 'inherit' }}>
-                        Thought{displayDuration ? ` for ${displayDuration}` : ''}
-                    </span>
+                    ) : (
+                        <span className="font-normal text-zinc-400 group-hover/thought:text-zinc-200" style={{ fontSize: 'inherit' }}>
+                            Thought{displayDuration ? ` for ${displayDuration}` : ''}
+                        </span>
+                    )}
+                    <ChevronDown
+                        className={`w-3.5 h-3.5 text-zinc-500 group-hover/thought:text-zinc-300 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
+                    />
+                </button>
+
+                {isStreaming && onSkipThinking && (
+                    <button
+                        type="button"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setIsOpen(false);
+                            onSkipThinking();
+                        }}
+                        title="Skip reasoning and generate response directly"
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 border border-amber-500/25 transition-all cursor-pointer shadow-sm active:scale-95 select-none"
+                    >
+                        <Zap className="w-3 h-3 fill-current" />
+                        <span>Skip Thinking</span>
+                    </button>
                 )}
-                <ChevronDown
-                    className={`w-3.5 h-3.5 text-zinc-500 group-hover/thought:text-zinc-300 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
-                />
-            </button>
+            </div>
             {isOpen && (
                 <div
                     ref={scrollRef}
@@ -142,6 +169,7 @@ import { ChatMessage, useChatStore } from '../../../store/chat/useChatStore';
 import { ToolCallAccordion } from './ToolCallAccordion';
 import { MarkdownRenderer } from '../../../components/ui/MarkdownRenderer';
 import { PermissionApprovalCard } from './PermissionApprovalCard';
+import { AttachmentStagingDeck, AttachmentCard } from './AttachmentStagingDeck';
 
 interface CollapsibleUserMessageProps {
     text: string;
@@ -235,6 +263,8 @@ interface MessageBubbleProps {
     isSelectionMode?: boolean;
     isSelected?: boolean;
     onToggleSelect?: () => void;
+    onSkipThinking?: () => void;
+    isStreaming?: boolean;
 }
 
 export const MessageBubble: React.FC<MessageBubbleProps> = ({
@@ -245,7 +275,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     onHighlightClick,
     isSelectionMode,
     isSelected,
-    onToggleSelect
+    onToggleSelect,
+    onSkipThinking,
+    isStreaming = false
 }) => {
     const activeSessionId = useChatStore(s => s.activeSessionId) || '';
     const isUser = msg.sender === 'user';
@@ -414,59 +446,85 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             )}
 
             {isUser ? (
-                /* User Message Bubble — Theme matched */
-                <div
-                    onContextMenu={(e) => {
-                        if (!isSelectionMode) {
-                            handleMessageContextMenu(e, index);
-                        }
-                    }}
-                    className={`flex flex-col w-fit max-w-[85%] md:max-w-[75%] rounded-2xl rounded-tr-sm p-3 shadow-sm relative group/bubble transition-transform duration-200 self-end select-text ${isSelectionMode ? 'cursor-pointer hover:scale-[1.01]' : ''
-                        }`}
-                    style={{
-                        backgroundColor: 'var(--accent-color)',
-                        color: 'var(--accent-contrast, #ffffff)',
-                    }}
-                >
-                    {msg.isStarred && (
-                        <div className="absolute -top-2 -left-2 bg-yellow-500/20 text-yellow-500 p-0.5 rounded-full z-10 shadow-sm backdrop-blur-sm">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>
+                /* User Message Outer Wrapper */
+                <div className="flex flex-col items-end self-end max-w-[92%] sm:max-w-[85%] md:max-w-[75%] w-fit gap-1.5 group/bubble select-text">
+                    {/* Top: Horizontal Attachment Slider (Exact same slider as input, outside & on top of text bubble) */}
+                    {msg.attachments && msg.attachments.length > 0 && (
+                        <div className="w-full max-w-full overflow-hidden">
+                            <AttachmentStagingDeck
+                                attachments={msg.attachments.map((att, attIdx) => ({
+                                    id: (att as any).id || `att-${attIdx}`,
+                                    name: att.name,
+                                    size: att.size || 0,
+                                    type: att.type || '',
+                                    previewUrl: att.previewUrl,
+                                }))}
+                            />
                         </div>
                     )}
 
-                    {msg.text && (
-                        <CollapsibleUserMessage
-                            text={msg.text}
-                            highlights={msg.highlights}
-                            renderContent={renderUserMessageContent}
-                            onMouseUp={handleMouseUp}
-                        />
-                    )}
+                    {/* User Text Message Bubble (or compact bubble if text exists) */}
+                    {msg.text ? (
+                        <div
+                            onContextMenu={(e) => {
+                                if (!isSelectionMode) {
+                                    handleMessageContextMenu(e, index);
+                                }
+                            }}
+                            className={`flex flex-col w-fit rounded-2xl rounded-tr-sm p-3 shadow-sm relative transition-transform duration-200 self-end select-text ${isSelectionMode ? 'cursor-pointer hover:scale-[1.01]' : ''
+                                }`}
+                            style={{
+                                backgroundColor: 'var(--accent-color)',
+                                color: 'var(--accent-contrast, #ffffff)',
+                            }}
+                        >
+                            {msg.isStarred && (
+                                <div className="absolute -top-2 -left-2 bg-yellow-500/20 text-yellow-500 p-0.5 rounded-full z-10 shadow-sm backdrop-blur-sm">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>
+                                </div>
+                            )}
 
-                    <div
-                        className="flex items-center justify-end gap-1 mt-1 font-mono select-none opacity-85 ml-auto"
-                        style={{ fontSize: 'calc(var(--chat-bubble-font-size, 14px) * 0.78)' }}
-                    >
-                        <span>{formatDisplayTime(msg.time)}</span>
-                        <CheckCheck className="w-3.5 h-3.5 opacity-90" />
-                    </div>
+                            <CollapsibleUserMessage
+                                text={msg.text}
+                                highlights={msg.highlights}
+                                renderContent={renderUserMessageContent}
+                                onMouseUp={handleMouseUp}
+                            />
 
-                    {/* Reactions for user */}
-                    {msg.reactions && msg.reactions.length > 0 && (
-                        <div className="absolute -bottom-3 right-2 flex items-center gap-0.5 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-full px-1.5 py-0.5 shadow-sm z-10">
-                            {msg.reactions.map((r, ri) => {
-                                const codepoint = getEmojiCodepoint(r);
-                                const meta = EmojiMeta[codepoint];
-                                return (
-                                    <span key={ri} className="flex items-center justify-center w-4 h-4">
-                                        {meta?.path ? (
-                                            <LottieEmoji path={meta.path} loop={true} autoplay={true} playOnHover={false} shouldPreload={true} alt={r} style={{ width: 14, height: 14 }} />
-                                        ) : (
-                                            <span className="text-[10px]">{r}</span>
-                                        )}
-                                    </span>
-                                );
-                            })}
+                            <div
+                                className="flex items-center justify-end gap-1 mt-1 font-mono select-none opacity-85 ml-auto"
+                                style={{ fontSize: 'calc(var(--chat-bubble-font-size, 14px) * 0.78)' }}
+                            >
+                                <span>{formatDisplayTime(msg.time)}</span>
+                                <CheckCheck className="w-3.5 h-3.5 opacity-90" />
+                            </div>
+
+                            {/* Reactions for user */}
+                            {msg.reactions && msg.reactions.length > 0 && (
+                                <div className="absolute -bottom-3 right-2 flex items-center gap-0.5 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-full px-1.5 py-0.5 shadow-sm z-10">
+                                    {msg.reactions.map((r, ri) => {
+                                        const codepoint = getEmojiCodepoint(r);
+                                        const meta = EmojiMeta[codepoint];
+                                        return (
+                                            <span key={ri} className="flex items-center justify-center w-4 h-4">
+                                                {meta?.path ? (
+                                                    <LottieEmoji path={meta.path} loop={true} autoplay={true} playOnHover={false} shouldPreload={true} alt={r} style={{ width: 14, height: 14 }} />
+                                                ) : (
+                                                    <span className="text-[10px]">{r}</span>
+                                                )}
+                                            </span>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+                    ) : (
+                        /* Only attachments sent without text: show clean timestamp pill below slider */
+                        <div
+                            className="flex items-center justify-end gap-1 px-2 py-0.5 rounded-full bg-[var(--bg-secondary)] border border-[var(--border-color)] font-mono text-[10px] text-[var(--text-muted)] select-none ml-auto"
+                        >
+                            <span>{formatDisplayTime(msg.time)}</span>
+                            <CheckCheck className="w-3.5 h-3.5 opacity-90" />
                         </div>
                     )}
                 </div>
@@ -494,6 +552,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                                 thinking={msg.thinking}
                                 isStreaming={Boolean(msg.thinking && !msg.toolCalls?.length && !msg.text?.trim() && !msg.telemetry)}
                                 duration={msg.telemetry?.ttft || msg.telemetry?.elapsed}
+                                onSkipThinking={onSkipThinking}
                             />
                         </div>
                     )}
@@ -522,6 +581,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                                 thinking={msg.postToolThinking}
                                 isStreaming={Boolean(msg.postToolThinking && !msg.text?.trim() && !msg.telemetry)}
                                 duration={msg.telemetry?.elapsed}
+                                onSkipThinking={onSkipThinking}
                             />
                         </div>
                     )}
@@ -538,7 +598,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                     ) : null}
 
                     {/* 5. Waiting indicator when streaming/generating and no text/tools/thinking yet */}
-                    {!msg.text && !msg.toolCalls?.some(tc => tc.status === 'running') && !msg.thinking && !msg.postToolThinking && !msg.telemetry && (
+                    {isStreaming && !msg.text && !msg.toolCalls?.some(tc => tc.status === 'running') && !msg.thinking && !msg.postToolThinking && !msg.telemetry && (
                         <div className="flex items-center gap-1.5 py-2 px-1 text-[var(--text-muted)]">
                             <span className="w-2 h-2 rounded-full bg-[var(--accent-color)] animate-bounce" style={{ animationDelay: '0ms' }} />
                             <span className="w-2 h-2 rounded-full bg-[var(--accent-color)] animate-bounce" style={{ animationDelay: '150ms' }} />

@@ -350,8 +350,9 @@ main().catch(console.error);`);
 
     const handleSendMessage = async (customText?: string, options?: import('../../../core/engine').SendChatOptions) => {
         const textToSend = typeof customText === 'string' ? customText : inputValue;
-        if (!textToSend.trim() && !replyingTo) return;
-        const messageText = textToSend || 'Replying to context...';
+        const hasAttachments = Boolean((options?.attachments && options.attachments.length > 0) || (options?.parts && options.parts.length > 0));
+        if (!textToSend.trim() && !replyingTo && !hasAttachments) return;
+        const messageText = textToSend || (replyingTo ? 'Replying to context...' : '');
 
         // Dynamically boot the engine on the first send if "Load Model on Send" is enabled
         const permissions = useEngineStore.getState().permissions;
@@ -373,6 +374,8 @@ main().catch(console.error);`);
         store.addMessage(sessionId, {
             sender: 'user',
             text: messageText,
+            attachments: options?.attachments,
+            parts: options?.parts,
             time: timeStr,
             date: now.getTime()
         });
@@ -399,8 +402,8 @@ main().catch(console.error);`);
                 ?.filter(m => !(m.sender === 'assistant' && !m.text && !m.thinking))
                 ?.map(m => ({
                     role: m.sender === 'assistant' ? 'assistant' : m.sender === 'user' ? 'user' : 'system',
-                    content: m.text
-                })) || [{ role: 'user', content: messageText }];
+                    content: (m.parts && m.parts.length > 0) ? m.parts : m.text
+                })) || [{ role: 'user', content: (options?.parts && options.parts.length > 0) ? options.parts : messageText }];
 
             // Conversation history matches Developer Hub directly without hardcoded system prompt
             const conversationMessages = filteredMsgs;
@@ -500,6 +503,39 @@ main().catch(console.error);`);
                     date: now.getTime()
                 });
             }
+        } finally {
+            endStreaming();
+            // Ensure no empty orphaned assistant placeholder lingers if generation finishes empty
+            const currentStore = useChatStore.getState();
+            if (currentStore.activeSessionId) {
+                const activeSess = currentStore.sessions[currentStore.activeSessionId];
+                if (activeSess?.messages && activeSess.messages.length > 0) {
+                    const lastIdx = activeSess.messages.length - 1;
+                    const lastMsg = activeSess.messages[lastIdx];
+                    if (lastMsg && lastMsg.sender === 'assistant' && !lastMsg.text && !lastMsg.thinking && !lastMsg.toolCalls?.length) {
+                        currentStore.deleteMessage(currentStore.activeSessionId, lastIdx);
+                    }
+                }
+            }
+        }
+    };
+
+    const handleStopStreaming = async () => {
+        try {
+            const { cluaizEngine } = await import('../../../core/engine');
+            await cluaizEngine.stop();
+        } catch (e) {
+            console.warn('[ChatWorkspace] Error stopping engine stream:', e);
+        }
+        endStreaming();
+    };
+
+    const handleSkipThinking = async () => {
+        try {
+            const { cluaizEngine } = await import('../../../core/engine');
+            await cluaizEngine.skipThinking();
+        } catch (e) {
+            console.warn('[ChatWorkspace] Error skipping reasoning:', e);
         }
     };
 
@@ -628,6 +664,8 @@ main().catch(console.error);`);
                                 replyingTo={replyingTo}
                                 setReplyingTo={setReplyingTo}
                                 isFloating={true}
+                                isStreaming={liveStats.isStreaming}
+                                onStopStreaming={handleStopStreaming}
                             />
                         </motion.div>
                     </div>
@@ -682,6 +720,8 @@ main().catch(console.error);`);
                                                                         : [...prev, currentIndex]
                                                                 );
                                                             }}
+                                                            onSkipThinking={handleSkipThinking}
+                                                            isStreaming={liveStats.isStreaming}
                                                         />
                                                     );
                                                 })}
@@ -767,6 +807,8 @@ main().catch(console.error);`);
                                         handleSendMessage={handleSendMessage}
                                         replyingTo={replyingTo}
                                         setReplyingTo={setReplyingTo}
+                                        isStreaming={liveStats.isStreaming}
+                                        onStopStreaming={handleStopStreaming}
                                     />
                                     <LiveTelemetryBar
                                         breakdown={breakdown}

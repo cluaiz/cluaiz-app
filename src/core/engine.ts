@@ -27,11 +27,13 @@ export const isNative = (): boolean => {
 export interface SendChatOptions {
     model?: string;
     session_id?: string;
-    messages?: Array<{ role: string; content: string }>;
+    messages?: Array<{ role: string; content: string | any[] }>;
     think_mode?: 'auto' | 'on' | 'off' | string;
     reasoning_effort?: 'auto' | 'low' | 'medium' | 'high' | 'max' | string | number;
     temperature?: number;
     tools?: any[];
+    attachments?: Array<{ name: string; size?: number; type?: string; previewUrl?: string }>;
+    parts?: any[];
 }
 
 export interface ToolCallPayload {
@@ -76,6 +78,8 @@ export interface StreamChunk {
 
 export class cluaizEngine {
     private static isBooted = false;
+    private static activeAbortController: AbortController | null = null;
+    private static activeStreamId: string | null = null;
 
     /**
      * Initializes the Co-Execution architecture.
@@ -203,7 +207,7 @@ export class cluaizEngine {
             const payload: any = {
                 messages: (options?.messages && options.messages.length > 0)
                     ? options.messages
-                    : [{ role: 'user', content: message }],
+                    : [{ role: 'user', content: (options?.parts && options.parts.length > 0) ? options.parts : message }],
                 stream: true
             };
             if (options?.model) {
@@ -237,9 +241,17 @@ export class cluaizEngine {
                 }
             };
 
+            this.activeAbortController = new AbortController();
+
             await chatApi.streamCompletion(payload, {
+                signal: this.activeAbortController.signal,
                 onEvent: (parsed: any) => {
                     if (!parsed) return;
+                    if (parsed.id) {
+                        cluaizEngine.activeStreamId = parsed.id;
+                    } else if (parsed.stream_id) {
+                        cluaizEngine.activeStreamId = parsed.stream_id;
+                    }
                     if (parsed.usage?.context_telemetry) {
                         emitChunk({ contextTelemetry: parsed.usage.context_telemetry, usage: parsed.usage });
                     }
@@ -351,9 +363,53 @@ export class cluaizEngine {
                     }
                 },
                 onDone: () => {
+                    cluaizEngine.activeAbortController = null;
+                    cluaizEngine.activeStreamId = null;
                     emitChunk('[DONE]');
+                },
+                onError: () => {
+                    cluaizEngine.activeAbortController = null;
+                    cluaizEngine.activeStreamId = null;
                 }
             });
+        }
+    }
+
+    /**
+     * Immediately interrupts generation and aborts active token stream.
+     */
+    static async stop(): Promise<void> {
+        const streamId = this.activeStreamId;
+        const controller = this.activeAbortController;
+        this.activeAbortController = null;
+        this.activeStreamId = null;
+
+        if (controller) {
+            try { controller.abort(); } catch { }
+        }
+
+        if (streamId) {
+            try {
+                await chatApi.cancelStream({ stream_id: streamId });
+            } catch (err) {
+                console.warn('[cluaizEngine] cancelStream request returned:', err);
+            }
+        }
+
+        this.broadcastToken('[DONE]');
+    }
+
+    /**
+     * Immediately bypasses the chain-of-thought thinking phase and jumps to final answer.
+     */
+    static async skipThinking(): Promise<void> {
+        const streamId = this.activeStreamId;
+        if (streamId) {
+            try {
+                await chatApi.skipReasoning({ stream_id: streamId });
+            } catch (err) {
+                console.warn('[cluaizEngine] skipReasoning request returned:', err);
+            }
         }
     }
 

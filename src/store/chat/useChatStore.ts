@@ -38,6 +38,8 @@ export interface ChatMessage {
         ttft: string;
         tokens: number;
     };
+    attachments?: Array<{ name: string; size?: number; type?: string; previewUrl?: string }>;
+    parts?: Array<{ type: string; [key: string]: any }>;
 }
 
 export interface ChatSession {
