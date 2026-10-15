@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, FileCode, FileText, Plus, ChevronDown, Mic, Zap, Sparkles, Globe, Brain, Image as ImageIcon, Video, X, Clock, ChevronRight, UploadCloud, Link as LinkIcon, Layers, FolderUp, Database, BookOpen, ZapOff, Telescope, CornerDownRight, Check, AlignLeft, AlignJustify, Box, Server, Info, SlidersHorizontal } from 'lucide-react';
+import BorderGlow from '../../../components/ui/BorderGlow';
 import { Backlight } from '../../../components/ui/Backlight';
 import { useEngineStore } from '../../../store/engine/useEngineStore';
 import { useConnectionStore } from '../../../store/engine/useConnectionStore';
@@ -213,7 +214,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 previewUrl
             };
         });
-        setStagedAttachments(prev => [...prev, ...newAttachments]);
+        setStagedAttachments(prev => [...newAttachments, ...prev]);
     };
 
     const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -249,7 +250,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             pastedContent: text,
             lineCount: lines
         };
-        setStagedAttachments(prev => [...prev, newSnippet]);
+        setStagedAttachments(prev => [newSnippet, ...prev]);
         toast.info(`Converted large text (${lines} lines) to staged document`);
         return true;
     };
@@ -639,7 +640,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     const attachmentMenu = (
         <div
             ref={attachMenuRef}
-            className="absolute bottom-[calc(100%+8px)] left-2 w-56 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-xl shadow-2xl p-1 z-50 flex flex-col gap-0.5"
+            className="absolute bottom-[calc(100%+8px)] left-0 w-56 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-xl shadow-2xl p-1 z-50 flex flex-col gap-0.5"
             onMouseLeave={closeAllSubmenus}
         >
             {/* Real File Upload */}
@@ -1161,6 +1162,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 onSubmit={handlePromptSubmit}
                 onDropFiles={handleStageFiles}
                 onPasteLargeText={handlePasteLargeText}
+                onDropSnippet={(snippetId) => handleRemoveAttachment(snippetId)}
                 disabled={!isEngineOnline}
                 minHeight="22px"
                 maxHeight="160px"
@@ -1170,6 +1172,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             <div className="flex items-center justify-between pt-1 border-t border-[var(--border-color)]/20">
                 {/* Left: [+] Attach button */}
                 <div className="relative">
+                    {isAttachOpen && attachmentMenu}
                     <button
                         ref={attachButtonRef}
                         type="button"
@@ -1261,7 +1264,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     }, [inputValue, selectedSkills.length, currentModel.shortName]);
 
     return (
-        <div className={`max-[300px]:p-0.5 p-1 pb-0 flex-shrink-0 z-10 relative ${isFloating ? 'bg-transparent' : 'bg-[var(--bg-primary)]'}`}>
+        <div className={`w-full min-w-0 max-w-full max-[300px]:p-0.5 p-1 pb-0 flex-shrink-0 z-10 relative ${isFloating ? 'bg-transparent' : 'bg-[var(--bg-primary)]'}`}>
             {/* Top Fade-Out Shadow Effect */}
 
 
@@ -1286,24 +1289,68 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 </div>
             )}
 
-            {/* Input Container Wrapper - Clean, Dynamic, Crisp Border (No BorderGlow / No Ghera) */}
-            <div
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-                className={`relative z-10 flex flex-col w-full max-w-full min-w-0 gap-1.5 bg-[var(--bg-primary)] rounded-[20px] border p-2.5 sm:p-3 max-[300px]:p-1.5 transition-all duration-200 ${isDraggingOver
-                    ? 'border-[var(--accent-color)] ring-2 ring-[var(--accent-color)]/30 bg-[var(--accent-color)]/5'
-                    : isVoiceActive
-                        ? 'border-[var(--accent-color)] shadow-[0_0_15px_rgba(var(--accent-color-rgb),0.25)]'
-                        : 'border-[var(--border-color)] focus-within:border-[rgba(var(--accent-color-rgb),0.5)] focus-within:shadow-[0_0_0_1px_rgba(var(--accent-color-rgb),0.3)]'
-                    }`}
-                style={{
-                    borderStyle: 'var(--border-style)',
-                }}
-            >
-                {isAttachOpen && attachmentMenu}
-                {renderInputContent()}
-            </div>
+            {/* Input Container Wrapper */}
+            {isFloating ? (
+                <BorderGlow
+                    className="w-full min-w-0 max-w-full z-10"
+                    edgeSensitivity={0}
+                    glowColor="var(--accent-color-rgb)"
+                    backgroundColor="var(--bg-primary)"
+                    borderRadius={20}
+                    glowRadius={80}
+                    glowIntensity={1}
+                    coneSpread={20}
+                    animated={true}
+                    colors={['#c084fc', '#f472b6', '#38bdf8']}
+                    active={isVoiceActive}
+                    frequency={voiceFrequency}
+                >
+                    <div
+                        onDragOver={handleDragOver}
+                        onDragLeave={handleDragLeave}
+                        onDrop={handleDrop}
+                        className={`relative z-10 flex flex-col w-full max-w-full min-w-0 gap-1.5 bg-[var(--bg-primary)] rounded-[20px] border p-2.5 sm:p-3 max-[300px]:p-1.5 transition-all duration-200 ${isDraggingOver
+                            ? 'border-[var(--accent-color)] ring-2 ring-[var(--accent-color)]/30 bg-[var(--accent-color)]/5'
+                            : 'border-[var(--border-color)] focus-within:border-[rgba(var(--accent-color-rgb),0.1)] focus-within:shadow-[0_0_0_1px_rgba(var(--accent-color-rgb),0.4)]'
+                            }`}
+                        style={{
+                            borderStyle: 'var(--border-style)',
+                        }}
+                    >
+                        {renderInputContent()}
+                    </div>
+                </BorderGlow>
+            ) : (
+                <BorderGlow
+                    className="w-full min-w-0 max-w-full z-10"
+                    edgeSensitivity={0}
+                    glowColor="var(--accent-color-rgb)"
+                    backgroundColor="var(--bg-primary)"
+                    borderRadius={20}
+                    glowRadius={60}
+                    glowIntensity={1}
+                    coneSpread={20}
+                    animated={false}
+                    colors={['#c084fc', '#f472b6', '#38bdf8']}
+                    active={isVoiceActive}
+                    frequency={voiceFrequency}
+                >
+                    <div
+                        onDragOver={handleDragOver}
+                        onDragLeave={handleDragLeave}
+                        onDrop={handleDrop}
+                        className={`relative z-10 flex flex-col w-full max-w-full min-w-0 gap-1.5 bg-[var(--bg-primary)] rounded-[20px] border p-2.5 sm:p-3 max-[300px]:p-1.5 transition-all duration-200 ${isDraggingOver
+                            ? 'border-[var(--accent-color)] ring-2 ring-[var(--accent-color)]/30 bg-[var(--accent-color)]/5'
+                            : 'border-[var(--border-color)] focus-within:border-[rgba(var(--accent-color-rgb),0.1)] focus-within:shadow-[0_0_0_1px_rgba(var(--accent-color-rgb),0.4)]'
+                            }`}
+                        style={{
+                            borderStyle: 'var(--border-style)',
+                        }}
+                    >
+                        {renderInputContent()}
+                    </div>
+                </BorderGlow>
+            )}
         </div>
     );
 };

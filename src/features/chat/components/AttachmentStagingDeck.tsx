@@ -197,12 +197,12 @@ export const AttachmentStagingDeck: React.FC<AttachmentStagingDeckProps> = ({
         // 4. Pasted Document Snippet
         if (item.isPastedText) {
             return (
-                <div className="w-full h-full flex flex-col justify-between p-2.5 text-left relative overflow-hidden bg-emerald-950/20 border border-emerald-500/30 rounded-xl">
+                <div className="w-full h-full flex flex-col justify-between p-2.5 text-left relative overflow-hidden bg-[var(--bg-secondary)]">
                     <div>
                         <div className="text-[10.5px] font-semibold text-[var(--text-primary)] leading-snug line-clamp-3 break-words">
                             {item.name}
                         </div>
-                        <div className="text-[9px] text-emerald-400 mt-1 font-mono font-medium">
+                        <div className="text-[9px] text-[var(--text-muted)] mt-1.5 font-mono">
                             {item.lineCount || 1} lines
                         </div>
                     </div>
@@ -211,11 +211,11 @@ export const AttachmentStagingDeck: React.FC<AttachmentStagingDeckProps> = ({
                             <span className="shrink-0 flex items-center justify-center drop-shadow-xs">
                                 <FileIcon fileName="snippet.txt" fileExtension="txt" languageId="text" size={15} />
                             </span>
-                            <span className="text-[8.5px] font-mono font-bold tracking-wider text-emerald-300 uppercase">
+                            <span className="text-[8.5px] font-mono font-bold tracking-wider text-[var(--text-primary)] uppercase">
                                 SNIPPET
                             </span>
                         </div>
-                        <FileCode className="w-4 h-4 text-emerald-400" />
+                        <FileCode className="w-4 h-4 text-[var(--accent-color)]" />
                     </div>
                 </div>
             );
@@ -290,10 +290,11 @@ export const AttachmentStagingDeck: React.FC<AttachmentStagingDeckProps> = ({
                                 onDragStart={(e) => {
                                     if (item.isPastedText && item.pastedContent) {
                                         e.dataTransfer.setData('application/cluaiz-pasted-text', item.pastedContent);
+                                        e.dataTransfer.setData('application/cluaiz-snippet-id', item.id);
                                         e.dataTransfer.setData('text/plain', item.pastedContent);
                                     }
                                 }}
-                                className={`group relative shrink-0 w-24 h-28 sm:w-26 sm:h-30 rounded-2xl border border-[var(--border-color)]/80 hover:border-[var(--accent-color)]/70 shadow-sm ${isMedia ? 'bg-transparent' : 'bg-[var(--bg-secondary)]'} overflow-hidden transition-colors duration-150 ${item.isPastedText ? 'cursor-grab active:cursor-grabbing border-emerald-500/40 bg-emerald-950/20' : ''}`}
+                                className={`group relative shrink-0 w-24 h-28 sm:w-26 sm:h-30 rounded-2xl border border-[var(--border-color)]/80 hover:border-[var(--accent-color)]/70 shadow-sm ${isMedia ? 'bg-transparent' : 'bg-[var(--bg-secondary)]'} overflow-hidden transition-colors duration-150 ${item.isPastedText ? 'cursor-grab active:cursor-grabbing' : ''}`}
                             >
                             {/* Inner Card Content */}
                             <div className="w-full h-full rounded-2xl overflow-hidden relative">
@@ -312,7 +313,7 @@ export const AttachmentStagingDeck: React.FC<AttachmentStagingDeckProps> = ({
                                             {getFileExt(item.name, item.type).toUpperCase() || 'FILE'}
                                         </span>
                                         {item.isPastedText && (
-                                            <span className="text-[9px] text-emerald-400 font-medium">
+                                            <span className="text-[9px] text-[var(--text-muted)] font-medium">
                                                 · {item.lineCount || 1} lines
                                             </span>
                                         )}
@@ -329,7 +330,7 @@ export const AttachmentStagingDeck: React.FC<AttachmentStagingDeckProps> = ({
                                         e.stopPropagation();
                                         onExpandPastedText(item);
                                     }}
-                                    className="absolute bottom-2 right-2 z-20 w-6 h-6 rounded-full bg-emerald-600 text-white shadow-md flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-emerald-500 cursor-pointer"
+                                    className="absolute bottom-2 right-2 z-20 w-6 h-6 rounded-full bg-[var(--accent-color)] text-[var(--accent-contrast)] shadow-md flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all hover:opacity-90 hover:scale-110 active:scale-95 cursor-pointer"
                                     title="Unpack into prompt input"
                                 >
                                     <CornerDownRight className="w-3.5 h-3.5" />
