@@ -1,5 +1,5 @@
 import React from 'react';
-import { CheckCheck, ChevronDown } from 'lucide-react';
+import { CheckCheck, ChevronDown, ChevronUp } from 'lucide-react';
 import { LottieEmoji } from '../../../components/ui/context-menu/LottieEmoji';
 import { EmojiMeta } from '../../../assets/EmojiMeta';
 import { ContextChip } from '../../../components/ui/ContextChip';
@@ -142,6 +142,90 @@ import { ChatMessage, useChatStore } from '../../../store/chat/useChatStore';
 import { ToolCallAccordion } from './ToolCallAccordion';
 import { MarkdownRenderer } from '../../../components/ui/MarkdownRenderer';
 import { PermissionApprovalCard } from './PermissionApprovalCard';
+
+interface CollapsibleUserMessageProps {
+    text: string;
+    highlights?: string[];
+    renderContent: (text: string, highlights?: string[]) => React.ReactNode;
+    onMouseUp?: () => void;
+}
+
+const CollapsibleUserMessage: React.FC<CollapsibleUserMessageProps> = ({
+    text,
+    highlights,
+    renderContent,
+    onMouseUp,
+}) => {
+    const [isExpanded, setIsExpanded] = React.useState(false);
+    const [isOverflowing, setIsOverflowing] = React.useState(false);
+    const contentRef = React.useRef<HTMLDivElement>(null);
+
+    React.useEffect(() => {
+        const el = contentRef.current;
+        if (!el) return;
+
+        const checkOverflow = () => {
+            if (el) {
+                // If scrollHeight > 180px, it qualifies as a long message to compress
+                setIsOverflowing(el.scrollHeight > 180);
+            }
+        };
+
+        checkOverflow();
+        const ro = new ResizeObserver(checkOverflow);
+        ro.observe(el);
+        return () => ro.disconnect();
+    }, [text]);
+
+    return (
+        <div className="relative w-full">
+            <div
+                ref={contentRef}
+                className={`whitespace-pre-wrap font-sans font-medium select-text break-words leading-relaxed transition-all duration-200 ${
+                    isOverflowing && !isExpanded ? 'max-h-[170px] overflow-hidden' : ''
+                }`}
+                style={{ fontSize: 'var(--chat-bubble-font-size, 14px)' }}
+                onMouseUp={onMouseUp}
+            >
+                {renderContent(text, highlights)}
+            </div>
+
+            {/* Bottom Gradient Fade when Collapsed */}
+            {isOverflowing && !isExpanded && (
+                <div 
+                    className="absolute bottom-0 left-0 right-0 h-16 pointer-events-none"
+                    style={{
+                        background: 'linear-gradient(to top, var(--accent-color) 0%, transparent 100%)'
+                    }}
+                />
+            )}
+
+            {/* Show more / Show less Toggle Button */}
+            {isOverflowing && (
+                <button
+                    type="button"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        setIsExpanded(prev => !prev);
+                    }}
+                    className="relative z-10 mt-1.5 flex items-center gap-1 text-[11.5px] font-semibold text-white/95 hover:text-white underline underline-offset-2 opacity-90 hover:opacity-100 cursor-pointer select-none transition-opacity"
+                >
+                    {isExpanded ? (
+                        <>
+                            <span>Show less</span>
+                            <ChevronUp className="w-3.5 h-3.5" />
+                        </>
+                    ) : (
+                        <>
+                            <span>Show more</span>
+                            <ChevronDown className="w-3.5 h-3.5" />
+                        </>
+                    )}
+                </button>
+            )}
+        </div>
+    );
+};
 
 interface MessageBubbleProps {
     msg: ChatMessage;
@@ -354,13 +438,12 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                     )}
 
                     {msg.text && (
-                        <div
-                            className="whitespace-pre-wrap font-sans font-medium select-text break-words leading-relaxed"
-                            style={{ fontSize: 'var(--chat-bubble-font-size, 14px)' }}
+                        <CollapsibleUserMessage
+                            text={msg.text}
+                            highlights={msg.highlights}
+                            renderContent={renderUserMessageContent}
                             onMouseUp={handleMouseUp}
-                        >
-                            {renderUserMessageContent(msg.text, msg.highlights)}
-                        </div>
+                        />
                     )}
 
                     <div 

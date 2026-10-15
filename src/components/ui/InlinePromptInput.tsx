@@ -44,6 +44,7 @@ export interface InlinePromptInputProps {
     ) => void;
     onDropFiles?: (files: FileList | any) => void;
     onPasteLargeText?: (text: string) => boolean;
+    onDropSnippet?: (id: string, text: string) => void;
     className?: string;
     minHeight?: string;
     maxHeight?: string;
@@ -56,6 +57,7 @@ export const InlinePromptInput = forwardRef<InlinePromptInputHandle, InlinePromp
     onSubmit,
     onDropFiles,
     onPasteLargeText,
+    onDropSnippet,
     className = '',
     minHeight = '24px',
     maxHeight = '160px'
@@ -472,8 +474,12 @@ export const InlinePromptInput = forwardRef<InlinePromptInputHandle, InlinePromp
 
         // 0. Dragged pasted text snippet from staging deck back into input
         const pastedSnippet = e.dataTransfer.getData('application/cluaiz-pasted-text');
+        const snippetId = e.dataTransfer.getData('application/cluaiz-snippet-id');
         if (pastedSnippet) {
             insertText(pastedSnippet);
+            if (onDropSnippet && snippetId) {
+                onDropSnippet(snippetId, pastedSnippet);
+            }
             return;
         }
 
