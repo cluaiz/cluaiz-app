@@ -330,10 +330,8 @@ export const InlinePromptInput = forwardRef<InlinePromptInputHandle, InlinePromp
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
             const { text, files, skills } = serializeEditor();
-            if (text.trim() || files.length > 0 || skills.length > 0) {
-                if (onSubmit) {
-                    onSubmit(text, { files, skills });
-                }
+            if (onSubmit) {
+                onSubmit(text, { files, skills });
             }
             return;
         }

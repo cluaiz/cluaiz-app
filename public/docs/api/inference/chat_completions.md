@@ -112,6 +112,15 @@ Direct document question answering & summarization. Powered by native PDFium and
 > [!TIP]
 > **No Vision Projector Required:** Because document text is extracted natively by the engine, standard text-only LLMs (e.g. `llama_3.2_instruct-3b-gguf-q4_k_m`) can read and summarize PDFs and Word documents without needing any vision projector (`mmproj`).
 
+#### 📋 Supported Document & Code Formats
+| Category | Supported Extensions | Processing Mechanism |
+|:---|:---|:---|
+| **Documents** | `.pdf`, `.docx`, `.doc`, `.txt`, `.md`, `.csv`, `.json`, `.toml`, `.yaml`, `.yml` | Native PDFium / OCR text extraction directly into prompt tokens |
+| **Source Code** | `.rs`, `.ts`, `.tsx`, `.js`, `.jsx`, `.py`, `.c`, `.cpp`, `.h`, `.go`, `.html`, `.css`, `.sql`, `.sh`, `.log` | Plain text tokenizer ingestion into context window |
+
+> [!WARNING]
+> **Archives & Executables Not Supported:** Compressed archives (`.zip`, `.tar`, `.gz`, `.rar`, `.7z`) and binary executables (`.exe`, `.bin`, `.dll`) cannot be processed as chat context attachments and are filtered out by the client.
+
 ```json
 {
   "role": "user",
