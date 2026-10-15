@@ -38,8 +38,9 @@ export const audioApi = {
 
   /**
    * Transcribes audio into text using OpenAI-compatible STT.
+   * Supports both pure JSON with Base64 Data URI and multipart FormData.
    */
-  transcriptions: async (formData: FormData): Promise<TranscriptionResponse> => {
+  transcriptions: async (payload: { file: string; model?: string; language?: string } | FormData): Promise<TranscriptionResponse> => {
     const baseUrl = client.getBaseUrl();
     const url = `${baseUrl}${AUDIO_ENDPOINTS.TRANSCRIPTIONS}`;
     const token = client.getToken();
@@ -49,14 +50,23 @@ export const audioApi = {
       headers['Authorization'] = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
     }
 
+    let body: BodyInit;
+    if (payload instanceof FormData) {
+      body = payload;
+    } else {
+      headers['Content-Type'] = 'application/json';
+      body = JSON.stringify(payload);
+    }
+
     const res = await fetch(url, {
       method: 'POST',
       headers,
-      body: formData,
+      body,
     });
 
     if (!res.ok) {
-      throw new Error(`Audio transcription failed: ${res.status} ${res.statusText}`);
+      const errText = await res.text().catch(() => '');
+      throw new Error(`Audio transcription failed: ${res.status} ${errText || res.statusText}`);
     }
 
     return res.json();

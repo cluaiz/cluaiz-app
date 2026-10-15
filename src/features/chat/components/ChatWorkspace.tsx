@@ -622,7 +622,7 @@ main().catch(console.error);`);
                         )}
                         <motion.div layout layoutId="chat-input-wrapper" className="w-full max-w-2xl lg:max-w-3xl 2xl:max-w-4xl mx-auto z-10 px-2 sm:px-4 md:px-8">
                             <ChatInput
-                                inputValue={inputValue} 
+                                inputValue={inputValue}
                                 setInputValue={setInputValue}
                                 handleSendMessage={handleSendMessage}
                                 replyingTo={replyingTo}
@@ -642,54 +642,54 @@ main().catch(console.error);`);
                         >
                             <div className="flex flex-col space-y-4 w-full max-w-2xl lg:max-w-3xl 2xl:max-w-4xl mx-auto pb-36">
                                 {(() => {
-                                let absoluteIndex = 0;
-                                const grouped = (filteredMessages || []).reduce((groups, msg) => {
-                                    const safeDate = msg.date || (msg as any).timestamp || Date.now();
-                                    const dateStr = new Date(safeDate).toDateString();
-                                    if (!groups[dateStr]) groups[dateStr] = [];
-                                    groups[dateStr].push(msg);
-                                    return groups;
-                                }, {} as Record<string, typeof filteredMessages>);
+                                    let absoluteIndex = 0;
+                                    const grouped = (filteredMessages || []).reduce((groups, msg) => {
+                                        const safeDate = msg.date || (msg as any).timestamp || Date.now();
+                                        const dateStr = new Date(safeDate).toDateString();
+                                        if (!groups[dateStr]) groups[dateStr] = [];
+                                        groups[dateStr].push(msg);
+                                        return groups;
+                                    }, {} as Record<string, typeof filteredMessages>);
 
-                                return Object.entries(grouped).map(([dateStr, groupMsgs]) => (
-                                    <div key={dateStr} className="relative flex flex-col">
-                                        {!isIncognito && (
-                                             <DateDivider
-                                                date={new Date(groupMsgs[0].date || (groupMsgs[0] as any).timestamp || Date.now())}
-                                                dateRange={dateRange}
-                                                onDateRangeChange={setDateRange}
-                                                bookedDates={(messages || []).map(m => new Date(m.date || (m as any).timestamp || Date.now()))}
-                                                filteredMessagesCount={(filteredMessages || []).length}
-                                            />
-                                        )}
-                                        <div className="flex flex-col gap-4">
-                                            {groupMsgs.map((msg) => {
-                                                const currentIndex = absoluteIndex++;
-                                                return (
-                                                    <MessageBubble
-                                                        key={currentIndex}
-                                                        msg={msg}
-                                                        index={currentIndex}
-                                                        handleMessageContextMenu={handleMessageContextMenu}
-                                                        onTextSelect={setSelectionMenu}
-                                                        onHighlightClick={setUnhighlightMenu}
-                                                        isSelectionMode={isSelectionMode}
-                                                        isSelected={selectedMessageIndices.includes(currentIndex)}
-                                                        onToggleSelect={() => {
-                                                            setSelectedMessageIndices(prev =>
-                                                                prev.includes(currentIndex)
-                                                                    ? prev.filter(i => i !== currentIndex)
-                                                                    : [...prev, currentIndex]
-                                                            );
-                                                        }}
-                                                    />
-                                                );
-                                            })}
+                                    return Object.entries(grouped).map(([dateStr, groupMsgs]) => (
+                                        <div key={dateStr} className="relative flex flex-col">
+                                            {!isIncognito && (
+                                                <DateDivider
+                                                    date={new Date(groupMsgs[0].date || (groupMsgs[0] as any).timestamp || Date.now())}
+                                                    dateRange={dateRange}
+                                                    onDateRangeChange={setDateRange}
+                                                    bookedDates={(messages || []).map(m => new Date(m.date || (m as any).timestamp || Date.now()))}
+                                                    filteredMessagesCount={(filteredMessages || []).length}
+                                                />
+                                            )}
+                                            <div className="flex flex-col gap-4">
+                                                {groupMsgs.map((msg) => {
+                                                    const currentIndex = absoluteIndex++;
+                                                    return (
+                                                        <MessageBubble
+                                                            key={currentIndex}
+                                                            msg={msg}
+                                                            index={currentIndex}
+                                                            handleMessageContextMenu={handleMessageContextMenu}
+                                                            onTextSelect={setSelectionMenu}
+                                                            onHighlightClick={setUnhighlightMenu}
+                                                            isSelectionMode={isSelectionMode}
+                                                            isSelected={selectedMessageIndices.includes(currentIndex)}
+                                                            onToggleSelect={() => {
+                                                                setSelectedMessageIndices(prev =>
+                                                                    prev.includes(currentIndex)
+                                                                        ? prev.filter(i => i !== currentIndex)
+                                                                        : [...prev, currentIndex]
+                                                                );
+                                                            }}
+                                                        />
+                                                    );
+                                                })}
+                                            </div>
                                         </div>
-                                    </div>
-                                ));
-                            })()}
-                            <div ref={bottomRef} className="h-6 flex-shrink-0" />
+                                    ));
+                                })()}
+                                <div ref={bottomRef} className="h-6 flex-shrink-0" />
                             </div>
                         </div>
 

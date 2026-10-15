@@ -306,8 +306,13 @@ export const useApiStore = create<ApiStoreState>()((set, get) => ({
 
         // Fetch markdown documentation if docs_url is specified and docs_content not yet cached
         if (ep.docs_url && !ep.docs_content) {
-            fetch(`${baseUrl}${ep.docs_url}`)
-                .then(async (r) => {
+            (async () => {
+                try {
+                    // Try local frontend static public route first (instant & reliable)
+                    let r = await fetch(ep.docs_url!);
+                    if (!r.ok && baseUrl) {
+                        r = await fetch(`${baseUrl}${ep.docs_url}`);
+                    }
                     if (!r.ok) return;
                     const text = await r.text();
                     if (!text.trim().startsWith('<!DOCTYPE') && !text.trim().startsWith('<html')) {
@@ -323,8 +328,8 @@ export const useApiStore = create<ApiStoreState>()((set, get) => ({
                             return {};
                         });
                     }
-                })
-                .catch(() => { });
+                } catch (_) { }
+            })();
         }
     },
 

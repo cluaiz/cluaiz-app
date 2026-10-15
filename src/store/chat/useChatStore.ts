@@ -59,12 +59,12 @@ export interface ChatSession {
 interface ChatStore {
     sessions: Record<string, ChatSession>;
     activeSessionId: string | null;
-    
+
     // Actions
     createNewSession: () => string;
     switchSession: (sessionId: string | null) => void;
     deleteSession: (sessionId: string) => void;
-    
+
     addMessage: (sessionId: string, message: Omit<ChatMessage, 'id'>) => void;
     appendTokenToLastMessage: (sessionId: string, token: string) => void;
     appendThinkingToLastMessage: (sessionId: string, token: string) => void;
@@ -138,7 +138,7 @@ export const useChatStore = create<ChatStore>()(
                 updatedAt: Date.now(),
                 messages: [],
             };
-            
+
             set((state) => ({
                 sessions: { ...state.sessions, [id]: newSession },
                 activeSessionId: id,
@@ -159,7 +159,7 @@ export const useChatStore = create<ChatStore>()(
             set((state) => {
                 const newSessions = { ...state.sessions };
                 delete newSessions[sessionId];
-                
+
                 return {
                     sessions: newSessions,
                     activeSessionId: state.activeSessionId === sessionId ? null : state.activeSessionId

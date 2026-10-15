@@ -116,12 +116,12 @@ const ThoughtProcessCard: React.FC<ThoughtProcessCardProps> = ({ thinking, isStr
                         Thought{displayDuration ? ` for ${displayDuration}` : ''}
                     </span>
                 )}
-                <ChevronDown 
-                    className={`w-3.5 h-3.5 text-zinc-500 group-hover/thought:text-zinc-300 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} 
+                <ChevronDown
+                    className={`w-3.5 h-3.5 text-zinc-500 group-hover/thought:text-zinc-300 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
                 />
             </button>
             {isOpen && (
-                <div 
+                <div
                     ref={scrollRef}
                     onScroll={handleScroll}
                     className="border-l-2 border-zinc-700/60 pl-3.5 my-2 py-0.5 text-zinc-400 font-sans max-h-60 overflow-y-auto select-text custom-scrollbar space-y-1.5"
@@ -181,9 +181,8 @@ const CollapsibleUserMessage: React.FC<CollapsibleUserMessageProps> = ({
         <div className="relative w-full">
             <div
                 ref={contentRef}
-                className={`whitespace-pre-wrap font-sans font-medium select-text break-words leading-relaxed transition-all duration-200 ${
-                    isOverflowing && !isExpanded ? 'max-h-[170px] overflow-hidden' : ''
-                }`}
+                className={`whitespace-pre-wrap font-sans font-medium select-text break-words leading-relaxed transition-all duration-200 ${isOverflowing && !isExpanded ? 'max-h-[170px] overflow-hidden' : ''
+                    }`}
                 style={{ fontSize: 'var(--chat-bubble-font-size, 14px)' }}
                 onMouseUp={onMouseUp}
             >
@@ -192,7 +191,7 @@ const CollapsibleUserMessage: React.FC<CollapsibleUserMessageProps> = ({
 
             {/* Bottom Gradient Fade when Collapsed */}
             {isOverflowing && !isExpanded && (
-                <div 
+                <div
                     className="absolute bottom-0 left-0 right-0 h-16 pointer-events-none"
                     style={{
                         background: 'linear-gradient(to top, var(--accent-color) 0%, transparent 100%)'
@@ -238,11 +237,11 @@ interface MessageBubbleProps {
     onToggleSelect?: () => void;
 }
 
-export const MessageBubble: React.FC<MessageBubbleProps> = ({ 
-    msg, 
-    index, 
-    handleMessageContextMenu, 
-    onTextSelect, 
+export const MessageBubble: React.FC<MessageBubbleProps> = ({
+    msg,
+    index,
+    handleMessageContextMenu,
+    onTextSelect,
     onHighlightClick,
     isSelectionMode,
     isSelected,
@@ -289,14 +288,14 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
 
         const escapeRegExp = (string: string) => string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         const pattern = new RegExp(`(${highlights.map(escapeRegExp).join('|')})`, 'g');
-        
+
         const parts = text.split(pattern);
-        
+
         return parts.map((part, i) => {
             if (highlights.includes(part)) {
                 return (
-                    <mark 
-                        key={i} 
+                    <mark
+                        key={i}
                         className="relative inline-block text-inherit bg-transparent group/mark cursor-pointer z-0"
                         onMouseDown={(e) => {
                             e.stopPropagation();
@@ -309,7 +308,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                             });
                         }}
                     >
-                        <span 
+                        <span
                             className="absolute inset-0 bg-[var(--accent-color)] opacity-40 rounded-sm transition-all duration-300 group-hover/mark:opacity-60"
                             style={{
                                 borderRadius: '4px 10px 3px 8px / 8px 3px 12px 5px',
@@ -393,9 +392,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             );
         });
     };
-    
+
     return (
-        <div 
+        <div
             className={`flex relative w-full gap-3 group ${isUser ? 'justify-end items-end' : 'justify-start items-start'}`}
             onClick={() => {
                 if (isSelectionMode && onToggleSelect) {
@@ -404,14 +403,13 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             }}
         >
             {isSelectionMode && (
-                <div 
-                    className={`w-5 h-5 rounded-md border flex items-center justify-center transition-colors flex-shrink-0 cursor-pointer mt-1 ${
-                        isSelected 
-                            ? 'bg-[var(--accent-color)] border-[var(--accent-color)]' 
+                <div
+                    className={`w-5 h-5 rounded-md border flex items-center justify-center transition-colors flex-shrink-0 cursor-pointer mt-1 ${isSelected
+                            ? 'bg-[var(--accent-color)] border-[var(--accent-color)]'
                             : 'border-[var(--border-color)] group-hover:border-[var(--text-muted)]'
-                    }`}
+                        }`}
                 >
-                    {isSelected && <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-white"><polyline points="20 6 9 17 4 12"/></svg>}
+                    {isSelected && <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-white"><polyline points="20 6 9 17 4 12" /></svg>}
                 </div>
             )}
 
@@ -423,9 +421,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                             handleMessageContextMenu(e, index);
                         }
                     }}
-                    className={`flex flex-col w-fit max-w-[85%] md:max-w-[75%] rounded-2xl rounded-tr-sm p-3 shadow-sm relative group/bubble transition-transform duration-200 self-end select-text ${
-                        isSelectionMode ? 'cursor-pointer hover:scale-[1.01]' : ''
-                    }`}
+                    className={`flex flex-col w-fit max-w-[85%] md:max-w-[75%] rounded-2xl rounded-tr-sm p-3 shadow-sm relative group/bubble transition-transform duration-200 self-end select-text ${isSelectionMode ? 'cursor-pointer hover:scale-[1.01]' : ''
+                        }`}
                     style={{
                         backgroundColor: 'var(--accent-color)',
                         color: 'var(--accent-contrast, #ffffff)',
@@ -433,7 +430,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                 >
                     {msg.isStarred && (
                         <div className="absolute -top-2 -left-2 bg-yellow-500/20 text-yellow-500 p-0.5 rounded-full z-10 shadow-sm backdrop-blur-sm">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>
                         </div>
                     )}
 
@@ -446,7 +443,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                         />
                     )}
 
-                    <div 
+                    <div
                         className="flex items-center justify-end gap-1 mt-1 font-mono select-none opacity-85 ml-auto"
                         style={{ fontSize: 'calc(var(--chat-bubble-font-size, 14px) * 0.78)' }}
                     >
@@ -481,22 +478,21 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                             handleMessageContextMenu(e, index);
                         }
                     }}
-                    className={`flex flex-col w-full max-w-full bg-transparent border-0 p-0 shadow-none text-[var(--text-primary)] relative group/bubble transition-opacity duration-200 select-text ${
-                        isSelectionMode ? 'cursor-pointer hover:opacity-90' : ''
-                    }`}
+                    className={`flex flex-col w-full max-w-full bg-transparent border-0 p-0 shadow-none text-[var(--text-primary)] relative group/bubble transition-opacity duration-200 select-text ${isSelectionMode ? 'cursor-pointer hover:opacity-90' : ''
+                        }`}
                 >
                     {msg.isStarred && (
                         <div className="absolute -top-2 -left-2 bg-yellow-500/20 text-yellow-500 p-0.5 rounded-full z-10 shadow-sm backdrop-blur-sm">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>
                         </div>
                     )}
 
                     {/* 1. Initial Thought Process if present */}
                     {msg.thinking && (
                         <div className="w-full mb-1">
-                            <ThoughtProcessCard 
-                                thinking={msg.thinking} 
-                                isStreaming={Boolean(msg.thinking && !msg.toolCalls?.length && !msg.text?.trim() && !msg.telemetry)} 
+                            <ThoughtProcessCard
+                                thinking={msg.thinking}
+                                isStreaming={Boolean(msg.thinking && !msg.toolCalls?.length && !msg.text?.trim() && !msg.telemetry)}
                                 duration={msg.telemetry?.ttft || msg.telemetry?.elapsed}
                             />
                         </div>
@@ -522,9 +518,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                     {/* 3. Post-Tool Thought Process (Turn 2 reasoning) */}
                     {msg.postToolThinking && (
                         <div className="w-full mb-1">
-                            <ThoughtProcessCard 
-                                thinking={msg.postToolThinking} 
-                                isStreaming={Boolean(msg.postToolThinking && !msg.text?.trim() && !msg.telemetry)} 
+                            <ThoughtProcessCard
+                                thinking={msg.postToolThinking}
+                                isStreaming={Boolean(msg.postToolThinking && !msg.text?.trim() && !msg.telemetry)}
                                 duration={msg.telemetry?.elapsed}
                             />
                         </div>
@@ -532,8 +528,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
 
                     {/* 4. Message Markdown Body */}
                     {msg.text ? (
-                        <div 
-                            onMouseUp={handleMouseUp} 
+                        <div
+                            onMouseUp={handleMouseUp}
                             className="w-full overflow-hidden select-text text-[var(--text-primary)]"
                             style={{ fontSize: 'var(--chat-bubble-font-size, 14px)' }}
                         >
@@ -551,7 +547,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                     )}
 
                     {/* 6. Telemetry & Time Footer */}
-                    <div 
+                    <div
                         className="flex items-center justify-between gap-3 mt-2.5 pt-1.5 font-mono text-[var(--text-muted)] select-none w-full border-t border-[var(--border-color)]/10"
                         style={{ fontSize: 'calc(var(--chat-bubble-font-size, 14px) * 0.78)' }}
                     >
