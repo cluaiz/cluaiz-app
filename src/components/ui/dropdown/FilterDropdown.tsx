@@ -2,8 +2,7 @@ import { useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
     Archive, 
-    Sparkles, 
-    History, 
+    MessageSquare, 
     Check,
     Heart
 } from 'lucide-react';
@@ -50,9 +49,8 @@ export function FilterDropdown({
     const filterOptions = [
         { label: "Favourites", icon: Heart },
         { label: "Archive", icon: Archive },
-        { label: "Assistants", icon: AnimatedBot, isAnimated: true },
-        { label: "New User", icon: Sparkles },
-        { label: "Old User", icon: History }
+        { label: "Unread", icon: MessageSquare },
+        { label: "Assistants", icon: AnimatedBot, isAnimated: true }
     ];
 
     return (
@@ -78,7 +76,7 @@ export function FilterDropdown({
                                 <button
                                     key={label}
                                     onClick={() => {
-                                        onFilterChange(label);
+                                        onFilterChange(isActive ? 'All' : label);
                                         onClose();
                                     }}
                                     className={`w-full text-left px-3 py-2.5 text-xs font-bold rounded-xl transition-all flex items-center justify-between group cursor-pointer border border-transparent ${

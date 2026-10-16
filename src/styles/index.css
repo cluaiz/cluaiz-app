@@ -6,15 +6,25 @@
   --font-sans: var(--font-family);
 }
 
-/* Global theme selection color — eliminates browser default blue */
+/* Global theme selection color — applies to all elements and nested descendants */
+*::selection,
 ::selection {
-  background-color: var(--accent-color, #f97316) !important;
+  background-color: var(--accent-color, #7c3aed) !important;
   color: var(--accent-contrast, #ffffff) !important;
+  text-shadow: none !important;
 }
 
+*::-moz-selection,
 ::-moz-selection {
-  background-color: var(--accent-color, #f97316) !important;
+  background-color: var(--accent-color, #7c3aed) !important;
   color: var(--accent-contrast, #ffffff) !important;
+  text-shadow: none !important;
+}
+
+/* Standard CSS Scrollbars for cross-browser & WebView2 theme matching */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-color, rgba(255, 255, 255, 0.15)) transparent;
 }
 
 /* Set base styles to leverage theme variables */
@@ -43,21 +53,25 @@ body {
 
 /* Custom Scrollbar Styles mapped to Theme variables */
 ::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--bg-primary);
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--border-color);
-  border-radius: 2px;
+  background: var(--border-color, rgba(255, 255, 255, 0.2));
+  border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(var(--accent-color-rgb), 0.6);
+  background: rgba(var(--accent-color-rgb), 0.7);
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 /* Theme specific border layouts */

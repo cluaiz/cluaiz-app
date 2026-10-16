@@ -8,7 +8,7 @@ import { toast } from '../../../components/ui/toast';
 import { MessageContextMenu } from '../../../components/ui/context-menu/MessageContextMenu';
 import { GlobalChatContextMenu } from '../../../components/ui/context-menu/GlobalChatContextMenu';
 import { DynamicGreeting } from './DynamicGreeting';
-import { DateDivider } from '../../../components/ui/DateDivider';
+
 import { ChatHeader } from './ChatHeader';
 import { ChatInput } from './ChatInput';
 import { MessageBubble } from './MessageBubble';
@@ -20,6 +20,8 @@ import { LiveTelemetryBar } from './LiveTelemetryBar';
 import { useChatTelemetry } from '../hooks/useChatTelemetry';
 import { WorkspaceEditorPane } from '../../workspace';
 import { ResizableDivider } from '../../../components/ui/ResizableDivider';
+import { inferChatTopicAndEmoji } from '../../../utils/topicProber';
+import { cluaizEngine } from '../../../core/engine';
 
 export function ChatWorkspace() {
     const { splitPaneWidth, setSplitPaneWidth, splitReversed, toggleSplitReversed, activeChatData } = useLayoutStore();
@@ -36,6 +38,7 @@ export function ChatWorkspace() {
         activeSessionId,
         sessions,
         switchSession,
+        deleteSession,
         updateMessage,
         deleteMessage
     } = useChatStore();
@@ -83,10 +86,12 @@ export function ChatWorkspace() {
 
     useEffect(() => {
         const handleNewChat = () => {
+            cluaizEngine.stop().catch(console.warn);
             switchSession(null);
             setIsIncognito(false);
         };
         const handleNewPrivateChat = () => {
+            cluaizEngine.stop().catch(console.warn);
             switchSession(null);
             setIsIncognito(true);
         };
@@ -184,9 +189,8 @@ export function ChatWorkspace() {
         if (!activeSessionId) return;
         updateMessage(activeSessionId, index, (m) => {
             const currentReactions = m.reactions || [];
-            const newReactions = currentReactions.includes(emoji)
-                ? currentReactions.filter(r => r !== emoji)
-                : [...currentReactions, emoji];
+            // Single reaction rule: Clicking same emoji toggles off, clicking different emoji replaces it
+            const newReactions = currentReactions.includes(emoji) ? [] : [emoji];
             return { ...m, reactions: newReactions };
         });
     };
@@ -279,6 +283,7 @@ main().catch(console.error);`);
                         }
                         syncSessionTokens(activeSess.messages);
                     }
+                    store.finalizeAssistantMessage(store.activeSessionId);
                     return;
                 }
 
@@ -368,12 +373,23 @@ main().catch(console.error);`);
         let sessionId = store.activeSessionId;
 
         if (!sessionId) {
-            sessionId = store.createNewSession();
+            sessionId = store.createNewSession(isIncognito ? 'Temporary Chat' : undefined);
+            if (isIncognito) {
+                store.updateSession(sessionId, s => ({ ...s, isIncognito: true }));
+            }
+        } else if (isIncognito) {
+            store.updateSession(sessionId, s => ({ ...s, isIncognito: true }));
         }
+
+        const replyContext = replyingTo ? {
+            text: replyingTo.text,
+            sender: (replyingTo.messageIndex !== undefined && messages[replyingTo.messageIndex]?.sender) || 'assistant'
+        } : undefined;
 
         store.addMessage(sessionId, {
             sender: 'user',
             text: messageText,
+            replyTo: replyContext,
             attachments: options?.attachments,
             parts: options?.parts,
             time: timeStr,
@@ -400,10 +416,16 @@ main().catch(console.error);`);
                 ?.filter(m => m.sender === 'user' || m.sender === 'assistant' || m.sender === 'system')
                 // Exclude empty pending placeholder from prompt payload
                 ?.filter(m => !(m.sender === 'assistant' && !m.text && !m.thinking))
-                ?.map(m => ({
-                    role: m.sender === 'assistant' ? 'assistant' : m.sender === 'user' ? 'user' : 'system',
-                    content: (m.parts && m.parts.length > 0) ? m.parts : m.text
-                })) || [{ role: 'user', content: (options?.parts && options.parts.length > 0) ? options.parts : messageText }];
+                ?.map(m => {
+                    let content: any = (m.parts && m.parts.length > 0) ? m.parts : m.text;
+                    if (m.sender === 'user' && m.replyTo?.text && typeof content === 'string') {
+                        content = `[In reply to: "${m.replyTo.text}"]\n\n${content}`;
+                    }
+                    return {
+                        role: m.sender === 'assistant' ? 'assistant' : m.sender === 'user' ? 'user' : 'system',
+                        content
+                    };
+                }) || [{ role: 'user', content: (options?.parts && options.parts.length > 0) ? options.parts : (replyContext ? `[In reply to: "${replyContext.text}"]\n\n${messageText}` : messageText) }];
 
             // Conversation history matches Developer Hub directly without hardcoded system prompt
             const conversationMessages = filteredMsgs;
@@ -417,8 +439,10 @@ main().catch(console.error);`);
             let thinkingStartTime: number | null = null;
             let thinkingDurationSec: string | undefined = undefined;
 
+            const promptToSend = replyContext ? `[In reply to: "${replyContext.text}"]\n\n${messageText}` : messageText;
+
             const { cluaizEngine } = await import('../../../core/engine');
-            await cluaizEngine.send(messageText, chatOptions, (chunk) => {
+            await cluaizEngine.send(promptToSend, chatOptions, (chunk) => {
                 const liveStore = useChatStore.getState();
                 if (chunk === '[DONE]') {
                     const finalStats = endStreaming();
@@ -442,7 +466,22 @@ main().catch(console.error);`);
                             ...(thinkingDurationSec ? { thinkingDuration: thinkingDurationSec } : {})
                         }));
                         syncSessionTokens(activeSess.messages);
+
+                        // If title or avatar is still provisional/default, refine topic dynamically using full exchange
+                        if (activeSess.messages.length <= 2 && (!activeSess.title || activeSess.title === 'New Chat' || activeSess.avatar === '🤖' || activeSess.avatar === '💬')) {
+                            const firstUserMsg = activeSess.messages.find(m => m.sender === 'user')?.text || '';
+                            const assistantReply = lastMsg?.text || '';
+                            if (firstUserMsg) {
+                                const refined = inferChatTopicAndEmoji(firstUserMsg, assistantReply);
+                                liveStore.updateSession(sessionId, s => ({
+                                    ...s,
+                                    title: refined.title,
+                                    avatar: refined.emoji
+                                }));
+                            }
+                        }
                     }
+                    liveStore.finalizeAssistantMessage(sessionId);
                     return;
                 }
 
@@ -630,7 +669,14 @@ main().catch(console.error);`);
                             position="bottom-end"
                         >
                             <button
-                                onClick={() => setIsIncognito(!isIncognito)}
+                                onClick={() => {
+                                    cluaizEngine.stop().catch(console.warn);
+                                    if (isIncognito && activeSessionId) {
+                                        deleteSession(activeSessionId);
+                                        switchSession(null);
+                                    }
+                                    setIsIncognito(!isIncognito);
+                                }}
                                 className={`flex items-center justify-center w-10 h-10 rounded-full border transition-colors shadow-sm ${isIncognito
                                     ? 'bg-[var(--text-primary)] text-[var(--bg-primary)] border-[var(--text-primary)]'
                                     : 'bg-[var(--bg-secondary)] text-[var(--text-muted)] border-[var(--border-color)] hover:text-[var(--text-primary)] hover:border-[var(--text-primary)]'
@@ -643,25 +689,20 @@ main().catch(console.error);`);
                 )}
 
                 {!isIncognito && messages.length > 0 && (
-                    <div
-                        className={`transition-all duration-300 ease-in-out flex-shrink-0 relative z-10 grid ${isHeaderVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
-                        style={{ gridTemplateRows: isHeaderVisible ? '1fr' : '0fr' }}
-                    >
-                        <div className="overflow-hidden">
-                            <ChatHeader
-                                activeChatData={activeChatData}
-                                searchQuery={searchQuery}
-                                setSearchQuery={setSearchQuery}
-                                isFilterOpen={isFilterOpen}
-                                setIsFilterOpen={setIsFilterOpen}
-                                activeFilter={activeFilter}
-                                setActiveFilter={setActiveFilter}
-                                pinnedMessages={messages.map((m, i) => ({ ...m, originalIndex: i })).filter(m => m.pinned)}
-                                onUnpin={(index) => handleMessageAction('pin', index)}
-                            />
-                        </div>
+                    <div className="flex-shrink-0 relative z-10">
+                        <ChatHeader
+                            activeChatData={activeChatData}
+                            searchQuery={searchQuery}
+                            setSearchQuery={setSearchQuery}
+                            isFilterOpen={isFilterOpen}
+                            setIsFilterOpen={setIsFilterOpen}
+                            activeFilter={activeFilter}
+                            setActiveFilter={setActiveFilter}
+                            pinnedMessages={messages.map((m, i) => ({ ...m, originalIndex: i })).filter(m => m.pinned)}
+                            onUnpin={(index) => handleMessageAction('pin', index)}
+                        />
                         {/* Bottom Fade-Out Shadow Effect for the entire header area */}
-                        <div className="absolute left-0 right-0 h-8 -bottom-8 bg-gradient-to-b from-[var(--bg-primary)] to-transparent pointer-events-none z-10" />
+                        <div className="absolute left-0 right-0 h-6 -bottom-6 bg-gradient-to-b from-[var(--bg-primary)] to-transparent pointer-events-none z-10" />
                     </div>
                 )}
 
@@ -711,15 +752,7 @@ main().catch(console.error);`);
 
                                     return Object.entries(grouped).map(([dateStr, groupMsgs]) => (
                                         <div key={dateStr} className="relative flex flex-col">
-                                            {!isIncognito && (
-                                                <DateDivider
-                                                    date={new Date(groupMsgs[0].date || (groupMsgs[0] as any).timestamp || Date.now())}
-                                                    dateRange={dateRange}
-                                                    onDateRangeChange={setDateRange}
-                                                    bookedDates={(messages || []).map(m => new Date(m.date || (m as any).timestamp || Date.now()))}
-                                                    filteredMessagesCount={(filteredMessages || []).length}
-                                                />
-                                            )}
+
                                             <div className="flex flex-col gap-4">
                                                 {groupMsgs.map((msg) => {
                                                     const currentIndex = absoluteIndex++;
@@ -867,36 +900,6 @@ main().catch(console.error);`);
                         >
                             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 17 4 12 9 7" /><path d="M20 18v-2a4 4 0 0 0-4-4H4" /></svg>
                             Reply
-                        </button>
-                        <div className="w-px h-4 bg-[var(--border-color)]" />
-                        <button
-                            className="px-2.5 py-1.5 text-xs font-bold hover:bg-[var(--bg-secondary)] text-[var(--text-primary)] hover:text-[var(--accent-color)] transition-colors rounded-md flex items-center gap-1.5"
-                            onMouseDown={(e) => {
-                                e.preventDefault();
-                                handleMessageHighlight(selectionMenu.messageIndex, selectionMenu.text);
-                            }}
-                        >
-                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m19 11-8-8-8.6 8.6a2 2 0 0 0 0 2.8l5.2 5.2c.8.8 2 .8 2.8 0L19 11Z" /><path d="m5 2 5 5" /><path d="M2 13h15" /><path d="M22 20H7v-2h15z" /></svg>
-                            Highlight
-                        </button>
-                    </div>
-                )}
-
-                {unhighlightMenu && (
-                    <div
-                        className="fixed z-[100] bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-lg shadow-xl flex items-center p-1 gap-1 -translate-x-1/2 -translate-y-full"
-                        style={{ left: unhighlightMenu.x, top: unhighlightMenu.y - 10, borderStyle: 'var(--border-style)' }}
-                        onMouseDown={(e) => e.stopPropagation()}
-                    >
-                        <button
-                            className="px-2.5 py-1.5 text-xs font-bold hover:bg-red-500/10 text-red-400 hover:text-red-500 transition-colors rounded-md flex items-center gap-1.5"
-                            onMouseDown={(e) => {
-                                e.preventDefault();
-                                handleMessageRemoveHighlight(unhighlightMenu.messageIndex, unhighlightMenu.text);
-                            }}
-                        >
-                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3l18 18M15 9l-6 6" /></svg>
-                            Remove Highlight
                         </button>
                     </div>
                 )}

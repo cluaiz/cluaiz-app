@@ -1,5 +1,3 @@
-# 🏛️ CLUAIZ CLUAIZD: THE VISUAL MATRIX (FRONTEND MONOREPO)
-
 ![Cluaizd Visual Matrix Interface](./public/assets/app.png)
 
 This is the Tauri-based frontend application for the cluaiz engine, directly connected via Native IPC. 

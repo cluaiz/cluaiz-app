@@ -1,5 +1,7 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { chatStorageManager } from '../../services/storage/ChatStorageManager';
+import { SessionIndexItem } from '../../services/storage/types';
+import { inferChatTopicAndEmoji } from '../../utils/topicProber';
 
 export interface ChatMessage {
     id: string;
@@ -42,6 +44,10 @@ export interface ChatMessage {
     };
     attachments?: Array<{ name: string; size?: number; type?: string; previewUrl?: string }>;
     parts?: Array<{ type: string; [key: string]: any }>;
+    replyTo?: {
+        text: string;
+        sender?: string;
+    };
 }
 
 export interface ChatSession {
@@ -58,16 +64,23 @@ export interface ChatSession {
     createdAt: number;
     updatedAt: number;
     messages: ChatMessage[];
+    lastMessagePreview?: string;
+    messageCount?: number;
+    isIncognito?: boolean;
 }
 
 interface ChatStore {
     sessions: Record<string, ChatSession>;
     activeSessionId: string | null;
+    isHydrated: boolean;
+    isLoadingMessages: boolean;
 
     // Actions
-    createNewSession: () => string;
-    switchSession: (sessionId: string | null) => void;
+    hydrateFromStorage: () => Promise<void>;
+    createNewSession: (initialTitle?: string) => string;
+    switchSession: (sessionId: string | null) => Promise<void>;
     deleteSession: (sessionId: string) => void;
+    finalizeAssistantMessage: (sessionId: string) => Promise<void>;
 
     addMessage: (sessionId: string, message: Omit<ChatMessage, 'id'>) => void;
     appendTokenToLastMessage: (sessionId: string, token: string) => void;
@@ -109,28 +122,171 @@ interface ChatStore {
 
 const generateId = () => Math.random().toString(36).substring(2, 15);
 
+// Monotonic generation counter to prevent race conditions during rapid session switching
+let sessionSwitchGeneration = 0;
+
+const syncIndexToStorage = (sessions: Record<string, ChatSession>, activeId: string | null) => {
+    const sessionList: SessionIndexItem[] = Object.values(sessions)
+        .filter(s => !s.isIncognito)
+        .map(s => {
+        const lastMsg = s.messages && s.messages.length > 0 ? s.messages[s.messages.length - 1] : undefined;
+        let preview = s.lastMessagePreview || '';
+        if (lastMsg) {
+            preview = lastMsg.text ? lastMsg.text.slice(0, 60) : (lastMsg.thinking ? lastMsg.thinking.slice(0, 40) : '');
+        }
+        return {
+            id: s.id,
+            title: s.title,
+            avatar: s.avatar,
+            tags: s.tags,
+            unread: s.unread,
+            pinned: s.pinned,
+            pinnedAt: s.pinnedAt,
+            favourite: s.favourite,
+            archived: s.archived,
+            muted: s.muted,
+            createdAt: s.createdAt,
+            updatedAt: s.updatedAt,
+            messageCount: s.messages ? s.messages.length : (s.messageCount || 0),
+            lastMessagePreview: preview || undefined
+        };
+    });
+
+    chatStorageManager.saveSessionsIndex({
+        version: 1,
+        lastActiveSessionId: activeId,
+        sessions: sessionList
+    }).catch(err => console.warn("[ChatStore] Failed to save session index:", err));
+};
+
+const syncSessionMeta = (session: ChatSession) => {
+    chatStorageManager.saveSessionMetadata(session.id, {
+        id: session.id,
+        title: session.title,
+        avatar: session.avatar,
+        tags: session.tags,
+        createdAt: session.createdAt,
+        updatedAt: session.updatedAt,
+        pinned: session.pinned,
+        pinnedAt: session.pinnedAt,
+        favourite: session.favourite,
+        archived: session.archived,
+        muted: session.muted
+    }).catch(err => console.warn("[ChatStore] Failed to save session metadata:", err));
+};
+
+// Debounce helper to rewrite messages.jsonl when in-place modifications occur (reactions, stars, pins, deletes)
+const syncTimers: Record<string, any> = {};
+const scheduleMessagesSync = (sessionId: string, messages: ChatMessage[]) => {
+    if (syncTimers[sessionId]) {
+        clearTimeout(syncTimers[sessionId]);
+    }
+    syncTimers[sessionId] = setTimeout(() => {
+        delete syncTimers[sessionId];
+        chatStorageManager.saveAllMessages(sessionId, messages).catch(err => {
+            console.error(`[ChatStore] Failed to save updated messages for session ${sessionId}:`, err);
+        });
+    }, 150);
+};
+
 export const useChatStore = create<ChatStore>()(
     (set, get) => ({
         sessions: {},
         activeSessionId: null,
+        isHydrated: false,
+        isLoadingMessages: false,
+
+        hydrateFromStorage: async () => {
+            try {
+                const index = await chatStorageManager.loadSessionsIndex();
+                if (index && index.sessions && index.sessions.length > 0) {
+                    const sessionsMap: Record<string, ChatSession> = {};
+                    for (const s of index.sessions) {
+                        sessionsMap[s.id] = {
+                            id: s.id,
+                            title: s.title || 'Chat',
+                            avatar: s.avatar || '🤖',
+                            tags: s.tags || [],
+                            unread: s.unread || 0,
+                            pinned: Boolean(s.pinned),
+                            pinnedAt: s.pinnedAt,
+                            favourite: Boolean(s.favourite),
+                            archived: Boolean(s.archived),
+                            muted: Boolean(s.muted),
+                            createdAt: s.createdAt || Date.now(),
+                            updatedAt: s.updatedAt || Date.now(),
+                            lastMessagePreview: s.lastMessagePreview,
+                            messageCount: s.messageCount || 0,
+                            messages: [] // Loaded lazily on switchSession
+                        };
+                    }
+                    // Only restore an active session if lastActiveSessionId is a valid existing session.
+                    // If lastActiveSessionId is null (user was in New Chat), keep targetActiveId as null.
+                    const targetActiveId = (index.lastActiveSessionId && sessionsMap[index.lastActiveSessionId])
+                        ? index.lastActiveSessionId
+                        : null;
+
+                    set({
+                        sessions: sessionsMap,
+                        activeSessionId: targetActiveId,
+                        isHydrated: true
+                    });
+
+                    // Proactively load messages for the active session if one exists
+                    if (targetActiveId) {
+                        get().switchSession(targetActiveId);
+                    }
+                } else {
+                    // First boot or empty catalog: initialize single clean session
+                    const id = generateId();
+                    const defaultSession: ChatSession = {
+                        id,
+                        title: 'New Chat',
+                        avatar: '🤖',
+                        tags: [],
+                        unread: 0,
+                        pinned: false,
+                        favourite: false,
+                        archived: false,
+                        muted: false,
+                        createdAt: Date.now(),
+                        updatedAt: Date.now(),
+                        messages: [],
+                    };
+                    const initialSessions = { [id]: defaultSession };
+                    set({
+                        sessions: initialSessions,
+                        activeSessionId: id,
+                        isHydrated: true
+                    });
+                    syncSessionMeta(defaultSession);
+                    syncIndexToStorage(initialSessions, id);
+                }
+            } catch (err) {
+                console.error("[ChatStore] Storage hydration error:", err);
+                set({ isHydrated: true });
+            }
+        },
 
         fetchSessionsFromEngine: async () => {
             const { cluaizEngine } = await import('../../core/engine');
             try {
                 const sessionsArray = await cluaizEngine.fetchHistory();
-                const sessions: Record<string, ChatSession> = {};
-                sessionsArray.forEach(s => sessions[s.id] = s);
-                set({ sessions });
+                if (sessionsArray && sessionsArray.length > 0) {
+                    const sessions: Record<string, ChatSession> = {};
+                    sessionsArray.forEach(s => sessions[s.id] = s);
+                    set({ sessions });
+                }
             } catch (err) {
                 console.error("Failed to fetch history from FFI:", err);
             }
         },
 
-        createNewSession: () => {
+        createNewSession: (initialTitle?: string) => {
             const id = generateId();
             const newSession: ChatSession = {
                 id,
-                title: 'New Chat',
+                title: initialTitle || 'New Chat',
                 avatar: '🤖',
                 tags: [],
                 unread: 0,
@@ -143,62 +299,168 @@ export const useChatStore = create<ChatStore>()(
                 messages: [],
             };
 
-            set((state) => ({
-                sessions: { ...state.sessions, [id]: newSession },
+            const updatedSessions = { ...get().sessions, [id]: newSession };
+            set({
+                sessions: updatedSessions,
                 activeSessionId: id,
-            }));
+            });
+
+            syncSessionMeta(newSession);
+            syncIndexToStorage(updatedSessions, id);
             return id;
         },
 
-        switchSession: (sessionId: string | null) => {
+        switchSession: async (sessionId: string | null) => {
+            const currentGen = ++sessionSwitchGeneration;
+            if (get().activeSessionId !== sessionId) {
+                try {
+                    const { cluaizEngine } = await import('../../core/engine');
+                    await cluaizEngine.stop();
+                } catch { }
+            }
             set({ activeSessionId: sessionId });
+
+            if (!sessionId) {
+                syncIndexToStorage(get().sessions, null);
+                return;
+            }
+
+            syncIndexToStorage(get().sessions, sessionId);
+
+            const session = get().sessions[sessionId];
+            // If messages are not yet in memory, lazily load from disk/storage
+            if (session && session.messages.length === 0) {
+                set({ isLoadingMessages: true });
+                try {
+                    const messages = await chatStorageManager.loadSessionMessages(sessionId);
+                    // Safe race check: ensure user didn't switch to another session during async I/O
+                    if (sessionSwitchGeneration === currentGen && get().activeSessionId === sessionId) {
+                        set((state) => {
+                            const target = state.sessions[sessionId];
+                            if (!target) return state;
+                            return {
+                                sessions: {
+                                    ...state.sessions,
+                                    [sessionId]: {
+                                        ...target,
+                                        messages
+                                    }
+                                },
+                                isLoadingMessages: false
+                            };
+                        });
+                    }
+                } catch (err) {
+                    console.warn(`[ChatStore] Failed to load messages for ${sessionId}:`, err);
+                    if (sessionSwitchGeneration === currentGen) {
+                        set({ isLoadingMessages: false });
+                    }
+                }
+            }
         },
 
         deleteSession: (sessionId) => {
+            // Delete physically from storage
+            chatStorageManager.deleteSession(sessionId).catch(err => {
+                console.error(`[ChatStore] Failed deleting session folder ${sessionId}:`, err);
+            });
+
             // Trigger FFI physical delete in background
             import('../../core/engine').then(({ cluaizEngine }) => {
                 cluaizEngine.deleteSession(sessionId).catch(console.error);
-            });
+            }).catch(() => {});
 
             set((state) => {
                 const newSessions = { ...state.sessions };
                 delete newSessions[sessionId];
+                const remainingIds = Object.keys(newSessions);
+                const newActive = state.activeSessionId === sessionId
+                    ? (remainingIds[0] || null)
+                    : state.activeSessionId;
+
+                syncIndexToStorage(newSessions, newActive);
 
                 return {
                     sessions: newSessions,
-                    activeSessionId: state.activeSessionId === sessionId ? null : state.activeSessionId
+                    activeSessionId: newActive
                 };
             });
         },
 
         addMessage: (sessionId, message) => {
+            const newMessage: ChatMessage = {
+                ...message,
+                id: generateId(),
+            };
+
             set((state) => {
                 const session = state.sessions[sessionId];
                 if (!session) return state;
 
-                const newMessage: ChatMessage = {
-                    ...message,
-                    id: generateId(),
+                // Auto-generate topic emoji and smart title from first user message
+                let title = session.title;
+                let avatar = session.avatar;
+                let metaChanged = false;
+                if (session.messages.length === 0 && message.sender === 'user' && message.text) {
+                    const inference = inferChatTopicAndEmoji(message.text);
+                    title = inference.title;
+                    avatar = inference.emoji;
+                    metaChanged = true;
+                }
+
+                const updatedSession: ChatSession = {
+                    ...session,
+                    title,
+                    avatar,
+                    updatedAt: Date.now(),
+                    messages: [...session.messages, newMessage]
                 };
 
-                // Auto-generate title from first user message
-                let title = session.title;
-                if (session.messages.length === 0 && message.sender === 'user') {
-                    title = message.text.slice(0, 30) + (message.text.length > 30 ? '...' : '');
+                const updatedSessions = {
+                    ...state.sessions,
+                    [sessionId]: updatedSession
+                };
+
+                if (metaChanged) {
+                    syncSessionMeta(updatedSession);
                 }
 
                 return {
-                    sessions: {
-                        ...state.sessions,
-                        [sessionId]: {
-                            ...session,
-                            title,
-                            updatedAt: Date.now(),
-                            messages: [...session.messages, newMessage]
-                        }
-                    }
+                    sessions: updatedSessions
                 };
             });
+
+            // Reviewer Option A: Persist user message immediately on dispatch
+            if (message.sender === 'user' && (message.text || message.attachments?.length || message.parts?.length)) {
+                chatStorageManager.appendMessage(sessionId, newMessage)
+                    .then(() => {
+                        syncIndexToStorage(get().sessions, get().activeSessionId);
+                    })
+                    .catch(err => {
+                        console.error(`[ChatStore] Failed to append user message in session ${sessionId}:`, err);
+                    });
+            }
+        },
+
+        finalizeAssistantMessage: async (sessionId: string) => {
+            const session = get().sessions[sessionId];
+            if (!session || session.messages.length === 0) return;
+
+            const lastMsg = session.messages[session.messages.length - 1];
+            if (!lastMsg || lastMsg.sender !== 'assistant') return;
+
+            // Do not persist empty placeholders
+            if (!lastMsg.text && !lastMsg.thinking && (!lastMsg.toolCalls || lastMsg.toolCalls.length === 0)) {
+                return;
+            }
+
+            try {
+                // Atomic append of completed assistant turn
+                await chatStorageManager.appendMessage(sessionId, lastMsg);
+                syncIndexToStorage(get().sessions, get().activeSessionId);
+            } catch (err) {
+                console.error(`[ChatStore] Failed finalizing assistant message for ${sessionId}:`, err);
+            }
         },
 
         appendTokenToLastMessage: (sessionId, token) => {
@@ -466,11 +728,13 @@ export const useChatStore = create<ChatStore>()(
         },
 
         updateMessage: (sessionId, messageIndex, updater) => {
+            let updatedMessages: ChatMessage[] | null = null;
             set((state) => {
                 const session = state.sessions[sessionId];
                 if (!session || !session.messages[messageIndex]) return state;
                 const messages = [...session.messages];
                 messages[messageIndex] = updater(messages[messageIndex]);
+                updatedMessages = messages;
                 return {
                     sessions: {
                         ...state.sessions,
@@ -478,13 +742,19 @@ export const useChatStore = create<ChatStore>()(
                     }
                 };
             });
+
+            if (updatedMessages) {
+                scheduleMessagesSync(sessionId, updatedMessages);
+            }
         },
 
         deleteMessage: (sessionId, messageIndex) => {
+            let remainingMessages: ChatMessage[] | null = null;
             set((state) => {
                 const session = state.sessions[sessionId];
                 if (!session) return state;
                 const messages = session.messages.filter((_, i) => i !== messageIndex);
+                remainingMessages = messages;
                 return {
                     sessions: {
                         ...state.sessions,
@@ -492,19 +762,40 @@ export const useChatStore = create<ChatStore>()(
                     }
                 };
             });
+
+            if (remainingMessages) {
+                scheduleMessagesSync(sessionId, remainingMessages);
+            }
         },
 
         updateSession: (sessionId, updater) => {
+            let updatedSession: ChatSession | null = null;
+            let updatedSessionsMap: Record<string, ChatSession> | null = null;
+
             set((state) => {
                 const session = state.sessions[sessionId];
                 if (!session) return state;
+                updatedSession = updater(session);
+                updatedSessionsMap = {
+                    ...state.sessions,
+                    [sessionId]: updatedSession
+                };
                 return {
-                    sessions: {
-                        ...state.sessions,
-                        [sessionId]: updater(session)
-                    }
+                    sessions: updatedSessionsMap
                 };
             });
+
+            if (updatedSession) {
+                syncSessionMeta(updatedSession);
+                syncIndexToStorage(updatedSessionsMap || get().sessions, get().activeSessionId);
+            }
         }
     })
 );
+
+if (typeof window !== 'undefined') {
+    // Proactively hydrate chat sessions catalog on app startup
+    setTimeout(() => {
+        useChatStore.getState().hydrateFromStorage();
+    }, 0);
+}
