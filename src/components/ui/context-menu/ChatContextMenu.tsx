@@ -4,7 +4,6 @@ import {
     Pin,
     PinOff,
     Tag,
-    Heart,
     Archive,
     ArchiveRestore,
     BellOff,
@@ -20,7 +19,7 @@ interface ChatContextMenuProps {
     y: number;
     isOpen: boolean;
     isPinned: boolean;
-    isFavourite: boolean;
+    isFavourite?: boolean;
     isMuted: boolean;
     status: string; // 'active' or 'archived'
     onClose: () => void;
@@ -28,7 +27,7 @@ interface ChatContextMenuProps {
     onPin: () => void;
     onSelectMessages: () => void;
     onAddLabel: () => void;
-    onToggleFavourite: () => void;
+    onToggleFavourite?: () => void;
     onArchive: () => void;
     onToggleMute: () => void;
     chatId: string;
@@ -133,17 +132,6 @@ export const ChatContextMenu: React.FC<ChatContextMenuProps> = ({
                                 <span>Add Label</span>
                             </button>
 
-                            {/* Add to Favourites */}
-                            <button
-                                onClick={() => { onToggleFavourite(); onClose(); }}
-                                className={cn(
-                                    "w-full flex items-center gap-3 px-3.5 py-2.5 text-[13px] font-bold rounded-xl transition-colors text-left cursor-pointer",
-                                    isFavourite ? "text-red-500 hover:bg-red-500/10" : "text-zinc-300 hover:bg-white/5 hover:text-white"
-                                )}
-                            >
-                                <Heart size={16} fill={isFavourite ? "currentColor" : "none"} />
-                                <span>{isFavourite ? "Remove Favourite" : "Add to Favourites"}</span>
-                            </button>
 
                             {/* Separator */}
                             <div className="h-[1px] bg-white/5 my-0.5 mx-1" />

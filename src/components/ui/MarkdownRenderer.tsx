@@ -538,7 +538,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
 
     return (
         <article
-            className={cn("max-w-none w-full markdown-body leading-relaxed select-text text-[var(--text-primary)] font-[family-name:var(--font-family)] [&_hr+*]:!mt-3.5", className)}
+            className={cn("max-w-none w-full markdown-body leading-relaxed select-text selection:bg-[var(--accent-color)] selection:text-[var(--accent-contrast,#ffffff)] text-[var(--text-primary)] font-[family-name:var(--font-family)] [&_hr+*]:!mt-3.5", className)}
             style={{ fontFamily: 'var(--font-family)' }}
         >
             {metadata && <FrontmatterCard metadata={metadata} />}

@@ -482,6 +482,16 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                                 </div>
                             )}
 
+                            {/* Reply to Context Quote Banner */}
+                            {msg.replyTo?.text && (
+                                <div className="mb-2 px-2.5 py-1.5 rounded-lg bg-black/15 border-l-2 border-white/70 text-xs opacity-95 text-left select-none">
+                                    <div className="font-semibold text-[10px] opacity-75 uppercase tracking-wider mb-0.5">
+                                        Replying to {msg.replyTo.sender === 'user' ? 'You' : (msg.replyTo.sender || 'Assistant')}
+                                    </div>
+                                    <div className="line-clamp-2 italic text-[11px] leading-snug">{msg.replyTo.text}</div>
+                                </div>
+                            )}
+
                             <CollapsibleUserMessage
                                 text={msg.text}
                                 highlights={msg.highlights}
@@ -541,6 +551,16 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                     {msg.isStarred && (
                         <div className="absolute -top-2 -left-2 bg-yellow-500/20 text-yellow-500 p-0.5 rounded-full z-10 shadow-sm backdrop-blur-sm">
                             <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>
+                        </div>
+                    )}
+
+                    {/* Reply to Context Quote Banner for Assistant */}
+                    {msg.replyTo?.text && (
+                        <div className="mb-2 px-3 py-1.5 rounded-lg bg-[var(--bg-secondary)] border-l-2 border-[var(--accent-color)] text-xs text-[var(--text-muted)] text-left select-none max-w-xl">
+                            <div className="font-semibold text-[10px] text-[var(--accent-color)] uppercase tracking-wider mb-0.5">
+                                In reply to {msg.replyTo.sender === 'user' ? 'You' : (msg.replyTo.sender || 'Context')}
+                            </div>
+                            <div className="line-clamp-2 italic text-[11px] leading-snug">{msg.replyTo.text}</div>
                         </div>
                     )}
 

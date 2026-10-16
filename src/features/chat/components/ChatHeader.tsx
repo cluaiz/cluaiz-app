@@ -1,8 +1,4 @@
 import React, { useRef } from 'react';
-import { Terminal, Search } from 'lucide-react';
-import { Search as AnimatedSearch } from '../../../components/animate-ui/icons/search';
-import { SlidersHorizontal as AnimatedSliders } from '../../../components/animate-ui/icons/sliders-horizontal';
-import { FilterDropdown } from '../../../components/ui/dropdown/FilterDropdown';
 
 interface ChatHeaderProps {
     activeChatData: any;
@@ -27,8 +23,6 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
     pinnedMessages = [],
     onUnpin
 }) => {
-    const filterBtnRef = useRef<HTMLButtonElement>(null);
-
     return (
         <>
             {activeChatData ? (
@@ -40,64 +34,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                     <div className="absolute left-0 right-0 h-8 -bottom-8 bg-gradient-to-b from-[var(--bg-primary)] to-transparent pointer-events-none z-10" />
 
                     <div className="flex items-center gap-3">
-                        {activeChatData.avatar?.startsWith('http') || activeChatData.avatar?.startsWith('/') ? (
-                            <img src={activeChatData.avatar} alt={activeChatData.name} className="w-10 h-10 rounded-full object-cover border border-[var(--border-color)]" style={{ borderStyle: 'var(--border-style)' }} />
-                        ) : (
-                            <div className="w-10 h-10 rounded-full bg-[var(--bg-primary)] border border-[var(--border-color)] flex items-center justify-center text-xl shadow-sm" style={{ borderStyle: 'var(--border-style)' }}>
-                                {activeChatData.avatar}
-                            </div>
-                        )}
-                        <div className="flex flex-col">
-                            <span className="font-bold text-[var(--text-primary)] text-sm tracking-wide">{activeChatData.name}</span>
-                            <span className="text-[10px] text-[var(--text-muted)] font-black uppercase tracking-widest flex items-center gap-1.5 mt-0.5">
-                                <span className={`w-1.5 h-1.5 rounded-full ${activeChatData.status === 'online' ? 'bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.5)]' : 'bg-gray-400'}`}></span>
-                                {activeChatData.status === 'online' ? 'ONLINE' : 'OFFLINE'} <span className="opacity-50">|</span> AI HANDLER <span className="opacity-50">|</span> {activeChatData.totalMessages} MSGS
-                            </span>
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        {/* Search Input Bar */}
-                        <div
-                            className="hidden lg:flex items-center gap-2 px-3 py-1.5 bg-[var(--bg-primary)] themed-border rounded-lg focus-within:border-[var(--accent-color)] transition-all duration-200 relative w-64"
-                            style={{ borderStyle: 'var(--border-style)' }}
-                        >
-                            <AnimatedSearch className="w-4 h-4 text-[var(--text-muted)] flex-shrink-0" size={16} />
-                            <input
-                                type="text"
-                                placeholder={activeFilter !== 'All' ? `Filtered by ${activeFilter}...` : "Search chats..."}
-                                className="bg-transparent border-0 outline-none w-full text-xs text-[var(--text-primary)] placeholder-[var(--text-muted)] font-medium"
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                            />
-
-                            <button
-                                ref={filterBtnRef}
-                                onClick={() => setIsFilterOpen(!isFilterOpen)}
-                                className={`p-0.5 rounded transition-colors cursor-pointer shrink-0 ${activeFilter !== 'All'
-                                    ? 'text-[var(--accent-color)] bg-[var(--accent-color)]/10'
-                                    : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-                                    }`}
-                                title="Advanced Filters"
-                            >
-                                <AnimatedSliders className="w-3.5 h-3.5" size={14} animate={isFilterOpen} />
-                            </button>
-
-                            <FilterDropdown
-                                isOpen={isFilterOpen}
-                                onClose={() => setIsFilterOpen(false)}
-                                activeFilter={activeFilter}
-                                onFilterChange={(filter) => {
-                                    setActiveFilter(filter);
-                                }}
-                                align="right"
-                                triggerRef={filterBtnRef}
-                            />
-                        </div>
-
-                        {/* Mobile Search Icon */}
-                        <button className="lg:hidden w-8 h-8 rounded-full flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-colors">
-                            <Search size={16} />
-                        </button>
+                        <span className="font-bold text-[var(--text-primary)] text-sm tracking-wide truncate max-w-lg">{activeChatData.name}</span>
                     </div>
                 </div>
             ) : (

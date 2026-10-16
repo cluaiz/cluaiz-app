@@ -4,6 +4,18 @@ pub mod features;
 use core::engine::spawner::{boot_cluaiz_engine, update_engine_settings, get_session_token};
 use core::state::EngineState;
 use features::chat::commands::{ffi_delete_session, ffi_fetch_history, ffi_send_message};
+use features::chat::storage::{
+    storage_load_sessions_index,
+    storage_save_sessions_index,
+    storage_load_session_metadata,
+    storage_save_session_metadata,
+    storage_load_session_messages,
+    storage_append_message,
+    storage_save_session_messages,
+    storage_delete_session,
+    storage_save_asset,
+    storage_resolve_asset_path,
+};
 use features::code_editor::{start_fs_watcher, stop_fs_watcher, pick_folder};
 use tauri::Manager;
 
@@ -100,7 +112,17 @@ pub fn run() {
             ffi_delete_session,
             start_fs_watcher,
             stop_fs_watcher,
-            pick_folder
+            pick_folder,
+            storage_load_sessions_index,
+            storage_save_sessions_index,
+            storage_load_session_metadata,
+            storage_save_session_metadata,
+            storage_load_session_messages,
+            storage_append_message,
+            storage_save_session_messages,
+            storage_delete_session,
+            storage_save_asset,
+            storage_resolve_asset_path
         ])
         .setup(|_app| {
             tauri::async_runtime::spawn(async move {

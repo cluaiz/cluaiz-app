@@ -36,11 +36,7 @@ import { ChatRibbon } from '../ui/ChatRibbon';
 import { ChatContextMenu } from '../ui/context-menu/ChatContextMenu';
 import { LabelModal } from '../ui/LabelModal';
 import { EditChatModal } from '../ui/EditChatModal';
-import { FilterDropdown } from '../ui/dropdown/FilterDropdown';
-import { CalendarDropdown } from '../ui/dropdown/CalendarDropdown';
-import { Calendar as AnimatedCalendar } from '../animate-ui/icons/calendar';
 import { Search as AnimatedSearch } from '../animate-ui/icons/search';
-import { SlidersHorizontal as AnimatedSliders } from '../animate-ui/icons/sliders-horizontal';
 
 interface SidebarContentProps {
     onOpenLauncher: (e?: React.MouseEvent) => void;
@@ -60,6 +56,7 @@ interface MockChat {
     status: string;
     sent: boolean;
     muted: boolean;
+    updatedAt?: number;
 
     blocked?: boolean;
     isNew?: boolean;
@@ -89,6 +86,8 @@ const getChatDate = (timeStr: string): Date => {
     return baseDate;
 };
 
+
+
 export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
     const { activeView, sidebarPosition, toggleSidebar, sidebarCollapsed, setSidebarCollapsed, sidebarPeeked, setSidebarPeeked, setActiveChatData } = useLayoutStore();
     const { theme } = useThemeStore();
@@ -98,17 +97,11 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
     useEffect(() => {
         setInTauri(isTauri());
     }, []);
-    const [activeCategory, setActiveCategory] = useState('All');
     const [searchQuery, setSearchQuery] = useState('');
     const [activeFilter, setActiveFilter] = useState('All');
-    const [isFilterOpen, setIsFilterOpen] = useState(false);
-    const filterBtnRef = useRef<HTMLButtonElement>(null);
     const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
     const [addMenuCoords, setAddMenuCoords] = useState({ x: 0, y: 0 });
     const plusBtnRef = useRef<HTMLButtonElement>(null);
-    const { dateRange, setDateRange } = useLayoutStore();
-    const [isCalendarOpen, setIsCalendarOpen] = useState(false);
-    const calendarBtnRef = useRef<HTMLButtonElement>(null);
 
     // 🚀 Collapsed Sidebar Floating Flyout State
     const [isFlyoutOpen, setIsFlyoutOpen] = useState(false);
@@ -152,7 +145,7 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
     const { sessions, activeSessionId, switchSession, updateSession, deleteSession } = useChatStore();
     
     const chats = useMemo(() => {
-        return Object.values(sessions).map(session => {
+        return Object.values(sessions).filter(s => !s.isIncognito).map(session => {
             const lastMsg = session.messages && session.messages.length > 0 
                 ? session.messages[session.messages.length - 1] 
                 : null;
@@ -193,6 +186,8 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                         isSentByUser = Boolean(lastUserMsg);
                     }
                 }
+            } else if (session.lastMessagePreview) {
+                previewMsg = session.lastMessagePreview;
             }
 
             return {
@@ -209,7 +204,8 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                 status: 'online',
                 sent: isSentByUser,
                 muted: session.muted || false,
-                archived: session.archived || false
+                archived: session.archived || false,
+                updatedAt: session.updatedAt || msgDate || 0
             } as MockChat;
         });
     }, [sessions]);
@@ -261,21 +257,46 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
         });
     };
 
-    // 🎀 Persistent Ribbon Pool State
-    const [poolRibbons, setPoolRibbons] = useState<string[]>([
-        'VIP:success',
-        'AI ASSISTANT:success',
-        'URGENT:urgent',
-        'WARNING:warning',
-        'SUCCESS:success',
-        'INFO:info',
-        'PRIORITY:priority',
-        'PENDING:pending'
-    ]);
+    // 🎀 Persistent Ribbon Pool State (Zero hardcoded values, backed by localStorage & synced with sessions)
+    const [poolRibbons, setPoolRibbons] = useState<string[]>(() => {
+        try {
+            const saved = localStorage.getItem('cluaiz_user_ribbons');
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                if (Array.isArray(parsed)) return parsed;
+            }
+        } catch {
+            // ignore localStorage error
+        }
+        return [];
+    });
 
-    // Reusable category filters dynamically listing only the tags
-    const categories = useMemo(() => {
-        return ['All', ...poolRibbons.map(t => t.split(':')[0])];
+    useEffect(() => {
+        try {
+            localStorage.setItem('cluaiz_user_ribbons', JSON.stringify(poolRibbons));
+        } catch {
+            // ignore localStorage error
+        }
+    }, [poolRibbons]);
+
+    // Sync any custom tags found in active sessions into the pool
+    useEffect(() => {
+        const sessionTags = Object.values(sessions).flatMap(s => s.tags || []);
+        if (sessionTags.length > 0) {
+            setPoolRibbons(prev => {
+                const combined = Array.from(new Set([...prev, ...sessionTags]));
+                return combined.length !== prev.length ? combined : prev;
+            });
+        }
+    }, [sessions]);
+
+    // Filter tabs: standard categories + dynamic user tags
+    const filterTabs = useMemo(() => {
+        const baseTabs = ['All', 'Old', 'Archive'];
+        const userTags = poolRibbons
+            .map(t => t.split(':')[0])
+            .filter(t => Boolean(t) && !baseTabs.some(b => b.toLowerCase() === t.toLowerCase()));
+        return [...baseTabs, ...Array.from(new Set(userTags))];
     }, [poolRibbons]);
 
     // Context Menu State
@@ -333,21 +354,21 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
 
     // Toggle Pin/Unpin — sets pinnedAt timestamp so most recently pinned always sorts to top
     const togglePinChat = (chatId: string) => {
-        setChats(prev => prev.map(c =>
-            c.id === chatId
-                ? { ...c, pinned: !c.pinned, pinnedAt: !c.pinned ? Date.now() : undefined }
-                : c
-        ));
+        updateSession(chatId, c => ({
+            ...c,
+            pinned: !c.pinned,
+            pinnedAt: !c.pinned ? Date.now() : undefined
+        }));
     };
 
     // Toggle Favourite
     const toggleFavouriteChat = (chatId: string) => {
-        setChats(prev => prev.map(c => c.id === chatId ? { ...c, favourite: !c.favourite } : c));
+        updateSession(chatId, c => ({ ...c, favourite: !c.favourite }));
     };
 
     // Toggle Mute Notifications
     const toggleMuteChat = (chatId: string) => {
-        setChats(prev => prev.map(c => c.id === chatId ? { ...c, muted: !c.muted } : c));
+        updateSession(chatId, c => ({ ...c, muted: !c.muted }));
     };
 
     // Delete label globally from the pool
@@ -355,13 +376,15 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
         const [tagName] = tagToDelete.split(':');
         setPoolRibbons(prev => prev.filter(t => t !== tagToDelete));
         // Remove label from all chats that contain it
-        setChats(prev => prev.map(c => ({
-            ...c,
-            tags: c.tags.filter(t => {
-                const [cTagName] = t.split(':');
-                return cTagName.toLowerCase() !== tagName.toLowerCase();
-            })
-        })));
+        Object.keys(sessions).forEach(sid => {
+            const s = sessions[sid];
+            if (s.tags && s.tags.some(t => t.split(':')[0].toLowerCase() === tagName.toLowerCase())) {
+                updateSession(sid, c => ({
+                    ...c,
+                    tags: (c.tags || []).filter(t => t.split(':')[0].toLowerCase() !== tagName.toLowerCase())
+                }));
+            }
+        });
     };
 
     // Apply label to a chat
@@ -369,15 +392,15 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
         if (!labelTargetId) return;
         const tagValue = `${tagName}:${color}`;
 
-        setChats(prev => prev.map(c => {
-            if (c.id !== labelTargetId) return c;
+        updateSession(labelTargetId, c => {
+            const currentTags = c.tags || [];
             // Toggle off if clicking the same tag
-            if (c.tags.includes(tagValue)) {
+            if (currentTags.includes(tagValue)) {
                 return { ...c, tags: [] };
             }
             // Replace with new tag (Single ribbon policy)
             return { ...c, tags: [tagValue] };
-        }));
+        });
 
         // Also ensure it is in the pool
         const existsInPool = poolRibbons.some(t => {
@@ -402,16 +425,6 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
         });
     };
 
-    const bookedDates = useMemo(() => {
-        const datesMap = new Map<string, Date>();
-        chats.forEach(c => {
-            const date = getChatDate(c.time);
-            date.setHours(0, 0, 0, 0);
-            datesMap.set(date.toDateString(), date);
-        });
-        return Array.from(datesMap.values());
-    }, [chats]);
-
     // Filtered Chats
     const filteredChats = chats.filter(chat => {
         // Search matches Name or Message content
@@ -419,59 +432,70 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
             chat.message.toLowerCase().includes(searchQuery.toLowerCase());
         if (!searchMatches) return false;
 
-        // Category matching dynamically matching the active tag
-        if (activeCategory !== 'All') {
-            const hasTag = chat.tags.some(t => t.split(':')[0].toLowerCase() === activeCategory.toLowerCase());
+        const chatTime = chat.updatedAt || (chat.time ? getChatDate(chat.time).getTime() : 0);
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+
+        // Filter tabs matching
+        const filterNorm = activeFilter.toLowerCase();
+        if (filterNorm === 'all') {
+            // Default view: exclude archived chats
+            if (chat.archived) return false;
+        } else if (filterNorm === 'favourites') {
+            if (!chat.favourite || chat.archived) return false;
+        } else if (filterNorm === 'old') {
+            // Chats created/updated prior to today
+            if (chatTime >= todayStart.getTime() || chat.archived) return false;
+        } else if (filterNorm === 'archive') {
+            if (!chat.archived && !chat.tags.some(t => t.toUpperCase().includes('ARCHIVE'))) return false;
+        } else {
+            // Custom user ribbon tag match
+            const hasTag = chat.tags.some(t => t.split(':')[0].toLowerCase() === filterNorm);
             if (!hasTag) return false;
         }
 
-        // Advanced Filter matching
-        if (activeFilter !== 'All') {
-            if (activeFilter === 'Unread') {
-                if (!(chat.unread > 0)) return false;
-            } else if (activeFilter === 'Favourites') {
-                if (!chat.favourite) return false;
-            } else if (activeFilter === 'Archive') {
-                if (!chat.archived && !chat.tags.some(t => t.toUpperCase().includes('ARCHIVE'))) return false;
-            } else if (activeFilter === 'Groups') {
-                return false;
-            } else if (activeFilter === 'Assistants') {
-                if (!chat.tags.some(t => t.toUpperCase().includes('ASSISTANT') || t.toUpperCase().includes('AI'))) return false;
-            } else if (activeFilter === 'Blocked') {
-                if (!chat.blocked) return false;
-            } else if (activeFilter === 'New User') {
-                if (!chat.isNew) return false;
-            } else if (activeFilter === 'Old User') {
-                if (chat.isNew) return false;
-            } else if (activeFilter === 'Unknown User') {
-                if (!chat.isUnknown) return false;
-            }
-        }
-
-        // Date range matching
-        if (dateRange && dateRange.from) {
-            const chatDate = getChatDate(chat.time);
-            chatDate.setHours(0, 0, 0, 0);
-            const start = new Date(dateRange.from);
-            start.setHours(0, 0, 0, 0);
-            const end = dateRange.to ? new Date(dateRange.to) : start;
-            end.setHours(23, 59, 59, 999);
-            if (chatDate < start || chatDate > end) return false;
-        }
-
         return true;
-        // Sort: pinned chats float to top, most recently pinned first
+        // Sort: pinned chats float to top, most recently pinned first; then newest updated chats on top
     }).sort((a, b) => {
         if (a.pinned && !b.pinned) return -1;
         if (!a.pinned && b.pinned) return 1;
         if (a.pinned && b.pinned) return (b.pinnedAt ?? 0) - (a.pinnedAt ?? 0);
-        return 0;
+        return (b.updatedAt ?? 0) - (a.updatedAt ?? 0);
     });
-
 
     const targetChatForModal = chats.find(c => c.id === labelTargetId);
 
-    // 🔄 100% Reusable Chat Directory (Search + Categories + List + Select Mode)
+    // Date grouping for clean ChatGPT/Claude style layout
+    const groupedChats = useMemo(() => {
+        const now = new Date();
+        const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+        const startOfYesterday = startOfToday - 24 * 60 * 60 * 1000;
+        const startOf7Days = startOfToday - 7 * 24 * 60 * 60 * 1000;
+
+        const groups: { title: string; chats: MockChat[] }[] = [
+            { title: 'Today', chats: [] },
+            { title: 'Yesterday', chats: [] },
+            { title: 'Previous 7 Days', chats: [] },
+            { title: 'Older', chats: [] }
+        ];
+
+        filteredChats.forEach(chat => {
+            const time = chat.updatedAt || (chat.time ? getChatDate(chat.time).getTime() : 0);
+            if (time >= startOfToday) {
+                groups[0].chats.push(chat);
+            } else if (time >= startOfYesterday) {
+                groups[1].chats.push(chat);
+            } else if (time >= startOf7Days) {
+                groups[2].chats.push(chat);
+            } else {
+                groups[3].chats.push(chat);
+            }
+        });
+
+        return groups.filter(g => g.chats.length > 0);
+    }, [filteredChats]);
+
+    // Reusable Chat Directory (Clean Search + Horizontal Filter Tabs + Chat List)
     const renderChatDirectory = (inFlyout: boolean = false) => (
         <>
             {/* Search Bar */}
@@ -499,184 +523,101 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                             <X className="w-3.5 h-3.5" />
                         </button>
                     )}
-
-                    <button
-                        ref={filterBtnRef}
-                        onClick={() => setIsFilterOpen(!isFilterOpen)}
-                        className={`p-0.5 rounded transition-colors cursor-pointer shrink-0 ${activeFilter !== 'All'
-                            ? 'text-[var(--accent-color)] bg-[var(--accent-color)]/10'
-                            : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-                            }`}
-                        title="Advanced Filters"
-                    >
-                        <AnimatedSliders className="w-3.5 h-3.5" size={14} animate={isFilterOpen} />
-                    </button>
-
-                    <FilterDropdown
-                        isOpen={isFilterOpen}
-                        onClose={() => setIsFilterOpen(false)}
-                        activeFilter={activeFilter}
-                        onFilterChange={(filter) => {
-                            setActiveFilter(filter);
-                            setActiveCategory('All');
-                        }}
-                        align="right"
-                        triggerRef={filterBtnRef}
-                    />
-
-                    {dateRange?.from && (
-                        <button
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                setDateRange(undefined);
-                            }}
-                            className="p-0.5 text-[var(--text-muted)] hover:text-red-500 transition-colors cursor-pointer shrink-0"
-                            title="Reset Date Filter"
-                        >
-                            <X className="w-3.5 h-3.5" />
-                        </button>
-                    )}
-
-                    <button
-                        ref={calendarBtnRef}
-                        onClick={() => setIsCalendarOpen(!isCalendarOpen)}
-                        className={`p-0.5 rounded transition-colors cursor-pointer shrink-0 ${dateRange?.from
-                            ? 'text-[var(--accent-color)] bg-[var(--accent-color)]/10'
-                            : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-                            }`}
-                        title="Date Filter"
-                    >
-                        <AnimatedCalendar className="w-3.5 h-3.5" size={14} animate={isCalendarOpen} />
-                    </button>
-
-                    <CalendarDropdown
-                        isOpen={isCalendarOpen}
-                        onClose={() => setIsCalendarOpen(false)}
-                        dateRange={dateRange}
-                        onDateRangeChange={setDateRange}
-                        bookedDates={bookedDates}
-                        filteredChatsCount={filteredChats.length}
-                        align="right"
-                        triggerRef={calendarBtnRef}
-                    />
                 </div>
             </div>
 
-            {/* Category Filter Chips (using reusable Tag component) */}
-            <div className={`${inFlyout ? "px-3 py-1.5" : "px-4 py-1.5"} overflow-x-auto flex gap-1.5 no-scrollbar scroll-smooth flex-shrink-0 select-none`}>
-                {categories.map((cat) => (
-                    <Tag
-                        key={cat}
-                        name={cat}
-                        active={activeCategory === cat}
-                        onClick={() => {
-                            setActiveCategory(cat);
-                            setActiveFilter('All');
-                        }}
-                    >
-                        {cat}
-                    </Tag>
-                ))}
-            </div>
-
-            {/* Chat list viewport */}
-            <div className={`flex-1 overflow-y-auto py-1 space-y-0 custom-scrollbar ${inFlyout ? 'px-1' : ''}`}>
-                {filteredChats.map((chat) => {
-                    const isSelected = selectMode ? selectedIds.has(chat.id) : (activeSessionId === chat.id);
+            {/* Horizontal Filter Tabs: All, Favourites, Old, Archive + User custom labels */}
+            <div className={`flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1 mb-1 ${inFlyout ? 'px-3' : 'px-4'}`}>
+                {filterTabs.map((tab) => {
+                    const isActive = activeFilter.toLowerCase() === tab.toLowerCase();
                     return (
-                        <div
-                            key={chat.id}
-                            onContextMenu={(e) => !selectMode && handleContextMenu(e, chat.id)}
+                        <button
+                            key={tab}
                             onClick={() => {
-                                if (selectMode) {
-                                    toggleSelectChat(chat.id);
+                                // Clicking active tab toggles it off -> resets to 'All'
+                                if (isActive) {
+                                    setActiveFilter('All');
                                 } else {
-                                    switchSession(chat.id);
-                                    setActiveChatData({
-                                        id: chat.id,
-                                        name: chat.name,
-                                        avatar: chat.avatar,
-                                        status: chat.status,
-                                        totalMessages: chat.message ? 1 : 0
-                                    });
-                                    if (inFlyout) {
-                                        setIsFlyoutOpen(false);
-                                    }
+                                    setActiveFilter(tab);
                                 }
                             }}
-                            className={`flex items-center transition-colors duration-150 cursor-pointer group relative overflow-hidden ${isSelected
-                                ? 'bg-[var(--accent-color)]/10 text-[var(--accent-color)]'
-                                : chat.pinned
-                                    ? 'bg-[var(--bg-tertiary)]/40'
-                                    : 'hover:bg-[var(--bg-tertiary)]/60'
-                                } ${chat.archived ? 'opacity-[0.6]' : ''} ${inFlyout ? 'rounded-xl mx-1 gap-2.5 p-2' : 'gap-3 p-2.5'}`}
+                            className={`px-3 py-1 text-[11px] rounded-full shrink-0 transition-all cursor-pointer whitespace-nowrap ${isActive
+                                ? 'bg-[var(--accent-color)] text-[var(--accent-contrast)] font-semibold shadow-sm'
+                                : 'bg-[var(--bg-tertiary)]/70 text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] font-medium'
+                                }`}
                         >
-                            {/* 🎀 Ribbon Tag overlay sticker */}
-                            {chat.tags && chat.tags.length > 0 && (
-                                <ChatRibbon tags={chat.tags} />
-                            )}
+                            {tab}
+                        </button>
+                    );
+                })}
+            </div>
 
-                            {/* Checkbox in select mode OR Avatar */}
-                            <div className="relative flex-shrink-0">
-                                {selectMode ? (
-                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all ${selectedIds.has(chat.id)
-                                        ? 'bg-[var(--accent-color)] border-[var(--accent-color)]'
-                                        : 'border-[var(--border-color)] bg-[var(--bg-tertiary)]/50'
-                                        }`}>
-                                        {selectedIds.has(chat.id) && (
-                                            <CheckCheck className="w-5 h-5 text-white" />
-                                        )}
-                                    </div>
-                                ) : (
-                                    <>
-                                        {chat.avatar?.startsWith('http') || chat.avatar?.startsWith('/') ? (
-                                            <img
-                                                src={chat.avatar}
-                                                alt={chat.name}
-                                                className="w-10 h-10 rounded-full object-cover border border-[var(--border-color)]"
-                                                style={{ borderStyle: 'var(--border-style)' }}
-                                            />
-                                        ) : (
-                                            <div
-                                                className="w-10 h-10 rounded-full border border-[var(--border-color)] bg-[var(--bg-tertiary)] flex items-center justify-center text-xl select-none"
-                                                style={{ borderStyle: 'var(--border-style)' }}
-                                            >
-                                                {chat.avatar}
-                                            </div>
-                                        )}
-                                        {chat.status === 'online' && (
-                                            <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 rounded-full border-2 border-[var(--bg-secondary)] shadow-[0_0_8px_rgba(16,185,129,0.4)]" />
-                                        )}
-                                    </>
-                                )}
-                            </div>
 
-                            {/* Chat Details */}
-                            <div className="flex-1 min-w-0">
-                                <div className="flex items-baseline justify-between mb-0.5">
-                                    <h3 className="text-xs font-bold text-[var(--text-primary)] truncate group-hover:text-[var(--accent-color)] transition-colors flex items-center gap-1.5">
+            {/* Chat list viewport */}
+            <div className={`flex-1 overflow-y-auto py-1 space-y-3 custom-scrollbar ${inFlyout ? 'px-1' : 'px-2'}`}>
+                {groupedChats.map((group) => (
+                    <div key={group.title} className="space-y-0.5">
+                        {/* Section Header */}
+                        <div className="px-2.5 pt-2 pb-1 text-[11px] font-semibold text-[var(--text-muted)] tracking-wide select-none">
+                            {group.title}
+                        </div>
+
+                        {/* Chats in this group */}
+                        {group.chats.map((chat) => {
+                            const isSelected = selectMode ? selectedIds.has(chat.id) : (activeSessionId === chat.id);
+                            return (
+                                <div
+                                    key={chat.id}
+                                    onContextMenu={(e) => !selectMode && handleContextMenu(e, chat.id)}
+                                    onClick={() => {
+                                        if (selectMode) {
+                                            toggleSelectChat(chat.id);
+                                        } else {
+                                            switchSession(chat.id);
+                                            setActiveChatData({
+                                                id: chat.id,
+                                                name: chat.name,
+                                                avatar: chat.avatar,
+                                                status: chat.status,
+                                                totalMessages: chat.message ? 1 : 0
+                                            });
+                                            if (inFlyout) {
+                                                setIsFlyoutOpen(false);
+                                            }
+                                        }
+                                    }}
+                                    className={`flex items-center gap-2 px-2.5 py-2 rounded-xl transition-all duration-150 cursor-pointer group relative overflow-hidden select-none ${isSelected
+                                        ? 'bg-[var(--accent-color)]/10 text-[var(--accent-color)] font-semibold'
+                                        : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]/70'
+                                        } ${chat.archived ? 'opacity-[0.6]' : ''}`}
+                                >
+                                    {/* Ribbon Tag overlay sticker */}
+                                    {chat.tags && chat.tags.length > 0 && (
+                                        <ChatRibbon tags={chat.tags} />
+                                    )}
+
+                                    {/* Checkbox in select mode */}
+                                    {selectMode && (
+                                        <div className={`w-4 h-4 rounded-md flex items-center justify-center border transition-all shrink-0 ${selectedIds.has(chat.id)
+                                            ? 'bg-[var(--accent-color)] border-[var(--accent-color)]'
+                                            : 'border-[var(--border-color)] bg-[var(--bg-tertiary)]/50'
+                                            }`}>
+                                            {selectedIds.has(chat.id) && (
+                                                <CheckCheck className="w-3 h-3 text-white" />
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {/* Chat Title only */}
+                                    <span className="text-xs truncate flex-1 leading-relaxed">
                                         {chat.name}
-                                        {chat.favourite && (
-                                            <Heart className="w-2.5 h-2.5 text-red-500 fill-red-500 shrink-0" />
-                                        )}
-                                        {chat.muted && (
-                                            <BellOff className="w-2.5 h-2.5 text-[var(--text-muted)] shrink-0" />
-                                        )}
-                                    </h3>
-                                    <span className={`text-[9px] font-bold ${chat.unread > 0 ? 'text-[var(--accent-color)]' : 'text-[var(--text-muted)]'}`}>
-                                        {chat.time}
                                     </span>
-                                </div>
-                                <div className="flex items-center justify-between min-w-0">
-                                    <div className="flex items-center gap-1 text-[11px] text-[var(--text-secondary)] min-w-0 flex-1">
-                                        {chat.sent && (
-                                            <CheckCheck className="w-3.5 h-3.5 text-sky-400 flex-shrink-0" />
-                                        )}
-                                        <p className="truncate font-medium flex-1">{chat.message}</p>
-                                    </div>
 
-                                    {/* Right side: pin/unread OR three-dot menu button */}
-                                    <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                                    {/* Right side indicators & three-dots menu */}
+                                    <div className="flex items-center gap-1 shrink-0">
+                                        {chat.pinned && (
+                                            <Pin className="w-2.5 h-2.5 text-[var(--accent-color)] fill-[var(--accent-color)] rotate-45 shrink-0" />
+                                        )}
                                         {!selectMode && (
                                             <button
                                                 onClick={(e) => {
@@ -688,26 +629,19 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                                                         chatId: chat.id
                                                     });
                                                 }}
-                                                className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-[var(--bg-primary)]/60 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-all duration-150 cursor-pointer"
+                                                className={`p-1 rounded hover:bg-[var(--bg-primary)]/80 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-opacity duration-150 cursor-pointer ${isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                                                    }`}
                                                 title="More options"
                                             >
                                                 <MoreVertical className="w-3.5 h-3.5" />
                                             </button>
                                         )}
-                                        {chat.pinned && !selectMode && (
-                                            <Pin className="w-3 h-3 text-[var(--accent-color)] fill-[var(--accent-color)] rotate-45 flex-shrink-0" />
-                                        )}
-                                        {chat.unread > 0 && !selectMode && (
-                                            <span className="min-w-[15px] h-[15px] px-1 bg-[var(--accent-color)] text-[var(--accent-contrast)] text-[9px] font-black rounded-full flex items-center justify-center shrink-0">
-                                                {chat.unread}
-                                            </span>
-                                        )}
                                     </div>
                                 </div>
-                            </div>
-                        </div>
-                    );
-                })}
+                            );
+                        })}
+                    </div>
+                ))}
 
                 {filteredChats.length === 0 && (
                     <div className={`py-8 flex flex-col items-center justify-center text-[var(--text-muted)] ${inFlyout ? 'px-2' : 'px-4'}`}>
@@ -1083,7 +1017,7 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                         onArchive={() => {
                             if (contextMenu?.chatId) {
                                 const cid = contextMenu.chatId;
-                                setChats(prev => prev.map(c => c.id === cid ? { ...c, archived: !c.archived } : c));
+                                updateSession(cid, c => ({ ...c, archived: !c.archived }));
                             }
                         }}
                         onToggleMute={() => {
@@ -1113,7 +1047,7 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                         initialEmoji={editModalData?.initialEmoji || ''}
                         onClose={() => setEditModalData(null)}
                         onSave={(id, name, emoji) => {
-                            setChats(prev => prev.map(c => c.id === id ? { ...c, name, avatar: emoji } : c));
+                            updateSession(id, c => ({ ...c, title: name, avatar: emoji }));
                         }}
                     />
 

@@ -135,7 +135,7 @@ export function LabelModal({
                                     </div>
 
                                     {/* Scrollable Label Pool */}
-                                    <div className="h-[220px] overflow-y-auto pr-1 space-y-1.5 scrollbar-thin">
+                                    <div className="h-[220px] overflow-y-auto pr-1 space-y-1.5 custom-scrollbar">
                                         {filteredTags.length > 0 ? filteredTags.map((tag, idx) => {
                                             const [name, colorName] = tag.includes(':') ? tag.split(':') : [tag, 'success'];
                                             const color = COLORS.find(c => c.name.toLowerCase() === colorName.toLowerCase()) || COLORS[2];
@@ -188,9 +188,14 @@ export function LabelModal({
                                             );
                                         }) : (
                                             <div className="py-8 text-center space-y-2">
-                                                <div className="text-zinc-600 font-bold text-[10px] uppercase tracking-widest">No matching ribbons</div>
-                                                <button onClick={() => { setTagName(searchTerm); setView('ADD'); }} className="text-[var(--accent-color)] font-black text-[9px] uppercase tracking-widest hover:underline">
-                                                    Create "{searchTerm || 'new'}"?
+                                                <div className="text-zinc-500 font-bold text-[10px] uppercase tracking-widest">
+                                                    {searchTerm ? "No matching ribbons" : "No custom ribbons yet"}
+                                                </div>
+                                                <button
+                                                    onClick={() => { setTagName(searchTerm); setView('ADD'); }}
+                                                    className="text-[var(--accent-color)] font-black text-[9px] uppercase tracking-widest hover:underline cursor-pointer"
+                                                >
+                                                    {searchTerm ? `Create "${searchTerm}"?` : "Create your first label"}
                                                 </button>
                                             </div>
                                         )}
