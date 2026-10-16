@@ -414,6 +414,9 @@ main().catch(console.error);`);
                 messages: conversationMessages
             };
 
+            let thinkingStartTime: number | null = null;
+            let thinkingDurationSec: string | undefined = undefined;
+
             const { cluaizEngine } = await import('../../../core/engine');
             await cluaizEngine.send(messageText, chatOptions, (chunk) => {
                 const liveStore = useChatStore.getState();
@@ -422,6 +425,10 @@ main().catch(console.error);`);
                     const now = new Date();
                     const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
 
+                    if (thinkingStartTime !== null && thinkingDurationSec === undefined) {
+                        thinkingDurationSec = ((performance.now() - thinkingStartTime) / 1000).toFixed(1);
+                    }
+
                     if (finalStats && finalStats.tokens > 0) {
                         liveStore.attachTelemetryToLastMessage(sessionId, finalStats);
                     }
@@ -429,9 +436,11 @@ main().catch(console.error);`);
                     if (activeSess?.messages && activeSess.messages.length > 0) {
                         const lastIdx = activeSess.messages.length - 1;
                         const lastMsg = activeSess.messages[lastIdx];
-                        if (lastMsg.sender === 'assistant' && !lastMsg.time) {
-                            liveStore.updateMessage(sessionId, lastIdx, m => ({ ...m, time: timeStr }));
-                        }
+                        liveStore.updateMessage(sessionId, lastIdx, m => ({
+                            ...m,
+                            ...(lastMsg && !lastMsg.time ? { time: timeStr } : {}),
+                            ...(thinkingDurationSec ? { thinkingDuration: thinkingDurationSec } : {})
+                        }));
                         syncSessionTokens(activeSess.messages);
                     }
                     return;
@@ -470,9 +479,20 @@ main().catch(console.error);`);
                 const content = typeof chunk === 'object' ? chunk.content : chunk;
 
                 if (reasoning) {
+                    if (thinkingStartTime === null) {
+                        thinkingStartTime = performance.now();
+                    }
                     liveStore.appendThinkingToLastMessage(sessionId, reasoning);
                 }
                 if (content) {
+                    if (thinkingStartTime !== null && thinkingDurationSec === undefined) {
+                        thinkingDurationSec = ((performance.now() - thinkingStartTime) / 1000).toFixed(1);
+                        const activeSess = liveStore.sessions[sessionId];
+                        if (activeSess?.messages && activeSess.messages.length > 0) {
+                            const lastIdx = activeSess.messages.length - 1;
+                            liveStore.updateMessage(sessionId, lastIdx, m => ({ ...m, thinkingDuration: thinkingDurationSec }));
+                        }
+                    }
                     liveStore.appendTokenToLastMessage(sessionId, content);
                 }
             });
@@ -672,8 +692,8 @@ main().catch(console.error);`);
                 ) : (
                     <>
                         <div
-                            className="flex-1 overflow-y-auto p-4 font-sans text-[13px] leading-relaxed relative z-0 lg:px-14"
-                            style={{ backgroundImage: chatBackground !== 'none' ? `url("${chatBackground}")` : 'none', backgroundSize: '120px', backgroundBlendMode: 'overlay', backgroundColor: 'var(--bg-primary)' }}
+                            className="flex-1 overflow-y-auto p-4 font-[family-name:var(--font-family)] text-[13px] leading-relaxed relative z-0 lg:px-14"
+                            style={{ fontFamily: 'var(--font-family)', backgroundImage: chatBackground !== 'none' ? `url("${chatBackground}")` : 'none', backgroundSize: '120px', backgroundBlendMode: 'overlay', backgroundColor: 'var(--bg-primary)' }}
                             onContextMenu={handleGlobalContextMenu}
                             ref={viewportRef}
                             onScroll={handleScroll}

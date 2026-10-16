@@ -1,9 +1,10 @@
 import React from 'react';
-import { CheckCheck, ChevronDown, ChevronUp, FileText, FileCode, Image as ImageIcon, Film, Music, Zap } from 'lucide-react';
+import { CheckCheck, ChevronDown, ChevronUp, FileText, FileCode, Image as ImageIcon, Film, Music } from 'lucide-react';
 import { LottieEmoji } from '../../../components/ui/context-menu/LottieEmoji';
 import { EmojiMeta } from '../../../assets/EmojiMeta';
 import { ContextChip } from '../../../components/ui/ContextChip';
 import { extractBaseName } from '../../../utils/filePath';
+import { MarkdownRenderer } from '../../../components/ui/MarkdownRenderer';
 
 function formatBytes(bytes?: number | null): string {
     if (!bytes || bytes === 0) return '';
@@ -39,10 +40,15 @@ const formatDisplayTime = (time?: string): string => {
 };
 
 const formatSecondsOnly = (val?: string | number): string => {
-    if (!val && val !== 0) return '';
+    if (val === undefined || val === null || val === '') return '';
     const num = typeof val === 'number' ? val : parseFloat(String(val));
-    if (isNaN(num) || num <= 0) return '';
-    return String(Math.round(num));
+    if (isNaN(num) || num < 0) return '';
+    if (num === 0) return '0';
+    if (num < 1) {
+        const formatted = num.toFixed(2);
+        return formatted.endsWith('0') ? num.toFixed(1) : formatted;
+    }
+    return (num % 1 === 0 || num >= 10) ? String(Math.round(num)) : num.toFixed(1);
 };
 
 interface ThoughtProcessCardProps {
@@ -89,12 +95,6 @@ const ThoughtProcessCard: React.FC<ThoughtProcessCardProps> = ({ thinking, isStr
         }
     };
 
-    const paragraphs = React.useMemo(() => {
-        if (!thinking) return [];
-        const parts = thinking.split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
-        return parts.length > 0 ? parts : [thinking];
-    }, [thinking]);
-
     if (!thinking) return null;
 
     const sec = formatSecondsOnly(duration);
@@ -115,7 +115,7 @@ const ThoughtProcessCard: React.FC<ThoughtProcessCardProps> = ({ thinking, isStr
                     {isStreaming ? (
                         <span className="font-normal flex items-center text-zinc-400 group-hover/thought:text-zinc-200" style={{ fontSize: 'inherit' }}>
                             <span>Thinking</span>
-                            <span className="inline-flex items-baseline font-mono tracking-wider ml-0.5 text-zinc-400" style={{ fontSize: 'inherit' }}>
+                            <span className="inline-flex items-baseline font-[family-name:var(--font-family)] tracking-wider ml-0.5 text-zinc-400" style={{ fontSize: 'inherit', fontFamily: 'var(--font-family)' }}>
                                 <span className="inline-block animate-bounce leading-none" style={{ animationDelay: '0ms' }}>.</span>
                                 <span className="inline-block animate-bounce leading-none" style={{ animationDelay: '150ms' }}>.</span>
                                 <span className="inline-block animate-bounce leading-none" style={{ animationDelay: '300ms' }}>.</span>
@@ -140,10 +140,9 @@ const ThoughtProcessCard: React.FC<ThoughtProcessCardProps> = ({ thinking, isStr
                             onSkipThinking();
                         }}
                         title="Skip reasoning and generate response directly"
-                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 border border-amber-500/25 transition-all cursor-pointer shadow-sm active:scale-95 select-none"
+                        className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] text-zinc-400 hover:text-zinc-200 hover:bg-white/5 transition-colors cursor-pointer select-none"
                     >
-                        <Zap className="w-3 h-3 fill-current" />
-                        <span>Skip Thinking</span>
+                        <span>Skip</span>
                     </button>
                 )}
             </div>
@@ -151,14 +150,14 @@ const ThoughtProcessCard: React.FC<ThoughtProcessCardProps> = ({ thinking, isStr
                 <div
                     ref={scrollRef}
                     onScroll={handleScroll}
-                    className="border-l-2 border-zinc-700/60 pl-3.5 my-2 py-0.5 text-zinc-400 font-sans max-h-60 overflow-y-auto select-text custom-scrollbar space-y-1.5"
-                    style={{ fontSize: 'inherit' }}
+                    className="border-l-2 border-zinc-700/60 pl-3.5 my-2 py-0.5 text-zinc-400 font-[family-name:var(--font-family)] max-h-60 overflow-y-auto select-text custom-scrollbar"
+                    style={{ fontSize: 'inherit', fontFamily: 'var(--font-family)' }}
                 >
-                    {paragraphs.map((para, idx) => (
-                        <p key={idx} className="whitespace-pre-wrap leading-snug">
-                            {para}
-                        </p>
-                    ))}
+                    <MarkdownRenderer
+                        content={thinking}
+                        allowWorkspaceOpen={false}
+                        className="text-zinc-400 text-xs sm:text-[13px] leading-relaxed [&_p]:text-zinc-400 [&_p]:mb-2 [&_p]:text-xs [&_p]:sm:text-[13px] [&_p]:leading-relaxed [&_li]:text-zinc-400 [&_li]:text-xs [&_li]:sm:text-[13px] [&_li]:leading-relaxed [&_strong]:text-zinc-200 [&_strong]:font-semibold [&_h1]:text-sm [&_h2]:text-xs [&_h3]:text-xs [&_h4]:text-xs [&_ul]:mb-2 [&_ol]:mb-2 [&_code]:text-zinc-300"
+                    />
                 </div>
             )}
         </div>
@@ -167,7 +166,6 @@ const ThoughtProcessCard: React.FC<ThoughtProcessCardProps> = ({ thinking, isStr
 
 import { ChatMessage, useChatStore } from '../../../store/chat/useChatStore';
 import { ToolCallAccordion } from './ToolCallAccordion';
-import { MarkdownRenderer } from '../../../components/ui/MarkdownRenderer';
 import { PermissionApprovalCard } from './PermissionApprovalCard';
 import { AttachmentStagingDeck, AttachmentCard } from './AttachmentStagingDeck';
 
@@ -209,9 +207,9 @@ const CollapsibleUserMessage: React.FC<CollapsibleUserMessageProps> = ({
         <div className="relative w-full">
             <div
                 ref={contentRef}
-                className={`whitespace-pre-wrap font-sans font-medium select-text break-words leading-relaxed transition-all duration-200 ${isOverflowing && !isExpanded ? 'max-h-[170px] overflow-hidden' : ''
+                className={`whitespace-pre-wrap font-medium select-text break-words leading-relaxed font-[family-name:var(--font-family)] transition-all duration-200 ${isOverflowing && !isExpanded ? 'max-h-[170px] overflow-hidden' : ''
                     }`}
-                style={{ fontSize: 'var(--chat-bubble-font-size, 14px)' }}
+                style={{ fontSize: 'var(--chat-bubble-font-size, 14px)', fontFamily: 'var(--font-family)' }}
                 onMouseUp={onMouseUp}
             >
                 {renderContent(text, highlights)}
@@ -492,8 +490,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                             />
 
                             <div
-                                className="flex items-center justify-end gap-1 mt-1 font-mono select-none opacity-85 ml-auto"
-                                style={{ fontSize: 'calc(var(--chat-bubble-font-size, 14px) * 0.78)' }}
+                                className="flex items-center justify-end gap-1 mt-1 font-[family-name:var(--font-family)] select-none opacity-85 ml-auto"
+                                style={{ fontSize: 'calc(var(--chat-bubble-font-size, 14px) * 0.78)', fontFamily: 'var(--font-family)' }}
                             >
                                 <span>{formatDisplayTime(msg.time)}</span>
                                 <CheckCheck className="w-3.5 h-3.5 opacity-90" />
@@ -521,7 +519,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                     ) : (
                         /* Only attachments sent without text: show clean timestamp pill below slider */
                         <div
-                            className="flex items-center justify-end gap-1 px-2 py-0.5 rounded-full bg-[var(--bg-secondary)] border border-[var(--border-color)] font-mono text-[10px] text-[var(--text-muted)] select-none ml-auto"
+                            className="flex items-center justify-end gap-1 px-2 py-0.5 rounded-full bg-[var(--bg-secondary)] border border-[var(--border-color)] font-[family-name:var(--font-family)] text-[10px] text-[var(--text-muted)] select-none ml-auto"
+                            style={{ fontFamily: 'var(--font-family)' }}
                         >
                             <span>{formatDisplayTime(msg.time)}</span>
                             <CheckCheck className="w-3.5 h-3.5 opacity-90" />
@@ -551,7 +550,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                             <ThoughtProcessCard
                                 thinking={msg.thinking}
                                 isStreaming={Boolean(msg.thinking && !msg.toolCalls?.length && !msg.text?.trim() && !msg.telemetry)}
-                                duration={msg.telemetry?.ttft || msg.telemetry?.elapsed}
+                                duration={msg.thinkingDuration || (msg.text ? undefined : msg.telemetry?.elapsed)}
                                 onSkipThinking={onSkipThinking}
                             />
                         </div>
@@ -580,7 +579,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                             <ThoughtProcessCard
                                 thinking={msg.postToolThinking}
                                 isStreaming={Boolean(msg.postToolThinking && !msg.text?.trim() && !msg.telemetry)}
-                                duration={msg.telemetry?.elapsed}
+                                duration={msg.postToolThinkingDuration || msg.telemetry?.elapsed}
                                 onSkipThinking={onSkipThinking}
                             />
                         </div>
@@ -590,8 +589,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                     {msg.text ? (
                         <div
                             onMouseUp={handleMouseUp}
-                            className="w-full overflow-hidden select-text text-[var(--text-primary)]"
-                            style={{ fontSize: 'var(--chat-bubble-font-size, 14px)' }}
+                            className="w-full overflow-hidden select-text text-[var(--text-primary)] font-[family-name:var(--font-family)]"
+                            style={{ fontSize: 'var(--chat-bubble-font-size, 14px)', fontFamily: 'var(--font-family)' }}
                         >
                             <MarkdownRenderer content={msg.text} allowWorkspaceOpen={true} />
                         </div>
@@ -608,8 +607,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
 
                     {/* 6. Telemetry & Time Footer */}
                     <div
-                        className="flex items-center justify-between gap-3 mt-2.5 pt-1.5 font-mono text-[var(--text-muted)] select-none w-full border-t border-[var(--border-color)]/10"
-                        style={{ fontSize: 'calc(var(--chat-bubble-font-size, 14px) * 0.78)' }}
+                        className="flex items-center justify-between gap-3 mt-2.5 pt-1.5 font-[family-name:var(--font-family)] text-[var(--text-muted)] select-none w-full border-t border-[var(--border-color)]/10"
+                        style={{ fontSize: 'calc(var(--chat-bubble-font-size, 14px) * 0.78)', fontFamily: 'var(--font-family)' }}
                     >
                         {msg.telemetry ? (
                             <div className="flex items-center gap-2 flex-wrap" style={{ fontSize: 'inherit' }}>

@@ -53,7 +53,10 @@ export function BubbleLauncher({ isOpen, coords, onClose, onOpenSettings }: Bubb
     return (
         <AnimatePresence>
             {isOpen && (
-                <div className={`fixed inset-0 z-[200] ${!coords ? 'flex items-center justify-center' : ''} font-sans`}>
+                <div
+                    className={`fixed inset-0 z-[200] ${!coords ? 'flex items-center justify-center' : ''} font-[family-name:var(--font-family)]`}
+                    style={{ fontFamily: 'var(--font-family)' }}
+                >
                     <motion.div 
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}

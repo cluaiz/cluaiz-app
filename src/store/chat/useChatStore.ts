@@ -6,7 +6,9 @@ export interface ChatMessage {
     sender: 'user' | 'assistant' | 'system';
     text: string;
     thinking?: string;
+    thinkingDuration?: number | string;
     postToolThinking?: string;
+    postToolThinkingDuration?: number | string;
     toolCalls?: Array<{
         id: string;
         name: string;

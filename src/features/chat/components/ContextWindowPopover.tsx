@@ -84,19 +84,19 @@ export const ContextWindowPopover: React.FC<ContextWindowPopoverProps> = ({
                     const prefix = isLast ? '└──' : '├──';
 
                     return (
-                        <div key={item.id || idx} className="flex items-center gap-1.5 py-0.5 text-[11px] font-mono">
+                        <div key={item.id || idx} className="flex items-center gap-1.5 py-0.5 text-[11px]">
                             <span className="text-[var(--text-muted)] opacity-60">{prefix}</span>
                             <span className="font-semibold text-emerald-300">
                                 {item.name || item.id}
                             </span>
                             {item.execution_latency_ms ? (
-                                <span className="text-[9px] text-emerald-400 font-mono">
+                                <span className="text-[9px] text-emerald-400">
                                     ({formatDuration(item.execution_latency_ms)})
                                 </span>
                             ) : null}
-                            <span className="ml-auto flex items-center gap-1.5 text-[10px] font-mono">
+                            <span className="ml-auto flex items-center gap-1.5 text-[10px]">
                                 {item.tokens && item.tokens > 0 ? (
-                                    <span className="text-[9px] text-[var(--text-muted)] font-mono">
+                                    <span className="text-[9px] text-[var(--text-muted)]">
                                         {item.tokens} tok
                                     </span>
                                 ) : null}
@@ -118,8 +118,9 @@ export const ContextWindowPopover: React.FC<ContextWindowPopoverProps> = ({
 
             {/* Popover Card */}
             <div 
-                className="absolute bottom-full right-0 mb-1.5 w-[310px] sm:w-[340px] max-h-[480px] overflow-y-auto z-[90] rounded-xl border border-[var(--border-color)] bg-[var(--bg-secondary)] p-3 shadow-2xl custom-scrollbar text-[11px] text-[var(--text-primary)] select-none"
+                className="absolute bottom-full right-0 mb-1.5 w-[310px] sm:w-[340px] max-h-[480px] overflow-y-auto z-[90] rounded-xl border border-[var(--border-color)] bg-[var(--bg-secondary)] p-3 shadow-2xl custom-scrollbar text-[11px] text-[var(--text-primary)] select-none font-[family-name:var(--font-family)]"
                 style={{
+                    fontFamily: 'var(--font-family)',
                     boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.7), 0 10px 10px -5px rgba(0, 0, 0, 0.5)'
                 }}
             >
@@ -135,11 +136,11 @@ export const ContextWindowPopover: React.FC<ContextWindowPopoverProps> = ({
                 <div className="flex justify-between items-center mb-0.5 text-[10px]">
                     <span className="text-[var(--text-muted)] flex items-center gap-1">
                         <span>Active Safe Allocation</span>
-                        <span className="text-[8.5px] px-1 py-0.2 rounded bg-blue-500/20 text-blue-300 font-mono font-bold">
+                        <span className="text-[8.5px] px-1 py-0.2 rounded bg-blue-500/20 text-blue-300 font-bold">
                             Safe VRAM
                         </span>
                     </span>
-                    <span className="text-[var(--text-primary)] font-bold font-mono text-[10px]">
+                    <span className="text-[var(--text-primary)] font-bold text-[10px]">
                         {formatTokensK(totalActive)} / {formatTokensK(totalLimit)} ({activePct}%)
                     </span>
                 </div>
@@ -160,9 +161,9 @@ export const ContextWindowPopover: React.FC<ContextWindowPopoverProps> = ({
                         <span className="flex items-center gap-1.5" title="Total conversation thread turns accumulated in KV-cache">
                             <span className="w-1.5 h-1.5 rounded-sm bg-[#3b82f6]" />
                             <span className="text-[var(--text-secondary)]">Thread Messages</span>
-                            <span className="text-[8.5px] text-[var(--text-muted)] font-mono opacity-80">(KV-Cache)</span>
+                            <span className="text-[8.5px] text-[var(--text-muted)] opacity-80">(KV-Cache)</span>
                         </span>
-                        <span className="font-mono text-[var(--text-primary)] text-[10px]">
+                        <span className="text-[var(--text-primary)] text-[10px]">
                             <b>{formatTokensK(breakdown?.messages_tokens || 0)}</b>{' '}
                             <span className="text-[var(--text-muted)] text-[9.5px]">{breakdown?.messages_percentage || 0}%</span>
                         </span>
@@ -173,9 +174,9 @@ export const ContextWindowPopover: React.FC<ContextWindowPopoverProps> = ({
                         <span className="flex items-center gap-1.5" title="Base identity directives and safety baseline">
                             <span className="w-1.5 h-1.5 rounded-sm bg-[#eab308]" />
                             <span className="text-[var(--text-secondary)]">System prompt</span>
-                            <span className="text-[8.5px] text-[var(--text-muted)] font-mono opacity-80">(Baseline)</span>
+                            <span className="text-[8.5px] text-[var(--text-muted)] opacity-80">(Baseline)</span>
                         </span>
-                        <span className="font-mono text-[var(--text-primary)] text-[10px]">
+                        <span className="text-[var(--text-primary)] text-[10px]">
                             <b>{formatTokensK(breakdown?.system_prompt_tokens || 0)}</b>{' '}
                             <span className="text-[var(--text-muted)] text-[9.5px]">{breakdown?.system_prompt_percentage || 0}%</span>
                         </span>
@@ -191,7 +192,7 @@ export const ContextWindowPopover: React.FC<ContextWindowPopoverProps> = ({
                                 </span>
                             </span>
                             <div className="flex items-center gap-1.5">
-                                <span className="font-mono text-[var(--text-primary)] text-[10px]">
+                                <span className="text-[var(--text-primary)] text-[10px]">
                                     <b>{formatTokensK(skillsTokens)}</b>{' '}
                                     <span className="text-[var(--text-muted)] text-[9.5px]">{skillsPct}%</span>
                                 </span>
@@ -225,7 +226,7 @@ export const ContextWindowPopover: React.FC<ContextWindowPopoverProps> = ({
                                 </span>
                             </span>
                             <div className="flex items-center gap-1.5">
-                                <span className="font-mono text-[var(--text-primary)] text-[10px]">
+                                <span className="text-[var(--text-primary)] text-[10px]">
                                     <b>{formatTokensK(pluginsTokens)}</b>{' '}
                                     <span className="text-[var(--text-muted)] text-[9.5px]">{pluginsPct}%</span>
                                 </span>
@@ -259,7 +260,7 @@ export const ContextWindowPopover: React.FC<ContextWindowPopoverProps> = ({
                                 </span>
                             </span>
                             <div className="flex items-center gap-1.5">
-                                <span className="font-mono text-[var(--text-primary)] text-[10px]">
+                                <span className="text-[var(--text-primary)] text-[10px]">
                                     <b>{formatTokensK(mcpTokens)}</b>{' '}
                                     <span className="text-[var(--text-muted)] text-[9.5px]">{mcpPct}%</span>
                                 </span>
@@ -289,7 +290,7 @@ export const ContextWindowPopover: React.FC<ContextWindowPopoverProps> = ({
                             <span className="w-1.5 h-1.5 rounded-sm bg-[var(--text-muted)]/40" />
                             <span>Free space</span>
                         </span>
-                        <span className="font-mono text-[var(--text-primary)] text-[10px]">
+                        <span className="text-[var(--text-primary)] text-[10px]">
                             <b>{formatTokensK(breakdown?.free_space_tokens || totalLimit - totalActive)}</b>{' '}
                             <span className="text-[var(--text-muted)] text-[9.5px]">{breakdown?.free_space_percentage || Math.max(0, 100 - activePct)}%</span>
                         </span>
