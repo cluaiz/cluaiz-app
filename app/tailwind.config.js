@@ -23,7 +23,7 @@ export default {
       },
       fontFamily: {
         mono: ['ui-monospace', 'Consolas', 'monospace'],
-        sans: ['system-ui', 'Segoe UI', 'Roboto', 'sans-serif'],
+        sans: ['var(--font-family)', 'system-ui', 'sans-serif'],
       }
     },
   },

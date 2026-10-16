@@ -36,8 +36,8 @@ export const LiveTelemetryBar: React.FC<LiveTelemetryBarProps> = ({
 
     return (
         <div 
-            className="relative z-30 flex items-center justify-between px-2.5 py-0.5 text-xs text-[var(--text-muted)] select-none font-mono"
-            style={{ fontSize: '0.72rem' }}
+            className="relative z-30 flex items-center justify-between px-2.5 py-0.5 text-xs text-[var(--text-muted)] select-none font-[family-name:var(--font-family)]"
+            style={{ fontSize: '0.72rem', fontFamily: 'var(--font-family)' }}
         >
             {/* Left: Real-time generation performance stats (Visible ONLY during active streaming, hidden when idle) */}
             <div className="flex items-center gap-3 min-h-[0.9rem]">

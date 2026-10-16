@@ -772,7 +772,10 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
 
     return (
         <>
-            <div className="flex flex-col h-full bg-[var(--bg-secondary)] overflow-hidden font-sans select-none relative">
+            <div
+                className="flex flex-col h-full bg-[var(--bg-secondary)] overflow-hidden font-[family-name:var(--font-family)] select-none relative"
+                style={{ fontFamily: 'var(--font-family)' }}
+            >
 
                 {/* Web-only Header: Logo, Name, Toggle, More Menu */}
                 {!inTauri && (
@@ -1133,7 +1136,7 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                                     <h3 className="text-sm font-extrabold tracking-wide text-[var(--text-primary)]">
                                         {activeView === 'apis' ? 'APIs' : 'Chats'}
                                     </h3>
-                                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[var(--bg-tertiary)] text-[var(--text-muted)] border border-[var(--border-color)]">
+                                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-[var(--bg-tertiary)] text-[var(--text-muted)] border border-[var(--border-color)]">
                                         {activeView === 'apis' ? '' : filteredChats.length}
                                     </span>
                                 </div>

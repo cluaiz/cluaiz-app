@@ -135,14 +135,15 @@ export function Tooltip({ children, title, subtitle, disabled = false, position 
                                 top: coords.y,
                                 maxWidth: 'min(420px, calc(100vw - 24px))',
                                 zIndex: 99999,
+                                fontFamily: 'var(--font-family)',
                             }}
-                            className="bg-[var(--bg-tertiary)] z-10 shadow-2xl rounded-lg pointer-events-none border border-[var(--border-color)]/80 backdrop-blur-xl py-1 px-2.5 transition-none"
+                            className="bg-[var(--bg-tertiary)] z-10 shadow-2xl rounded-lg pointer-events-none border border-[var(--border-color)]/80 backdrop-blur-xl py-1 px-2.5 transition-none font-[family-name:var(--font-family)]"
                         >
-                            <div className="text-[var(--text-primary)] font-semibold text-[10px] font-mono break-all leading-tight">
+                            <div className="text-[var(--text-primary)] font-semibold text-[10px] font-[family-name:var(--font-family)] break-all leading-tight">
                                 {title}
                             </div>
                             {subtitle && (
-                                <div className="text-[var(--text-muted)] text-[9px] font-sans mt-0.5 leading-snug">
+                                <div className="text-[var(--text-muted)] text-[9px] font-[family-name:var(--font-family)] mt-0.5 leading-snug">
                                     {subtitle}
                                 </div> 
                             )}

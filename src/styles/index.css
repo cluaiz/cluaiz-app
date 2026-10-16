@@ -2,6 +2,10 @@
 @plugin "@tailwindcss/typography";
 @source "..";
 
+@theme {
+  --font-sans: var(--font-family);
+}
+
 /* Global theme selection color — eliminates browser default blue */
 ::selection {
   background-color: var(--accent-color, #f97316) !important;
@@ -14,10 +18,13 @@
 }
 
 /* Set base styles to leverage theme variables */
+body, input, textarea, button, select {
+  font-family: var(--font-family);
+}
+
 body {
   background-color: var(--bg-primary);
   color: var(--text-primary);
-  font-family: var(--font-family);
   margin: 0;
   padding: 0;
   overflow: hidden;

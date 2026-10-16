@@ -63,7 +63,10 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
     };
 
     return (
-        <div className="h-full w-full flex flex-col bg-[var(--bg-primary)] font-sans overflow-hidden relative">
+        <div
+            className="h-full w-full flex flex-col bg-[var(--bg-primary)] font-[family-name:var(--font-family)] overflow-hidden relative"
+            style={{ fontFamily: 'var(--font-family)' }}
+        >
             {/* Top Toolbar */}
             <div className="h-10 border-b border-[var(--border-color)]/70 bg-[var(--bg-secondary)] px-4 flex items-center justify-between flex-shrink-0 select-none">
                 <div className="flex items-center gap-2">
