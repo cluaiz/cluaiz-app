@@ -1319,25 +1319,25 @@ const BANNED_ARCHIVE_OR_BINARY_REGEX = /\.(zip|tar|gz|tgz|rar|7z|bz2|xz|exe|msi|
                         onVoiceFrequencyChange={(freq) => setVoiceFrequency(freq)}
                     />
 
-                    <div className={`transition-all duration-100 ease-out overflow-hidden flex items-center ${(isStreaming || inputValue.trim() || !inlineInputRef.current?.isEmpty() || stagedAttachments.length > 0) ? 'w-[2rem] sm:w-[2.25rem] opacity-100 scale-100' : 'w-0 opacity-0 scale-0'}`}>
+                    <div className={`transition-all duration-100 ease-out overflow-hidden flex items-center ${(isStreaming || inputValue.trim() || !inlineInputRef.current?.isEmpty() || stagedAttachments.length > 0) ? 'w-7 opacity-100 scale-100' : 'w-0 opacity-0 scale-0'}`}>
                         {isStreaming ? (
                             <button
                                 type="button"
                                 onClick={onStopStreaming}
-                                className="w-[2rem] sm:w-[2.25rem] h-[2rem] sm:h-[2.25rem] flex-shrink-0 rounded-full flex items-center justify-center bg-[var(--accent-color)] text-[var(--accent-contrast)] hover:opacity-90 shadow-md transition-transform active:scale-95 cursor-pointer"
+                                className="w-7 h-7 flex-shrink-0 rounded-full flex items-center justify-center bg-[var(--accent-color)] text-[var(--accent-contrast)] hover:opacity-90 shadow-sm transition-transform active:scale-95 cursor-pointer"
                                 title="Stop generating"
                             >
-                                <Square className="w-3 sm:w-3.5 h-3 sm:h-3.5 fill-current" />
+                                <Square className="w-2.5 h-2.5 fill-current" />
                             </button>
                         ) : (
                             <button
                                 type="button"
                                 onClick={handleSendWithAttachments}
                                 disabled={!isEngineOnline}
-                                className={`w-[2rem] sm:w-[2.25rem] h-[2rem] sm:h-[2.25rem] flex-shrink-0 rounded-full flex items-center justify-center bg-[var(--accent-color)] text-[var(--accent-contrast)] hover:opacity-90 transition-transform active:scale-95 ${!isEngineOnline ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
+                                className={`w-7 h-7 flex-shrink-0 rounded-full flex items-center justify-center bg-[var(--accent-color)] text-[var(--accent-contrast)] hover:opacity-90 transition-transform active:scale-95 ${!isEngineOnline ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
                                 title="Send message"
                             >
-                                <Send className="w-3.5 sm:w-4 h-3.5 sm:h-4 -ml-0.5" />
+                                <Send className="w-3 h-3 -ml-0.5" />
                             </button>
                         )}
                     </div>
