@@ -73,7 +73,8 @@ export function formatTokensK(n?: number): string {
     }
     if (n >= 1024) {
         const k = n / 1024;
-        return k % 1 === 0 ? `${k}k` : (n >= 10000 ? `${Math.round(k)}k` : `${k.toFixed(1)}k`);
+        // One decimal, never rounded up: 15872 tokens is 15.5k, not 16k
+        return k % 1 === 0 ? `${k}k` : `${(Math.floor(k * 10) / 10).toFixed(1)}k`;
     }
     return n.toString();
 }
