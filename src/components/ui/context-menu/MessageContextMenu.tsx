@@ -78,7 +78,7 @@ export const MessageContextMenu: React.FC<MessageContextMenuProps> = ({
         { id: 'pin', label: isPinned ? 'Unpin Message' : 'Pin Message', icon: isPinned ? PinOff : Pin },
         { id: 'star', label: isStarred ? 'Unstar' : 'Star', icon: isStarred ? StarOff : Star },
         { id: 'select', label: 'Select', icon: CheckSquare },
-        { id: 'delete', label: 'Delete', icon: Trash2, color: 'text-red-500' },
+        { id: 'delete', label: 'Delete', icon: Trash2, color: 'text-rose-400' },
     ];
 
     // Adjust coordinates to fit view
@@ -101,11 +101,12 @@ export const MessageContextMenu: React.FC<MessageContextMenuProps> = ({
                     position: 'fixed',
                     top: adjustedY,
                     left: adjustedX,
-                    zIndex: 99999
+                    zIndex: 100000,
+                    borderStyle: 'var(--border-style)'
                 }}
                 className={cn(
                     "flex flex-col select-none",
-                    showPicker ? "bg-transparent shadow-none border-none animate-fade-in" : "bg-zinc-950/95 backdrop-blur-md border border-white/10 rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.5)] px-1 py-1 w-64"
+                    showPicker ? "bg-transparent shadow-none border-none animate-fade-in" : "bg-[var(--bg-secondary)]/95 backdrop-blur-xl border border-[var(--border-color)] rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.5)] px-1 py-1 w-64"
                 )}
                 onClick={(e) => e.stopPropagation()}
             >
@@ -146,14 +147,14 @@ export const MessageContextMenu: React.FC<MessageContextMenuProps> = ({
                                         );
                                     })}
                                 </div>
-                                <div className="w-[1px] h-6 bg-white/10 shrink-0" />
+                                <div className="w-[1px] h-6 bg-[var(--border-color)] shrink-0" />
                                 <AnimateIcon animateOnHover={true} asChild>
                                     <button
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             setShowPicker(true);
                                         }}
-                                        className="flex items-center justify-center bg-transparent rounded-full transition-all text-zinc-400 hover:text-white w-7 h-7 shrink-0 cursor-pointer"
+                                        className="flex items-center justify-center bg-transparent rounded-full transition-all text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] w-7 h-7 shrink-0 cursor-pointer"
                                     >
                                         <Plus size={14} />
                                     </button>
@@ -161,7 +162,7 @@ export const MessageContextMenu: React.FC<MessageContextMenuProps> = ({
                             </div>
                         )}
 
-                        <div className="h-[1px] bg-white/5 mx-2" />
+                        <div className="h-[1px] bg-[var(--border-color)] mx-2" />
 
                         {/* actions list */}
                         <div className="flex flex-col py-1">
@@ -169,15 +170,15 @@ export const MessageContextMenu: React.FC<MessageContextMenuProps> = ({
                                 .filter(act => !isDeleted || ['delete', 'select'].includes(act.id))
                                 .map((act, index) => (
                                     <React.Fragment key={act.id}>
-                                        {index > 0 && index === 2 && !isDeleted && <div className="h-[1px] bg-white/5 mx-2 my-1" />}
-                                        {index > 0 && index === 5 && !isDeleted && <div className="h-[1px] bg-white/5 mx-2 my-1" />}
+                                        {index > 0 && index === 2 && !isDeleted && <div className="h-[1px] bg-[var(--border-color)] mx-2 my-1" />}
+                                        {index > 0 && index === 5 && !isDeleted && <div className="h-[1px] bg-[var(--border-color)] mx-2 my-1" />}
                                         <button
                                             onClick={() => {
                                                 onAction(act.id);
                                                 onClose();
                                             }}
                                             className={cn(
-                                                "w-full flex items-center gap-3 px-3 py-2.5 transition-all text-zinc-300 hover:bg-white/5 hover:rounded-lg hover:text-white group text-left text-[13px] font-medium cursor-pointer",
+                                                "w-full flex items-center gap-3 px-3 py-2.5 transition-all text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:rounded-lg hover:text-[var(--text-primary)] group text-left text-[13px] font-medium cursor-pointer",
                                                 act.color
                                             )}
                                         >

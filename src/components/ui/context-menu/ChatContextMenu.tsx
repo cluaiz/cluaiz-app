@@ -91,15 +91,15 @@ export const ChatContextMenu: React.FC<ChatContextMenuProps> = ({
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.95 }}
                 transition={{ duration: 0.1 }}
-                style={{ top: adjustedY, left: adjustedX }}
-                className="fixed z-[9999] w-[220px] bg-zinc-900 border border-white/10 rounded-2xl shadow-2xl p-1 backdrop-blur-xl select-none"
+                style={{ top: adjustedY, left: adjustedX, borderStyle: 'var(--border-style)' }}
+                className="fixed z-[100000] w-[220px] bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-2xl shadow-2xl p-1 backdrop-blur-xl select-none"
                 onClick={(e) => e.stopPropagation()}
             >
                 <div className="flex flex-col gap-0.5">
                             {/* Pin / Unpin */}
                             <button
                                 onClick={() => { onPin(); onClose(); }}
-                                className="w-full flex items-center gap-3 px-3.5 py-2.5 text-[13px] font-bold rounded-xl text-amber-500 hover:bg-amber-500/10 transition-colors text-left cursor-pointer"
+                                className="w-full flex items-center gap-3 px-3.5 py-2.5 text-[13px] font-bold rounded-xl text-[var(--accent-color)] hover:bg-[var(--accent-color)]/10 transition-colors text-left cursor-pointer"
                             >
                                 {isPinned ? <PinOff size={16} /> : <Pin size={16} />}
                                 <span>{isPinned ? "Unpin Chat" : "Pin Chat"}</span>
@@ -108,7 +108,7 @@ export const ChatContextMenu: React.FC<ChatContextMenuProps> = ({
                             {/* Edit Chat */}
                             <button
                                 onClick={() => { onEdit(); onClose(); }}
-                                className="w-full flex items-center gap-3 px-3.5 py-2.5 text-[13px] font-bold rounded-xl text-zinc-300 hover:bg-white/5 hover:text-white transition-colors text-left cursor-pointer"
+                                className="w-full flex items-center gap-3 px-3.5 py-2.5 text-[13px] font-bold rounded-xl text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)] transition-colors text-left cursor-pointer"
                             >
                                 <Edit2 size={16} />
                                 <span>Edit Chat</span>
@@ -117,7 +117,7 @@ export const ChatContextMenu: React.FC<ChatContextMenuProps> = ({
                             {/* Select Messages */}
                             <button
                                 onClick={() => { onSelectMessages(); onClose(); }}
-                                className="w-full flex items-center gap-3 px-3.5 py-2.5 text-[13px] font-bold rounded-xl text-zinc-300 hover:bg-white/5 hover:text-white transition-colors text-left cursor-pointer"
+                                className="w-full flex items-center gap-3 px-3.5 py-2.5 text-[13px] font-bold rounded-xl text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)] transition-colors text-left cursor-pointer"
                             >
                                 <CheckSquare size={16} />
                                 <span>Select Messages</span>
@@ -126,7 +126,7 @@ export const ChatContextMenu: React.FC<ChatContextMenuProps> = ({
                             {/* Add Label */}
                             <button
                                 onClick={() => { onAddLabel(); onClose(); }}
-                                className="w-full flex items-center gap-3 px-3.5 py-2.5 text-[13px] font-bold rounded-xl text-zinc-300 hover:bg-white/5 hover:text-white transition-colors text-left cursor-pointer"
+                                className="w-full flex items-center gap-3 px-3.5 py-2.5 text-[13px] font-bold rounded-xl text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)] transition-colors text-left cursor-pointer"
                             >
                                 <Tag size={16} />
                                 <span>Add Label</span>
@@ -134,14 +134,14 @@ export const ChatContextMenu: React.FC<ChatContextMenuProps> = ({
 
 
                             {/* Separator */}
-                            <div className="h-[1px] bg-white/5 my-0.5 mx-1" />
+                            <div className="h-[1px] bg-[var(--border-color)] my-0.5 mx-1" />
 
 
 
                             {/* Archive Chat */}
                             <button
                                 onClick={() => { onArchive(); onClose(); }}
-                                className="w-full flex items-center gap-3 px-3.5 py-2.5 text-[13px] font-bold rounded-xl text-zinc-300 hover:bg-white/5 hover:text-white transition-colors text-left cursor-pointer"
+                                className="w-full flex items-center gap-3 px-3.5 py-2.5 text-[13px] font-bold rounded-xl text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)] transition-colors text-left cursor-pointer"
                             >
                                 {status === 'archived' ? <ArchiveRestore size={16} /> : <Archive size={16} />}
                                 <span>{status === 'archived' ? "Unarchive Chat" : "Archive Chat"}</span>
@@ -150,7 +150,7 @@ export const ChatContextMenu: React.FC<ChatContextMenuProps> = ({
                             {/* Mute Notifications */}
                             <button
                                 onClick={() => { onToggleMute(); onClose(); }}
-                                className="w-full flex items-center gap-3 px-3.5 py-2.5 text-[13px] font-bold rounded-xl text-red-500 hover:bg-red-500/10 transition-colors text-left cursor-pointer"
+                                className="w-full flex items-center gap-3 px-3.5 py-2.5 text-[13px] font-bold rounded-xl text-rose-400 hover:bg-rose-500/10 transition-colors text-left cursor-pointer"
                             >
                                 {isMuted ? <Bell size={16} /> : <BellOff size={16} />}
                                 <span>{isMuted ? "Unmute Notifications" : "Mute Notifications"}</span>
