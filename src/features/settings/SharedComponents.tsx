@@ -77,9 +77,9 @@ export const SettingItem = ({
         <div
             onClick={handleClick}
             className={cn(
-                "flex items-center justify-between p-6 hover:bg-[var(--text-primary)]/5 transition-all group border-b border-[var(--border-color)] last:border-none cursor-default relative",
-                toggle && !isBlocked && "cursor-pointer",
-                isBlocked && "opacity-75"
+                "flex items-center justify-between p-6 hover:bg-[var(--text-primary)]/5 transition-all group border-b border-[var(--border-color)] last:border-none relative",
+                (toggle || onClick || action) && !isBlocked ? "cursor-pointer" : "cursor-default",
+                isBlocked && "opacity-75 cursor-not-allowed"
             )}
         >
             <div className="flex items-center gap-4">
@@ -126,7 +126,13 @@ export const SettingItem = ({
                         />
                     </div>
                 ) : action ? (
-                    <button type="button" disabled={isBlocked} className="text-[10px] font-black text-[var(--accent-color)] uppercase tracking-widest hover:opacity-80 transition-opacity disabled:opacity-50">{action}</button>
+                    <button
+                        type="button"
+                        disabled={isBlocked}
+                        className="text-[10px] font-black text-[var(--accent-color)] uppercase tracking-widest hover:opacity-80 transition-opacity cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                        {action}
+                    </button>
                 ) : (
                     <ChevronRight size={16} className="text-[var(--text-muted)] group-hover:text-[var(--text-secondary)] transition-colors" />
                 )}
