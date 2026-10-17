@@ -130,7 +130,7 @@ export const InlinePromptInput = forwardRef<InlinePromptInputHandle, InlinePromp
         return empty;
     }, []);
 
-    // Extract text and context chips on demand
+    // Extract text and context chips on demand, converting rich DOM nodes into clean Markdown for AI
     const serializeEditor = useCallback(() => {
         if (!editorRef.current) {
             return { text: '', files: [], skills: [] };
@@ -138,52 +138,71 @@ export const InlinePromptInput = forwardRef<InlinePromptInputHandle, InlinePromp
 
         const files: { path: string; lineRange?: string; name: string }[] = [];
         const skills: string[] = [];
-        let result = '';
 
         const chipLookup = new Map<string, InlineChipData>();
         activeChips.forEach(c => chipLookup.set(c.id, c.data));
 
-        const traverse = (node: Node) => {
+        const serializeNode = (node: Node): string => {
             if (node.nodeType === Node.TEXT_NODE) {
-                result += node.textContent || '';
-            } else if (node.nodeType === Node.ELEMENT_NODE) {
-                const el = node as HTMLElement;
-                if (el.hasAttribute('data-context-chip-host')) {
-                    const chipId = el.getAttribute('data-chip-id');
-                    const chip = chipId ? chipLookup.get(chipId) : undefined;
-                    if (chip) {
-                        if (chip.type === 'file' || chip.type === 'folder') {
-                            const rawPath = chip.rawPath || chip.name || '';
-                            const tag = chip.lineRange ? `@[${rawPath}:${chip.lineRange}]` : `@[${rawPath}]`;
-                            result += ` ${tag} `;
-                            files.push({
-                                path: rawPath,
-                                lineRange: chip.lineRange,
-                                name: chip.name || extractBaseName(rawPath)
-                            });
-                        } else if (chip.type === 'skill') {
-                            const skillName = chip.name || chip.id;
-                            skills.push(skillName);
-                        }
-                    }
-                } else if (el.tagName === 'BR') {
-                    result += '\n';
-                } else if (el.tagName === 'DIV' || el.tagName === 'P') {
-                    const hasOnlyChips = el.querySelectorAll('[data-context-chip-host]').length > 0 && !el.innerText?.trim();
-                    if (result && !result.endsWith('\n') && !result.endsWith(' ') && !hasOnlyChips) {
-                        result += '\n';
-                    } else if (hasOnlyChips && result && !result.endsWith(' ')) {
-                        result += ' ';
-                    }
-                    el.childNodes.forEach(traverse);
-                } else {
-                    el.childNodes.forEach(traverse);
-                }
+                return node.textContent || '';
             }
+            if (node.nodeType !== Node.ELEMENT_NODE) {
+                return '';
+            }
+
+            const el = node as HTMLElement;
+
+            // 1. Context Chips
+            if (el.hasAttribute('data-context-chip-host')) {
+                const chipId = el.getAttribute('data-chip-id');
+                const chip = chipId ? chipLookup.get(chipId) : undefined;
+                if (chip) {
+                    if (chip.type === 'file' || chip.type === 'folder') {
+                        const rawPath = chip.rawPath || chip.name || '';
+                        const tag = chip.lineRange ? `@[${rawPath}:${chip.lineRange}]` : `@[${rawPath}]`;
+                        files.push({
+                            path: rawPath,
+                            lineRange: chip.lineRange,
+                            name: chip.name || extractBaseName(rawPath)
+                        });
+                        return ` ${tag} `;
+                    } else if (chip.type === 'skill') {
+                        const skillName = chip.name || chip.id;
+                        skills.push(skillName);
+                        return ` @[${skillName}] `;
+                    }
+                }
+                return '';
+            }
+
+            // 2. Line breaks
+            if (el.tagName === 'BR') {
+                return '\n';
+            }
+
+            // 3. Serialize children
+            let inner = '';
+            el.childNodes.forEach(child => {
+                inner += serializeNode(child);
+            });
+
+            if (el.tagName === 'DIV' || el.tagName === 'P') {
+                const hasOnlyChips = el.querySelectorAll('[data-context-chip-host]').length > 0 && !el.innerText?.trim();
+                if (hasOnlyChips) {
+                    return ` ${inner.trim()} `;
+                }
+                return `\n${inner}\n`;
+            }
+
+            return inner;
         };
 
-        editorRef.current.childNodes.forEach(traverse);
-        const cleanText = result.replace(/[ \t]+/g, ' ').replace(/\n\s*\n/g, '\n\n').trim();
+        let result = '';
+        editorRef.current.childNodes.forEach(child => {
+            result += serializeNode(child);
+        });
+
+        const cleanText = result.replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
         return { text: cleanText, files, skills };
     }, [activeChips]);
 
@@ -494,7 +513,7 @@ export const InlinePromptInput = forwardRef<InlinePromptInputHandle, InlinePromp
                     });
                     return;
                 }
-            } catch (err) {}
+            } catch (err) { }
         }
 
         // 2. Native OS files

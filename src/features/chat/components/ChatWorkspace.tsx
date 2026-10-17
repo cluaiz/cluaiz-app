@@ -1,4 +1,5 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import { currentChatPrefs } from '../../../store/chat/useChatPrefsStore';
 import { useLayoutStore } from '../../../store/ui/useLayoutStore';
 import { useThemeStore } from '../../../store/ui/useThemeStore';
 import { useEngineStore } from '../../../store/engine/useEngineStore';
@@ -20,7 +21,7 @@ import { LiveTelemetryBar } from './LiveTelemetryBar';
 import { useChatTelemetry } from '../hooks/useChatTelemetry';
 import { WorkspaceEditorPane } from '../../workspace';
 import { ResizableDivider } from '../../../components/ui/ResizableDivider';
-import { inferChatTopicAndEmoji } from '../../../utils/topicProber';
+import { useChatSend } from '../hooks/useChatSend';
 import { cluaizEngine } from '../../../core/engine';
 
 export function ChatWorkspace() {
@@ -32,7 +33,8 @@ export function ChatWorkspace() {
     const [isFilterOpen, setIsFilterOpen] = useState(false);
     const [activeFilter, setActiveFilter] = useState('All');
     const [dateRange, setDateRange] = useState<DateRange | undefined>();
-    const [isIncognito, setIsIncognito] = useState(false);
+    // "Save chat history" off in Settings → Chats & History: new chats start in Private Mode
+    const [isIncognito, setIsIncognito] = useState(() => !currentChatPrefs().saveHistory);
 
     const {
         activeSessionId,
@@ -65,6 +67,7 @@ export function ChatWorkspace() {
         }
     }, [isEngineOnline, fetchStatus]);
 
+    const telemetry = useChatTelemetry();
     const {
         breakdown,
         setBreakdown,
@@ -75,7 +78,7 @@ export function ChatWorkspace() {
         recordToken,
         endStreaming,
         recordToolExecution
-    } = useChatTelemetry();
+    } = telemetry;
 
     useEffect(() => {
         fetchContextTelemetry('default', activeSessionId || 'default');
@@ -146,7 +149,7 @@ export function ChatWorkspace() {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, [selectionMenu]);
 
-    const handleMessageContextMenu = (e: React.MouseEvent, index: number) => {
+    const handleMessageContextMenu = useCallback((e: React.MouseEvent, index: number) => {
         e.preventDefault();
         e.stopPropagation();
         const msg = messages[index];
@@ -158,7 +161,15 @@ export function ChatWorkspace() {
             isPinned: !!msg.pinned,
             isStarred: !!msg.isStarred
         });
-    };
+    }, [messages]);
+
+    const handleToggleSelect = useCallback((currentIndex: number) => {
+        setSelectedMessageIndices(prev =>
+            prev.includes(currentIndex)
+                ? prev.filter(i => i !== currentIndex)
+                : [...prev, currentIndex]
+        );
+    }, []);
 
     const handleMessageAction = (action: string, index: number) => {
         if (!activeSessionId) return;
@@ -353,232 +364,9 @@ main().catch(console.error);`);
         };
     }, []);
 
-    const handleSendMessage = async (customText?: string, options?: import('../../../core/engine').SendChatOptions) => {
-        const textToSend = typeof customText === 'string' ? customText : inputValue;
-        const hasAttachments = Boolean((options?.attachments && options.attachments.length > 0) || (options?.parts && options.parts.length > 0));
-        if (!textToSend.trim() && !replyingTo && !hasAttachments) return;
-        const messageText = textToSend || (replyingTo ? 'Replying to context...' : '');
-
-        // Dynamically boot the engine on the first send if "Load Model on Send" is enabled
-        const permissions = useEngineStore.getState().permissions;
-        if (permissions?.lazy_load_model) {
-            const { cluaizEngine } = await import('../../../core/engine');
-            await cluaizEngine.boot();
-        }
-
-        const now = new Date();
-        const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
-
-        const store = useChatStore.getState();
-        let sessionId = store.activeSessionId;
-
-        if (!sessionId) {
-            sessionId = store.createNewSession(isIncognito ? 'Temporary Chat' : undefined);
-            if (isIncognito) {
-                store.updateSession(sessionId, s => ({ ...s, isIncognito: true }));
-            }
-        } else if (isIncognito) {
-            store.updateSession(sessionId, s => ({ ...s, isIncognito: true }));
-        }
-
-        const replyContext = replyingTo ? {
-            text: replyingTo.text,
-            sender: (replyingTo.messageIndex !== undefined && messages[replyingTo.messageIndex]?.sender) || 'assistant'
-        } : undefined;
-
-        store.addMessage(sessionId, {
-            sender: 'user',
-            text: messageText,
-            replyTo: replyContext,
-            attachments: options?.attachments,
-            parts: options?.parts,
-            time: timeStr,
-            date: now.getTime()
-        });
-
-        // Instant optimistic assistant placeholder so bubble appears immediately
-        store.addMessage(sessionId, {
-            sender: 'assistant',
-            text: '',
-            thinking: '',
-            time: '',
-            date: now.getTime()
-        });
-
-        setInputValue('');
-        setReplyingTo(null);
-
-        try {
-            startStreaming();
-            // Build conversation history from the active session for context memory
-            const currentSession = useChatStore.getState().sessions[sessionId];
-            const filteredMsgs = currentSession?.messages
-                ?.filter(m => m.sender === 'user' || m.sender === 'assistant' || m.sender === 'system')
-                // Exclude empty pending placeholder from prompt payload
-                ?.filter(m => !(m.sender === 'assistant' && !m.text && !m.thinking))
-                ?.map(m => {
-                    let content: any = (m.parts && m.parts.length > 0) ? m.parts : m.text;
-                    if (m.sender === 'user' && m.replyTo?.text && typeof content === 'string') {
-                        content = `[In reply to: "${m.replyTo.text}"]\n\n${content}`;
-                    }
-                    return {
-                        role: m.sender === 'assistant' ? 'assistant' : m.sender === 'user' ? 'user' : 'system',
-                        content
-                    };
-                }) || [{ role: 'user', content: (options?.parts && options.parts.length > 0) ? options.parts : (replyContext ? `[In reply to: "${replyContext.text}"]\n\n${messageText}` : messageText) }];
-
-            // Conversation history matches Developer Hub directly without hardcoded system prompt
-            const conversationMessages = filteredMsgs;
-
-            const chatOptions = {
-                ...options,
-                session_id: sessionId,
-                messages: conversationMessages
-            };
-
-            let thinkingStartTime: number | null = null;
-            let thinkingDurationSec: string | undefined = undefined;
-
-            const promptToSend = replyContext ? `[In reply to: "${replyContext.text}"]\n\n${messageText}` : messageText;
-
-            const { cluaizEngine } = await import('../../../core/engine');
-            await cluaizEngine.send(promptToSend, chatOptions, (chunk) => {
-                const liveStore = useChatStore.getState();
-                if (chunk === '[DONE]') {
-                    const finalStats = endStreaming();
-                    const now = new Date();
-                    const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
-
-                    if (thinkingStartTime !== null && thinkingDurationSec === undefined) {
-                        thinkingDurationSec = ((performance.now() - thinkingStartTime) / 1000).toFixed(1);
-                    }
-
-                    if (finalStats && finalStats.tokens > 0) {
-                        liveStore.attachTelemetryToLastMessage(sessionId, finalStats);
-                    }
-                    const activeSess = liveStore.sessions[sessionId];
-                    if (activeSess?.messages && activeSess.messages.length > 0) {
-                        const lastIdx = activeSess.messages.length - 1;
-                        const lastMsg = activeSess.messages[lastIdx];
-                        liveStore.updateMessage(sessionId, lastIdx, m => ({
-                            ...m,
-                            ...(lastMsg && !lastMsg.time ? { time: timeStr } : {}),
-                            ...(thinkingDurationSec ? { thinkingDuration: thinkingDurationSec } : {})
-                        }));
-                        syncSessionTokens(activeSess.messages);
-
-                        // If title or avatar is still provisional/default, refine topic dynamically using full exchange
-                        if (activeSess.messages.length <= 2 && (!activeSess.title || activeSess.title === 'New Chat' || activeSess.avatar === '🤖' || activeSess.avatar === '💬')) {
-                            const firstUserMsg = activeSess.messages.find(m => m.sender === 'user')?.text || '';
-                            const assistantReply = lastMsg?.text || '';
-                            if (firstUserMsg) {
-                                const refined = inferChatTopicAndEmoji(firstUserMsg, assistantReply);
-                                liveStore.updateSession(sessionId, s => ({
-                                    ...s,
-                                    title: refined.title,
-                                    avatar: refined.emoji
-                                }));
-                            }
-                        }
-                    }
-                    liveStore.finalizeAssistantMessage(sessionId);
-                    return;
-                }
-
-                // If chunk has contextTelemetry from SSE
-                if (typeof chunk === 'object' && chunk.contextTelemetry) {
-                    const telemetry = chunk.contextTelemetry.context_breakdown || chunk.contextTelemetry;
-                    setBreakdown(telemetry);
-                    return;
-                }
-
-                // If chunk has permissionRequest
-                if (typeof chunk === 'object' && chunk.permissionRequest) {
-                    liveStore.setPermissionRequestOnLastMessage(sessionId, chunk.permissionRequest);
-                    return;
-                }
-
-                // If chunk has toolCall
-                if (typeof chunk === 'object' && chunk.toolCall) {
-                    liveStore.appendToolCallToLastMessage(sessionId, chunk.toolCall);
-                    recordToolExecution(chunk.toolCall.name, undefined, 'running', chunk.toolCall.category);
-                    return;
-                }
-
-                // If chunk has toolResult
-                if (typeof chunk === 'object' && chunk.toolResult) {
-                    liveStore.updateToolResultOnLastMessage(sessionId, chunk.toolResult);
-                    recordToolExecution(chunk.toolResult.name || 'tool', chunk.toolResult.latency_ms, 'completed', chunk.toolResult.category);
-                    return;
-                }
-
-                recordToken();
-
-                const reasoning = typeof chunk === 'object' ? chunk.reasoning : undefined;
-                const content = typeof chunk === 'object' ? chunk.content : chunk;
-
-                if (reasoning) {
-                    if (thinkingStartTime === null) {
-                        thinkingStartTime = performance.now();
-                    }
-                    liveStore.appendThinkingToLastMessage(sessionId, reasoning);
-                }
-                if (content) {
-                    if (thinkingStartTime !== null && thinkingDurationSec === undefined) {
-                        thinkingDurationSec = ((performance.now() - thinkingStartTime) / 1000).toFixed(1);
-                        const activeSess = liveStore.sessions[sessionId];
-                        if (activeSess?.messages && activeSess.messages.length > 0) {
-                            const lastIdx = activeSess.messages.length - 1;
-                            liveStore.updateMessage(sessionId, lastIdx, m => ({ ...m, thinkingDuration: thinkingDurationSec }));
-                        }
-                    }
-                    liveStore.appendTokenToLastMessage(sessionId, content);
-                }
-            });
-        } catch (error) {
-            endStreaming();
-            console.error("Engine connection error:", error);
-            const currentStore = useChatStore.getState();
-            if (currentStore.activeSessionId) {
-                const activeSess = currentStore.sessions[currentStore.activeSessionId];
-                if (activeSess?.messages && activeSess.messages.length > 0) {
-                    const lastIdx = activeSess.messages.length - 1;
-                    const lastMsg = activeSess.messages[lastIdx];
-                    // Clean up empty optimistic assistant placeholder so three green dots stop immediately
-                    if (lastMsg && lastMsg.sender === 'assistant' && !lastMsg.text && !lastMsg.thinking) {
-                        currentStore.deleteMessage(currentStore.activeSessionId, lastIdx);
-                    }
-                }
-
-                const { useConnectionStore } = await import('../../../store/engine/useConnectionStore');
-                const conn = useConnectionStore.getState();
-                const isNativeDesktop = typeof window !== 'undefined' && Boolean((window as any).__TAURI_INTERNALS__ || (window as any).__TAURI__);
-                const target = (conn.protocol === 'ffi' && isNativeDesktop) ? 'Native C-Pointer (FFI)' : `${conn.getBaseUrl()}/v1/chat/completions`;
-                const errDetail = error instanceof Error ? error.message : String(error);
-                currentStore.addMessage(currentStore.activeSessionId, {
-                    sender: 'system',
-                    text: `[System Error]: Failed to connect to Cluaiz Engine via ${target}. ${errDetail}`,
-                    time: timeStr,
-                    date: now.getTime()
-                });
-            }
-        } finally {
-            endStreaming();
-            // Ensure no empty orphaned assistant placeholder lingers if generation finishes empty
-            const currentStore = useChatStore.getState();
-            if (currentStore.activeSessionId) {
-                const activeSess = currentStore.sessions[currentStore.activeSessionId];
-                if (activeSess?.messages && activeSess.messages.length > 0) {
-                    const lastIdx = activeSess.messages.length - 1;
-                    const lastMsg = activeSess.messages[lastIdx];
-                    if (lastMsg && lastMsg.sender === 'assistant' && !lastMsg.text && !lastMsg.thinking && !lastMsg.toolCalls?.length) {
-                        currentStore.deleteMessage(currentStore.activeSessionId, lastIdx);
-                    }
-                }
-            }
-        }
-    };
-
+    const { handleSendMessage, processing } = useChatSend({
+        inputValue, setInputValue, replyingTo, setReplyingTo, isIncognito, messages, telemetry
+    });
     const handleStopStreaming = async () => {
         try {
             const { cluaizEngine } = await import('../../../core/engine');
@@ -589,14 +377,14 @@ main().catch(console.error);`);
         endStreaming();
     };
 
-    const handleSkipThinking = async () => {
+    const handleSkipThinking = useCallback(async () => {
         try {
             const { cluaizEngine } = await import('../../../core/engine');
             await cluaizEngine.skipThinking();
         } catch (e) {
             console.warn('[ChatWorkspace] Error skipping reasoning:', e);
         }
-    };
+    }, []);
 
     const filteredMessages = useMemo(() => {
         let result = messages;
@@ -758,7 +546,7 @@ main().catch(console.error);`);
                                                     const currentIndex = absoluteIndex++;
                                                     return (
                                                         <MessageBubble
-                                                            key={currentIndex}
+                                                            key={msg.id || currentIndex}
                                                             msg={msg}
                                                             index={currentIndex}
                                                             handleMessageContextMenu={handleMessageContextMenu}
@@ -766,15 +554,10 @@ main().catch(console.error);`);
                                                             onHighlightClick={setUnhighlightMenu}
                                                             isSelectionMode={isSelectionMode}
                                                             isSelected={selectedMessageIndices.includes(currentIndex)}
-                                                            onToggleSelect={() => {
-                                                                setSelectedMessageIndices(prev =>
-                                                                    prev.includes(currentIndex)
-                                                                        ? prev.filter(i => i !== currentIndex)
-                                                                        : [...prev, currentIndex]
-                                                                );
-                                                            }}
+                                                            onToggleSelect={() => handleToggleSelect(currentIndex)}
                                                             onSkipThinking={handleSkipThinking}
-                                                            isStreaming={liveStats.isStreaming}
+                                                            isStreaming={liveStats.isStreaming && msg.id === messages[messages.length - 1]?.id}
+                                                            processingLabel={processing?.sessionId === activeSessionId ? processing.label : undefined}
                                                         />
                                                     );
                                                 })}
@@ -801,7 +584,7 @@ main().catch(console.error);`);
                                     >
                                         <ChevronDown size={20} />
                                         {unreadCount > 0 && (
-                                            <span className="absolute -top-1 -right-1 bg-[var(--accent-color)] text-white text-[10px] font-bold min-w-[1.25rem] h-5 px-1 flex items-center justify-center rounded-full shadow-md">
+                                            <span className="absolute -top-1 -right-1 bg-[var(--accent-color)] text-[var(--accent-contrast, #ffffff)] text-[10px] font-bold min-w-[1.25rem] h-5 px-1 flex items-center justify-center rounded-full shadow-md">
                                                 {unreadCount > 99 ? '99+' : unreadCount}
                                             </span>
                                         )}
