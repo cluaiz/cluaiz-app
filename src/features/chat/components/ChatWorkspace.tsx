@@ -88,13 +88,20 @@ export function ChatWorkspace() {
     }, [activeSessionId, messages, fetchContextTelemetry, syncSessionTokens]);
 
     useEffect(() => {
+        // Opening a new chat leaves a normal chat answering in the background; a private one stops
+        const stopIfPrivate = () => {
+            const { streamingSessionId, sessions: all } = useChatStore.getState();
+            if (streamingSessionId && all[streamingSessionId]?.isIncognito) {
+                cluaizEngine.stop().catch(console.warn);
+            }
+        };
         const handleNewChat = () => {
-            cluaizEngine.stop().catch(console.warn);
+            stopIfPrivate();
             switchSession(null);
             setIsIncognito(false);
         };
         const handleNewPrivateChat = () => {
-            cluaizEngine.stop().catch(console.warn);
+            stopIfPrivate();
             switchSession(null);
             setIsIncognito(true);
         };
@@ -364,6 +371,10 @@ main().catch(console.error);`);
         };
     }, []);
 
+    // The engine may be answering another chat in the background: streaming UI only for its own chat
+    const streamingSessionId = useChatStore(s => s.streamingSessionId);
+    const streamingHere = liveStats.isStreaming && streamingSessionId === activeSessionId;
+
     const { handleSendMessage, processing } = useChatSend({
         inputValue, setInputValue, replyingTo, setReplyingTo, isIncognito, messages, telemetry
     });
@@ -410,7 +421,7 @@ main().catch(console.error);`);
         isHeaderVisible,
         handleScroll,
         scrollToBottom
-    } = useChatScroll({ messages: filteredMessages, isStreaming: liveStats.isStreaming });
+    } = useChatScroll({ messages: filteredMessages, isStreaming: streamingHere });
 
     useEffect(() => {
         const handleMouseMove = (e: MouseEvent) => {
@@ -458,8 +469,8 @@ main().catch(console.error);`);
                         >
                             <button
                                 onClick={() => {
-                                    cluaizEngine.stop().catch(console.warn);
                                     if (isIncognito && activeSessionId) {
+                                        cluaizEngine.stop().catch(console.warn);
                                         deleteSession(activeSessionId);
                                         switchSession(null);
                                     }
@@ -513,7 +524,7 @@ main().catch(console.error);`);
                                 replyingTo={replyingTo}
                                 setReplyingTo={setReplyingTo}
                                 isFloating={true}
-                                isStreaming={liveStats.isStreaming}
+                                isStreaming={streamingHere}
                                 onStopStreaming={handleStopStreaming}
                             />
                         </motion.div>
@@ -556,7 +567,7 @@ main().catch(console.error);`);
                                                             isSelected={selectedMessageIndices.includes(currentIndex)}
                                                             onToggleSelect={() => handleToggleSelect(currentIndex)}
                                                             onSkipThinking={handleSkipThinking}
-                                                            isStreaming={liveStats.isStreaming && msg.id === messages[messages.length - 1]?.id}
+                                                            isStreaming={streamingHere && msg.id === messages[messages.length - 1]?.id}
                                                             processingLabel={processing?.sessionId === activeSessionId ? processing.label : undefined}
                                                         />
                                                     );
@@ -579,12 +590,15 @@ main().catch(console.error);`);
                                         animate={{ opacity: 1, y: 0, scale: 1 }}
                                         exit={{ opacity: 0, y: 10, scale: 0.8 }}
                                         onClick={() => scrollToBottom()}
-                                        className="absolute right-6 -top-12 z-50 bg-[var(--bg-tertiary)] text-[var(--accent-color)] p-2 rounded-full shadow-2xl border border-[var(--border-color)] hover:bg-[var(--bg-secondary)] transition-colors"
+                                        className="absolute right-6 -top-12 z-50 bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] p-2 rounded-full shadow-2xl border border-[var(--border-color)] hover:bg-[var(--bg-secondary)] transition-colors cursor-pointer"
                                         style={{ borderStyle: 'var(--border-style)' }}
                                     >
                                         <ChevronDown size={20} />
                                         {unreadCount > 0 && (
-                                            <span className="absolute -top-1 -right-1 bg-[var(--accent-color)] text-[var(--accent-contrast, #ffffff)] text-[10px] font-bold min-w-[1.25rem] h-5 px-1 flex items-center justify-center rounded-full shadow-md">
+                                            <span
+                                                className="absolute -top-1 -right-1 bg-[var(--accent-color)] text-white text-[10px] font-bold min-w-[1.25rem] h-5 px-1 flex items-center justify-center rounded-full shadow-md pointer-events-none select-none"
+                                                style={{ color: 'var(--accent-contrast, #ffffff)' }}
+                                            >
                                                 {unreadCount > 99 ? '99+' : unreadCount}
                                             </span>
                                         )}
@@ -643,7 +657,7 @@ main().catch(console.error);`);
                                         handleSendMessage={handleSendMessage}
                                         replyingTo={replyingTo}
                                         setReplyingTo={setReplyingTo}
-                                        isStreaming={liveStats.isStreaming}
+                                        isStreaming={streamingHere}
                                         onStopStreaming={handleStopStreaming}
                                     />
                                     <LiveTelemetryBar
