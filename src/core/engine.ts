@@ -3,6 +3,7 @@ import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import { useEngineStore } from '../store/engine/useEngineStore';
 import { useConnectionStore } from '../store/engine/useConnectionStore';
 import { client, nativeApi, chatApi } from '../api';
+import type { ProcessingEvent } from '../api/engine/chat/chat.types';
 
 export interface EngineStatus {
     status: 'offline' | 'booting' | 'online' | 'error';
@@ -27,6 +28,8 @@ export const isNative = (): boolean => {
 export interface SendChatOptions {
     model?: string;
     session_id?: string;
+    /** 'lite' for a private chat: the engine keeps nothing of it on disk (no chat memory) */
+    temporary_chat?: 'lite' | 'strict';
     messages?: Array<{ role: string; content: string | any[] }>;
     think_mode?: 'auto' | 'on' | 'off' | string;
     reasoning_effort?: 'auto' | 'low' | 'medium' | 'high' | 'max' | string | number;
@@ -48,11 +51,35 @@ export interface ToolCallPayload {
     iconSvg?: string;
 }
 
+export interface EngineContextReport {
+    n_ctx: number;
+    prompt_tokens: number;
+    cache_n: number;
+    dropped_messages: number;
+    dropped_tokens: number;
+    shifted_tokens: number;
+    n_tokens: number;
+    truncated: boolean;
+    stop: 'eos' | 'limit' | 'cancel' | 'error' | string;
+}
+
 export interface StreamChunk {
     content?: string;
     reasoning?: string;
     contextTelemetry?: any;
     usage?: any;
+    processing?: ProcessingEvent;
+    engine?: {
+        context?: EngineContextReport;
+        timings?: any;
+        thinking?: any;
+        load?: any;
+    };
+    finishReason?: string;
+    error?: {
+        message: string;
+        type?: string;
+    };
     toolCall?: ToolCallPayload;
     toolResult?: {
         id: string;
@@ -208,13 +235,17 @@ export class cluaizEngine {
                 messages: (options?.messages && options.messages.length > 0)
                     ? options.messages
                     : [{ role: 'user', content: (options?.parts && options.parts.length > 0) ? options.parts : message }],
-                stream: true
+                stream: true,
+                return_progress: true
             };
             if (options?.model) {
                 payload.model = options.model;
             }
             if (options?.session_id) {
                 payload.session_id = options.session_id;
+            }
+            if (options?.temporary_chat) {
+                payload.temporary_chat = options.temporary_chat;
             }
             if (options?.think_mode) {
                 payload.think_mode = options.think_mode;
@@ -252,6 +283,27 @@ export class cluaizEngine {
                     } else if (parsed.stream_id) {
                         cluaizEngine.activeStreamId = parsed.stream_id;
                     }
+                    if (parsed.processing) {
+                        emitChunk({ processing: parsed.processing });
+                        return;
+                    }
+                    // 0. Handle engine context report (always sent at stream end)
+                    if (parsed.engine) {
+                        emitChunk({ engine: parsed.engine });
+                    }
+
+                    // 0b. Handle stream error (e.g. exceed_context_size_error)
+                    if (parsed.error) {
+                        emitChunk({ error: parsed.error });
+                        return;
+                    }
+
+                    // 0c. Handle finish_reason
+                    const finishReason = parsed.choices?.[0]?.finish_reason;
+                    if (finishReason) {
+                        emitChunk({ finishReason });
+                    }
+
                     if (parsed.usage?.context_telemetry) {
                         emitChunk({ contextTelemetry: parsed.usage.context_telemetry, usage: parsed.usage });
                     }
@@ -367,9 +419,10 @@ export class cluaizEngine {
                     cluaizEngine.activeStreamId = null;
                     emitChunk('[DONE]');
                 },
-                onError: () => {
+                onError: (error) => {
                     cluaizEngine.activeAbortController = null;
                     cluaizEngine.activeStreamId = null;
+                    emitChunk({ error: { message: error.message, type: error.statusText } });
                 }
             });
         }

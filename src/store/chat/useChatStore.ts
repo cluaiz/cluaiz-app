@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { currentChatPrefs } from './useChatPrefsStore';
 import { chatStorageManager } from '../../services/storage/ChatStorageManager';
 import { SessionIndexItem } from '../../services/storage/types';
 import { inferChatTopicAndEmoji } from '../../utils/topicProber';
@@ -48,6 +49,8 @@ export interface ChatMessage {
         text: string;
         sender?: string;
     };
+    finishReason?: string;
+    contextReport?: any;
 }
 
 export interface ChatSession {
@@ -60,6 +63,8 @@ export interface ChatSession {
     pinnedAt?: number;
     favourite: boolean;
     archived: boolean;
+    /** When the chat was archived; the archive delete timer counts from here */
+    archivedAt?: number;
     muted: boolean;
     createdAt: number;
     updatedAt: number;
@@ -67,6 +72,8 @@ export interface ChatSession {
     lastMessagePreview?: string;
     messageCount?: number;
     isIncognito?: boolean;
+    lastEngineContext?: any;
+    droppedBoundaryMessageId?: string;
 }
 
 interface ChatStore {
@@ -77,7 +84,8 @@ interface ChatStore {
 
     // Actions
     hydrateFromStorage: () => Promise<void>;
-    createNewSession: (initialTitle?: string) => string;
+    /** `incognito` = a private chat that is never written to storage */
+    createNewSession: (initialTitle?: string, options?: { incognito?: boolean }) => string;
     switchSession: (sessionId: string | null) => Promise<void>;
     deleteSession: (sessionId: string) => void;
     finalizeAssistantMessage: (sessionId: string) => Promise<void>;
@@ -118,6 +126,8 @@ interface ChatStore {
     deleteMessage: (sessionId: string, messageIndex: number) => void;
     updateSession: (sessionId: string, updater: (session: ChatSession) => ChatSession) => void;
     fetchSessionsFromEngine: () => Promise<void>;
+    setSessionEngineContext: (sessionId: string, context: any, boundaryId?: string) => void;
+    setLastMessageFinishReason: (sessionId: string, finishReason: string) => void;
 }
 
 const generateId = () => Math.random().toString(36).substring(2, 15);
@@ -144,6 +154,7 @@ const syncIndexToStorage = (sessions: Record<string, ChatSession>, activeId: str
             pinnedAt: s.pinnedAt,
             favourite: s.favourite,
             archived: s.archived,
+            archivedAt: s.archivedAt,
             muted: s.muted,
             createdAt: s.createdAt,
             updatedAt: s.updatedAt,
@@ -160,6 +171,8 @@ const syncIndexToStorage = (sessions: Record<string, ChatSession>, activeId: str
 };
 
 const syncSessionMeta = (session: ChatSession) => {
+    // Private chats are never written to storage
+    if (session.isIncognito) return;
     chatStorageManager.saveSessionMetadata(session.id, {
         id: session.id,
         title: session.title,
@@ -171,6 +184,7 @@ const syncSessionMeta = (session: ChatSession) => {
         pinnedAt: session.pinnedAt,
         favourite: session.favourite,
         archived: session.archived,
+        archivedAt: session.archivedAt,
         muted: session.muted
     }).catch(err => console.warn("[ChatStore] Failed to save session metadata:", err));
 };
@@ -212,6 +226,7 @@ export const useChatStore = create<ChatStore>()(
                             pinnedAt: s.pinnedAt,
                             favourite: Boolean(s.favourite),
                             archived: Boolean(s.archived),
+                            archivedAt: s.archivedAt,
                             muted: Boolean(s.muted),
                             createdAt: s.createdAt || Date.now(),
                             updatedAt: s.updatedAt || Date.now(),
@@ -282,7 +297,7 @@ export const useChatStore = create<ChatStore>()(
             }
         },
 
-        createNewSession: (initialTitle?: string) => {
+        createNewSession: (initialTitle?: string, options?: { incognito?: boolean }) => {
             const id = generateId();
             const newSession: ChatSession = {
                 id,
@@ -297,6 +312,7 @@ export const useChatStore = create<ChatStore>()(
                 createdAt: Date.now(),
                 updatedAt: Date.now(),
                 messages: [],
+                isIncognito: options?.incognito || undefined,
             };
 
             const updatedSessions = { ...get().sessions, [id]: newSession };
@@ -370,6 +386,11 @@ export const useChatStore = create<ChatStore>()(
                 cluaizEngine.deleteSession(sessionId).catch(console.error);
             }).catch(() => {});
 
+            // The engine's saved model memory (KV cache) of this chat goes with it
+            import('../../api/engine/chat-memory').then(({ chatMemoryApi }) => {
+                chatMemoryApi.deleteChat(sessionId).catch(() => {});
+            }).catch(() => {});
+
             set((state) => {
                 const newSessions = { ...state.sessions };
                 delete newSessions[sessionId];
@@ -408,10 +429,27 @@ export const useChatStore = create<ChatStore>()(
                     metaChanged = true;
                 }
 
+                // A new message in an archived chat follows the history preference
+                let archived = session.archived;
+                let archivedAt = session.archivedAt;
+                if (session.archived && message.sender === 'user') {
+                    const activity = currentChatPrefs().archivedActivity;
+                    if (activity === 'unarchive') {
+                        archived = false;
+                        archivedAt = undefined;
+                        metaChanged = true;
+                    } else if (activity === 'reset') {
+                        archivedAt = Date.now();
+                        metaChanged = true;
+                    }
+                }
+
                 const updatedSession: ChatSession = {
                     ...session,
                     title,
                     avatar,
+                    archived,
+                    archivedAt,
                     updatedAt: Date.now(),
                     messages: [...session.messages, newMessage]
                 };
@@ -430,8 +468,8 @@ export const useChatStore = create<ChatStore>()(
                 };
             });
 
-            // Reviewer Option A: Persist user message immediately on dispatch
-            if (message.sender === 'user' && (message.text || message.attachments?.length || message.parts?.length)) {
+            // Reviewer Option A: Persist user message immediately on dispatch (never for private chats)
+            if (!get().sessions[sessionId]?.isIncognito && message.sender === 'user' && (message.text || message.attachments?.length || message.parts?.length)) {
                 chatStorageManager.appendMessage(sessionId, newMessage)
                     .then(() => {
                         syncIndexToStorage(get().sessions, get().activeSessionId);
@@ -446,6 +484,7 @@ export const useChatStore = create<ChatStore>()(
             const session = get().sessions[sessionId];
             if (!session || session.messages.length === 0) return;
 
+            if (session.isIncognito) return;
             const lastMsg = session.messages[session.messages.length - 1];
             if (!lastMsg || lastMsg.sender !== 'assistant') return;
 
@@ -776,6 +815,13 @@ export const useChatStore = create<ChatStore>()(
                 const session = state.sessions[sessionId];
                 if (!session) return state;
                 updatedSession = updater(session);
+                // Archive time: set when a chat is archived, cleared when it comes back
+                if (updatedSession.archived !== session.archived) {
+                    updatedSession = {
+                        ...updatedSession,
+                        archivedAt: updatedSession.archived ? Date.now() : undefined
+                    };
+                }
                 updatedSessionsMap = {
                     ...state.sessions,
                     [sessionId]: updatedSession
@@ -789,13 +835,55 @@ export const useChatStore = create<ChatStore>()(
                 syncSessionMeta(updatedSession);
                 syncIndexToStorage(updatedSessionsMap || get().sessions, get().activeSessionId);
             }
+        },
+
+        setSessionEngineContext: (sessionId, context, boundaryId) => {
+            set((state) => {
+                const session = state.sessions[sessionId];
+                if (!session) return state;
+                return {
+                    sessions: {
+                        ...state.sessions,
+                        [sessionId]: {
+                            ...session,
+                            lastEngineContext: context,
+                            droppedBoundaryMessageId: boundaryId !== undefined ? boundaryId : session.droppedBoundaryMessageId
+                        }
+                    }
+                };
+            });
+        },
+
+        setLastMessageFinishReason: (sessionId, finishReason) => {
+            set((state) => {
+                const session = state.sessions[sessionId];
+                if (!session || session.messages.length === 0) return state;
+                const lastIdx = session.messages.length - 1;
+                const updatedMessages = [...session.messages];
+                updatedMessages[lastIdx] = {
+                    ...updatedMessages[lastIdx],
+                    finishReason
+                };
+                return {
+                    sessions: {
+                        ...state.sessions,
+                        [sessionId]: {
+                            ...session,
+                            messages: updatedMessages
+                        }
+                    }
+                };
+            });
         }
     })
 );
 
 if (typeof window !== 'undefined') {
-    // Proactively hydrate chat sessions catalog on app startup
+    // Proactively hydrate chat sessions catalog on app startup, then apply the history preferences
     setTimeout(() => {
-        useChatStore.getState().hydrateFromStorage();
+        useChatStore.getState().hydrateFromStorage()
+            .then(() => import('../../services/storage/chatRetentionRunner'))
+            .then(({ startChatRetention }) => startChatRetention())
+            .catch(err => console.warn('[ChatStore] Chat history cleanup could not start:', err));
     }, 0);
 }

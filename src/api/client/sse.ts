@@ -65,6 +65,10 @@ export async function streamSse(
     });
   } catch (err: unknown) {
     const isAbort = (err as Error)?.name === 'AbortError';
+    if (isAbort) {
+      options.onDone?.();
+      return;
+    }
     const apiErr = new ApiError(
       isAbort ? 'Chat stream cancelled by user' : `Failed to connect to stream: ${(err as Error)?.message || String(err)}`,
       0,
@@ -80,7 +84,7 @@ export async function streamSse(
     try {
       const errJson = await response.json();
       if (errJson?.message) errorMsg = errJson.message;
-      else if (errJson?.error) errorMsg = typeof errJson.error === 'string' ? errJson.error : JSON.stringify(errJson.error);
+      else if (errJson?.error) errorMsg = typeof errJson.error === 'string' ? errJson.error : (errJson.error.message || JSON.stringify(errJson.error));
     } catch {
       // Non-JSON response
     }
@@ -114,34 +118,28 @@ export async function streamSse(
 
         const dataStr = trimmed.slice(5).trim();
         if (dataStr === '[DONE]') {
-          options.onDone?.();
           return;
         }
 
+        let parsed: SseCompletionChunk;
         try {
-          const parsed = JSON.parse(dataStr) as SseCompletionChunk;
-          options.onEvent?.(parsed);
-
-          const delta = parsed.choices?.[0]?.delta;
-          if (delta) {
-            if (delta.reasoning_content && options.onReasoning) {
-              options.onReasoning(delta.reasoning_content);
-            }
-            if (delta.content && options.onToken) {
-              options.onToken(delta.content);
-            }
-          }
+          parsed = JSON.parse(dataStr) as SseCompletionChunk;
         } catch {
           // If raw text chunk rather than JSON
           if (options.onToken) {
             options.onToken(dataStr);
           }
+          continue;
         }
+        options.onEvent?.(parsed);
+        const delta = parsed.choices?.[0]?.delta;
+        if (delta?.reasoning_content) options.onReasoning?.(delta.reasoning_content);
+        if (delta?.content) options.onToken?.(delta.content);
       }
     }
+    throw new Error('Engine stream ended before [DONE]');
   } catch (readErr: unknown) {
     if ((readErr as Error)?.name === 'AbortError') {
-      options.onDone?.();
       return;
     }
     const apiErr = new ApiError(
