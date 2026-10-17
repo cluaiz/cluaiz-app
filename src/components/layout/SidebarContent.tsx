@@ -103,43 +103,7 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
     const [addMenuCoords, setAddMenuCoords] = useState({ x: 0, y: 0 });
     const plusBtnRef = useRef<HTMLButtonElement>(null);
 
-    // 🚀 Collapsed Sidebar Floating Flyout State
-    const [isFlyoutOpen, setIsFlyoutOpen] = useState(false);
-    const flyoutCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const flyoutRef = useRef<HTMLDivElement>(null);
-
-    const handleFlyoutOpen = () => {
-        if (flyoutCloseTimerRef.current) {
-            clearTimeout(flyoutCloseTimerRef.current);
-            flyoutCloseTimerRef.current = null;
-        }
-        setIsFlyoutOpen(true);
-    };
-
-    const handleFlyoutLeave = () => {
-        if (flyoutCloseTimerRef.current) clearTimeout(flyoutCloseTimerRef.current);
-        flyoutCloseTimerRef.current = setTimeout(() => {
-            setIsFlyoutOpen(false);
-        }, 220);
-    };
-
-    useEffect(() => {
-        if (!isFlyoutOpen) return;
-        const handleClickOutside = (e: MouseEvent) => {
-            if (flyoutRef.current && !flyoutRef.current.contains(e.target as Node)) {
-                setIsFlyoutOpen(false);
-            }
-        };
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === 'Escape') setIsFlyoutOpen(false);
-        };
-        document.addEventListener('mousedown', handleClickOutside);
-        document.addEventListener('keydown', handleKeyDown);
-        return () => {
-            document.removeEventListener('mousedown', handleClickOutside);
-            document.removeEventListener('keydown', handleKeyDown);
-        };
-    }, [isFlyoutOpen]);
+    // 🚀 Collapsed Sidebar Floating Flyout State (declared below modal states for closure safety)
 
     // 💬 Dynamic interactive chats state matching screenshot visual layouts
     const { sessions, activeSessionId, switchSession, updateSession, deleteSession } = useChatStore();
@@ -317,6 +281,62 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
         initialName: string;
         initialEmoji: string;
     } | null>(null);
+
+    // 🚀 Collapsed Sidebar Floating Flyout State
+    const [isFlyoutOpen, setIsFlyoutOpen] = useState(false);
+    const flyoutCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const flyoutRef = useRef<HTMLDivElement>(null);
+
+    const handleFlyoutOpen = () => {
+        if (flyoutCloseTimerRef.current) {
+            clearTimeout(flyoutCloseTimerRef.current);
+            flyoutCloseTimerRef.current = null;
+        }
+        setIsFlyoutOpen(true);
+    };
+
+    const handleFlyoutLeave = () => {
+        // Guard: Do not auto-close flyout if user is interacting with context menu or modals
+        if (contextMenu !== null || isLabelModalOpen || editModalData?.isOpen) {
+            return;
+        }
+        if (flyoutCloseTimerRef.current) clearTimeout(flyoutCloseTimerRef.current);
+        flyoutCloseTimerRef.current = setTimeout(() => {
+            setIsFlyoutOpen(false);
+        }, 220);
+    };
+
+    useEffect(() => {
+        if (!isFlyoutOpen) return;
+        const handleClickOutside = (e: MouseEvent) => {
+            // Guard: Do not close flyout if clicking inside context menu or child modals
+            if (contextMenu !== null || isLabelModalOpen || editModalData?.isOpen) {
+                return;
+            }
+            if (flyoutRef.current && !flyoutRef.current.contains(e.target as Node)) {
+                setIsFlyoutOpen(false);
+            }
+        };
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                if (contextMenu) {
+                    setContextMenu(null);
+                } else if (isLabelModalOpen) {
+                    setIsLabelModalOpen(false);
+                } else if (editModalData?.isOpen) {
+                    setEditModalData(null);
+                } else {
+                    setIsFlyoutOpen(false);
+                }
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        document.addEventListener('keydown', handleKeyDown);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+            document.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [isFlyoutOpen, contextMenu, isLabelModalOpen, editModalData]);
 
     // ✅ Select Mode State
     const [selectMode, setSelectMode] = useState(false);
@@ -587,8 +607,8 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                                         }
                                     }}
                                     className={`flex items-center gap-2 px-2.5 py-2 rounded-xl transition-all duration-150 cursor-pointer group relative overflow-hidden select-none ${isSelected
-                                        ? 'bg-[var(--accent-color)]/10 text-[var(--accent-color)] font-semibold'
-                                        : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]/70'
+                                        ? 'bg-[var(--accent-color)]/10 text-[var(--accent-color)] font-semibold border border-[var(--accent-color)]/25'
+                                        : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]/70 border border-transparent'
                                         } ${chat.archived ? 'opacity-[0.6]' : ''}`}
                                 >
                                     {/* Ribbon Tag overlay sticker */}
@@ -599,11 +619,11 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                                     {/* Checkbox in select mode */}
                                     {selectMode && (
                                         <div className={`w-4 h-4 rounded-md flex items-center justify-center border transition-all shrink-0 ${selectedIds.has(chat.id)
-                                            ? 'bg-[var(--accent-color)] border-[var(--accent-color)]'
-                                            : 'border-[var(--border-color)] bg-[var(--bg-tertiary)]/50'
+                                            ? 'bg-[var(--accent-color)] border-[var(--accent-color)] shadow-sm'
+                                            : 'border-[var(--text-muted)]/35 hover:border-[var(--text-secondary)] bg-[var(--bg-tertiary)]/80'
                                             }`}>
                                             {selectedIds.has(chat.id) && (
-                                                <CheckCheck className="w-3 h-3 text-white" />
+                                                <CheckCheck className="w-3 h-3 text-[var(--accent-contrast)]" />
                                             )}
                                         </div>
                                     )}
@@ -693,7 +713,7 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                                 setChats(prev => prev.filter(c => !selectedIds.has(c.id)));
                                 exitSelectMode();
                             }}
-                            className="flex items-center justify-center gap-2 py-2.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-[11px] font-black uppercase tracking-wider rounded-lg transition-colors cursor-pointer"
+                            className="flex items-center justify-center gap-2 py-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 text-[11px] font-black uppercase tracking-wider rounded-lg transition-colors cursor-pointer"
                         >
                             <Trash2 className="w-3.5 h-3.5" />
                             DELETE
