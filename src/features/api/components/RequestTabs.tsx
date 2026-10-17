@@ -233,7 +233,7 @@ export const RequestTabs: React.FC = () => {
                                                 onClick={() => setActiveSnippetLang(ex.language)}
                                                 className={`px-2.5 py-1 text-xs rounded-md font-medium transition-colors cursor-pointer ${
                                                     isSelected
-                                                        ? 'bg-[var(--accent-color)] text-white shadow-sm'
+                                                        ? 'bg-[var(--accent-color)] text-[var(--accent-contrast, #ffffff)] shadow-sm'
                                                         : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-white/[0.04]'
                                                 }`}
                                             >

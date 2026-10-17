@@ -8,12 +8,12 @@ import { CustomDropdown, DropdownOption } from '../../components/ui/dropdown/Cus
 import { Loader2 } from 'lucide-react';
 
 const DESC_CONTEXT: Record<string, string> = {
-    'Auto': 'System dynamically balances memory consumption and chat history retention.',
-    'Off': 'Disables dynamic memory compression. The engine may crash if the conversation becomes excessively long.',
-    'Minimal': 'Only retains the current topic and flushes older context (Saves maximum RAM).',
-    'Standard': 'Best balance for everyday chats. Retains important older messages while freeing up unused memory.',
-    'Aggressive': 'Attempts to compress and retain the entire conversation history. Requires higher CPU processing power.',
-    'Extreme': 'Retains absolute context without forgetting. Demands maximum CPU and memory resources.'
+    'Auto': 'When a chat outgrows the context, the oldest turns are left out automatically: only as much as needed.',
+    'Off': 'Nothing is left out. A chat longer than the context shows an error, like llama.cpp.',
+    'Minimal': 'Leaves out the oldest turns, at least 5% of the context at a time (remembers the most).',
+    'Standard': 'Leaves out the oldest turns, at least 10% of the context at a time.',
+    'Aggressive': 'Leaves out the oldest turns, at least 25% of the context at a time (fewer reprocessing pauses).',
+    'Extreme': 'Leaves out the oldest turns, half the context at a time (fastest, forgets the most).'
 };
 
 const DESC_BRAIN_MODE = (active: boolean) => active ? 'Enabled: LLM is completely turned off. Only database and tools will run.' : 'Disabled: Normal mode. Generative AI is active.';

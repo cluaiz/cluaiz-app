@@ -109,7 +109,7 @@ export const EngineOfflineGuard: React.FC<EngineOfflineGuardProps> = ({ children
                         <button
                             type="button"
                             onClick={() => usePermissionStore.getState().setAuthModalOpen(true)}
-                            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold bg-[var(--accent-color)] text-white hover:opacity-90 transition-all shadow-md cursor-pointer"
+                            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold ui-btn-primary shadow-md cursor-pointer"
                         >
                             <Key className="w-4 h-4" />
                             Enter Token
@@ -118,7 +118,7 @@ export const EngineOfflineGuard: React.FC<EngineOfflineGuardProps> = ({ children
                         <button
                             type="button"
                             onClick={() => setIsPortModalOpen(true)}
-                            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[var(--text-primary)] hover:bg-white/5 transition-all cursor-pointer"
+                            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold ui-btn-secondary cursor-pointer"
                         >
                             <Network className="w-4 h-4" />
                             Change Port
@@ -128,7 +128,7 @@ export const EngineOfflineGuard: React.FC<EngineOfflineGuardProps> = ({ children
                             type="button"
                             onClick={handleRetry}
                             disabled={isActionLoading}
-                            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[var(--text-primary)] hover:bg-white/5 transition-all disabled:opacity-50 cursor-pointer"
+                            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold ui-btn-secondary cursor-pointer"
                         >
                             <RefreshCw className={`w-4 h-4 ${isActionLoading ? 'animate-spin' : ''}`} />
                             Retry Connection
@@ -162,7 +162,7 @@ export const EngineOfflineGuard: React.FC<EngineOfflineGuardProps> = ({ children
                         type="button"
                         onClick={handleStartEngine}
                         disabled={isActionLoading}
-                        className="flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-semibold bg-[var(--accent-color)] text-white hover:opacity-90 transition-all shadow-md disabled:opacity-50 cursor-pointer"
+                        className="flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-semibold ui-btn-primary shadow-md cursor-pointer"
                     >
                         {isActionLoading ? (
                             <Loader2 className="w-4 h-4 animate-spin" />
@@ -176,7 +176,7 @@ export const EngineOfflineGuard: React.FC<EngineOfflineGuardProps> = ({ children
                         type="button"
                         onClick={() => setIsPortModalOpen(true)}
                         disabled={isActionLoading}
-                        className="flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-semibold bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[var(--text-primary)] hover:bg-white/5 transition-all disabled:opacity-50 cursor-pointer"
+                        className="flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-semibold ui-btn-secondary cursor-pointer"
                     >
                         <Network className="w-4 h-4" />
                         Change Port
@@ -186,7 +186,7 @@ export const EngineOfflineGuard: React.FC<EngineOfflineGuardProps> = ({ children
                         type="button"
                         onClick={handleRetry}
                         disabled={isActionLoading}
-                        className="flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-semibold bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[var(--text-primary)] hover:bg-white/5 transition-all disabled:opacity-50 cursor-pointer"
+                        className="flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-semibold ui-btn-secondary cursor-pointer"
                     >
                         <RefreshCw className={`w-4 h-4 ${isActionLoading ? 'animate-spin' : ''}`} />
                         Retry Connection
@@ -195,7 +195,7 @@ export const EngineOfflineGuard: React.FC<EngineOfflineGuardProps> = ({ children
                     <button
                         type="button"
                         onClick={() => usePermissionStore.getState().setAuthModalOpen(true)}
-                        className="flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-semibold bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/5 transition-all cursor-pointer"
+                        className="flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-semibold ui-btn-secondary cursor-pointer"
                         title="Enter API Bearer Token"
                     >
                         <Key className="w-4 h-4" />

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { toast } from '../../../components/ui/toast';
 import type { Dispatch, SetStateAction } from 'react';
 import { useChatStore } from '../../../store/chat/useChatStore';
 import type { ChatMessage } from '../../../store/chat/useChatStore';
@@ -34,6 +35,14 @@ export function useChatSend({ inputValue, setInputValue, replyingTo, setReplying
 
         const store = useChatStore.getState();
         let sessionId = store.activeSessionId;
+
+        // The engine answers one chat at a time: another chat's answer must finish (or be stopped) first
+        const busy = store.streamingSessionId;
+        if (busy && busy !== sessionId) {
+            const title = store.sessions[busy]?.title || 'another chat';
+            toast.info(`"${title}" is still answering. Wait for it to finish, or open it and stop it.`);
+            return;
+        }
 
         if (!sessionId) {
             sessionId = store.createNewSession(isIncognito ? 'Temporary Chat' : undefined, { incognito: isIncognito });
@@ -89,6 +98,7 @@ export function useChatSend({ inputValue, setInputValue, replyingTo, setReplying
 
         try {
             startStreaming();
+            useChatStore.getState().setStreamingSession(sessionId);
             setProcessing({ sessionId, label: 'Waiting for engine' });
             if (useEngineStore.getState().permissions?.lazy_load_model) {
                 const { cluaizEngine } = await import('../../../core/engine');
@@ -235,6 +245,9 @@ export function useChatSend({ inputValue, setInputValue, replyingTo, setReplying
             failRequest(errorMessage(error));
         } finally {
             endStreaming();
+            if (useChatStore.getState().streamingSessionId === sessionId) {
+                useChatStore.getState().setStreamingSession(null);
+            }
             setProcessing(current => current?.sessionId === sessionId ? null : current);
             // Remove an empty assistant row after cancellation or empty completion.
             const currentStore = useChatStore.getState();

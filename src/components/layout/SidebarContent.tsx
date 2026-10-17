@@ -107,6 +107,7 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
 
     // 💬 Dynamic interactive chats state matching screenshot visual layouts
     const { sessions, activeSessionId, switchSession, updateSession, deleteSession } = useChatStore();
+    const streamingSessionId = useChatStore(s => s.streamingSessionId);
     
     const chats = useMemo(() => {
         return Object.values(sessions).filter(s => !s.isIncognito).map(session => {
@@ -632,6 +633,11 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                                     <span className="text-xs truncate flex-1 leading-relaxed">
                                         {chat.name}
                                     </span>
+                                    {streamingSessionId === chat.id && (
+                                        <span className="text-[10px] font-semibold text-[var(--accent-color)] animate-pulse shrink-0">
+                                            typing…
+                                        </span>
+                                    )}
 
                                     {/* Right side indicators & three-dots menu */}
                                     <div className="flex items-center gap-1 shrink-0">

@@ -81,6 +81,9 @@ interface ChatStore {
     activeSessionId: string | null;
     isHydrated: boolean;
     isLoadingMessages: boolean;
+    /** Chat whose answer is being generated now (it keeps streaming while another chat is open) */
+    streamingSessionId: string | null;
+    setStreamingSession: (sessionId: string | null) => void;
 
     // Actions
     hydrateFromStorage: () => Promise<void>;
@@ -209,6 +212,8 @@ export const useChatStore = create<ChatStore>()(
         activeSessionId: null,
         isHydrated: false,
         isLoadingMessages: false,
+        streamingSessionId: null,
+        setStreamingSession: (sessionId) => set({ streamingSessionId: sessionId }),
 
         hydrateFromStorage: async () => {
             try {
@@ -328,7 +333,9 @@ export const useChatStore = create<ChatStore>()(
 
         switchSession: async (sessionId: string | null) => {
             const currentGen = ++sessionSwitchGeneration;
-            if (get().activeSessionId !== sessionId) {
+            // A normal chat keeps answering in the background; leaving a private chat stops its answer
+            const streaming = get().streamingSessionId;
+            if (get().activeSessionId !== sessionId && streaming && get().sessions[streaming]?.isIncognito) {
                 try {
                     const { cluaizEngine } = await import('../../core/engine');
                     await cluaizEngine.stop();
