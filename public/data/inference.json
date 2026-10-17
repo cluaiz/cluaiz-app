@@ -334,6 +334,100 @@
       ]
     },
     {
+      "method": "GET",
+      "path": "/v1/chat/memory",
+      "desc": "Chat memory status: settings, disk used and every saved chat (its KV cache on disk), most recently used first.",
+      "docs_url": "/docs/api/inference/chat_memory.md",
+      "params": [],
+      "request_payload": "",
+      "response": "{\n  \"settings\": {\n    \"enabled\": true,\n    \"max_disk_gb\": 5.0,\n    \"max_age_days\": 30\n  },\n  \"directory\": \"C:\\\\Users\\\\me\\\\.cluaiz\\\\kv_cache\\\\chats\",\n  \"bytes\": 84857483,\n  \"chats\": [\n    {\n      \"chat_id\": \"chat_A\",\n      \"model\": \"C:\\\\Users\\\\me\\\\.cluaiz\\\\models\\\\chat\\\\bonsai-4b-gguf-q1_0\\\\Bonsai-4B-Q1_0.gguf\",\n      \"key\": \"<model path>|<load settings>|file=<bytes>:<modified>|kv=Kv8\",\n      \"tokens\": 933,\n      \"positions\": 933,\n      \"bytes\": 73103783,\n      \"saved_at\": 1792213500,\n      \"last_used\": 1792213500\n    }\n  ]\n}",
+      "examples": [
+        {
+          "language": "curl",
+          "title": "cURL",
+          "code": "curl http://localhost:8000/v1/chat/memory \\\n  -H 'Authorization: Bearer <token>'"
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/v1/chat/memory/settings",
+      "desc": "Changes chat memory settings (enabled, max_disk_gb, max_age_days). The disk and age limits apply at once.",
+      "docs_url": "/docs/api/inference/chat_memory.md",
+      "params": [
+        {
+          "name": "enabled",
+          "type": "boolean",
+          "req": false,
+          "desc": "Save and restore each chat's KV cache.",
+          "default": true
+        },
+        {
+          "name": "max_disk_gb",
+          "type": "number",
+          "req": false,
+          "desc": "Disk the saved chats may use; least recently used are removed first.",
+          "default": 5
+        },
+        {
+          "name": "max_age_days",
+          "type": "integer",
+          "req": false,
+          "desc": "Remove saved chats unused for this many days (0 = only the disk limit).",
+          "default": 30
+        }
+      ],
+      "request_payload": "{\n  \"max_disk_gb\": 2,\n  \"max_age_days\": 7\n}",
+      "response": "{\n  \"settings\": {\n    \"enabled\": true,\n    \"max_disk_gb\": 2.0,\n    \"max_age_days\": 7\n  },\n  \"bytes\": 84857483\n}",
+      "examples": [
+        {
+          "language": "curl",
+          "title": "cURL",
+          "code": "curl -X POST http://localhost:8000/v1/chat/memory/settings \\\n  -H 'Authorization: Bearer <token>' \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"max_disk_gb\": 2, \"max_age_days\": 7}'"
+        }
+      ]
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/chat/memory/{chat_id}",
+      "desc": "Forgets one chat's saved memory (call it when the chat is deleted). The chat's messages are not affected.",
+      "docs_url": "/docs/api/inference/chat_memory.md",
+      "params": [
+        {
+          "name": "chat_id",
+          "type": "string",
+          "req": true,
+          "desc": "The session_id the chat sent with its requests.",
+          "default": "chat_A"
+        }
+      ],
+      "request_payload": "",
+      "response": "{\n  \"chat_id\": \"chat_A\",\n  \"deleted\": true\n}",
+      "examples": [
+        {
+          "language": "curl",
+          "title": "cURL",
+          "code": "curl -X DELETE http://localhost:8000/v1/chat/memory/chat_A \\\n  -H 'Authorization: Bearer <token>'"
+        }
+      ]
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/chat/memory",
+      "desc": "Forgets every saved chat memory. Chats and messages kept by the client are not affected.",
+      "docs_url": "/docs/api/inference/chat_memory.md",
+      "params": [],
+      "request_payload": "",
+      "response": "{\n  \"deleted\": 2\n}",
+      "examples": [
+        {
+          "language": "curl",
+          "title": "cURL",
+          "code": "curl -X DELETE http://localhost:8000/v1/chat/memory \\\n  -H 'Authorization: Bearer <token>'"
+        }
+      ]
+    },
+    {
       "method": "POST",
       "path": "/v1/embeddings",
       "desc": "OpenAI-compatible multimodal dense vector embedding endpoint. Encodes text chunks, search queries, or visual assets into normalized float vectors.",
