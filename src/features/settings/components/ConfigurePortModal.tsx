@@ -242,7 +242,7 @@ export const ConfigurePortModal: React.FC<ConfigurePortModalProps> = ({
                             <button
                                 type="submit"
                                 disabled={isTesting}
-                                className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold bg-[var(--accent-color)] text-white hover:opacity-90 transition-all shadow-md disabled:opacity-50 cursor-pointer"
+                                className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold ui-btn-primary shadow-md cursor-pointer"
                             >
                                 {isTesting ? (
                                     <RefreshCw className="w-3.5 h-3.5 animate-spin" />

@@ -25,8 +25,8 @@ export const ResizableDivider: React.FC<ResizableDividerProps> = ({
             onMouseDown={onMouseDown}
             title={centerAction ? undefined : title}
         >
-            {/* Visual subtle divider line that glows on hover */}
-            <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-[1.5px] bg-[var(--border-color)] group-hover:bg-[var(--accent-color)] group-hover:shadow-[0_0_6px_var(--accent-color)] transition-all duration-150 pointer-events-none" />
+            {/* Visual subtle divider line without harsh glow */}
+            <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-[1.5px] bg-[var(--border-color)] group-hover:bg-[var(--accent-color)]/70 transition-all duration-150 pointer-events-none" />
 
             {/* Optional center action button (e.g. swap layout), visible strictly on hover */}
             {centerAction && (

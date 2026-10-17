@@ -21,10 +21,20 @@ export interface ChatMessage {
 
 export type TemporaryChatMode = 'lite' | 'strict';
 
+/** Actual request stages; work counts are absent when the engine cannot measure them. */
+export interface ProcessingEvent {
+  stage: 'queued' | 'model_loading' | 'reading' | 'decoding' | 'projector_loading' | 'encoding' | 'prefill' | 'generation' | 'request';
+  state: 'running' | 'completed' | 'reused' | 'failed' | 'cancelled';
+  elapsed_ms: number;
+  attachment?: { message_index: number; part_index: number; frame_index?: number };
+  work?: { completed: number; total: number; unit: string };
+}
+
 export interface ChatCompletionRequest {
   model?: string;
   messages: ChatMessage[];
   stream?: boolean;
+  return_progress?: boolean;
   temporary_chat?: TemporaryChatMode;
   session_id?: string;
   think_mode?: boolean | string;

@@ -10,6 +10,7 @@ export interface SessionIndexItem {
     pinnedAt?: number;
     favourite: boolean;
     archived: boolean;
+    archivedAt?: number;
     muted: boolean;
     createdAt: number;
     updatedAt: number;
@@ -34,6 +35,7 @@ export interface SessionMetadata {
     pinnedAt?: number;
     favourite?: boolean;
     archived?: boolean;
+    archivedAt?: number;
     muted?: boolean;
     model?: string;
     systemPrompt?: string;

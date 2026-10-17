@@ -412,7 +412,7 @@ export const WorkspaceEditorPane: React.FC = () => {
                             type="button" 
                             disabled={isOpeningFolder || !!openingWorkspacePath}
                             onClick={handleOpenFolder} 
-                            className="w-full py-2.5 px-4 rounded-lg bg-[var(--accent-color)] hover:opacity-90 text-white font-medium text-xs flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer disabled:opacity-60"
+                            className="w-full py-2.5 px-4 rounded-lg ui-btn-primary font-medium text-xs flex items-center justify-center gap-2 shadow-md cursor-pointer disabled:opacity-60"
                         >
                             {isOpeningFolder ? (
                                 <>
@@ -429,7 +429,7 @@ export const WorkspaceEditorPane: React.FC = () => {
                         <button 
                             type="button" 
                             onClick={() => setIsTerminalOpen(true)} 
-                            className="w-full mt-2.5 py-2.5 px-4 rounded-lg bg-[var(--bg-secondary)] hover:bg-white/5 text-[var(--text-primary)] font-medium text-xs flex items-center justify-center gap-2 border border-[var(--border-color)] transition-all cursor-pointer"
+                            className="w-full mt-2.5 py-2.5 px-4 rounded-lg ui-btn-secondary font-medium text-xs flex items-center justify-center gap-2 cursor-pointer"
                         >
                             <Terminal className="w-4 h-4 text-[var(--accent-color)]" />
                             <span>Open Terminal</span>

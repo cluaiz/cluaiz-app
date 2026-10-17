@@ -95,8 +95,12 @@ export function ResizableSidebar({ children }: ResizableSidebarProps) {
                     }}
                     title="Drag to resize sidebar"
                 >
-                    {/* Glowing Accent Line Indicator directly on the single 1px border */}
-                    <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-[2px] opacity-0 group-hover:opacity-100 group-hover:bg-[var(--accent-color)] group-hover:shadow-[0_0_8px_var(--accent-color)] transition-all duration-150 pointer-events-none" />
+                    {/* Subtle Accent Line Indicator directly on the single 1px border without harsh shadows */}
+                    <div className={`absolute inset-y-0 left-1/2 -translate-x-1/2 w-[1.5px] transition-all duration-150 pointer-events-none ${
+                        isResizing 
+                            ? 'opacity-100 bg-[var(--accent-color)]/80' 
+                            : 'opacity-0 group-hover:opacity-100 group-hover:bg-[var(--accent-color)]/70'
+                    }`} />
                 </div>
             )}
         </div>

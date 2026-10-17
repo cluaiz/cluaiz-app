@@ -146,8 +146,7 @@ body {
   transition: background-color 0.2s, box-shadow 0.2s;
 }
 .resizer-hover:hover::after {
-  background-color: var(--accent-color);
-  box-shadow: 0 0 4px var(--accent-color);
+  background-color: color-mix(in srgb, var(--accent-color) 70%, transparent);
 }
 
 /* Global inputs range slider dynamic thumb coloring */
@@ -356,5 +355,48 @@ select:focus {
   border: none !important;
   outline: none !important;
   background-color: transparent !important;
+}
+
+/* Reusable Theme-Aware Action Buttons (Zero Hardcoding, 100% Theme Safe) */
+.ui-btn-primary {
+  background-color: var(--accent-color) !important;
+  color: var(--accent-contrast, #ffffff) !important;
+  border: 1px solid transparent !important;
+  transition: opacity 0.15s ease, transform 0.05s ease, box-shadow 0.15s ease;
+}
+
+.ui-btn-primary:hover:not(:disabled) {
+  opacity: 0.92;
+  box-shadow: 0 0 12px var(--accent-glow, rgba(var(--accent-color-rgb), 0.25));
+}
+
+.ui-btn-primary:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.ui-btn-primary:disabled {
+  opacity: 0.5 !important;
+  cursor: not-allowed !important;
+}
+
+.ui-btn-secondary {
+  background-color: var(--bg-secondary) !important;
+  color: var(--text-primary) !important;
+  border: 1px solid var(--border-color) !important;
+  transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.05s ease;
+}
+
+.ui-btn-secondary:hover:not(:disabled) {
+  background-color: color-mix(in srgb, var(--text-primary) 6%, var(--bg-secondary)) !important;
+  border-color: color-mix(in srgb, var(--accent-color) 40%, var(--border-color)) !important;
+}
+
+.ui-btn-secondary:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.ui-btn-secondary:disabled {
+  opacity: 0.5 !important;
+  cursor: not-allowed !important;
 }
 

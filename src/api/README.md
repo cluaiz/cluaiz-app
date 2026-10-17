@@ -60,6 +60,14 @@ All HTTP, SSE, and IPC calls pass through a centralized transport layer in `src/
   - AbortController timeout handling (10-second default).
   - Automatic error envelope parsing and `ApiError` normalization.
 - **`sse.ts`**: Dedicated `streamSse()` reader for `/v1/chat/completions` handling real-time token deltas and reasoning chunks.
+
+Chat requests opt into `return_progress:true`. The engine adapter forwards `cluaiz.processing` observations independently of answer tokens; the chat send hook shows the actual stage and attachment name when available. These observations and context reports do not count towards token rate or first-token timing. No percentage is invented when the engine supplies no work count.
+
+When an event refers to a successful attachment in an earlier turn, the label includes `earlier attachment` and that file's name. The current upload keeps its own identity; reading a source file can be followed by encoding an earlier image because successful media remains part of the conversation. Native media context fitting may remove complete old turns when the configured policy allows it. A current file larger than the remaining context is explicitly refused rather than silently shortened.
+
+Structured engine errors and HTTP/stream failures remain visible in their original chat. Failed turns retain their displayed attachments but use the existing `finishReason:error` marker to exclude them from later model context. Legacy unanswered attachment turns and old UI-generated system errors are also excluded, so a new message does not implicitly retry a failed upload. Successful attachments remain in context. The SSE reader reports premature EOF as an error before its single completion notification; user cancellation remains distinct from failure.
+
+PDF/document content is extracted by the engine into text, so a text-only chat model needs no vision projector for a fully extracted document. PDFs requiring OCR need the packaged native PDF/OCR assets in the engine installation. Extraction success does not guarantee that a large document fits the chosen context. Chat/ingest HTTP transport permits configured source bytes plus base64/JSON overhead; oversized requests still fail explicitly, and inference admission has separate limits.
 - **`ipc.ts`**: Typed Tauri desktop `invoke()` caller with safe browser fallback mocks.
 - **`errors.ts`**: Normalized `ApiError` class and `errorMessage(err)` helper.
 - **`status.ts`**: Standardized async state type:

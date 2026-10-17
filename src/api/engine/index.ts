@@ -6,6 +6,7 @@ export * from './permission';
 export * from './system';
 export * from './fs';
 export * from './chat';
+export * from './chat-memory';
 export * from './audio';
 export * from './memory';
 export * from './tools';
