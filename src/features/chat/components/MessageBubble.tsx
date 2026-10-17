@@ -207,7 +207,7 @@ const CollapsibleUserMessage: React.FC<CollapsibleUserMessageProps> = ({
         <div className="relative w-full">
             <div
                 ref={contentRef}
-                className={`whitespace-pre-wrap font-medium select-text break-words leading-relaxed font-[family-name:var(--font-family)] transition-all duration-200 ${isOverflowing && !isExpanded ? 'max-h-[170px] overflow-hidden' : ''
+                className={`font-medium select-text break-words leading-relaxed font-[family-name:var(--font-family)] transition-all duration-200 ${isOverflowing && !isExpanded ? 'max-h-[170px] overflow-hidden' : ''
                     }`}
                 style={{ fontSize: 'var(--chat-bubble-font-size, 14px)', fontFamily: 'var(--font-family)' }}
                 onMouseUp={onMouseUp}
@@ -263,9 +263,10 @@ interface MessageBubbleProps {
     onToggleSelect?: () => void;
     onSkipThinking?: () => void;
     isStreaming?: boolean;
+    processingLabel?: string;
 }
 
-export const MessageBubble: React.FC<MessageBubbleProps> = ({
+const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
     msg,
     index,
     handleMessageContextMenu,
@@ -275,7 +276,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     isSelected,
     onToggleSelect,
     onSkipThinking,
-    isStreaming = false
+    isStreaming = false,
+    processingLabel
 }) => {
     const activeSessionId = useChatStore(s => s.activeSessionId) || '';
     const isUser = msg.sender === 'user';
@@ -357,70 +359,49 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     const renderUserMessageContent = (text: string, highlights?: string[]) => {
         if (!text) return null;
 
-        // Matches context chip tags like @[path] or @[path:lineRange]
-        const chipPattern = /(@\[[^\]]+\])/g;
-        const parts = text.split(chipPattern);
+        // If search highlights are active, maintain text snippet highlighting
+        if (highlights && highlights.length > 0) {
+            const chipPattern = /(@\[[^\]]+\])/g;
+            const parts = text.split(chipPattern);
 
-        return parts.map((part, idx) => {
-            if (part.startsWith('@[') && part.endsWith(']')) {
-                const inner = part.slice(2, -1).trim();
-                if (!inner) return null;
+            return parts.map((part, idx) => {
+                if (part.startsWith('@[') && part.endsWith(']')) {
+                    const inner = part.slice(2, -1).trim();
+                    if (!inner) return null;
 
-                // Check if ends with line range (e.g. :L15-L18 or :L1)
-                const lineMatch = inner.match(/:(L\d+(?:-L\d+)?)$/i);
-                const rawPath = lineMatch ? inner.slice(0, -lineMatch[0].length) : inner;
-                const lineRange = lineMatch ? lineMatch[1] : undefined;
-                const fileName = extractBaseName(rawPath);
+                    const lineMatch = inner.match(/:(L\d+(?:-L\d+)?)$/i);
+                    const rawPath = lineMatch ? inner.slice(0, -lineMatch[0].length) : inner;
+                    const lineRange = lineMatch ? lineMatch[1] : undefined;
+                    const fileName = extractBaseName(rawPath);
+
+                    return (
+                        <ContextChip
+                            key={`msg-chip-${idx}`}
+                            id={rawPath}
+                            rawPath={rawPath}
+                            name={fileName}
+                            lineRange={lineRange}
+                            className="inline-flex align-middle mx-0.5 my-0.5 shadow-xs"
+                        />
+                    );
+                }
 
                 return (
-                    <ContextChip
-                        key={`msg-chip-${idx}`}
-                        id={rawPath}
-                        rawPath={rawPath}
-                        name={fileName}
-                        lineRange={lineRange}
-                        className="inline-flex align-middle mx-0.5 my-0.5 shadow-xs"
-                    />
+                    <React.Fragment key={`text-${idx}`}>
+                        {renderTextWithHighlights(part, highlights)}
+                    </React.Fragment>
                 );
-            }
+            });
+        }
 
-            const prevIsChip = idx > 0 && parts[idx - 1]?.startsWith('@[') && parts[idx - 1]?.endsWith(']');
-            const nextIsChip = idx < parts.length - 1 && parts[idx + 1]?.startsWith('@[') && parts[idx + 1]?.endsWith(']');
-
-            // 1. Pure whitespace between chips or at message boundaries
-            if (!part.trim()) {
-                // If purely whitespace between two chips, ALWAYS stay inline with a single space
-                if (prevIsChip && nextIsChip) {
-                    return ' ';
-                }
-                // If boundary whitespace before first chip or after last chip, trim it
-                if ((idx === 0 && nextIsChip) || (idx === parts.length - 1 && prevIsChip)) {
-                    return null;
-                }
-                return ' ';
-            }
-
-            // 2. Text adjacent to chips: normalize single newlines to spaces so chips flow inline with text
-            let normalizedText = part;
-            if (nextIsChip) {
-                // Trailing single newline before a chip -> space, but preserve double newlines
-                if (/\n\s*$/.test(normalizedText) && !/\n\s*\n\s*$/.test(normalizedText)) {
-                    normalizedText = normalizedText.replace(/\n\s*$/, ' ');
-                }
-            }
-            if (prevIsChip) {
-                // Leading single newline after a chip -> space, but preserve double newlines
-                if (/^\s*\n/.test(normalizedText) && !/^\s*\n\s*\n/.test(normalizedText)) {
-                    normalizedText = normalizedText.replace(/^\s*\n/, ' ');
-                }
-            }
-
-            return (
-                <React.Fragment key={`text-${idx}`}>
-                    {renderTextWithHighlights(normalizedText, highlights)}
-                </React.Fragment>
-            );
-        });
+        // Standard user messages render cleanly through rich MarkdownRenderer
+        return (
+            <MarkdownRenderer
+                content={text}
+                allowWorkspaceOpen={true}
+                className="user-message-markdown w-full text-inherit leading-relaxed [&_*]:text-inherit [&_p]:text-inherit [&_p]:my-0 [&_strong]:text-inherit [&_strong]:font-bold [&_em]:text-inherit [&_ul]:text-inherit [&_ul]:my-1 [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:text-inherit [&_ol]:my-1 [&_ol]:list-decimal [&_ol]:pl-4 [&_li]:text-inherit [&_blockquote]:border-l-2 [&_blockquote]:border-current [&_blockquote]:opacity-90 [&_blockquote]:my-1 [&_blockquote]:pl-2 [&_code]:bg-black/20 [&_code]:text-inherit [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_pre]:bg-black/30 [&_pre]:p-2 [&_pre]:rounded-md"
+            />
+        );
     };
 
     return (
@@ -622,6 +603,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                             <span className="w-2 h-2 rounded-full bg-[var(--accent-color)] animate-bounce" style={{ animationDelay: '0ms' }} />
                             <span className="w-2 h-2 rounded-full bg-[var(--accent-color)] animate-bounce" style={{ animationDelay: '150ms' }} />
                             <span className="w-2 h-2 rounded-full bg-[var(--accent-color)] animate-bounce" style={{ animationDelay: '300ms' }} />
+                            <span role="status" className="ml-2 text-xs">{processingLabel || 'Waiting for response'}</span>
                         </div>
                     )}
 
@@ -672,3 +654,15 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         </div>
     );
 };
+
+export const MessageBubble = React.memo(MessageBubbleComponent, (prev, next) => {
+    return (
+        prev.msg === next.msg &&
+        prev.index === next.index &&
+        prev.isSelectionMode === next.isSelectionMode &&
+        prev.isSelected === next.isSelected &&
+        prev.isStreaming === next.isStreaming &&
+        prev.processingLabel === next.processingLabel
+    );
+});
+

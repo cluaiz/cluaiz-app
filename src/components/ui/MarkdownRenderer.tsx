@@ -514,7 +514,7 @@ const FrontmatterCard: React.FC<{ metadata: MarkdownFrontmatterMetadata }> = ({ 
     );
 };
 
-export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ 
+const MarkdownRendererComponent: React.FC<MarkdownRendererProps> = ({ 
     content, 
     className = '', 
     allowWorkspaceOpen = false 
@@ -802,3 +802,11 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
         </article>
     );
 };
+
+export const MarkdownRenderer = React.memo(MarkdownRendererComponent, (prev, next) => {
+    return (
+        prev.content === next.content &&
+        prev.className === next.className &&
+        prev.allowWorkspaceOpen === next.allowWorkspaceOpen
+    );
+});
