@@ -480,47 +480,6 @@
     },
     {
       "method": "POST",
-      "path": "/v1/audio/execute",
-      "desc": "Unified audio processing endpoint for speech-to-text, text-to-speech, and audio task orchestration.",
-      "docs_url": "/docs/api/inference/audio_speech.md",
-      "params": [
-        {
-          "name": "input_source",
-          "type": "object",
-          "req": true,
-          "desc": "Audio input source ({type: 'url' | 'base64' | 'text', data: string}).",
-          "default": {
-            "type": "text",
-            "data": "Hello from Cluaiz Engine audio system."
-          }
-        },
-        {
-          "name": "task",
-          "type": "string",
-          "req": false,
-          "desc": "Audio task type ('auto', 'text_to_speech', 'speech_to_text').",
-          "default": "text_to_speech"
-        },
-        {
-          "name": "model",
-          "type": "string",
-          "req": false,
-          "desc": "Model override identifier.",
-          "default": "auto"
-        }
-      ],
-      "request_payload": "{\n  \"model\": \"auto\",\n  \"task\": \"text_to_speech\",\n  \"input_source\": {\n    \"type\": \"text\",\n    \"data\": \"Hello from Cluaiz Engine audio system.\"\n  }\n}",
-      "response": "{\n  \"status\": \"success\",\n  \"task\": \"text_to_speech\",\n  \"model\": \"auto\",\n  \"output\": {\n    \"audio_data\": \"UklGRiQAAABXQVZF...\"\n  }\n}",
-      "examples": [
-        {
-          "language": "curl",
-          "title": "cURL",
-          "code": "curl -X POST http://localhost:8000/v1/audio/execute \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"task\": \"text_to_speech\", \"input_source\": {\"type\": \"text\", \"data\": \"Hello!\"}}'"
-        }
-      ]
-    },
-    {
-      "method": "POST",
       "path": "/v1/ingest",
       "desc": "Native Document AI & Spatial Vision OCR extraction endpoint. Powered by embedded PDFium and Tesseract 5.2.0 OCR. Ingests, parses, and extracts clean text from PDFs (text & scanned), Word (.docx), text files, and images without requiring an LLM model.",
       "docs_url": "/docs/api/inference/ingest.md",
@@ -564,16 +523,6 @@
       "docs_url": "/docs/api/inference/audio_transcriptions.md",
       "params": [
         {
-          "name": "input_source",
-          "type": "object",
-          "req": true,
-          "desc": "Audio input source object: {'type': 'audio' | 'base64' | 'url', 'data': 'data:audio/wav;base64,...'}.",
-          "default": {
-            "type": "audio",
-            "data": "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA="
-          }
-        },
-        {
           "name": "model",
           "type": "string",
           "req": false,
@@ -581,32 +530,70 @@
           "default": "whisper-large-v3-turbo-INT8"
         },
         {
+          "name": "input_source",
+          "type": "object",
+          "req": false,
+          "desc": "Audio input source descriptor: {'type': 'file' | 'audio' | 'base64' | 'url', 'data': '...'}. Optional if 'file' string is provided directly.",
+          "default": {
+            "type": "file",
+            "data": "C:\\Users\\Aryan\\Downloads\\harvard.mp3"
+          }
+        },
+        {
+          "name": "file",
+          "type": "string",
+          "req": false,
+          "desc": "Direct local audio file path or URI (OpenAI-compatible convenience field alternative to input_source).",
+          "default": "C:\\Users\\Aryan\\Downloads\\harvard.mp3"
+        },
+        {
           "name": "language",
           "type": "string",
           "req": false,
-          "desc": "Spoken language code (e.g. 'en', 'hi', 'auto').",
+          "desc": "Spoken language code (e.g. 'auto' for automatic language detection, 'en', 'hi', 'es').",
           "default": "auto"
+        },
+        {
+          "name": "temperature",
+          "type": "float",
+          "req": false,
+          "desc": "Sampling temperature for greedy decoding (0.0 recommended for maximum transcription accuracy).",
+          "default": 0.0
+        },
+        {
+          "name": "timestamps",
+          "type": "boolean",
+          "req": false,
+          "desc": "Whether to return segment timestamps in output (default: false for greedy raw text).",
+          "default": false
         },
         {
           "name": "stream",
           "type": "boolean",
           "req": false,
-          "desc": "Whether to stream tokens via SSE (stream: true) or return full JSON (stream: false).",
+          "desc": "Whether to stream partial transcribed tokens in real-time via Server-Sent Events (SSE).",
           "default": false
+        },
+        {
+          "name": "keep_alive",
+          "type": "integer",
+          "req": false,
+          "desc": "Session memory retention in minutes (e.g. 5, 0 to unload immediately, -1 for indefinite RAM residence).",
+          "default": 5
         }
       ],
-      "request_payload": "{\n  \"model\": \"whisper-large-v3-turbo-INT8\",\n  \"input_source\": {\n    \"type\": \"audio\",\n    \"data\": \"data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=\"\n  },\n  \"stream\": false\n}",
+      "request_payload": "{\n  \"model\": \"whisper-large-v3-turbo-INT8\",\n  \"input_source\": {\n    \"type\": \"file\",\n    \"data\": \"C:\\\\Users\\\\Aryan\\\\Downloads\\\\harvard.mp3\"\n  },\n  \"language\": \"auto\",\n  \"temperature\": 0.0,\n  \"timestamps\": false,\n  \"stream\": false,\n  \"keep_alive\": 5\n}",
       "response": "{\n  \"status\": \"success\",\n  \"task\": \"speech_to_text\",\n  \"model\": \"whisper-large-v3-turbo-INT8\",\n  \"output\": {\n    \"text\": \"Hello, this is a transcription test using Cluaiz Engine.\",\n    \"segments\": null\n  }\n}",
       "examples": [
         {
           "language": "curl",
           "title": "cURL",
-          "code": "curl -X POST http://localhost:8000/v1/audio/transcriptions \\\n  -H 'Content-Type: application/json' \\\n  -H 'Authorization: Bearer <session-token>' \\\n  -d '{\n    \"model\": \"whisper-large-v3-turbo-INT8\",\n    \"input_source\": {\"type\": \"audio\", \"data\": \"data:audio/wav;base64,...\"},\n    \"stream\": false\n  }'"
+          "code": "curl -X POST http://localhost:8000/v1/audio/transcriptions \\\n  -H 'Content-Type: application/json' \\\n  -H 'Authorization: Bearer <session-token>' \\\n  -d '{\n    \"model\": \"whisper-large-v3-turbo-INT8\",\n    \"input_source\": {\"type\": \"file\", \"data\": \"C:/Users/Aryan/Downloads/harvard.mp3\"},\n    \"language\": \"auto\",\n    \"temperature\": 0.0,\n    \"timestamps\": false,\n    \"stream\": false,\n    \"keep_alive\": 5\n  }'"
         },
         {
           "language": "python",
           "title": "Python (requests)",
-          "code": "import requests\n\nheaders = {'Authorization': 'Bearer <token>'}\npayload = {\n    'model': 'whisper-large-v3-turbo-INT8',\n    'input_source': {'type': 'audio', 'data': 'data:audio/wav;base64,...'},\n    'stream': False\n}\nres = requests.post('http://localhost:8000/v1/audio/transcriptions', json=payload, headers=headers)\nprint(res.json()['output']['text'])"
+          "code": "import requests\n\nheaders = {'Authorization': 'Bearer <token>'}\npayload = {\n    'model': 'whisper-large-v3-turbo-INT8',\n    'input_source': {'type': 'file', 'data': 'C:/Users/Aryan/Downloads/harvard.mp3'},\n    'language': 'auto',\n    'temperature': 0.0,\n    'timestamps': False,\n    'stream': False,\n    'keep_alive': 5\n}\nres = requests.post('http://localhost:8000/v1/audio/transcriptions', json=payload, headers=headers)\nprint(res.json()['output']['text'])"
         }
       ]
     },
@@ -621,28 +608,49 @@
           "type": "string",
           "req": true,
           "desc": "The text string to synthesize into speech audio.",
-          "default": "Hello, welcome to Cluaiz Engine."
+          "default": "Hello, welcome to Cluaiz Engine. you can now run ai."
         },
         {
           "name": "model",
           "type": "string",
           "req": false,
-          "desc": "Neural voice TTS model (e.g. piper-en-us-ryan-medium, piper-voices-hi_in-rohan-medium).",
+          "desc": "Neural voice TTS model ID (e.g. piper-en-us-ryan-medium, Audio8-TTS-Preview-0.6B-ONNX-INT4-INT4).",
           "default": "piper-en-us-ryan-medium"
+        },
+        {
+          "name": "voice",
+          "type": "string",
+          "req": false,
+          "desc": "Voice persona or speaker ID within multi-speaker packages (e.g. 'default', 'en-us-ryan-medium', 'af_heart').",
+          "default": "default"
+        },
+        {
+          "name": "speed",
+          "type": "float",
+          "req": false,
+          "desc": "Voice playback speed multiplier (default: 1.0).",
+          "default": 1.0
+        },
+        {
+          "name": "keep_alive",
+          "type": "integer",
+          "req": false,
+          "desc": "Session memory retention in minutes (e.g. 5, 0 to unload immediately, -1 for indefinite RAM residence).",
+          "default": 5
         }
       ],
-      "request_payload": "{\n  \"model\": \"piper-en-us-ryan-medium\",\n  \"input\": \"Hello, welcome to Cluaiz Engine.\"\n}",
+      "request_payload": "{\n  \"model\": \"piper-en-us-ryan-medium\",\n  \"input\": \"Hello, welcome to Cluaiz Engine. you can now run ai.\",\n  \"voice\": \"default\",\n  \"speed\": 1.0,\n  \"keep_alive\": 5\n}",
       "response": "{\n  \"status\": \"success\",\n  \"task\": \"text_to_speech\",\n  \"model\": \"piper-en-us-ryan-medium\",\n  \"output\": {\n    \"audio_data\": \"data:audio/wav;base64,UklGRsYLAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQILAAA...\"\n  }\n}",
       "examples": [
         {
           "language": "curl",
           "title": "cURL",
-          "code": "curl -X POST http://localhost:8000/v1/audio/speech \\\n  -H 'Content-Type: application/json' \\\n  -H 'Authorization: Bearer <session-token>' \\\n  -d '{\n    \"model\": \"piper-en-us-ryan-medium\",\n    \"input\": \"Hello world!\"\n  }'"
+          "code": "curl -X POST http://localhost:8000/v1/audio/speech \\\n  -H 'Content-Type: application/json' \\\n  -H 'Authorization: Bearer <session-token>' \\\n  -d '{\n    \"model\": \"piper-en-us-ryan-medium\",\n    \"input\": \"Hello, welcome to Cluaiz Engine. you can now run ai.\",\n    \"voice\": \"default\",\n    \"speed\": 1.0,\n    \"keep_alive\": 5\n  }'"
         },
         {
           "language": "python",
           "title": "Python",
-          "code": "import requests\n\nheaders = {'Authorization': 'Bearer <token>'}\nres = requests.post('http://localhost:8000/v1/audio/speech', json={\n    'model': 'piper-en-us-ryan-medium',\n    'input': 'Hello world!'\n}, headers=headers)\nprint(res.json()['output']['audio_data'])"
+          "code": "import requests\n\nheaders = {'Authorization': 'Bearer <token>'}\nres = requests.post('http://localhost:8000/v1/audio/speech', json={\n    'model': 'piper-en-us-ryan-medium',\n    'input': 'Hello, welcome to Cluaiz Engine. you can now run ai.',\n    'voice': 'default',\n    'speed': 1.0,\n    'keep_alive': 5\n}, headers=headers)\nprint(res.json()['output']['audio_data'])"
         }
       ]
     }
