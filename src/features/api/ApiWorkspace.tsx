@@ -6,7 +6,7 @@ import { ResponsePanel } from './components/ResponsePanel';
 import { GripHorizontal, GripVertical } from 'lucide-react';
 
 export const ApiWorkspace: React.FC = () => {
-    const { loadApiData, apiData, selectEndpoint, layoutOrientation } = useApiStore();
+    const { loadApiData, apiData, selectEndpoint, layoutOrientation, activeTab } = useApiStore();
     const [splitRatio, setSplitRatio] = useState<number>(() => {
         if (typeof localStorage === 'undefined') return 55;
         const saved = localStorage.getItem('cluaiz_api_split_ratio');
@@ -92,6 +92,7 @@ export const ApiWorkspace: React.FC = () => {
     };
 
     const isRightLayout = layoutOrientation === 'right';
+    const showResponsePanel = activeTab === 'params' || activeTab === 'headers';
 
     return (
         <div className="flex flex-col h-full w-full min-w-0 overflow-hidden bg-[var(--bg-primary)]">
@@ -107,40 +108,55 @@ export const ApiWorkspace: React.FC = () => {
             >
                 {/* Panel 1: Request Tabs (Body, Headers, Docs, Snippets) */}
                 <div
-                    style={isRightLayout ? { width: `${splitRatio}%` } : { height: `${splitRatio}%` }}
+                    style={
+                        !showResponsePanel
+                            ? { width: '100%', height: '100%' }
+                            : isRightLayout
+                            ? { width: `${splitRatio}%` }
+                            : { height: `${splitRatio}%` }
+                    }
                     className={`overflow-hidden ${
-                        isRightLayout ? 'h-full min-w-[280px]' : 'w-full min-h-[120px]'
+                        !showResponsePanel
+                            ? 'w-full h-full'
+                            : isRightLayout
+                            ? 'h-full min-w-[280px]'
+                            : 'w-full min-h-[120px]'
                     }`}
                 >
                     <RequestTabs />
                 </div>
 
-                {/* Draggable Resizer Bar */}
-                <div
-                    onMouseDown={handleMouseDown}
-                    className={`bg-[var(--bg-secondary)] hover:bg-[var(--accent-color)]/30 flex items-center justify-center select-none transition-colors group z-10 ${
-                        isRightLayout
-                            ? 'w-2 h-full cursor-col-resize border-x border-[var(--border-color)]'
-                            : 'w-full h-2 cursor-row-resize border-y border-[var(--border-color)]'
-                    }`}
-                    title={isRightLayout ? 'Drag to resize width' : 'Drag to resize height'}
-                >
-                    {isRightLayout ? (
-                        <GripVertical className="w-3.5 h-3.5 text-[var(--text-muted)] group-hover:text-[var(--accent-color)]" />
-                    ) : (
-                        <GripHorizontal className="w-3.5 h-3.5 text-[var(--text-muted)] group-hover:text-[var(--accent-color)]" />
-                    )}
-                </div>
+                {/* Resizer & Response Panel only shown when on Body Payload or Headers */}
+                {showResponsePanel && (
+                    <>
+                        {/* Draggable Resizer Bar */}
+                        <div
+                            onMouseDown={handleMouseDown}
+                            className={`bg-[var(--bg-secondary)] hover:bg-[var(--accent-color)]/30 flex items-center justify-center select-none transition-colors group z-10 ${
+                                isRightLayout
+                                    ? 'w-2 h-full cursor-col-resize border-x border-[var(--border-color)]'
+                                    : 'w-full h-2 cursor-row-resize border-y border-[var(--border-color)]'
+                            }`}
+                            title={isRightLayout ? 'Drag to resize width' : 'Drag to resize height'}
+                        >
+                            {isRightLayout ? (
+                                <GripVertical className="w-3.5 h-3.5 text-[var(--text-muted)] group-hover:text-[var(--accent-color)]" />
+                            ) : (
+                                <GripHorizontal className="w-3.5 h-3.5 text-[var(--text-muted)] group-hover:text-[var(--accent-color)]" />
+                            )}
+                        </div>
 
-                {/* Panel 2: Response Viewer / Live Preview */}
-                <div
-                    style={isRightLayout ? { width: `${100 - splitRatio}%` } : { height: `${100 - splitRatio}%` }}
-                    className={`overflow-hidden ${
-                        isRightLayout ? 'h-full min-w-[280px]' : 'w-full min-h-[120px]'
-                    }`}
-                >
-                    <ResponsePanel />
-                </div>
+                        {/* Panel 2: Response Viewer / Live Preview */}
+                        <div
+                            style={isRightLayout ? { width: `${100 - splitRatio}%` } : { height: `${100 - splitRatio}%` }}
+                            className={`overflow-hidden ${
+                                isRightLayout ? 'h-full min-w-[280px]' : 'w-full min-h-[120px]'
+                            }`}
+                        >
+                            <ResponsePanel />
+                        </div>
+                    </>
+                )}
             </div>
         </div>
     );

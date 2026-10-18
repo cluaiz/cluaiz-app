@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useApiStore } from '../../../store/api/useApiStore';
 import { MarkdownRenderer } from '../../../components/ui/MarkdownRenderer';
 import { CodeEditor } from '../../../components/ui/CodeEditor';
-import { FileText, Code2, Braces, Sliders, Check, Copy, Sparkles } from 'lucide-react';
+import { FileText, Code2, Braces, Sliders, Check, Copy, Sparkles, RotateCcw } from 'lucide-react';
 
 export const RequestTabs: React.FC = () => {
     const {
@@ -14,7 +14,8 @@ export const RequestTabs: React.FC = () => {
         installedModels,
         setActiveTab,
         setReqBody,
-        setReqHeaders
+        setReqHeaders,
+        resetPayload
     } = useApiStore();
 
     const [activeSnippetLang, setActiveSnippetLang] = useState<string>('curl');
@@ -97,13 +98,24 @@ export const RequestTabs: React.FC = () => {
                 </button>
 
                 {activeTab === 'params' && (
-                    <button
-                        type="button"
-                        onClick={handleFormatJson}
-                        className="ml-auto px-2 py-0.5 text-[11px] text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-white/[0.04] border border-[var(--border-color)] rounded transition-colors cursor-pointer"
-                    >
-                        Beautify JSON
-                    </button>
+                    <div className="ml-auto flex items-center gap-1.5">
+                        <button
+                            type="button"
+                            onClick={resetPayload}
+                            className="px-2 py-0.5 text-[11px] text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-white/[0.04] border border-[var(--border-color)] rounded transition-colors cursor-pointer flex items-center gap-1"
+                            title="Reset payload to default schema from definition"
+                        >
+                            <RotateCcw className="w-3 h-3" />
+                            <span>Reset Schema</span>
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleFormatJson}
+                            className="px-2 py-0.5 text-[11px] text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-white/[0.04] border border-[var(--border-color)] rounded transition-colors cursor-pointer"
+                        >
+                            Beautify JSON
+                        </button>
+                    </div>
                 )}
             </div>
 

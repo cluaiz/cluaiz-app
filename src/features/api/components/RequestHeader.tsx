@@ -116,14 +116,16 @@ export const RequestHeader: React.FC = () => {
         return opts;
     }, [activeEndpoint, installedModels]);
 
-    // Ensure selected model is always valid for the active endpoint's filtered list
+    // Ensure selected model is always valid and synchronized into the payload
     useEffect(() => {
         if (!isModelEndpoint || !modelOptions.length) return;
         const exists = modelOptions.some(o => o.value === selectedModel);
         if (!exists && modelOptions[0]) {
             setSelectedModel(modelOptions[0].value);
+        } else if (exists && selectedModel) {
+            setSelectedModel(selectedModel);
         }
-    }, [isModelEndpoint, modelOptions, selectedModel, setSelectedModel]);
+    }, [activeEndpoint?.path, isModelEndpoint, modelOptions]);
 
     const voiceOptions = useMemo(
         () =>
@@ -136,6 +138,12 @@ export const RequestHeader: React.FC = () => {
 
     const handleSend = async () => {
         if (!activeEndpoint || isExecuting) return;
+
+        // If user triggers Send from Docs or Snippets, switch to Body Payload to reveal Response Output
+        const currentTab = useApiStore.getState().activeTab;
+        if (currentTab === 'docs' || currentTab === 'snippets') {
+            useApiStore.getState().setActiveTab('params');
+        }
 
         setExecuting(true);
         setResponse(
