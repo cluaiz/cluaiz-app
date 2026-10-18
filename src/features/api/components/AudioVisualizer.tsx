@@ -1,11 +1,14 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Volume2, Activity, Play, Pause } from 'lucide-react';
+import { Volume2, Activity } from 'lucide-react';
+import { base64ToBlob, sniffMimeType } from '../../../utils/mimeSniffer';
 
 interface AudioVisualizerProps {
     audioBase64: string;
+    /** False when a streamed response was already played sentence by sentence */
+    autoPlay?: boolean;
 }
 
-export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioBase64 }) => {
+export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioBase64, autoPlay = true }) => {
     const audioRef = useRef<HTMLAudioElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [audioSrc, setAudioSrc] = useState<string>('');
@@ -13,26 +16,16 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioBase64 })
     const [metadata, setMetadata] = useState<string>('Ready');
 
     useEffect(() => {
+        setAudioSrc('');
+        setIsPlaying(false);
         if (!audioBase64) return;
 
         try {
-            // Determine audio mime type (WAV or MP3)
-            let mime = 'audio/wav';
-            if (audioBase64.startsWith('//uQ') || audioBase64.startsWith('SUQz')) {
-                mime = 'audio/mp3';
-            }
-
-            const binaryStr = atob(audioBase64);
-            const len = binaryStr.length;
-            const bytes = new Uint8Array(len);
-            for (let i = 0; i < len; i++) {
-                bytes[i] = binaryStr.charCodeAt(i);
-            }
-
-            const blob = new Blob([bytes], { type: mime });
+            const mime = sniffMimeType(audioBase64, 'wav');
+            const blob = base64ToBlob(audioBase64, mime);
             const url = URL.createObjectURL(blob);
             setAudioSrc(url);
-            setMetadata(`${mime.toUpperCase()} • ${(bytes.length / 1024).toFixed(1)} KB`);
+            setMetadata(`${mime.toUpperCase()} • ${(blob.size / 1024).toFixed(1)} KB`);
 
             return () => {
                 URL.revokeObjectURL(url);
@@ -140,7 +133,7 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioBase64 })
                 ref={audioRef}
                 src={audioSrc}
                 controls
-                autoPlay
+                autoPlay={autoPlay}
                 className="w-full h-10 rounded-lg outline-none custom-audio-player"
             />
 

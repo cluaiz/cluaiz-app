@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { ApiEndpoint, ApiGroup, ApiProtocol, ExecutionMetrics, HttpMethod, InstalledModel, VoiceOption } from '../../features/api/types';
 import { useConnectionStore } from '../engine/useConnectionStore';
 import { http, modelsApi } from '../../api';
+import { AUDIO_ENDPOINTS } from '../../api/engine/audio/audio.endpoints';
 import { pushApiRoute } from '../../core/router';
 
 interface ApiStoreState {
@@ -23,6 +24,8 @@ interface ApiStoreState {
     responseBody: string;
     responseMetrics: ExecutionMetrics | null;
     audioData: string | null;
+    /** The streamed speech was already played sentence by sentence (no autoplay of the whole) */
+    audioPlayedLive: boolean;
     isExecuting: boolean;
     activeTab: 'params' | 'headers' | 'docs' | 'snippets';
     activeResTab: 'json' | 'preview' | 'audio';
@@ -88,6 +91,7 @@ export const useApiStore = create<ApiStoreState>()((set, get) => ({
     responseBody: 'Hit "Send" to execute the request.',
     responseMetrics: null,
     audioData: null,
+    audioPlayedLive: false,
     isExecuting: false,
     activeTab: 'params',
     activeResTab: 'json',
@@ -269,6 +273,7 @@ export const useApiStore = create<ApiStoreState>()((set, get) => ({
             responseBody: 'Hit "Send" to execute the request.',
             responseMetrics: null,
             audioData: null,
+            audioPlayedLive: false,
             activeResTab: 'json'
         });
 
@@ -366,8 +371,20 @@ export const useApiStore = create<ApiStoreState>()((set, get) => ({
             const current = get().reqBody;
             if (current.trim().startsWith('{')) {
                 const obj = JSON.parse(current);
-                if (!obj.parameters) obj.parameters = {};
-                obj.parameters.voice_id = selectedVoice;
+                if (get().activeEndpoint?.path === AUDIO_ENDPOINTS.SPEECH) {
+                    // Speech uses top-level voice; omission selects the package default.
+                    if (selectedVoice === 'default') delete obj.voice;
+                    else obj.voice = selectedVoice;
+                    if (obj.parameters) {
+                        delete obj.parameters.voice_id;
+                        if (Object.keys(obj.parameters).length === 0) delete obj.parameters;
+                    }
+                } else {
+                    if (!obj.parameters) obj.parameters = {};
+                    if (selectedVoice === 'default') delete obj.parameters.voice_id;
+                    else obj.parameters.voice_id = selectedVoice;
+                    if (Object.keys(obj.parameters).length === 0) delete obj.parameters;
+                }
                 set({ reqBody: JSON.stringify(obj, null, 2) });
             }
         } catch {

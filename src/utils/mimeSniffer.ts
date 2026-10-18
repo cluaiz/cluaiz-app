@@ -67,9 +67,11 @@ export const sniffMimeType = (payload: string, fallbackExt: string = ''): string
         return 'image/png';
     }
 
-    // 2. WebP: 52 49 46 46 (RIFF) -> Base64 starts with UklGR
+    // WAV and WebP share RIFF; the form type at bytes 8..12 distinguishes them.
     if (b64.startsWith('UklGR')) {
-        return 'image/webp';
+        const formType = atob(b64.slice(0, 16)).slice(8, 12);
+        if (formType === 'WAVE') return 'audio/wav';
+        if (formType === 'WEBP') return 'image/webp';
     }
 
     // 3. JPEG: FF D8 FF -> Base64 starts with /9j/
@@ -103,7 +105,7 @@ export const sniffMimeType = (payload: string, fallbackExt: string = ''): string
     }
 
     // 9. MP3: ID3 tag header -> Base64 starts with SUQz
-    if (b64.startsWith('SUQz')) {
+    if (b64.startsWith('SUQz') || b64.startsWith('//uQ')) {
         return 'audio/mpeg';
     }
 

@@ -187,8 +187,12 @@ export const RequestHeader: React.FC = () => {
                 onChunk: (chunk, metrics) => {
                     appendStreamingResponse(chunk, metrics);
                 },
-                onAudioDetected: (audioBase64) => {
-                    useApiStore.setState({ audioData: audioBase64, activeResTab: 'audio' });
+                onAudioDetected: (audioBase64, info) => {
+                    useApiStore.setState({
+                        audioData: audioBase64,
+                        audioPlayedLive: info?.playedLive ?? false,
+                        activeResTab: 'audio'
+                    });
                 }
             });
 

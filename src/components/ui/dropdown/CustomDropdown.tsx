@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronDown, Check, Loader2 } from 'lucide-react';
 
@@ -18,7 +19,12 @@ export interface CustomDropdownProps {
     loading?: boolean;
     allowCustomInput?: boolean;
     customInputPlaceholder?: string;
+    /** Open the list above the page (portal) so a scrolling or clipped parent cannot cut it */
+    floating?: boolean;
 }
+
+/** Marks a floating list so popovers treat clicks in it as inside themselves */
+export const FLOATING_MENU_ATTR = 'data-floating-menu';
 
 export function CustomDropdown({
     options,
@@ -29,11 +35,38 @@ export function CustomDropdown({
     disabled = false,
     loading = false,
     allowCustomInput = false,
-    customInputPlaceholder = 'Type custom...'
+    customInputPlaceholder = 'Type custom...',
+    floating = false
 }: CustomDropdownProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [customInputVal, setCustomInputVal] = useState('');
     const containerRef = useRef<HTMLDivElement>(null);
+    const menuRef = useRef<HTMLDivElement>(null);
+    const [menuStyle, setMenuStyle] = useState<React.CSSProperties>({});
+
+    // Floating list: placed at the trigger, below it or above when the window has no room below
+    useEffect(() => {
+        if (!floating || !isOpen || !containerRef.current) return;
+        const place = () => {
+            const rect = containerRef.current!.getBoundingClientRect();
+            const below = window.innerHeight - rect.bottom;
+            const style: React.CSSProperties = {
+                position: 'fixed',
+                right: Math.max(8, window.innerWidth - rect.right),
+                minWidth: Math.max(rect.width, 200),
+            };
+            if (below < 280 && rect.top > below) style.bottom = window.innerHeight - rect.top + 6;
+            else style.top = rect.bottom + 6;
+            setMenuStyle(style);
+        };
+        place();
+        window.addEventListener('resize', place);
+        window.addEventListener('scroll', place, true);
+        return () => {
+            window.removeEventListener('resize', place);
+            window.removeEventListener('scroll', place, true);
+        };
+    }, [floating, isOpen]);
 
     // Normalize options
     const normalizedOptions: DropdownOption[] = options.map((opt) =>
@@ -47,9 +80,9 @@ export function CustomDropdown({
     // Close on click outside
     useEffect(() => {
         const handleClickOutside = (e: MouseEvent) => {
-            if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-                setIsOpen(false);
-            }
+            const target = e.target as Node;
+            if (containerRef.current?.contains(target) || menuRef.current?.contains(target)) return;
+            setIsOpen(false);
         };
 
         if (isOpen) {
@@ -111,14 +144,20 @@ export function CustomDropdown({
             </button>
 
             {/* Dropdown Menu Panel */}
+            {(() => {
+                const panel = (
             <AnimatePresence>
                 {isOpen && (
                     <motion.div
+                        ref={menuRef}
+                        {...{ [FLOATING_MENU_ATTR]: floating ? '' : undefined }}
+                        onClick={(e) => e.stopPropagation()}
                         initial={{ opacity: 0, y: -4, scale: 0.98 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: -4, scale: 0.98 }}
                         transition={{ duration: 0.12, ease: 'easeOut' }}
-                        className="absolute right-0 top-full mt-1.5 z-[300] min-w-[240px] w-max max-w-md origin-top-right bg-[var(--bg-secondary)]/95 backdrop-blur-xl border border-[var(--border-color)] rounded-2xl shadow-2xl p-1.5 overflow-hidden flex flex-col gap-0.5"
+                        style={floating ? menuStyle : undefined}
+                        className={`${floating ? 'z-[1000] max-w-xs' : 'absolute right-0 top-full mt-1.5 z-[300] min-w-[240px] max-w-md'} w-max origin-top-right bg-[var(--bg-secondary)]/95 backdrop-blur-xl border border-[var(--border-color)] rounded-2xl shadow-2xl p-1.5 overflow-hidden flex flex-col gap-0.5`}
                     >
                         <div className="max-h-60 overflow-y-auto space-y-0.5 custom-scrollbar">
                             {normalizedOptions.map((opt) => {
@@ -193,6 +232,9 @@ export function CustomDropdown({
                     </motion.div>
                 )}
             </AnimatePresence>
+                );
+                return floating ? createPortal(panel, document.body) : panel;
+            })()}
         </div>
     );
 }

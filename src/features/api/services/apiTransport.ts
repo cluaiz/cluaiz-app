@@ -1,4 +1,5 @@
 import { ExecutionMetrics, HttpMethod, ApiProtocol } from '../types';
+import { WavStreamPlayer } from '../../../services/audio/wavStreamPlayer';
 import { isTauri, sendFFIMessage } from '../../../core/tauri-api';
 import { client } from '../../../api/client';
 
@@ -9,8 +10,12 @@ export interface TransportRequestOptions {
     headers: Record<string, string>;
     body: string;
     onChunk?: (chunk: string, metrics?: Partial<ExecutionMetrics>) => void;
-    onAudioDetected?: (audioBase64: string) => void;
+    /** playedLive: the speech was already played part by part while it streamed */
+    onAudioDetected?: (audioBase64: string, info?: { playedLive: boolean }) => void;
 }
+
+/** Speech parts of the current streamed request; a new request stops the previous playback */
+const speechStream = new WavStreamPlayer();
 
 export interface TransportResult {
     metrics: ExecutionMetrics;
@@ -21,6 +26,7 @@ export interface TransportResult {
 export async function executeApiRequest(opts: TransportRequestOptions): Promise<TransportResult> {
     const { url, method, protocol, headers, body, onChunk, onAudioDetected } = opts;
     const startTime = performance.now();
+    speechStream.stop();
 
     // 1. Native C-Pointer (FFI) Execution Path
     if (protocol === 'c-pointer') {
@@ -111,6 +117,10 @@ export async function executeApiRequest(opts: TransportRequestOptions): Promise<
             let parsedTotalSecs: string | undefined;
             let parsedTtftSecs: string | undefined;
             let capturedAudioBase64: string | null = null;
+            let playedLive = false;
+            // An SSE event can span several network reads (a whole WAV is hundreds of KB):
+            // only complete lines are parsed
+            let pendingLine = '';
 
             const reader = response.body.getReader();
             const decoder = new TextDecoder('utf-8');
@@ -132,22 +142,25 @@ export async function executeApiRequest(opts: TransportRequestOptions): Promise<
                     }
                 }
 
-                if (chunkStr.includes('"audio_data"')) {
-                    const lines = chunkStr.split('\n');
-                    for (const line of lines) {
-                        if (line.startsWith('data: ')) {
-                            try {
-                                const parsed = JSON.parse(line.substring(6));
-                                if (parsed.output?.audio_data) {
-                                    capturedAudioBase64 = parsed.output.audio_data;
-                                    if (capturedAudioBase64 && onAudioDetected) {
-                                        onAudioDetected(capturedAudioBase64);
-                                    }
-                                }
-                            } catch {
-                                // Ignore non-json SSE lines
-                            }
+                const lines = (pendingLine + chunkStr).split('\n');
+                pendingLine = lines.pop() ?? '';
+                for (const line of lines) {
+                    if (!line.startsWith('data: ')) continue;
+                    try {
+                        const parsed = JSON.parse(line.substring(6));
+                        if (parsed.type === 'speech.audio.delta' && typeof parsed.audio === 'string') {
+                            // A finished sentence: play it now, the next ones queue behind it
+                            speechStream.push(parsed.audio);
+                            playedLive = true;
+                            continue;
                         }
+                        const audio = parsed.output?.audio_data || parsed.result?.output?.audio_data || parsed.audio_data;
+                        if (audio) {
+                            capturedAudioBase64 = audio;
+                            onAudioDetected?.(audio, { playedLive });
+                        }
+                    } catch {
+                        // Ignore non-json SSE lines
                     }
                 }
 

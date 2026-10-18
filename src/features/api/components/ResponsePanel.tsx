@@ -19,6 +19,7 @@ export const ResponsePanel: React.FC = () => {
         responseBody,
         responseMetrics,
         audioData,
+        audioPlayedLive,
         activeResTab,
         setActiveResTab,
         layoutOrientation,
@@ -192,7 +193,7 @@ export const ResponsePanel: React.FC = () => {
             <div className="flex-1 overflow-hidden bg-[var(--bg-primary)]">
                 {activeResTab === 'audio' && audioData ? (
                     <div className="h-full p-3 overflow-auto custom-scrollbar">
-                        <AudioVisualizer audioBase64={audioData} />
+                        <AudioVisualizer audioBase64={audioData} autoPlay={!audioPlayedLive} />
                     </div>
                 ) : activeResTab === 'preview' ? (
                     <ResponsePreview content={responseBody} />

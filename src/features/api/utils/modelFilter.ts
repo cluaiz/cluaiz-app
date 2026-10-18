@@ -3,11 +3,62 @@ import { InstalledModel } from '../types';
 /**
  * Categorization checkers matching Developer Hub & EngineStore taxonomy.
  */
-export const isChatModel = (m: InstalledModel): boolean => {
+export const isTtsModel = (m: InstalledModel): boolean => {
+    const tasks = (m.supported_tasks || []).map((t) => t.toLowerCase());
+    if (tasks.includes('text_to_speech') || tasks.includes('tts')) return true;
+
+    const cat = m.category?.toLowerCase();
+    if (cat === 'tts') return true;
+
     const id = m.id.toLowerCase();
+    // Exclude STT models explicitly
+    if (id.includes('whisper') || id.includes('moonshine') || id.includes('sensevoice')) {
+        return false;
+    }
+
+    return (
+        id.includes('piper') ||
+        id.includes('kokoro') ||
+        id.includes('melotts') ||
+        id.includes('audio8') ||
+        id.includes('tts')
+    );
+};
+
+export const isSttModel = (m: InstalledModel): boolean => {
+    const tasks = (m.supported_tasks || []).map((t) => t.toLowerCase());
+    if (tasks.includes('speech_to_text') || tasks.includes('stt')) return true;
+
+    const cat = m.category?.toLowerCase();
+    if (cat === 'stt') return true;
+
+    const id = m.id.toLowerCase();
+    // Exclude TTS models explicitly
+    if (id.includes('piper') || id.includes('kokoro') || id.includes('melotts') || id.includes('audio8') || id.includes('tts')) {
+        return false;
+    }
+
+    return (
+        id.includes('whisper') ||
+        id.includes('moonshine') ||
+        id.includes('sensevoice') ||
+        id.includes('stt')
+    );
+};
+
+export const isChatModel = (m: InstalledModel): boolean => {
+    if (isTtsModel(m) || isSttModel(m) || isEmbeddingModel(m)) {
+        return false;
+    }
+
+    const tasks = (m.supported_tasks || []).map((t) => t.toLowerCase());
+    if (tasks.includes('chat') || tasks.includes('text_generation')) return true;
+
     const cat = m.category?.toLowerCase();
     if (cat === 'chat') return true;
     if (cat && cat !== 'chat') return false;
+
+    const id = m.id.toLowerCase();
     return (
         !id.includes('embed') &&
         !id.includes('bge') &&
@@ -19,6 +70,7 @@ export const isChatModel = (m: InstalledModel): boolean => {
         !id.includes('piper') &&
         !id.includes('kokoro') &&
         !id.includes('melotts') &&
+        !id.includes('audio8') &&
         !id.includes('tts') &&
         !id.includes('ocr') &&
         !id.includes('nougat') &&
@@ -26,35 +78,15 @@ export const isChatModel = (m: InstalledModel): boolean => {
     );
 };
 
-export const isSttModel = (m: InstalledModel): boolean => {
-    const id = m.id.toLowerCase();
-    const cat = m.category?.toLowerCase();
-    return (
-        cat === 'stt' ||
-        cat === 'audio' ||
-        id.includes('whisper') ||
-        id.includes('moonshine') ||
-        id.includes('sensevoice')
-    );
-};
-
-export const isTtsModel = (m: InstalledModel): boolean => {
-    const id = m.id.toLowerCase();
-    const cat = m.category?.toLowerCase();
-    return (
-        cat === 'tts' ||
-        id.includes('piper') ||
-        id.includes('kokoro') ||
-        id.includes('melotts') ||
-        id.includes('tts')
-    );
-};
-
 export const isEmbeddingModel = (m: InstalledModel): boolean => {
-    const id = m.id.toLowerCase();
+    const tasks = (m.supported_tasks || []).map((t) => t.toLowerCase());
+    if (tasks.includes('embedding') || tasks.includes('embed')) return true;
+
     const cat = m.category?.toLowerCase();
+    if (cat === 'embedding') return true;
+
+    const id = m.id.toLowerCase();
     return (
-        cat === 'embedding' ||
         id.includes('embed') ||
         id.includes('bge') ||
         id.includes('nomic') ||
@@ -63,11 +95,14 @@ export const isEmbeddingModel = (m: InstalledModel): boolean => {
 };
 
 export const isVisionIngestModel = (m: InstalledModel): boolean => {
-    const id = m.id.toLowerCase();
+    const tasks = (m.supported_tasks || []).map((t) => t.toLowerCase());
+    if (tasks.includes('vision') || tasks.includes('ingest') || tasks.includes('ocr')) return true;
+
     const cat = m.category?.toLowerCase();
+    if (cat === 'ingest' || cat === 'vision') return true;
+
+    const id = m.id.toLowerCase();
     return (
-        cat === 'ingest' ||
-        cat === 'vision' ||
         id.includes('ocr') ||
         id.includes('nougat') ||
         id.includes('florence') ||
@@ -111,9 +146,9 @@ export const getFilteredModelsForEndpoint = (
         return installedModels.filter(isEmbeddingModel);
     }
 
-    // 6. Ingestion / Vision (/v1/ingest)
+    // 7. Ingestion / Vision (/v1/ingest)
     if (p.includes('/ingest')) {
-        const ingestModels = installedModels.filter(m => isVisionIngestModel(m) || isEmbeddingModel(m));
+        const ingestModels = installedModels.filter((m) => isVisionIngestModel(m) || isEmbeddingModel(m));
         return ingestModels.length > 0 ? ingestModels : installedModels;
     }
 
