@@ -39,6 +39,7 @@ export interface RouteState {
     view: MainViewId;
     isSettingsOpen: boolean;
     settingsTab: SettingsTabId;
+    activeChatId?: string | null;
 }
 
 function extractTabFromPath(pathname: string): string | null {
@@ -112,11 +113,38 @@ export function parseCurrentRoute(): RouteState {
         view = 'toolkit';
     }
 
+    const activeChatId = searchParams.get('c') || null;
+
     return {
         view,
         isSettingsOpen: isSettingsPath,
         settingsTab,
+        activeChatId,
     };
+}
+
+/**
+ * Updates URL to reflect active chat ID (?c=chat_YYYYMMDD_...) without reloading.
+ */
+export function pushChatRoute(chatId: string | null, replace: boolean = false): void {
+    if (typeof window === 'undefined') return;
+    try {
+        const url = new URL(window.location.href);
+        if (chatId) {
+            url.searchParams.set('c', chatId);
+        } else {
+            url.searchParams.delete('c');
+        }
+        const targetUrl = url.pathname + (url.search ? url.search : '') + url.hash;
+        const currentUrl = window.location.pathname + window.location.search + window.location.hash;
+        if (targetUrl === currentUrl) return;
+
+        if (replace) {
+            window.history.replaceState({ activeChatId: chatId }, '', targetUrl);
+        } else {
+            window.history.pushState({ activeChatId: chatId }, '', targetUrl);
+        }
+    } catch {}
 }
 
 /**

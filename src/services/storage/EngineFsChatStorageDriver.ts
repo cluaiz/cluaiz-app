@@ -17,7 +17,7 @@ export class EngineFsChatStorageDriver implements IChatStorageDriver {
 
     async loadSessionsIndex(): Promise<SessionsIndex | null> {
         try {
-            const res = await this.callFsApi('read', { path: 'data/sessions_index.json' });
+            const res = await this.callFsApi('read', { path: 'data/chats/sessions_index.json' });
             if (res && res.content) {
                 const parsed = JSON.parse(res.content) as SessionsIndex;
                 if (parsed && Array.isArray(parsed.sessions)) {
@@ -25,35 +25,21 @@ export class EngineFsChatStorageDriver implements IChatStorageDriver {
                 }
             }
         } catch {
-            // Self-heal fallback from localStorage catalog backup
-            try {
-                if (typeof localStorage !== 'undefined') {
-                    const localRaw = localStorage.getItem('cluaiz_sessions_catalog_backup');
-                    if (localRaw) {
-                        return JSON.parse(localRaw) as SessionsIndex;
-                    }
-                }
-            } catch {}
+            // Self-heal or first load returns null
         }
         return null;
     }
 
     async saveSessionsIndex(index: SessionsIndex): Promise<void> {
-        try {
-            if (typeof localStorage !== 'undefined' && index?.sessions?.length) {
-                localStorage.setItem('cluaiz_sessions_catalog_backup', JSON.stringify(index));
-            }
-        } catch {}
-
         await this.callFsApi('write', {
-            path: 'data/sessions_index.json',
+            path: 'data/chats/sessions_index.json',
             content: JSON.stringify(index, null, 2)
         });
     }
 
     async loadSessionMetadata(sessionId: string): Promise<SessionMetadata | null> {
         try {
-            const res = await this.callFsApi('read', { path: `data/${sessionId}/meta.json` });
+            const res = await this.callFsApi('read', { path: `data/chats/${sessionId}/meta.json` });
             if (res && res.content) {
                 return JSON.parse(res.content) as SessionMetadata;
             }
@@ -63,14 +49,14 @@ export class EngineFsChatStorageDriver implements IChatStorageDriver {
 
     async saveSessionMetadata(sessionId: string, meta: SessionMetadata): Promise<void> {
         await this.callFsApi('write', {
-            path: `data/${sessionId}/meta.json`,
+            path: `data/chats/${sessionId}/meta.json`,
             content: JSON.stringify(meta, null, 2)
         });
     }
 
     async loadSessionMessages(sessionId: string, limit?: number, offset?: number): Promise<ChatMessage[]> {
         try {
-            const res = await this.callFsApi('read', { path: `data/${sessionId}/messages.jsonl` });
+            const res = await this.callFsApi('read', { path: `data/chats/${sessionId}/messages.jsonl` });
             if (!res || !res.content) return [];
 
             const lines = res.content.split('\n').filter((l: string) => l.trim().length > 0);
@@ -109,16 +95,16 @@ export class EngineFsChatStorageDriver implements IChatStorageDriver {
     async saveAllMessages(sessionId: string, messages: ChatMessage[]): Promise<void> {
         const content = messages.map(m => JSON.stringify(m)).join('\n') + (messages.length > 0 ? '\n' : '');
         await this.callFsApi('write', {
-            path: `data/${sessionId}/messages.jsonl`,
+            path: `data/chats/${sessionId}/messages.jsonl`,
             content
         });
     }
 
     async deleteSession(sessionId: string): Promise<void> {
         try {
-            await this.callFsApi('delete', { path: `data/${sessionId}` });
+            await this.callFsApi('delete', { path: `data/chats/${sessionId}` });
         } catch (err) {
-            console.warn(`[EngineFs] Failed deleting session folder data/${sessionId}:`, err);
+            console.warn(`[EngineFs] Failed deleting session folder data/chats/${sessionId}:`, err);
         }
     }
 
@@ -145,7 +131,7 @@ export class EngineFsChatStorageDriver implements IChatStorageDriver {
         }
 
         await this.callFsApi('write', {
-            path: `data/${sessionId}/assets/${assetId}`,
+            path: `data/chats/${sessionId}/assets/${assetId}`,
             is_binary: true,
             content: base64
         });
@@ -155,6 +141,6 @@ export class EngineFsChatStorageDriver implements IChatStorageDriver {
 
     async resolveAssetUrl(sessionId: string, relativePath: string): Promise<string> {
         const cleanRel = relativePath.startsWith('/') ? relativePath.slice(1) : relativePath;
-        return `${http.getBaseUrl()}/v1/fs/read?path=data/${sessionId}/${cleanRel}`;
+        return `${http.getBaseUrl()}/v1/fs/read?path=data/chats/${sessionId}/${cleanRel}`;
     }
 }

@@ -19,6 +19,7 @@ import { NeonPulseCursor } from './components/ui/cursor/NeonPulseCursor';
 import { CanvasCursor } from './components/ui/cursor/CanvasCursor';
 import { AuraCursor } from './components/ui/cursor/AuraCursor';
 import { parseCurrentRoute, pushSettingsRoute, pushViewRoute, SettingsTabId } from './core/router';
+import { useChatStore } from './store/chat/useChatStore';
 import { ToastContainer } from './components/ui/toast';
 
 function MainAppContent() {
@@ -87,6 +88,12 @@ function MainAppContent() {
             });
             if (!route.isSettingsOpen && route.view) {
                 useLayoutStore.getState().setActiveView(route.view);
+            }
+            if (route.activeChatId !== undefined) {
+                const currentActive = useChatStore.getState().activeSessionId;
+                if (currentActive !== route.activeChatId) {
+                    useChatStore.getState().switchSession(route.activeChatId);
+                }
             }
         };
         window.addEventListener('popstate', handlePopState);

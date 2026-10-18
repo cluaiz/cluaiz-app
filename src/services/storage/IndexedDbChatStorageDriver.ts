@@ -77,14 +77,7 @@ export class IndexedDbChatStorageDriver implements IChatStorageDriver {
                             if (s?.id) {
                                 existingMap.set(s.id, {
                                     id: s.id,
-                                    title: s.title || 'Chat',
-                                    tags: s.tags || [],
-                                    unread: s.unread || 0,
-                                    pinned: Boolean(s.pinned),
-                                    pinnedAt: s.pinnedAt,
-                                    archived: Boolean(s.archived),
-                                    archivedAt: s.archivedAt,
-                                    muted: Boolean(s.muted),
+                                    title: s.title || 'New Chat',
                                     createdAt: s.createdAt || Date.now(),
                                     updatedAt: s.updatedAt || Date.now(),
                                     lastMessagePreview: s.lastMessagePreview,
@@ -94,68 +87,25 @@ export class IndexedDbChatStorageDriver implements IChatStorageDriver {
                         }
                     }
 
-                    // 2. Self-heal from localStorage catalog backup
-                    try {
-                        const localRaw = typeof localStorage !== 'undefined' ? localStorage.getItem('cluaiz_sessions_catalog_backup') : null;
-                        if (localRaw) {
-                            const backup = JSON.parse(localRaw) as SessionsIndex;
-                            if (backup?.sessions && Array.isArray(backup.sessions)) {
-                                for (const s of backup.sessions) {
-                                    if (s?.id && !existingMap.has(s.id)) {
-                                        existingMap.set(s.id, {
-                                            id: s.id,
-                                            title: s.title || 'Chat',
-                                            tags: s.tags || [],
-                                            unread: 0,
-                                            pinned: Boolean(s.pinned),
-                                            pinnedAt: s.pinnedAt,
-                                            archived: Boolean(s.archived),
-                                            archivedAt: s.archivedAt,
-                                            muted: Boolean(s.muted),
-                                            createdAt: s.createdAt || Date.now(),
-                                            updatedAt: s.updatedAt || Date.now(),
-                                            lastMessagePreview: s.lastMessagePreview,
-                                            messageCount: s.messageCount
-                                        });
-                                    }
-                                }
-                            }
-                        }
-                    } catch {
-                        // ignore localStorage parse error
-                    }
-
-                    // 3. Self-heal from session_meta
+                    // 2. Self-heal from session_meta
                     for (const m of allMeta) {
                         if (m?.id && !existingMap.has(m.id)) {
                             existingMap.set(m.id, {
                                 id: m.id,
-                                title: m.title || 'Chat',
-                                tags: m.tags || [],
-                                unread: 0,
-                                pinned: Boolean(m.pinned),
-                                pinnedAt: m.pinnedAt,
-                                archived: Boolean(m.archived),
-                                archivedAt: m.archivedAt,
-                                muted: Boolean(m.muted),
+                                title: m.title || 'New Chat',
                                 createdAt: m.createdAt || Date.now(),
                                 updatedAt: m.updatedAt || Date.now(),
                             });
                         }
                     }
 
-                    // 4. Self-heal from all stored session messages keys
+                    // 3. Self-heal from all stored session messages keys
                     for (const rawKey of allMsgKeys) {
                         const key = String(rawKey);
                         if (key && !existingMap.has(key)) {
                             existingMap.set(key, {
                                 id: key,
-                                title: 'Chat',
-                                tags: [],
-                                unread: 0,
-                                pinned: false,
-                                archived: false,
-                                muted: false,
+                                title: 'New Chat',
                                 createdAt: Date.now(),
                                 updatedAt: Date.now(),
                             });

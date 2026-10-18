@@ -3,6 +3,7 @@ import { currentChatPrefs } from './useChatPrefsStore';
 import { chatStorageManager } from '../../services/storage/ChatStorageManager';
 import { SessionIndexItem, SessionsIndex } from '../../services/storage/types';
 import { inferChatTopicAndEmoji } from '../../utils/topicProber';
+import { parseCurrentRoute, pushChatRoute } from '../../core/router';
 
 export interface ChatMessage {
     id: string;
@@ -132,7 +133,15 @@ interface ChatStore {
     setLastMessageFinishReason: (sessionId: string, finishReason: string) => void;
 }
 
-const generateId = () => Math.random().toString(36).substring(2, 15);
+export const generateChatId = () => {
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const datePart = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+    const randPart = Math.random().toString(36).substring(2, 6);
+    return `chat_${datePart}_${randPart}`;
+};
+
+const generateMessageId = () => Math.random().toString(36).substring(2, 11);
 
 // Monotonic generation counter to prevent race conditions during rapid session switching
 let sessionSwitchGeneration = 0;
@@ -148,16 +157,7 @@ const syncIndexToStorage = (sessions: Record<string, ChatSession>, activeId: str
         }
         return {
             id: s.id,
-            title: s.title,
-            avatar: s.avatar,
-            tags: s.tags,
-            unread: s.unread,
-            pinned: s.pinned,
-            pinnedAt: s.pinnedAt,
-            favourite: s.favourite,
-            archived: s.archived,
-            archivedAt: s.archivedAt,
-            muted: s.muted,
+            title: s.title || 'New Chat',
             createdAt: s.createdAt,
             updatedAt: s.updatedAt,
             messageCount: s.messages ? s.messages.length : (s.messageCount || 0),
@@ -171,13 +171,6 @@ const syncIndexToStorage = (sessions: Record<string, ChatSession>, activeId: str
         sessions: sessionList
     };
 
-    // Dual-sync to localStorage backup
-    try {
-        if (typeof localStorage !== 'undefined' && sessionList.length > 0) {
-            localStorage.setItem('cluaiz_sessions_catalog_backup', JSON.stringify(indexData));
-        }
-    } catch {}
-
     chatStorageManager.saveSessionsIndex(indexData).catch(err => console.warn("[ChatStore] Failed to save session index:", err));
 };
 
@@ -186,17 +179,9 @@ const syncSessionMeta = (session: ChatSession) => {
     if (session.isIncognito) return;
     chatStorageManager.saveSessionMetadata(session.id, {
         id: session.id,
-        title: session.title,
-        avatar: session.avatar,
-        tags: session.tags,
+        title: session.title || 'New Chat',
         createdAt: session.createdAt,
-        updatedAt: session.updatedAt,
-        pinned: session.pinned,
-        pinnedAt: session.pinnedAt,
-        favourite: session.favourite,
-        archived: session.archived,
-        archivedAt: session.archivedAt,
-        muted: session.muted
+        updatedAt: session.updatedAt
     }).catch(err => console.warn("[ChatStore] Failed to save session metadata:", err));
 };
 
@@ -231,16 +216,13 @@ export const useChatStore = create<ChatStore>()(
                     for (const s of index.sessions) {
                         sessionsMap[s.id] = {
                             id: s.id,
-                            title: s.title || 'Chat',
-                            avatar: s.avatar,
-                            tags: s.tags || [],
-                            unread: s.unread || 0,
-                            pinned: Boolean(s.pinned),
-                            pinnedAt: s.pinnedAt,
-                            favourite: Boolean(s.favourite),
-                            archived: Boolean(s.archived),
-                            archivedAt: s.archivedAt,
-                            muted: Boolean(s.muted),
+                            title: s.title || 'New Chat',
+                            tags: [],
+                            unread: 0,
+                            pinned: false,
+                            favourite: false,
+                            archived: false,
+                            muted: false,
                             createdAt: s.createdAt || Date.now(),
                             updatedAt: s.updatedAt || Date.now(),
                             lastMessagePreview: s.lastMessagePreview,
@@ -248,11 +230,17 @@ export const useChatStore = create<ChatStore>()(
                             messages: [] // Loaded lazily on switchSession
                         };
                     }
-                    // Only restore an active session if lastActiveSessionId is a valid existing session.
-                    // If lastActiveSessionId is null (user was in New Chat), keep targetActiveId as null.
-                    const targetActiveId = (index.lastActiveSessionId && sessionsMap[index.lastActiveSessionId])
-                        ? index.lastActiveSessionId
-                        : null;
+
+                    // Check URL parameter (?c=...) first, then index's lastActiveSessionId, then first session
+                    const routeChatId = parseCurrentRoute().activeChatId;
+                    let targetActiveId: string | null = null;
+                    if (routeChatId && sessionsMap[routeChatId]) {
+                        targetActiveId = routeChatId;
+                    } else if (index.lastActiveSessionId && sessionsMap[index.lastActiveSessionId]) {
+                        targetActiveId = index.lastActiveSessionId;
+                    } else {
+                        targetActiveId = Object.keys(sessionsMap)[0] || null;
+                    }
 
                     set({
                         sessions: sessionsMap,
@@ -260,60 +248,14 @@ export const useChatStore = create<ChatStore>()(
                         isHydrated: true
                     });
 
-                    // Proactively load messages for the active session if one exists
+                    // Sync active chat to URL and load messages
                     if (targetActiveId) {
+                        pushChatRoute(targetActiveId, true);
                         get().switchSession(targetActiveId);
                     }
                 } else {
-                    // Check if localStorage catalog backup has existing sessions before generating fallback
-                    let restoredBackup: SessionsIndex | null = null;
-                    try {
-                        const localRaw = typeof localStorage !== 'undefined' ? localStorage.getItem('cluaiz_sessions_catalog_backup') : null;
-                        if (localRaw) {
-                            const parsed = JSON.parse(localRaw) as SessionsIndex;
-                            if (parsed?.sessions?.length) restoredBackup = parsed;
-                        }
-                    } catch {}
-
-                    if (restoredBackup && restoredBackup.sessions.length > 0) {
-                        const sessionsMap: Record<string, ChatSession> = {};
-                        for (const s of restoredBackup.sessions) {
-                            sessionsMap[s.id] = {
-                                id: s.id,
-                                title: s.title || 'Chat',
-                                avatar: s.avatar,
-                                tags: s.tags || [],
-                                unread: s.unread || 0,
-                                pinned: Boolean(s.pinned),
-                                pinnedAt: s.pinnedAt,
-                                favourite: Boolean(s.favourite),
-                                archived: Boolean(s.archived),
-                                archivedAt: s.archivedAt,
-                                muted: Boolean(s.muted),
-                                createdAt: s.createdAt || Date.now(),
-                                updatedAt: s.updatedAt || Date.now(),
-                                lastMessagePreview: s.lastMessagePreview,
-                                messageCount: s.messageCount || 0,
-                                messages: []
-                            };
-                        }
-                        const targetActiveId = (restoredBackup.lastActiveSessionId && sessionsMap[restoredBackup.lastActiveSessionId])
-                            ? restoredBackup.lastActiveSessionId
-                            : Object.keys(sessionsMap)[0] || null;
-
-                        set({
-                            sessions: sessionsMap,
-                            activeSessionId: targetActiveId,
-                            isHydrated: true
-                        });
-                        if (targetActiveId) {
-                            get().switchSession(targetActiveId);
-                        }
-                        return;
-                    }
-
-                    // First boot or empty catalog: initialize single clean session
-                    const id = generateId();
+                    // First boot or empty catalog: initialize single clean session with readable ID
+                    const id = generateChatId();
                     const defaultSession: ChatSession = {
                         id,
                         title: 'New Chat',
@@ -333,6 +275,7 @@ export const useChatStore = create<ChatStore>()(
                         activeSessionId: id,
                         isHydrated: true
                     });
+                    pushChatRoute(id, true);
                     syncSessionMeta(defaultSession);
                     syncIndexToStorage(initialSessions, id);
                 }
@@ -343,7 +286,7 @@ export const useChatStore = create<ChatStore>()(
         },
 
         createNewSession: (initialTitle?: string, options?: { incognito?: boolean }) => {
-            const id = generateId();
+            const id = generateChatId();
             const newSession: ChatSession = {
                 id,
                 title: initialTitle || 'New Chat',
@@ -365,8 +308,11 @@ export const useChatStore = create<ChatStore>()(
                 activeSessionId: id,
             });
 
-            syncSessionMeta(newSession);
-            syncIndexToStorage(updatedSessions, id);
+            if (!newSession.isIncognito) {
+                pushChatRoute(id);
+                syncSessionMeta(newSession);
+                syncIndexToStorage(updatedSessions, id);
+            }
             return id;
         },
 
@@ -381,6 +327,7 @@ export const useChatStore = create<ChatStore>()(
                 } catch { }
             }
             set({ activeSessionId: sessionId });
+            pushChatRoute(sessionId);
 
             if (!sessionId) {
                 syncIndexToStorage(get().sessions, null);
@@ -439,6 +386,7 @@ export const useChatStore = create<ChatStore>()(
                     ? (remainingIds[0] || null)
                     : state.activeSessionId;
 
+                pushChatRoute(newActive);
                 syncIndexToStorage(newSessions, newActive);
 
                 return {
@@ -451,21 +399,19 @@ export const useChatStore = create<ChatStore>()(
         addMessage: (sessionId, message) => {
             const newMessage: ChatMessage = {
                 ...message,
-                id: generateId(),
+                id: generateMessageId(),
             };
 
             set((state) => {
                 const session = state.sessions[sessionId];
                 if (!session) return state;
 
-                // Auto-generate topic emoji and smart title from first user message
+                // Auto-generate smart title from first user message
                 let title = session.title;
-                let avatar = session.avatar;
                 let metaChanged = false;
                 if (session.messages.length === 0 && message.sender === 'user' && message.text) {
                     const inference = inferChatTopicAndEmoji(message.text);
-                    title = inference.title;
-                    avatar = inference.emoji;
+                    title = inference.title || 'New Chat';
                     metaChanged = true;
                 }
 
@@ -487,7 +433,6 @@ export const useChatStore = create<ChatStore>()(
                 const updatedSession: ChatSession = {
                     ...session,
                     title,
-                    avatar,
                     archived,
                     archivedAt,
                     updatedAt: Date.now(),

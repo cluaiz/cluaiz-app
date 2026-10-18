@@ -155,9 +155,10 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                 previewMsg = session.lastMessagePreview;
             }
 
+            const displayName = session.title?.trim() || session.lastMessagePreview?.slice(0, 24) || 'New Chat';
             return {
                 id: session.id,
-                name: session.title,
+                name: displayName,
                 avatar: session.avatar || '',
                 time: timeStr,
                 message: previewMsg,
@@ -630,8 +631,8 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                                     )}
 
                                     {/* Chat Title only */}
-                                    <span className="text-xs truncate flex-1 leading-relaxed">
-                                        {chat.name}
+                                    <span className="text-xs truncate flex-1 leading-relaxed font-medium">
+                                        {chat.name || 'New Chat'}
                                     </span>
                                     {streamingSessionId === chat.id && (
                                         <span className="text-[10px] font-semibold text-[var(--accent-color)] animate-pulse shrink-0">

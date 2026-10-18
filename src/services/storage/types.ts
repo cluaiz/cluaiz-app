@@ -3,15 +3,6 @@ import { ChatMessage } from '../../store/chat/useChatStore';
 export interface SessionIndexItem {
     id: string;
     title: string;
-    avatar?: string;
-    tags: string[];
-    unread: number;
-    pinned: boolean;
-    pinnedAt?: number;
-    favourite?: boolean;
-    archived: boolean;
-    archivedAt?: number;
-    muted: boolean;
     createdAt: number;
     updatedAt: number;
     messageCount?: number;
@@ -27,16 +18,8 @@ export interface SessionsIndex {
 export interface SessionMetadata {
     id: string;
     title: string;
-    avatar?: string;
-    tags: string[];
     createdAt: number;
     updatedAt: number;
-    pinned?: boolean;
-    pinnedAt?: number;
-    favourite?: boolean;
-    archived?: boolean;
-    archivedAt?: number;
-    muted?: boolean;
     model?: string;
     systemPrompt?: string;
 }
