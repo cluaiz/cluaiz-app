@@ -632,6 +632,13 @@
           "default": 1.0
         },
         {
+          "name": "stream",
+          "type": "boolean",
+          "req": false,
+          "desc": "Whether to stream audio response chunks via Server-Sent Events (SSE).",
+          "default": false
+        },
+        {
           "name": "keep_alive",
           "type": "integer",
           "req": false,
@@ -639,7 +646,7 @@
           "default": 5
         }
       ],
-      "request_payload": "{\n  \"model\": \"piper-en-us-ryan-medium\",\n  \"input\": \"Hello, welcome to Cluaiz Engine. you can now run ai.\",\n  \"voice\": \"default\",\n  \"speed\": 1.0,\n  \"keep_alive\": 5\n}",
+      "request_payload": "{\n  \"model\": \"piper-en-us-ryan-medium\",\n  \"input\": \"Hello, welcome to Cluaiz Engine. you can now run ai.\",\n  \"voice\": \"default\",\n  \"speed\": 1.0,\n  \"stream\": false,\n  \"keep_alive\": 5\n}",
       "response": "{\n  \"status\": \"success\",\n  \"task\": \"text_to_speech\",\n  \"model\": \"piper-en-us-ryan-medium\",\n  \"output\": {\n    \"audio_data\": \"data:audio/wav;base64,UklGRsYLAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQILAAA...\"\n  }\n}",
       "examples": [
         {

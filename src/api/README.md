@@ -75,6 +75,10 @@ PDF/document content is extracted by the engine into text, so a text-only chat m
   export type Status = 'idle' | 'pending' | 'success' | 'error';
   ```
 
+The speech endpoint currently returns JSON with `output.audio_data` as a WAV data URI. `audioApi.speech` converts this envelope to a Blob and preserves structured engine errors; it also accepts a binary audio response. The API explorer passes the same URI to `AudioVisualizer`, which uses the shared Base64 decoder. RIFF form types distinguish WAV from WebP. Default voice selection is omitted from the payload; explicit speech voices use top-level `voice`, with unsupported values still rejected by the engine.
+
+The model dropdown filters declared tasks, not successful native synthesis. Audio8 may therefore be listed while its native AR runtime remains unimplemented; that route returns an explicit error. A package being installed does not establish playable output or speech quality.
+
 ---
 
 ## 3. The 5-File Duck Pattern Standard

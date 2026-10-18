@@ -45,12 +45,21 @@ export interface AudioExecuteResponse {
   metrics?: Record<string, any>;
 }
 
+/** One voice of a TTS model (GET /v1/audio/voices); "default" lets the engine pick by language */
+export interface TtsVoice {
+  id: string;
+  language: string | null;
+  default: boolean;
+}
+
 export interface SpeechRequest {
   model?: string;
   input: string;
   voice?: string;
   response_format?: 'mp3' | 'opus' | 'aac' | 'flac' | 'wav' | 'pcm';
   speed?: number;
+  stream?: boolean;
+  keep_alive?: number;
 }
 
 export interface TranscriptionRequest {

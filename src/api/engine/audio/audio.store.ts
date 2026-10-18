@@ -18,8 +18,7 @@ export interface AudioState {
 
   // Actions
   generateSpeech: (req: SpeechRequest) => Promise<Blob | null>;
-  transcribeAudio: (file: Blob | File, model?: string) => Promise<TranscriptionResponse | null>;
-  executeAudio: (req: AudioExecuteRequest) => Promise<AudioOutput | null>;
+  transcribeAudio: (file: Blob | File | string, model?: string) => Promise<TranscriptionResponse | null>;
   reset: () => void;
 }
 
@@ -47,26 +46,21 @@ export const useAudioStore = create<AudioState>((set) => ({
   transcribeAudio: async (file, model) => {
     set({ isProcessing: true, status: 'pending', error: null });
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      if (model) formData.append('model', model);
+      let fileData: string;
+      if (typeof file === 'string') {
+        fileData = file;
+      } else {
+        fileData = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+      }
 
-      const res = await audioApi.transcriptions(formData);
+      const res = await audioApi.transcriptions({ file: fileData, model });
       set({ isProcessing: false, lastTranscription: res, status: 'success', error: null });
       return res;
-    } catch (err) {
-      const msg = errorMessage(err);
-      set({ isProcessing: false, status: 'error', error: msg });
-      return null;
-    }
-  },
-
-  executeAudio: async (req) => {
-    set({ isProcessing: true, status: 'pending', error: null });
-    try {
-      const res = await audioApi.execute(req);
-      set({ isProcessing: false, lastOutput: res.output, status: 'success', error: null });
-      return res.output;
     } catch (err) {
       const msg = errorMessage(err);
       set({ isProcessing: false, status: 'error', error: msg });

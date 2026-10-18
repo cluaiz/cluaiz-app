@@ -24,6 +24,7 @@ Synthesizes high-fidelity natural speech audio from input text using ONNX-accele
 | **`model`** | String | No | `"piper-en-us-ryan-medium"` | Installed TTS package ID | Neural TTS voice model package ID. |
 | **`voice`** | String | No | `"default"` | Speaker persona | Voice persona or speaker ID within multi-speaker packages. |
 | **`speed`** | Float | No | `1.0` | `1.0` | Voice playback speed multiplier. |
+| **`stream`** | Boolean | No | `false` | `true`, `false` | Whether to stream audio response chunks via Server-Sent Events (SSE). |
 | **`keep_alive`** | Integer | No | `null` | Minutes (e.g. `5`, `0` to unload, `-1` forever) | Session memory retention policy in minutes. |
 
 ---
