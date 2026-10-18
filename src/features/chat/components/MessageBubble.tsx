@@ -1,10 +1,13 @@
 import React from 'react';
-import { CheckCheck, ChevronDown, ChevronUp, FileText, FileCode, Image as ImageIcon, Film, Music } from 'lucide-react';
+import { CheckCheck, ChevronDown, ChevronUp, FileText, FileCode, Image as ImageIcon, Film, Music, Volume2, VolumeX, Loader2 } from 'lucide-react';
 import { LottieEmoji } from '../../../components/ui/context-menu/LottieEmoji';
 import { EmojiMeta } from '../../../assets/EmojiMeta';
 import { ContextChip } from '../../../components/ui/ContextChip';
 import { extractBaseName } from '../../../utils/filePath';
 import { MarkdownRenderer } from '../../../components/ui/MarkdownRenderer';
+import { PersistentAudioDeck } from '../../../components/ui/PersistentAudioPlayer';
+import { AudioPlayerPopover } from '../../../components/ui/AudioControlSettingsModal';
+import { useVoiceSessionStore } from '../../../store/chat/useVoiceSessionStore';
 
 function formatBytes(bytes?: number | null): string {
     if (!bytes || bytes === 0) return '';
@@ -283,7 +286,11 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
     const isUser = msg.sender === 'user';
     const isThinking = Boolean(msg.thinking && !msg.text);
     const [isThinkingOpen, setIsThinkingOpen] = React.useState(isThinking);
+    const [isAudioDeckOpen, setIsAudioDeckOpen] = React.useState(false);
+
+    const [isAudioSettingsOpen, setIsAudioSettingsOpen] = React.useState(false);
     const thinkingScrollRef = React.useRef<HTMLDivElement>(null);
+
 
     React.useEffect(() => {
         setIsThinkingOpen(isThinking);
@@ -294,6 +301,16 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
             thinkingScrollRef.current.scrollTop = thinkingScrollRef.current.scrollHeight;
         }
     }, [msg.thinking]);
+
+    // Voice mode: the answer being written now opens its player and speaks as it is written (once
+    // per message; history stays quiet)
+    const voiceMode = useVoiceSessionStore((s) => s.active);
+    const autoOpenedRef = React.useRef(false);
+    React.useEffect(() => {
+        if (isUser || !isStreaming || !voiceMode || autoOpenedRef.current) return;
+        autoOpenedRef.current = true;
+        setIsAudioDeckOpen(true);
+    }, [isUser, isStreaming, voiceMode]);
 
     const handleMouseUp = () => {
         if (!onTextSelect) return;
@@ -597,6 +614,19 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
                         </div>
                     ) : null}
 
+                    {/* Dedicated Zero-Jitter Audio Player Deck */}
+                    {msg.text && isAudioDeckOpen && (
+                        <div className="w-full mt-2">
+                            <PersistentAudioDeck
+                                messageId={msg.id || `${msg.time || ''}-${msg.text.slice(0, 16)}`}
+                                text={msg.text}
+                                isStreamingAi={isStreaming}
+                                autoStart
+                                onClose={() => setIsAudioDeckOpen(false)}
+                            />
+                        </div>
+                    )}
+
                     {/* 5. Waiting indicator when streaming/generating and no text/tools/thinking yet */}
                     {isStreaming && !msg.text && !msg.toolCalls?.some(tc => tc.status === 'running') && !msg.thinking && !msg.postToolThinking && !msg.telemetry && (
                         <div className="flex items-center gap-1.5 py-2 px-1 text-[var(--text-muted)]">
@@ -624,7 +654,32 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
                             </div>
                         ) : <div />}
 
-                        <div className="flex items-center gap-1 ml-auto" style={{ fontSize: 'inherit' }}>
+                        <div className="flex items-center gap-2 ml-auto" style={{ fontSize: 'inherit' }}>
+                            {msg.text && (
+                                <div className="relative flex items-center">
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsAudioDeckOpen(prev => !prev)}
+                                        onContextMenu={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            setIsAudioSettingsOpen(true);
+                                        }}
+                                        className={`p-1 rounded-md transition-colors cursor-pointer ${
+                                            isAudioDeckOpen
+                                                ? 'text-[var(--accent-color)] bg-[var(--bg-tertiary)]'
+                                                : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]'
+                                        }`}
+                                        title={isAudioDeckOpen ? 'Close audio player' : 'Read aloud (Right-click for settings)'}
+                                    >
+                                        <Volume2 className="w-3.5 h-3.5" />
+                                    </button>
+                                    <AudioPlayerPopover
+                                        isOpen={isAudioSettingsOpen}
+                                        onClose={() => setIsAudioSettingsOpen(false)}
+                                    />
+                                </div>
+                            )}
                             <span>{formatDisplayTime(msg.time)}</span>
                         </div>
                     </div>

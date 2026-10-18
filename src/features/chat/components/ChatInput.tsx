@@ -10,6 +10,7 @@ import { modelsApi } from '../../../api/engine/models/models.api';
 import { permissionApi } from '../../../api/engine/permission/permission.api';
 import { systemApi } from '../../../api/engine/system/system.api';
 import { toast } from '../../../components/ui/toast';
+import { audioApi } from '../../../api/engine/audio/audio.api';
 import { InlinePromptInput, InlinePromptInputHandle } from '../../../components/ui/InlinePromptInput';
 import { VoiceInputControl, VoiceMode } from '../../../components/ui/VoiceInputControl';
 import { extractBaseName } from '../../../utils/filePath';
@@ -127,6 +128,46 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         return 'record_send';
     });
     const [voiceFrequency, setVoiceFrequency] = useState(0);
+    // Microphone text: what was in the box when the microphone started + what has been heard
+    const dictationBaseRef = useRef('');
+    // Voice mode turn spoken while an answer was being written: sent once that answer has stopped
+    const pendingTurnRef = useRef<string | null>(null);
+
+    const replaceInputText = (text: string) => {
+        inlineInputRef.current?.clear();
+        if (text) inlineInputRef.current?.insertText(text);
+        setInputValue(text);
+    };
+    const withBase = (heard: string) => [dictationBaseRef.current.trim(), heard.trim()].filter(Boolean).join(' ');
+
+    const sendVoiceTurn = (text: string) => {
+        replaceInputText(text);
+        dictationBaseRef.current = '';
+        // Let the input box take the text before it is read for sending
+        setTimeout(() => handleSendWithAttachments(), 0);
+    };
+
+    const handleVoiceTurn = (heard: string) => {
+        const text = withBase(heard);
+        if (!text) return;
+        if (isStreaming) {
+            // A new turn replaces the answer still being written
+            pendingTurnRef.current = text;
+            onStopStreaming?.();
+            return;
+        }
+        sendVoiceTurn(text);
+    };
+
+    useEffect(() => {
+        if (!isStreaming && pendingTurnRef.current) {
+            const text = pendingTurnRef.current;
+            pendingTurnRef.current = null;
+            sendVoiceTurn(text);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isStreaming]);
+
     const [modelTextWidth, setModelTextWidth] = useState(200);
     const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
     const [isEffortMenuOpen, setIsEffortMenuOpen] = useState(false);
@@ -1312,7 +1353,15 @@ const BANNED_ARCHIVE_OR_BINARY_REGEX = /\.(zip|tar|gz|tgz|rar|7z|bz2|xz|exe|msi|
                     {renderModelSelector()}
 
                     <VoiceInputControl
+                        isAnswering={isStreaming}
+                        onText={(heard) => replaceInputText(withBase(heard))}
+                        onTurnEnd={handleVoiceTurn}
+                        onInterrupt={() => isStreaming && onStopStreaming?.()}
+                        onError={(message) => toast.error(message)}
                         onVoiceStateChange={(active, currentMode) => {
+                            if (active && !isVoiceActive) {
+                                dictationBaseRef.current = inlineInputRef.current?.getSerializedContent().text || '';
+                            }
                             setIsVoiceActive(active);
                             setVoiceMode(currentMode);
                         }}
