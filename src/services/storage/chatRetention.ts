@@ -9,7 +9,7 @@ export interface RetentionSession {
     archivedAt?: number;
     updatedAt: number;
     pinned: boolean;
-    favourite: boolean;
+    favourite?: boolean;
     isIncognito?: boolean;
 }
 

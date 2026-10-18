@@ -65,9 +65,9 @@ interface MockChat {
 }
 
 const getChatDate = (timeStr: string): Date => {
-    const baseDate = new Date(2026, 5, 12); // June 12, 2026 is Today
+    const baseDate = new Date(); // Dynamic current date
 
-    if (timeStr.includes('PM') || timeStr.includes('AM')) {
+    if (timeStr.includes('PM') || timeStr.includes('AM') || timeStr.includes(':')) {
         return baseDate;
     }
     if (timeStr.toLowerCase() === 'yesterday') {
@@ -158,7 +158,7 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
             return {
                 id: session.id,
                 name: session.title,
-                avatar: session.avatar || '🤖',
+                avatar: session.avatar || '',
                 time: timeStr,
                 message: previewMsg,
                 tags: session.tags || [],
@@ -170,7 +170,7 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                 sent: isSentByUser,
                 muted: session.muted || false,
                 archived: session.archived || false,
-                updatedAt: session.updatedAt || msgDate || 0
+                updatedAt: session.updatedAt || msgDate || Date.now()
             } as MockChat;
         });
     }, [sessions]);

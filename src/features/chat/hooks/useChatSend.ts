@@ -82,8 +82,7 @@ export function useChatSend({ inputValue, setInputValue, replyingTo, setReplying
             endStreaming();
             setProcessing(null);
             const current = useChatStore.getState();
-            current.finalizeAssistantMessage(sessionId);
-            const items = useChatStore.getState().sessions[sessionId]?.messages || [];
+            const items = current.sessions[sessionId]?.messages || [];
             const userIndex = items.findIndex(message => message.id === userId);
             const assistantIndex = items.findIndex(message => message.id === assistantId);
             if (userIndex >= 0) current.updateMessage(sessionId, userIndex, message => ({ ...message, finishReason: 'error' }));
@@ -91,6 +90,7 @@ export function useChatSend({ inputValue, setInputValue, replyingTo, setReplying
                 ...message, finishReason: 'error', time: timeStr,
                 text: `${message.text ? `${message.text}\n\n` : ''}Request failed: ${detail}`
             }));
+            current.finalizeAssistantMessage(sessionId);
         };
 
         setInputValue('');

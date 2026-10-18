@@ -1,4 +1,4 @@
-import { IChatStorageDriver, SessionsIndex, SessionMetadata } from './types';
+import { IChatStorageDriver, SessionsIndex, SessionMetadata, SessionIndexItem } from './types';
 import { ChatMessage } from '../../store/chat/useChatStore';
 
 const DB_NAME = 'cluaiz_chat_storage';
@@ -55,11 +55,146 @@ export class IndexedDbChatStorageDriver implements IChatStorageDriver {
         try {
             const db = await this.getDb();
             return new Promise((resolve) => {
-                const tx = db.transaction('sessions_index', 'readonly');
-                const store = tx.objectStore('sessions_index');
-                const req = store.get('catalog');
-                req.onsuccess = () => resolve(req.result || null);
-                req.onerror = () => resolve(this.memoryFallback.index);
+                const tx = db.transaction(['sessions_index', 'session_meta', 'session_messages'], 'readonly');
+                const indexStore = tx.objectStore('sessions_index');
+                const metaStore = tx.objectStore('session_meta');
+                const msgStore = tx.objectStore('session_messages');
+
+                const catalogReq = indexStore.get('catalog');
+                const allMetaReq = metaStore.getAll();
+                const allMsgKeysReq = msgStore.getAllKeys();
+
+                tx.oncomplete = () => {
+                    const catalog = catalogReq.result as SessionsIndex | undefined;
+                    const allMeta = (allMetaReq.result || []) as SessionMetadata[];
+                    const allMsgKeys = (allMsgKeysReq.result || []) as IDBValidKey[];
+
+                    const existingMap = new Map<string, SessionIndexItem>();
+
+                    // 1. Populate from catalog
+                    if (catalog?.sessions && Array.isArray(catalog.sessions)) {
+                        for (const s of catalog.sessions) {
+                            if (s?.id) {
+                                existingMap.set(s.id, {
+                                    id: s.id,
+                                    title: s.title || 'Chat',
+                                    tags: s.tags || [],
+                                    unread: s.unread || 0,
+                                    pinned: Boolean(s.pinned),
+                                    pinnedAt: s.pinnedAt,
+                                    archived: Boolean(s.archived),
+                                    archivedAt: s.archivedAt,
+                                    muted: Boolean(s.muted),
+                                    createdAt: s.createdAt || Date.now(),
+                                    updatedAt: s.updatedAt || Date.now(),
+                                    lastMessagePreview: s.lastMessagePreview,
+                                    messageCount: s.messageCount
+                                });
+                            }
+                        }
+                    }
+
+                    // 2. Self-heal from localStorage catalog backup
+                    try {
+                        const localRaw = typeof localStorage !== 'undefined' ? localStorage.getItem('cluaiz_sessions_catalog_backup') : null;
+                        if (localRaw) {
+                            const backup = JSON.parse(localRaw) as SessionsIndex;
+                            if (backup?.sessions && Array.isArray(backup.sessions)) {
+                                for (const s of backup.sessions) {
+                                    if (s?.id && !existingMap.has(s.id)) {
+                                        existingMap.set(s.id, {
+                                            id: s.id,
+                                            title: s.title || 'Chat',
+                                            tags: s.tags || [],
+                                            unread: 0,
+                                            pinned: Boolean(s.pinned),
+                                            pinnedAt: s.pinnedAt,
+                                            archived: Boolean(s.archived),
+                                            archivedAt: s.archivedAt,
+                                            muted: Boolean(s.muted),
+                                            createdAt: s.createdAt || Date.now(),
+                                            updatedAt: s.updatedAt || Date.now(),
+                                            lastMessagePreview: s.lastMessagePreview,
+                                            messageCount: s.messageCount
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                    } catch {
+                        // ignore localStorage parse error
+                    }
+
+                    // 3. Self-heal from session_meta
+                    for (const m of allMeta) {
+                        if (m?.id && !existingMap.has(m.id)) {
+                            existingMap.set(m.id, {
+                                id: m.id,
+                                title: m.title || 'Chat',
+                                tags: m.tags || [],
+                                unread: 0,
+                                pinned: Boolean(m.pinned),
+                                pinnedAt: m.pinnedAt,
+                                archived: Boolean(m.archived),
+                                archivedAt: m.archivedAt,
+                                muted: Boolean(m.muted),
+                                createdAt: m.createdAt || Date.now(),
+                                updatedAt: m.updatedAt || Date.now(),
+                            });
+                        }
+                    }
+
+                    // 4. Self-heal from all stored session messages keys
+                    for (const rawKey of allMsgKeys) {
+                        const key = String(rawKey);
+                        if (key && !existingMap.has(key)) {
+                            existingMap.set(key, {
+                                id: key,
+                                title: 'Chat',
+                                tags: [],
+                                unread: 0,
+                                pinned: false,
+                                archived: false,
+                                muted: false,
+                                createdAt: Date.now(),
+                                updatedAt: Date.now(),
+                            });
+                        }
+                    }
+
+                    const mergedSessions = Array.from(existingMap.values());
+                    if (mergedSessions.length > 0) {
+                        const resolvedIndex: SessionsIndex = {
+                            version: 1,
+                            lastActiveSessionId: catalog?.lastActiveSessionId || (mergedSessions[0]?.id ?? null),
+                            sessions: mergedSessions
+                        };
+                        this.memoryFallback.index = resolvedIndex;
+                        try {
+                            if (typeof localStorage !== 'undefined') {
+                                localStorage.setItem('cluaiz_sessions_catalog_backup', JSON.stringify(resolvedIndex));
+                            }
+                        } catch {}
+                        resolve(resolvedIndex);
+                        return;
+                    }
+
+                    resolve(catalog || this.memoryFallback.index);
+                };
+
+                tx.onerror = () => {
+                    try {
+                        const localRaw = typeof localStorage !== 'undefined' ? localStorage.getItem('cluaiz_sessions_catalog_backup') : null;
+                        if (localRaw) {
+                            const backup = JSON.parse(localRaw) as SessionsIndex;
+                            if (backup?.sessions?.length) {
+                                resolve(backup);
+                                return;
+                            }
+                        }
+                    } catch {}
+                    resolve(this.memoryFallback.index);
+                };
             });
         } catch {
             return this.memoryFallback.index;
@@ -68,6 +203,11 @@ export class IndexedDbChatStorageDriver implements IChatStorageDriver {
 
     async saveSessionsIndex(index: SessionsIndex): Promise<void> {
         this.memoryFallback.index = index;
+        try {
+            if (typeof localStorage !== 'undefined' && index?.sessions?.length) {
+                localStorage.setItem('cluaiz_sessions_catalog_backup', JSON.stringify(index));
+            }
+        } catch {}
         try {
             const db = await this.getDb();
             return new Promise((resolve, reject) => {
@@ -141,12 +281,22 @@ export class IndexedDbChatStorageDriver implements IChatStorageDriver {
         if (!this.memoryFallback.messages[sessionId]) {
             this.memoryFallback.messages[sessionId] = [];
         }
-        this.memoryFallback.messages[sessionId].push(message);
+        const memIdx = this.memoryFallback.messages[sessionId].findIndex(m => m.id === message.id);
+        if (memIdx >= 0) {
+            this.memoryFallback.messages[sessionId][memIdx] = message;
+        } else {
+            this.memoryFallback.messages[sessionId].push(message);
+        }
 
         try {
             const db = await this.getDb();
             const existingMessages = await this.loadSessionMessages(sessionId);
-            existingMessages.push(message);
+            const idx = existingMessages.findIndex(m => m.id === message.id);
+            if (idx >= 0) {
+                existingMessages[idx] = message;
+            } else {
+                existingMessages.push(message);
+            }
 
             return new Promise((resolve, reject) => {
                 const tx = db.transaction('session_messages', 'readwrite');

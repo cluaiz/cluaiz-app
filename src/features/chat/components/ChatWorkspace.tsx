@@ -275,9 +275,7 @@ main().catch(console.error);`);
         import('../../../core/engine').then(({ cluaizEngine }) => {
             // Conditionally boot the engine based on user settings
             if (launchOnStartup) {
-                cluaizEngine.boot().then(() => {
-                    useChatStore.getState().fetchSessionsFromEngine();
-                }).catch(console.error);
+                cluaizEngine.boot().catch(console.error);
             }
 
             cluaizEngine.onToken((chunk) => {

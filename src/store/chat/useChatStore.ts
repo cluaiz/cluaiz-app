@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { currentChatPrefs } from './useChatPrefsStore';
 import { chatStorageManager } from '../../services/storage/ChatStorageManager';
-import { SessionIndexItem } from '../../services/storage/types';
+import { SessionIndexItem, SessionsIndex } from '../../services/storage/types';
 import { inferChatTopicAndEmoji } from '../../utils/topicProber';
 
 export interface ChatMessage {
@@ -56,12 +56,12 @@ export interface ChatMessage {
 export interface ChatSession {
     id: string;
     title: string;
-    avatar: string;
+    avatar?: string;
     tags: string[];
     unread: number;
     pinned: boolean;
     pinnedAt?: number;
-    favourite: boolean;
+    favourite?: boolean;
     archived: boolean;
     /** When the chat was archived; the archive delete timer counts from here */
     archivedAt?: number;
@@ -128,7 +128,6 @@ interface ChatStore {
     updateMessage: (sessionId: string, messageIndex: number, updater: (msg: ChatMessage) => ChatMessage) => void;
     deleteMessage: (sessionId: string, messageIndex: number) => void;
     updateSession: (sessionId: string, updater: (session: ChatSession) => ChatSession) => void;
-    fetchSessionsFromEngine: () => Promise<void>;
     setSessionEngineContext: (sessionId: string, context: any, boundaryId?: string) => void;
     setLastMessageFinishReason: (sessionId: string, finishReason: string) => void;
 }
@@ -166,11 +165,20 @@ const syncIndexToStorage = (sessions: Record<string, ChatSession>, activeId: str
         };
     });
 
-    chatStorageManager.saveSessionsIndex({
+    const indexData: SessionsIndex = {
         version: 1,
         lastActiveSessionId: activeId,
         sessions: sessionList
-    }).catch(err => console.warn("[ChatStore] Failed to save session index:", err));
+    };
+
+    // Dual-sync to localStorage backup
+    try {
+        if (typeof localStorage !== 'undefined' && sessionList.length > 0) {
+            localStorage.setItem('cluaiz_sessions_catalog_backup', JSON.stringify(indexData));
+        }
+    } catch {}
+
+    chatStorageManager.saveSessionsIndex(indexData).catch(err => console.warn("[ChatStore] Failed to save session index:", err));
 };
 
 const syncSessionMeta = (session: ChatSession) => {
@@ -224,7 +232,7 @@ export const useChatStore = create<ChatStore>()(
                         sessionsMap[s.id] = {
                             id: s.id,
                             title: s.title || 'Chat',
-                            avatar: s.avatar || '🤖',
+                            avatar: s.avatar,
                             tags: s.tags || [],
                             unread: s.unread || 0,
                             pinned: Boolean(s.pinned),
@@ -257,12 +265,58 @@ export const useChatStore = create<ChatStore>()(
                         get().switchSession(targetActiveId);
                     }
                 } else {
+                    // Check if localStorage catalog backup has existing sessions before generating fallback
+                    let restoredBackup: SessionsIndex | null = null;
+                    try {
+                        const localRaw = typeof localStorage !== 'undefined' ? localStorage.getItem('cluaiz_sessions_catalog_backup') : null;
+                        if (localRaw) {
+                            const parsed = JSON.parse(localRaw) as SessionsIndex;
+                            if (parsed?.sessions?.length) restoredBackup = parsed;
+                        }
+                    } catch {}
+
+                    if (restoredBackup && restoredBackup.sessions.length > 0) {
+                        const sessionsMap: Record<string, ChatSession> = {};
+                        for (const s of restoredBackup.sessions) {
+                            sessionsMap[s.id] = {
+                                id: s.id,
+                                title: s.title || 'Chat',
+                                avatar: s.avatar,
+                                tags: s.tags || [],
+                                unread: s.unread || 0,
+                                pinned: Boolean(s.pinned),
+                                pinnedAt: s.pinnedAt,
+                                favourite: Boolean(s.favourite),
+                                archived: Boolean(s.archived),
+                                archivedAt: s.archivedAt,
+                                muted: Boolean(s.muted),
+                                createdAt: s.createdAt || Date.now(),
+                                updatedAt: s.updatedAt || Date.now(),
+                                lastMessagePreview: s.lastMessagePreview,
+                                messageCount: s.messageCount || 0,
+                                messages: []
+                            };
+                        }
+                        const targetActiveId = (restoredBackup.lastActiveSessionId && sessionsMap[restoredBackup.lastActiveSessionId])
+                            ? restoredBackup.lastActiveSessionId
+                            : Object.keys(sessionsMap)[0] || null;
+
+                        set({
+                            sessions: sessionsMap,
+                            activeSessionId: targetActiveId,
+                            isHydrated: true
+                        });
+                        if (targetActiveId) {
+                            get().switchSession(targetActiveId);
+                        }
+                        return;
+                    }
+
                     // First boot or empty catalog: initialize single clean session
                     const id = generateId();
                     const defaultSession: ChatSession = {
                         id,
                         title: 'New Chat',
-                        avatar: '🤖',
                         tags: [],
                         unread: 0,
                         pinned: false,
@@ -288,26 +342,11 @@ export const useChatStore = create<ChatStore>()(
             }
         },
 
-        fetchSessionsFromEngine: async () => {
-            const { cluaizEngine } = await import('../../core/engine');
-            try {
-                const sessionsArray = await cluaizEngine.fetchHistory();
-                if (sessionsArray && sessionsArray.length > 0) {
-                    const sessions: Record<string, ChatSession> = {};
-                    sessionsArray.forEach(s => sessions[s.id] = s);
-                    set({ sessions });
-                }
-            } catch (err) {
-                console.error("Failed to fetch history from FFI:", err);
-            }
-        },
-
         createNewSession: (initialTitle?: string, options?: { incognito?: boolean }) => {
             const id = generateId();
             const newSession: ChatSession = {
                 id,
                 title: initialTitle || 'New Chat',
-                avatar: '🤖',
                 tags: [],
                 unread: 0,
                 pinned: false,
@@ -387,12 +426,6 @@ export const useChatStore = create<ChatStore>()(
             chatStorageManager.deleteSession(sessionId).catch(err => {
                 console.error(`[ChatStore] Failed deleting session folder ${sessionId}:`, err);
             });
-
-            // Trigger FFI physical delete in background
-            import('../../core/engine').then(({ cluaizEngine }) => {
-                cluaizEngine.deleteSession(sessionId).catch(console.error);
-            }).catch(() => {});
-
             // The engine's saved model memory (KV cache) of this chat goes with it
             import('../../api/engine/chat-memory').then(({ chatMemoryApi }) => {
                 chatMemoryApi.deleteChat(sessionId).catch(() => {});
@@ -468,6 +501,7 @@ export const useChatStore = create<ChatStore>()(
 
                 if (metaChanged) {
                     syncSessionMeta(updatedSession);
+                    syncIndexToStorage(updatedSessions, state.activeSessionId);
                 }
 
                 return {

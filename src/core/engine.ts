@@ -489,23 +489,13 @@ export class cluaizEngine {
      * Fetches chat history from the engine.
      */
     static async fetchHistory(): Promise<any[]> {
-        if (isNative()) {
-            try {
-                const { fetchFFIHistory } = await import('./tauri-api');
-                const historyStr = await fetchFFIHistory();
-                return JSON.parse(historyStr);
-            } catch (e) {
-                console.error("Failed to parse FFI history:", e);
-                return [];
-            }
-        }
         return [];
     }
 
     /**
-     * Deletes a chat session from the engine.
+     * Deletes a chat session from the engine (no-op: UI manages sessions independently in IndexedDB).
      */
-    static async deleteSession(sessionId: string): Promise<void> {
-        await this.executeCDQL(`DELETE FROM sessions WHERE id = '${sessionId}'`);
+    static async deleteSession(_sessionId: string): Promise<void> {
+        // UI owns session management; engine remains a stateless inference runtime.
     }
 }
