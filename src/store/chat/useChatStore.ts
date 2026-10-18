@@ -210,6 +210,13 @@ export const useChatStore = create<ChatStore>()(
 
         hydrateFromStorage: async () => {
             try {
+                // Purge legacy localStorage backup cache to prevent stale ghost sessions from resurrection
+                try {
+                    if (typeof localStorage !== 'undefined') {
+                        localStorage.removeItem('cluaiz_sessions_catalog_backup');
+                    }
+                } catch {}
+
                 const index = await chatStorageManager.loadSessionsIndex();
                 if (index && index.sessions && index.sessions.length > 0) {
                     const sessionsMap: Record<string, ChatSession> = {};
@@ -231,7 +238,7 @@ export const useChatStore = create<ChatStore>()(
                         };
                     }
 
-                    // Check URL parameter (?c=...) first, then index's lastActiveSessionId, then first session
+                    // Priority: 1. URL (?c=...), 2. index.lastActiveSessionId, 3. null (Stay on New Chat)
                     const routeChatId = parseCurrentRoute().activeChatId;
                     let targetActiveId: string | null = null;
                     if (routeChatId && sessionsMap[routeChatId]) {
@@ -239,7 +246,8 @@ export const useChatStore = create<ChatStore>()(
                     } else if (index.lastActiveSessionId && sessionsMap[index.lastActiveSessionId]) {
                         targetActiveId = index.lastActiveSessionId;
                     } else {
-                        targetActiveId = Object.keys(sessionsMap)[0] || null;
+                        // User was on New Chat; retain New Chat state on refresh
+                        targetActiveId = null;
                     }
 
                     set({
@@ -252,32 +260,17 @@ export const useChatStore = create<ChatStore>()(
                     if (targetActiveId) {
                         pushChatRoute(targetActiveId, true);
                         get().switchSession(targetActiveId);
+                    } else {
+                        pushChatRoute(null, true);
                     }
                 } else {
-                    // First boot or empty catalog: initialize single clean session with readable ID
-                    const id = generateChatId();
-                    const defaultSession: ChatSession = {
-                        id,
-                        title: 'New Chat',
-                        tags: [],
-                        unread: 0,
-                        pinned: false,
-                        favourite: false,
-                        archived: false,
-                        muted: false,
-                        createdAt: Date.now(),
-                        updatedAt: Date.now(),
-                        messages: [],
-                    };
-                    const initialSessions = { [id]: defaultSession };
+                    // Empty catalog: clean New Chat state ready for user input
                     set({
-                        sessions: initialSessions,
-                        activeSessionId: id,
+                        sessions: {},
+                        activeSessionId: null,
                         isHydrated: true
                     });
-                    pushChatRoute(id, true);
-                    syncSessionMeta(defaultSession);
-                    syncIndexToStorage(initialSessions, id);
+                    pushChatRoute(null, true);
                 }
             } catch (err) {
                 console.error("[ChatStore] Storage hydration error:", err);

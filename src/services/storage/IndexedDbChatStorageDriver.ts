@@ -120,11 +120,6 @@ export class IndexedDbChatStorageDriver implements IChatStorageDriver {
                             sessions: mergedSessions
                         };
                         this.memoryFallback.index = resolvedIndex;
-                        try {
-                            if (typeof localStorage !== 'undefined') {
-                                localStorage.setItem('cluaiz_sessions_catalog_backup', JSON.stringify(resolvedIndex));
-                            }
-                        } catch {}
                         resolve(resolvedIndex);
                         return;
                     }
@@ -133,16 +128,6 @@ export class IndexedDbChatStorageDriver implements IChatStorageDriver {
                 };
 
                 tx.onerror = () => {
-                    try {
-                        const localRaw = typeof localStorage !== 'undefined' ? localStorage.getItem('cluaiz_sessions_catalog_backup') : null;
-                        if (localRaw) {
-                            const backup = JSON.parse(localRaw) as SessionsIndex;
-                            if (backup?.sessions?.length) {
-                                resolve(backup);
-                                return;
-                            }
-                        }
-                    } catch {}
                     resolve(this.memoryFallback.index);
                 };
             });
@@ -153,11 +138,6 @@ export class IndexedDbChatStorageDriver implements IChatStorageDriver {
 
     async saveSessionsIndex(index: SessionsIndex): Promise<void> {
         this.memoryFallback.index = index;
-        try {
-            if (typeof localStorage !== 'undefined' && index?.sessions?.length) {
-                localStorage.setItem('cluaiz_sessions_catalog_backup', JSON.stringify(index));
-            }
-        } catch {}
         try {
             const db = await this.getDb();
             return new Promise((resolve, reject) => {
