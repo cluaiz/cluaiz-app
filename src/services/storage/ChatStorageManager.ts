@@ -1,67 +1,121 @@
 import { isTauri } from '../../core/tauri-api';
 import { IChatStorageDriver, SessionIndexItem, SessionsIndex, SessionMetadata } from './types';
 import { TauriFsChatStorageDriver } from './TauriFsChatStorageDriver';
+import { EngineFsChatStorageDriver } from './EngineFsChatStorageDriver';
 import { IndexedDbChatStorageDriver } from './IndexedDbChatStorageDriver';
 import { ChatMessage } from '../../store/chat/useChatStore';
 
 /**
- * ChatStorageManager delegates storage operations dynamically based on runtime environment.
- * On Desktop (Tauri), it delegates to TauriFsChatStorageDriver (native filesystem JSONL + assets).
- * On Browser/Web, it delegates to IndexedDbChatStorageDriver (IndexedDB + binary Blobs).
+ * ChatStorageManager delegates storage operations dynamically based on runtime environment:
+ * - On Desktop (Tauri): delegates to TauriFsChatStorageDriver (native filesystem).
+ * - On Browser/Web: delegates to EngineFsChatStorageDriver (writes real files to C:\Users\Aryan\.cluaiz\data\ via /v1/fs/*).
+ * - Offline Fallback: delegates to IndexedDbChatStorageDriver if Engine is unreachable.
  */
 export class ChatStorageManager implements IChatStorageDriver {
-    private driver: IChatStorageDriver;
+    private primaryDriver: IChatStorageDriver;
+    private fallbackDriver: IChatStorageDriver;
 
     constructor() {
+        this.fallbackDriver = new IndexedDbChatStorageDriver();
         if (isTauri()) {
-            this.driver = new TauriFsChatStorageDriver();
+            this.primaryDriver = new TauriFsChatStorageDriver();
         } else {
-            this.driver = new IndexedDbChatStorageDriver();
+            this.primaryDriver = new EngineFsChatStorageDriver();
         }
     }
 
     public getDriver(): IChatStorageDriver {
-        return this.driver;
+        return this.primaryDriver;
     }
 
     async loadSessionsIndex(): Promise<SessionsIndex | null> {
-        return this.driver.loadSessionsIndex();
+        try {
+            const index = await this.primaryDriver.loadSessionsIndex();
+            if (index && Array.isArray(index.sessions) && index.sessions.length > 0) {
+                return index;
+            }
+        } catch (e) {
+            console.warn('[ChatStorageManager] Primary loadSessionsIndex failed, trying fallback:', e);
+        }
+        return this.fallbackDriver.loadSessionsIndex();
     }
 
     async saveSessionsIndex(index: SessionsIndex): Promise<void> {
-        return this.driver.saveSessionsIndex(index);
+        // Dual-write: write to real disk files, and keep fallback in sync
+        this.fallbackDriver.saveSessionsIndex(index).catch(() => {});
+        try {
+            await this.primaryDriver.saveSessionsIndex(index);
+        } catch (e) {
+            console.warn('[ChatStorageManager] Primary saveSessionsIndex failed, saved to fallback:', e);
+        }
     }
 
     async loadSessionMetadata(sessionId: string): Promise<SessionMetadata | null> {
-        return this.driver.loadSessionMetadata(sessionId);
+        try {
+            const meta = await this.primaryDriver.loadSessionMetadata(sessionId);
+            if (meta) return meta;
+        } catch {}
+        return this.fallbackDriver.loadSessionMetadata(sessionId);
     }
 
     async saveSessionMetadata(sessionId: string, meta: SessionMetadata): Promise<void> {
-        return this.driver.saveSessionMetadata(sessionId, meta);
+        this.fallbackDriver.saveSessionMetadata(sessionId, meta).catch(() => {});
+        try {
+            await this.primaryDriver.saveSessionMetadata(sessionId, meta);
+        } catch (e) {
+            console.warn('[ChatStorageManager] Primary saveSessionMetadata failed:', e);
+        }
     }
 
     async loadSessionMessages(sessionId: string, limit?: number, offset?: number): Promise<ChatMessage[]> {
-        return this.driver.loadSessionMessages(sessionId, limit, offset);
+        try {
+            const msgs = await this.primaryDriver.loadSessionMessages(sessionId, limit, offset);
+            if (msgs && msgs.length > 0) return msgs;
+        } catch {}
+        return this.fallbackDriver.loadSessionMessages(sessionId, limit, offset);
     }
 
     async appendMessage(sessionId: string, message: ChatMessage): Promise<void> {
-        return this.driver.appendMessage(sessionId, message);
+        this.fallbackDriver.appendMessage(sessionId, message).catch(() => {});
+        try {
+            await this.primaryDriver.appendMessage(sessionId, message);
+        } catch (e) {
+            console.warn('[ChatStorageManager] Primary appendMessage failed:', e);
+        }
     }
 
     async saveAllMessages(sessionId: string, messages: ChatMessage[]): Promise<void> {
-        return this.driver.saveAllMessages(sessionId, messages);
+        this.fallbackDriver.saveAllMessages(sessionId, messages).catch(() => {});
+        try {
+            await this.primaryDriver.saveAllMessages(sessionId, messages);
+        } catch (e) {
+            console.warn('[ChatStorageManager] Primary saveAllMessages failed:', e);
+        }
     }
 
     async deleteSession(sessionId: string): Promise<void> {
-        return this.driver.deleteSession(sessionId);
+        this.fallbackDriver.deleteSession(sessionId).catch(() => {});
+        try {
+            await this.primaryDriver.deleteSession(sessionId);
+        } catch (e) {
+            console.warn('[ChatStorageManager] Primary deleteSession failed:', e);
+        }
     }
 
     async saveAsset(sessionId: string, fileName: string, data: Uint8Array | Blob): Promise<string> {
-        return this.driver.saveAsset(sessionId, fileName, data);
+        try {
+            return await this.primaryDriver.saveAsset(sessionId, fileName, data);
+        } catch {
+            return this.fallbackDriver.saveAsset(sessionId, fileName, data);
+        }
     }
 
     async resolveAssetUrl(sessionId: string, relativePath: string): Promise<string> {
-        return this.driver.resolveAssetUrl(sessionId, relativePath);
+        try {
+            return await this.primaryDriver.resolveAssetUrl(sessionId, relativePath);
+        } catch {
+            return this.fallbackDriver.resolveAssetUrl(sessionId, relativePath);
+        }
     }
 }
 
