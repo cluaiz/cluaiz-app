@@ -659,6 +659,13 @@
           "default": "default"
         },
         {
+          "name": "language",
+          "type": "string",
+          "req": false,
+          "desc": "Cluaiz extension: the text's language (e.g. 'cs', 'pl', 'hi'). Numbers and spelling are read by its rules even when no voice of the model speaks it. Omitted: from the text's script, else the voice, else the model.",
+          "default": "auto"
+        },
+        {
           "name": "speed",
           "type": "float",
           "req": false,
