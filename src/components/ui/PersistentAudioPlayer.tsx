@@ -3,6 +3,7 @@ import { Play, Pause, Loader2, X, Radio } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { audioApi } from '../../api/engine/audio/audio.api';
 import { speechTurns } from '../../services/audio/speechTurns';
+import { useSpeechHighlightStore } from '../../store/chat/useSpeechHighlightStore';
 import { toast } from './toast';
 import {
     AudioPlayerPopover,
@@ -46,6 +47,56 @@ const speakable = (markdown: string): string =>
         .replace(/[ \t]{2,}/g, ' ')
         .trim();
 
+interface QueuedAudioPart {
+    url: string;
+    ownsUrl: boolean;
+    rawSentence: string;
+    sentenceIndex: number;
+    words: string[];
+    wordWeights: number[];
+    totalWeight: number;
+}
+
+function tokenizeSentenceWords(sentence: string): { words: string[]; wordWeights: number[]; totalWeight: number } {
+    const rawTokens = sentence.trim().split(/\s+/).filter(Boolean);
+    const words: string[] = [];
+    const wordWeights: number[] = [];
+    let total = 0;
+
+    for (const t of rawTokens) {
+        words.push(t);
+        let w = Math.max(2, t.length);
+        if (/[.,!?;:।]/.test(t)) {
+            w += 2;
+        }
+        wordWeights.push(w);
+        total += w;
+    }
+
+    return { words, wordWeights, totalWeight: Math.max(1, total) };
+}
+
+function calculateActiveWordIndex(
+    progress: number,
+    wordWeights: number[],
+    totalWeight: number,
+    wordCount: number
+): number {
+    if (wordCount <= 0) return 0;
+    if (progress <= 0) return 0;
+    if (progress >= 1) return wordCount - 1;
+
+    const target = progress * totalWeight;
+    let accumulated = 0;
+    for (let i = 0; i < wordCount; i++) {
+        accumulated += wordWeights[i];
+        if (accumulated >= target) {
+            return i;
+        }
+    }
+    return wordCount - 1;
+}
+
 export interface PersistentAudioDeckProps {
     messageId: string;
     text: string;
@@ -85,13 +136,16 @@ export const PersistentAudioDeck: React.FC<PersistentAudioDeckProps> = ({
     const streamingRef = useRef(isStreamingAi);
     streamingRef.current = isStreamingAi;
 
-    const partsRef = useRef<string[]>([]);
+    const cachedPartsRef = useRef<QueuedAudioPart[]>([]);
+    const playbackIndexRef = useRef(0);
     const audioRef = useRef<HTMLAudioElement | null>(null);
+    const currentPartRef = useRef<QueuedAudioPart | null>(null);
     const pausedRef = useRef(false);
     const producingRef = useRef(false); // audio is being made for this message
     const producedAllRef = useRef(false); // every part of the message has been made
     const liveRef = useRef(false); // following the answer as it is written
     const spokenUpToRef = useRef(0); // characters of the answer already sent to synthesis
+    const sentenceIndexRef = useRef(0); // counter for sentence indices
     const pendingRef = useRef(0); // sentences being synthesized
     const chainRef = useRef<Promise<void>>(Promise.resolve());
     const abortRef = useRef<AbortController | null>(null);
@@ -115,8 +169,11 @@ export const PersistentAudioDeck: React.FC<PersistentAudioDeckProps> = ({
     };
 
     const clearParts = () => {
-        partsRef.current.forEach((url) => URL.revokeObjectURL(url));
-        partsRef.current = [];
+        cachedPartsRef.current.forEach((part) => {
+            if (part.ownsUrl) URL.revokeObjectURL(part.url);
+        });
+        cachedPartsRef.current = [];
+        playbackIndexRef.current = 0;
     };
 
     /** Stops everything for this message and gives the turn to the next one. */
@@ -125,50 +182,89 @@ export const PersistentAudioDeck: React.FC<PersistentAudioDeckProps> = ({
         abortRef.current = null;
         audioRef.current?.pause();
         audioRef.current = null;
+        currentPartRef.current = null;
         clearParts();
         liveRef.current = false;
         producingRef.current = false;
         producedAllRef.current = false;
         pausedRef.current = false;
+        sentenceIndexRef.current = 0;
         setStatus('idle');
         setCurrentTime(0);
-    }, []);
+        useSpeechHighlightStore.getState().clear(messageId);
+    }, [messageId]);
 
     const finish = () => {
         audioRef.current = null;
+        currentPartRef.current = null;
+        playbackIndexRef.current = 0;
         producingRef.current = false;
-        producedAllRef.current = false;
-        liveRef.current = false;
-        setStatus('idle');
+        pausedRef.current = true;
+        setStatus('paused');
         setCurrentTime(0);
+        useSpeechHighlightStore.getState().clear(messageId);
         speechTurns.release(messageId);
     };
 
-    const playFile = (url: string, ownsUrl: boolean) => {
-        const audio = new Audio(url);
+    const syncProgress = useCallback(() => {
+        const audio = audioRef.current;
+        const part = currentPartRef.current;
+        if (!audio || !part) return;
+
+        const cur = audio.currentTime;
+        const dur = audio.duration;
+        setCurrentTime(cur);
+
+        if (isFinite(dur) && dur > 0 && part.words.length > 0) {
+            setDuration(dur);
+            const progress = Math.min(1, Math.max(0, cur / dur));
+            const wordIdx = calculateActiveWordIndex(progress, part.wordWeights, part.totalWeight, part.words.length);
+            useSpeechHighlightStore.getState().updateWordProgress(wordIdx, part.words[wordIdx]);
+        }
+    }, []);
+
+    const playFile = (part: QueuedAudioPart, index: number) => {
+        const audio = new Audio(part.url);
         audioRef.current = audio;
-        audio.onloadedmetadata = () => isFinite(audio.duration) && setDuration(audio.duration);
-        audio.ontimeupdate = () => {
-            setCurrentTime(audio.currentTime);
+        currentPartRef.current = part;
+        playbackIndexRef.current = index;
+
+        useSpeechHighlightStore.getState().setActiveSentence({
+            messageId,
+            sentenceText: part.rawSentence,
+            sentenceIndex: part.sentenceIndex,
+        });
+
+        audio.onloadedmetadata = () => {
             if (isFinite(audio.duration)) setDuration(audio.duration);
+            syncProgress();
         };
+
+        audio.ontimeupdate = syncProgress;
+
         const next = () => {
-            if (ownsUrl) URL.revokeObjectURL(url);
-            if (audioRef.current === audio) audioRef.current = null;
+            if (audioRef.current === audio) {
+                audioRef.current = null;
+                currentPartRef.current = null;
+            }
+            playbackIndexRef.current = index + 1;
             playNextPart();
         };
+
         audio.onended = next;
         audio.onerror = next;
         setStatus('playing');
+        useSpeechHighlightStore.getState().setPlaying(true);
         audio.play().catch(next);
     };
 
     /** Plays the next made part when it is this message's turn; finishes when all are played. */
     const playNextPart = () => {
         if (!speechTurns.isSpeaking(messageId) || pausedRef.current || audioRef.current) return;
-        const url = partsRef.current.shift();
-        if (url) {
-            playFile(url, true);
+        const nextIdx = playbackIndexRef.current;
+        if (nextIdx < cachedPartsRef.current.length) {
+            const part = cachedPartsRef.current[nextIdx];
+            playFile(part, nextIdx);
             return;
         }
         const allMade = producedAllRef.current && pendingRef.current === 0 && !streamingRef.current;
@@ -179,115 +275,175 @@ export const PersistentAudioDeck: React.FC<PersistentAudioDeckProps> = ({
         }
     };
 
-    const addPart = (blob: Blob) => {
-        partsRef.current.push(URL.createObjectURL(blob));
+    const addPart = (
+        blob: Blob,
+        rawSentence: string,
+        sentenceIndex: number,
+        words: string[],
+        wordWeights: number[],
+        totalWeight: number
+    ) => {
+        cachedPartsRef.current.push({
+            url: URL.createObjectURL(blob),
+            ownsUrl: true,
+            rawSentence,
+            sentenceIndex,
+            words,
+            wordWeights,
+            totalWeight,
+        });
         playNextPart();
     };
 
-    /** Sends every finished sentence (all of the rest when `final`) to synthesis, in order. */
+    /** Sends finished sentences to synthesis, one distinct sentence per queue part. */
     const takeSentences = (final: boolean) => {
-        const full = textRef.current;
-        const rest = full.slice(spokenUpToRef.current);
-        let cut = 0;
-        if (final) {
-            cut = rest.length;
-        } else {
-            for (const match of rest.matchAll(SENTENCE_END)) {
-                const end = (match.index ?? 0) + match[0].length;
-                // Never cut inside a code block
-                if ((full.slice(0, spokenUpToRef.current + end).match(/```/g)?.length ?? 0) % 2 === 0) cut = end;
-            }
-        }
-        if (cut === 0) {
-            if (final) {
-                producedAllRef.current = true;
-                playNextPart();
-            }
-            return;
-        }
-        const chunk = speakable(rest.slice(0, cut));
-        spokenUpToRef.current += cut;
-        if (chunk.replace(/[^\p{L}\p{N}]/gu, '').length > 0) {
-            pendingRef.current += 1;
-            chainRef.current = chainRef.current
-                .then(async () => {
-                    if (!liveRef.current) return;
-                    const blob = await audioApi.speech(payload(chunk));
-                    if (liveRef.current) addPart(blob);
-                })
-                .catch((err) => {
-                    // Say why once and stop, instead of waiting for audio that will not come
-                    if (!liveRef.current) return;
-                    toast.error(err?.message || 'Speech synthesis failed');
-                    stopAll();
-                    speechTurns.release(messageId);
-                })
-                .finally(() => {
-                    pendingRef.current -= 1;
+        while (true) {
+            const full = textRef.current;
+            const rest = full.slice(spokenUpToRef.current);
+            if (!rest.trim()) {
+                if (final) {
+                    producedAllRef.current = true;
                     playNextPart();
-                });
+                }
+                break;
+            }
+
+            let cut = 0;
+            // Find the first sentence ending punctuation or newline
+            const match = rest.match(/[.!?।;:]+(?=\s|$)|\n+/);
+            if (match && match.index !== undefined) {
+                const candidateEnd = match.index + match[0].length;
+                // Guard: check if candidate is inside an unclosed code block
+                const prefix = full.slice(0, spokenUpToRef.current + candidateEnd);
+                const codeTicks = (prefix.match(/```/g)?.length ?? 0);
+                if (codeTicks % 2 === 0) {
+                    cut = candidateEnd;
+                } else {
+                    // Inside code block, find closing ticks
+                    const closing = rest.indexOf('```', candidateEnd);
+                    if (closing !== -1) {
+                        cut = closing + 3;
+                    } else if (!final) {
+                        break; // Wait for code block to finish streaming
+                    } else {
+                        cut = rest.length;
+                    }
+                }
+            } else if (final) {
+                // End of message, take remainder
+                cut = rest.length;
+            } else {
+                // Incomplete sentence while streaming, wait for more tokens
+                break;
+            }
+
+            if (cut === 0) break;
+
+            const rawChunk = rest.slice(0, cut);
+            const chunk = speakable(rawChunk);
+            spokenUpToRef.current += cut;
+
+            if (chunk.replace(/[^\p{L}\p{N}]/gu, '').length > 0) {
+                const currentSentenceIndex = sentenceIndexRef.current++;
+                const { words, wordWeights, totalWeight } = tokenizeSentenceWords(rawChunk);
+                pendingRef.current += 1;
+                chainRef.current = chainRef.current
+                    .then(async () => {
+                        if (!liveRef.current && !producingRef.current) return;
+                        const blob = await audioApi.speech(payload(chunk));
+                        if (liveRef.current || producingRef.current) {
+                            addPart(blob, rawChunk, currentSentenceIndex, words, wordWeights, totalWeight);
+                        }
+                    })
+                    .catch((err) => {
+                        if (!liveRef.current && !producingRef.current) return;
+                        toast.error(err?.message || 'Speech synthesis failed');
+                        stopAll();
+                        speechTurns.release(messageId);
+                    })
+                    .finally(() => {
+                        pendingRef.current -= 1;
+                        playNextPart();
+                    });
+            }
         }
         if (final) {
             producedAllRef.current = true;
+            producingRef.current = false;
             playNextPart();
         }
     };
 
     /** Follows the answer while it is written. */
     const startLive = () => {
+        if (producingRef.current) return;
         liveRef.current = true;
         producingRef.current = true;
         producedAllRef.current = false;
         spokenUpToRef.current = 0;
+        sentenceIndexRef.current = 0;
+        playbackIndexRef.current = 0;
         takeSentences(!streamingRef.current);
     };
 
-    /** A finished message: the engine streams it sentence by sentence (or the cached file replays). */
+    /** A finished message: the engine streams it sentence by sentence with live word tracking. */
     const startFull = () => {
-        const length = textRef.current.trim().length;
-        const cached = fullAudioCache.get(messageId);
-        if (cached && cached.textLength >= length) {
-            producedAllRef.current = true;
-            playFile(cached.url, false);
+        // If already completely synthesized and cached: REPLAY INSTANTLY!
+        if (cachedPartsRef.current.length > 0 && producedAllRef.current) {
+            playbackIndexRef.current = 0;
+            playNextPart();
             return;
         }
+        if (producingRef.current) return;
         producingRef.current = true;
         producedAllRef.current = false;
+        spokenUpToRef.current = 0;
+        sentenceIndexRef.current = 0;
+        playbackIndexRef.current = 0;
         setStatus('loading');
-        const controller = new AbortController();
-        abortRef.current = controller;
-        audioApi
-            .speechStream(payload(speakable(textRef.current)), addPart, controller.signal)
-            .then((whole) => {
-                fullAudioCache.set(messageId, { url: URL.createObjectURL(whole), textLength: length });
-                producedAllRef.current = true;
-                playNextPart();
-            })
-            .catch((err: any) => {
-                if (controller.signal.aborted) return;
-                const msg = err?.message || 'Failed to synthesize speech';
-                toast.error(msg.toLowerCase().includes('model') ? 'No TTS model available. Check the TTS settings.' : msg);
-                stopAll();
-                speechTurns.release(messageId);
-            });
+        takeSentences(true);
     };
 
     const turn = {
         id: messageId,
         start: () => {
             pausedRef.current = false;
+
+            // 1. Instant replay if all audio already cached in memory
+            if (cachedPartsRef.current.length > 0 && producedAllRef.current) {
+                if (audioRef.current && isFinite(audioRef.current.duration)) {
+                    setStatus('playing');
+                    useSpeechHighlightStore.getState().setPlaying(true);
+                    audioRef.current.play().catch(() => playNextPart());
+                } else {
+                    if (playbackIndexRef.current >= cachedPartsRef.current.length) {
+                        playbackIndexRef.current = 0;
+                    }
+                    playNextPart();
+                }
+                return;
+            }
+
+            // 2. Synthesize if not already started
             if (!producingRef.current && !producedAllRef.current) {
                 if (streamingRef.current) startLive();
                 else startFull();
             }
+
             if (audioRef.current) {
                 setStatus('playing');
+                useSpeechHighlightStore.getState().setPlaying(true);
                 audioRef.current.play().catch(() => playNextPart());
             } else {
                 playNextPart();
             }
         },
-        stop: stopAll,
+        stop: () => {
+            pausedRef.current = true;
+            audioRef.current?.pause();
+            setStatus('paused');
+            useSpeechHighlightStore.getState().setPlaying(false);
+        },
     };
 
     const togglePlay = (e?: React.MouseEvent) => {
@@ -296,10 +452,18 @@ export const PersistentAudioDeck: React.FC<PersistentAudioDeckProps> = ({
             pausedRef.current = true;
             audioRef.current?.pause();
             setStatus('paused');
+            useSpeechHighlightStore.getState().setPlaying(false);
             return;
         }
         if (!text.trim()) return;
-        // The user asked for this message: it takes over from any other
+
+        // If audio is already completely cached, replay instantly:
+        if (cachedPartsRef.current.length > 0 && producedAllRef.current) {
+            pausedRef.current = false;
+            speechTurns.request(turn);
+            return;
+        }
+
         speechTurns.request(turn);
     };
 
@@ -331,6 +495,7 @@ export const PersistentAudioDeck: React.FC<PersistentAudioDeckProps> = ({
         const fraction = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
         audio.currentTime = fraction * duration;
         setCurrentTime(audio.currentTime);
+        syncProgress();
     };
 
     const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;

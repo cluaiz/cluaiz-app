@@ -610,7 +610,11 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
                             className="w-full overflow-hidden select-text text-[var(--text-primary)] font-[family-name:var(--font-family)]"
                             style={{ fontSize: 'var(--chat-bubble-font-size, 14px)', fontFamily: 'var(--font-family)' }}
                         >
-                            <MarkdownRenderer content={msg.text} allowWorkspaceOpen={true} />
+                            <MarkdownRenderer
+                                content={msg.text}
+                                allowWorkspaceOpen={true}
+                                messageId={msg.id || `${msg.time || ''}-${msg.text.slice(0, 16)}`}
+                            />
                         </div>
                     ) : null}
 

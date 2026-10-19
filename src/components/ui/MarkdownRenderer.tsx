@@ -9,11 +9,13 @@ import { useLayoutStore } from '../../store/ui/useLayoutStore';
 import { cn } from '../../lib/utils';
 import { ContextChip } from './ContextChip';
 import { extractBaseName } from '../../utils/filePath';
+import { SpeechWordHighlighter } from './SpeechWordHighlighter';
 
 export interface MarkdownRendererProps {
     content: string;
     className?: string;
     allowWorkspaceOpen?: boolean;
+    messageId?: string;
 }
 
 interface CodeBlockProps {
@@ -517,7 +519,8 @@ const FrontmatterCard: React.FC<{ metadata: MarkdownFrontmatterMetadata }> = ({ 
 const MarkdownRendererComponent: React.FC<MarkdownRendererProps> = ({ 
     content, 
     className = '', 
-    allowWorkspaceOpen = false 
+    allowWorkspaceOpen = false,
+    messageId,
 }) => {
     if (!content) return null;
 
@@ -613,7 +616,9 @@ const MarkdownRendererComponent: React.FC<MarkdownRendererProps> = ({
                     p({ children }: any) {
                         return (
                             <p className="mb-4 text-sm leading-relaxed text-[var(--text-secondary)] font-normal last:mb-0">
-                                {children}
+                                <SpeechWordHighlighter messageId={messageId}>
+                                    {children}
+                                </SpeechWordHighlighter>
                             </p>
                         );
                     },
@@ -635,7 +640,11 @@ const MarkdownRendererComponent: React.FC<MarkdownRendererProps> = ({
                         return (
                             <li className="flex items-start gap-2.5 text-sm text-[var(--text-secondary)] leading-relaxed">
                                 <span className="text-[var(--accent-color)] mt-1.5 shrink-0 text-[8px] select-none">■</span>
-                                <div className="flex-1 min-w-0">{children}</div>
+                                <div className="flex-1 min-w-0">
+                                    <SpeechWordHighlighter messageId={messageId}>
+                                        {children}
+                                    </SpeechWordHighlighter>
+                                </div>
                             </li>
                         );
                     },
@@ -658,7 +667,9 @@ const MarkdownRendererComponent: React.FC<MarkdownRendererProps> = ({
                                         <span>{cfg.label}</span>
                                     </div>
                                     <div className="text-sm leading-relaxed text-[var(--text-secondary)] m-0">
-                                        {callout.content || children}
+                                        <SpeechWordHighlighter messageId={messageId}>
+                                            {callout.content || children}
+                                        </SpeechWordHighlighter>
                                     </div>
                                 </div>
                             );
@@ -666,7 +677,9 @@ const MarkdownRendererComponent: React.FC<MarkdownRendererProps> = ({
 
                         return (
                             <blockquote className="my-6 pl-5 border-l-4 border-[var(--border-color)] italic text-[var(--text-secondary)] text-sm select-text">
-                                {children}
+                                <SpeechWordHighlighter messageId={messageId}>
+                                    {children}
+                                </SpeechWordHighlighter>
                             </blockquote>
                         );
                     },
@@ -807,6 +820,7 @@ export const MarkdownRenderer = React.memo(MarkdownRendererComponent, (prev, nex
     return (
         prev.content === next.content &&
         prev.className === next.className &&
-        prev.allowWorkspaceOpen === next.allowWorkspaceOpen
+        prev.allowWorkspaceOpen === next.allowWorkspaceOpen &&
+        prev.messageId === next.messageId
     );
 });
