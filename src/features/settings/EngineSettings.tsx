@@ -4,6 +4,8 @@ import { SettingSection, SettingItem, SelectOption } from './SharedComponents';
 import { validateSettings, getOverallHealth } from './SettingsHealthValidator';
 import { ModelInfoCard } from './ModelInfoCard';
 import { ModelInspectorModal } from './ModelInspectorModal';
+import { TtsVoiceSelector } from './TtsVoiceSelector';
+import { SttLanguageSelector } from './SttLanguageSelector';
 import { CustomDropdown, DropdownOption } from '../../components/ui/dropdown/CustomDropdown';
 import { Loader2 } from 'lucide-react';
 
@@ -372,10 +374,13 @@ export function EngineSettings() {
                                 </div>
                             </div>
                             {currentTtsId && currentTtsModel && (
-                                <ModelInfoCard
-                                    model={currentTtsModel}
-                                    onInspect={() => setInspectingModel(currentTtsModel)}
-                                />
+                                <>
+                                    <ModelInfoCard
+                                        model={currentTtsModel}
+                                        onInspect={() => setInspectingModel(currentTtsModel)}
+                                    />
+                                    <TtsVoiceSelector modelId={currentTtsId} />
+                                </>
                             )}
                         </div>
 
@@ -401,10 +406,13 @@ export function EngineSettings() {
                                 </div>
                             </div>
                             {currentSttId && currentSttModel && (
-                                <ModelInfoCard
-                                    model={currentSttModel}
-                                    onInspect={() => setInspectingModel(currentSttModel)}
-                                />
+                                <>
+                                    <ModelInfoCard
+                                        model={currentSttModel}
+                                        onInspect={() => setInspectingModel(currentSttModel)}
+                                    />
+                                    <SttLanguageSelector modelId={currentSttId} />
+                                </>
                             )}
                         </div>
                     </SettingSection>

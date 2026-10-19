@@ -11,7 +11,6 @@ import { useLayoutStore } from '../store/ui/useLayoutStore';
 export type SettingsTabId =
     | 'general'
     | 'chats'
-    | 'voice'
     | 'engine'
     | 'inference'
     | 'vector'
@@ -24,7 +23,6 @@ export type SettingsTabId =
 export const VALID_SETTINGS_TABS: SettingsTabId[] = [
     'general',
     'chats',
-    'voice',
     'engine',
     'inference',
     'vector',
@@ -93,6 +91,16 @@ export function parseCurrentRoute(): RouteState {
             view: 'tools',
             isSettingsOpen: false,
             settingsTab: 'general',
+        };
+    }
+
+    // Redirect legacy settings/voice tab to engine models tab
+    if (rawTab === 'voice' || pathname === '/settings/voice') {
+        return {
+            view: 'chat',
+            isSettingsOpen: true,
+            settingsTab: 'engine',
+            activeChatId: searchParams.get('c') || null,
         };
     }
 

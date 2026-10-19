@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Settings, Shield, Palette, Bell, HelpCircle, ExternalLink, Keyboard, Cpu, Zap, Layers, Heart, SlidersHorizontal, MessagesSquare, Languages } from 'lucide-react';
+import { X, Settings, Shield, Palette, Bell, HelpCircle, ExternalLink, Keyboard, Cpu, Zap, Layers, Heart, SlidersHorizontal, MessagesSquare } from 'lucide-react';
 import pkg from '../../../package.json';
 import { GeneralSettings } from './GeneralSettings';
 import { SecuritySettings } from './SecuritySettings';
@@ -11,7 +11,6 @@ import { ShortcutsSettings } from './ShortcutsSettings';
 import { EngineSettings } from './EngineSettings';
 import { InferenceSettings } from './InferenceSettings';
 import { VectorSettings } from './VectorSettings';
-import { VoiceLanguageSettings } from './VoiceLanguageSettings';
 import { EngineOfflineGuard } from './EngineOfflineGuard';
 import { isTauri } from '../../core/tauri-api';
 
@@ -22,7 +21,7 @@ interface SettingsOverlayProps {
     onTabChange?: (tab: TabId) => void;
 }
 
-type TabId = 'general' | 'chats' | 'voice' | 'engine' | 'inference' | 'vector' | 'security' | 'theme' | 'notifications' | 'shortcuts' | 'help';
+type TabId = 'general' | 'chats' | 'engine' | 'inference' | 'vector' | 'security' | 'theme' | 'notifications' | 'shortcuts' | 'help';
 
 export function SettingsOverlay({ isOpen, initialTab = 'general', onClose, onTabChange }: SettingsOverlayProps) {
     const [activeTab, setActiveTab] = useState<TabId>(initialTab);
@@ -45,7 +44,6 @@ export function SettingsOverlay({ isOpen, initialTab = 'general', onClose, onTab
     const navItems = [
         { id: 'general' as const, label: 'General', icon: SlidersHorizontal, desc: 'Startup options, network & storage' },
         { id: 'chats' as const, label: 'Chats & History', icon: MessagesSquare, desc: 'History, archive & cleanup' },
-        { id: 'voice' as const, label: 'Voice & Languages', icon: Languages, desc: 'Languages you speak' },
         { id: 'engine' as const, label: 'Engine & Models', icon: Cpu, desc: 'Engine lifecycle & execution' },
         { id: 'inference' as const, label: 'LLM Inference Configuration', icon: Zap, desc: 'GGUF & ONNX parameters' },
         { id: 'vector' as const, label: 'Vector Generation', icon: Layers, desc: 'Embedding engine settings' },
@@ -61,8 +59,6 @@ export function SettingsOverlay({ isOpen, initialTab = 'general', onClose, onTab
                 return <EngineOfflineGuard><GeneralSettings /></EngineOfflineGuard>;
             case 'chats':
                 return <ChatHistorySettings />;
-            case 'voice':
-                return <VoiceLanguageSettings />;
             case 'engine':
                 return <EngineOfflineGuard><EngineSettings /></EngineOfflineGuard>;
             case 'inference':
