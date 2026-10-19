@@ -238,15 +238,14 @@ export const useChatStore = create<ChatStore>()(
                         };
                     }
 
-                    // Priority: 1. URL (?c=...), 2. index.lastActiveSessionId, 3. null (Stay on New Chat)
+                    // Priority: URL (?c=...) is the single source of truth.
+                    // If URL has no ?c= (user was on New Chat or root path), retain clean New Chat (null).
                     const routeChatId = parseCurrentRoute().activeChatId;
                     let targetActiveId: string | null = null;
                     if (routeChatId && sessionsMap[routeChatId]) {
                         targetActiveId = routeChatId;
-                    } else if (index.lastActiveSessionId && sessionsMap[index.lastActiveSessionId]) {
-                        targetActiveId = index.lastActiveSessionId;
                     } else {
-                        // User was on New Chat; retain New Chat state on refresh
+                        // User was on New Chat or requested an unknown/deleted chat; stay on New Chat
                         targetActiveId = null;
                     }
 

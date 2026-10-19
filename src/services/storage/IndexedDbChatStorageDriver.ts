@@ -116,7 +116,7 @@ export class IndexedDbChatStorageDriver implements IChatStorageDriver {
                     if (mergedSessions.length > 0) {
                         const resolvedIndex: SessionsIndex = {
                             version: 1,
-                            lastActiveSessionId: catalog?.lastActiveSessionId || (mergedSessions[0]?.id ?? null),
+                            lastActiveSessionId: catalog?.lastActiveSessionId ?? null,
                             sessions: mergedSessions
                         };
                         this.memoryFallback.index = resolvedIndex;
