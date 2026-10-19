@@ -25,8 +25,8 @@ Synthesizes speech with an installed ONNX TTS package or a GGUF speech backbone 
 | **`voice`** | String | No | `"default"` | Model voice ID, or GGUF reference audio source | ONNX: `"default"`/`"auto"` selects by language; Kokoro accepts its voice IDs, Piper has one voice. GGUF: default uses the native model's unconditioned voice; any other value is an audio data URI, authorized local file, or allowed remote URL for speaker conditioning. It is not a Kokoro voice ID. |
 | **`language`** | String | No | ONNX: inferred; GGUF: native default | Language code such as `"cs"`, `"hi"`, `"en-US"` | ONNX: rules for the text's spelling/numbers, inferred from script/voice/model. GGUF: native language selector with explicit unsupported-language errors; Qwen's default is English. |
 | **`speed`** | Float | No | `1.0` | ONNX: `0.25` – `4.0`; GGUF: `1.0` only | GGUF does not expose pace control; any other speed returns HTTP400 rather than being silently ignored. |
-| **`stream`** | Boolean | No | `false` | `true`, `false` | `true`: Server-Sent Events. Each finished sentence arrives as its own small WAV (`speech.audio.delta`) while the next one is made, so playback can start after the first sentence; the last event holds the whole WAV. |
-| **`keep_alive`** | Integer | No | `null` | Minutes (e.g. `5`, `0` to unload, `-1` to retain) | GGUF: positive minutes after successful completion;0unloads after the request; omitted/-1retains until replacement or shutdown. Failure releases the speech model. New requests invalidate older expiry timers. Chat and ONNX have separate owners. |
+| **`stream`** | Boolean | No | `false` | `true`, `false` | `true`: Server-Sent Events. Kokoro/Piper emit a WAV per finished sentence (`speech.audio.delta`), then the whole WAV. GGUF and other families currently send only the final result. |
+| **`keep_alive`** | Integer | No | `null` | Minutes (e.g. `5`, `0` to unload, `-1` to retain) | GGUF: positive minutes after successful completion; `0` unloads after the request; omitted/`-1` retains until replacement or shutdown. Native load/generation failure releases the speech model; validation rejected before dispatch leaves any existing resident unchanged. New requests invalidate older expiry timers. Chat and ONNX have separate owners. |
 
 ---
 
@@ -73,6 +73,8 @@ Qwen3-TTS supports en, zh, ja, ko, de, fr, ru, pt, es and it. It does not suppor
 ```
 
 For speaker conditioning, set `voice` to an audio data URI or audio source, for example `"data:audio/wav;base64,<reference PCM WAV bytes>"`. Local sources use the normal filesystem authorization/approval path; remote and inline sources use shared media limits and format decoding. The input is converted to mono at the projector's queried input rate and encoded by its real speaker encoder. Missing/unsupported encoders and corrupt/oversized references error. A reference influences the voice; it does not prove speaker identity or guarantee similarity. Without a reference the Base model may choose a different voice on each generation.
+
+Inline references use the same configured attachment request limit as transcription and `/v1/audio/execute`, including Base64 expansion and JSON envelope space. Requests beyond that limit return HTTP413 with `request_too_large`.
 
 GGUF generation is currently buffered: `stream:true` sends the final SSE result, with no intermediate `speech.audio.delta` parts. Native model loading/generation may take time before that event. Long inputs that hit the frame limit error instead of returning a silently truncated utterance. The native API is experimental and may change with the pinned library.
 
