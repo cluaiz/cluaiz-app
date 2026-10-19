@@ -8,6 +8,7 @@ import { inferChatTopicAndEmoji } from '../../../utils/topicProber';
 import { errorMessage } from '../../../api/client/errors';
 import { buildChatHistory, processingLabel, selectChatContext } from '../utils/chatRequest';
 import type { useChatTelemetry } from './useChatTelemetry';
+import { soundManager } from '../../../services/sound/soundManager';
 
 type Reply = { text: string; messageIndex: number; type?: 'message' | 'selection' } | null;
 interface SendState {
@@ -91,10 +92,12 @@ export function useChatSend({ inputValue, setInputValue, replyingTo, setReplying
                 text: `${message.text ? `${message.text}\n\n` : ''}Request failed: ${detail}`
             }));
             current.finalizeAssistantMessage(sessionId);
+            soundManager.playError();
         };
 
         setInputValue('');
         setReplyingTo(null);
+        soundManager.playSend();
 
         try {
             startStreaming();
@@ -166,6 +169,11 @@ export function useChatSend({ inputValue, setInputValue, replyingTo, setReplying
                         }
                     }
                     liveStore.finalizeAssistantMessage(sessionId);
+                    soundManager.playComplete();
+                    const finalAnswer = activeSess?.messages?.[activeSess.messages.length - 1]?.text || '';
+                    soundManager.notifyBackground('Cluaiz Assistant', {
+                        body: finalAnswer.slice(0, 100).trim() || 'Response completed.'
+                    });
                     return;
                 }
                 if (terminalSeen) return;
