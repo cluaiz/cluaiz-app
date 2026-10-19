@@ -634,7 +634,7 @@
     {
       "method": "POST",
       "path": "/v1/audio/speech",
-      "desc": "ONNX Neural Voice Text-to-Speech (TTS) synthesis endpoint powered by Piper. Converts text into playable WAV Data URIs.",
+      "desc": "Text-to-speech with an installed ONNX package or experimental GGUF speech backbone/projector. Returns a WAV data URI; GGUF can condition on reference audio and uses its native supported languages.",
       "docs_url": "/docs/api/inference/audio_speech.md",
       "params": [
         {
@@ -648,42 +648,42 @@
           "name": "model",
           "type": "string",
           "req": false,
-          "desc": "Neural voice TTS model ID (e.g. piper-en-us-ryan-medium, Audio8-TTS-Preview-0.6B-ONNX-INT4-INT4).",
+          "desc": "Installed ONNX TTS or GGUF speech package with an audio-generation projector (e.g. Piper, Kokoro, Qwen3-TTS Base GGUF). Model support does not imply verified voice quality.",
           "default": "piper-en-us-ryan-medium"
         },
         {
           "name": "voice",
           "type": "string",
           "req": false,
-          "desc": "'default' picks a voice that speaks the text's language, or a voice of the model (Kokoro: af_heart, hf_alpha, ...). List them with GET /v1/audio/voices. Single-voice models (Piper) ignore it.",
+          "desc": "ONNX: 'default' or a listed model voice (Kokoro: af_heart, hf_alpha); Piper has one voice. GGUF: 'default' uses the native unconditioned voice; otherwise an audio data URI, authorized local audio file or allowed remote URL supplies a speaker reference. Kokoro voice IDs do not apply to GGUF.",
           "default": "default"
         },
         {
           "name": "language",
           "type": "string",
           "req": false,
-          "desc": "Cluaiz extension: the text's language (e.g. 'cs', 'pl', 'hi'). Numbers and spelling are read by its rules even when no voice of the model speaks it. Omitted: from the text's script, else the voice, else the model.",
+          "desc": "ONNX: text language for spelling/numbers, inferred from script/voice/model when omitted. GGUF: native language selector; Qwen3-TTS supports en, zh, ja, ko, de, fr, ru, pt, es, it and rejects hi. Omitted/auto uses its native default (English); set explicitly for non-English speech.",
           "default": "auto"
         },
         {
           "name": "speed",
           "type": "float",
           "req": false,
-          "desc": "Speaking rate from 0.25 to 4.0 (1.0 = the model's normal pace).",
+          "desc": "ONNX speaking rate 0.25 to 4.0. GGUF supports only 1.0; another value errors instead of being ignored.",
           "default": 1.0
         },
         {
           "name": "stream",
           "type": "boolean",
           "req": false,
-          "desc": "Whether to stream audio response chunks via Server-Sent Events (SSE).",
+          "desc": "SSE response: Kokoro/Piper can send completed audio parts; GGUF speech currently sends only the final buffered result.",
           "default": false
         },
         {
           "name": "keep_alive",
           "type": "integer",
           "req": false,
-          "desc": "Session memory retention in minutes (e.g. 5, 0 to unload immediately, -1 for indefinite RAM residence).",
+          "desc": "Retention in minutes after completion: positive values expire, 0 unloads, -1 retains. GGUF omitted/-1 retains until replacement/shutdown; errors release it. Older timers cannot unload a newer request. Speech stays separate from chat.",
           "default": 5
         }
       ],
