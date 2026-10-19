@@ -11,6 +11,7 @@ import { useLayoutStore } from '../store/ui/useLayoutStore';
 export type SettingsTabId =
     | 'general'
     | 'chats'
+    | 'voice'
     | 'engine'
     | 'inference'
     | 'vector'
@@ -23,6 +24,7 @@ export type SettingsTabId =
 export const VALID_SETTINGS_TABS: SettingsTabId[] = [
     'general',
     'chats',
+    'voice',
     'engine',
     'inference',
     'vector',

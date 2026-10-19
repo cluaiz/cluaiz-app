@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { audioApi } from '../../../api/engine/audio/audio.api';
+import { getSpeakerLanguages } from '../../../services/audio/speakerLanguages';
 
 /**
  * Microphone to text while the user speaks.
@@ -74,7 +75,9 @@ const transcribe = async (blob: Blob): Promise<string> => {
         reader.onerror = reject;
         reader.readAsDataURL(blob);
     });
-    const res = await audioApi.transcriptions({ file: dataUri, stream: false });
+    // Each phrase is identified among the languages the user speaks (Settings → Voice & Languages)
+    const languages = getSpeakerLanguages();
+    const res = await audioApi.transcriptions({ file: dataUri, stream: false, ...(languages.length ? { languages } : {}) });
     lastTranscribeMs = performance.now() - started;
     return (res?.text || '').trim();
 };

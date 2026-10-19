@@ -28,6 +28,15 @@ export const audioApi = {
     return Array.isArray(body?.data) ? body.data : [];
   },
 
+  /** Language codes a speech-to-text model can transcribe (the STT slot's model when omitted). */
+  languages: async (model?: string): Promise<string[]> => {
+    const query = model ? `?model=${encodeURIComponent(model)}` : '';
+    const res = await fetch(`${client.getBaseUrl()}${AUDIO_ENDPOINTS.LANGUAGES}${query}`, { headers: authHeaders(false) });
+    if (!res.ok) throw new Error(`Language list failed: ${res.status} ${res.statusText}`);
+    const body = await res.json();
+    return Array.isArray(body?.data) ? body.data.filter((code: unknown) => typeof code === 'string') : [];
+  },
+
   /**
    * Speech with stream: true. Each finished sentence reaches `onPart` as a playable WAV while the
    * rest is synthesized; resolves with the whole text's WAV.
@@ -140,7 +149,7 @@ export const audioApi = {
    * Transcribes audio into text using OpenAI-compatible STT.
    * Supports both pure JSON with Base64 Data URI and multipart FormData.
    */
-  transcriptions: async (payload: { file: string; model?: string; language?: string; stream?: boolean } | FormData): Promise<TranscriptionResponse> => {
+  transcriptions: async (payload: { file: string; model?: string; language?: string; languages?: string[]; stream?: boolean } | FormData): Promise<TranscriptionResponse> => {
     const baseUrl = client.getBaseUrl();
     const url = `${baseUrl}${AUDIO_ENDPOINTS.TRANSCRIPTIONS}`;
     const token = client.getToken();

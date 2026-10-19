@@ -66,6 +66,8 @@ export interface TranscriptionRequest {
   file: Blob | File;
   model?: string;
   language?: string;
+  /** The speaker's languages: speech is identified among only these */
+  languages?: string[];
   prompt?: string;
   response_format?: 'json' | 'text' | 'srt' | 'verbose_json' | 'vtt';
   temperature?: number;
