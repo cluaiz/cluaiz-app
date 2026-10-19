@@ -27,6 +27,10 @@ const INTERIM_MAX_COST_MS = 2500;
 /** While the answer is spoken, this loud for this long interrupts it */
 const INTERRUPT_LEVEL = 0.15;
 const INTERRUPT_MS = 400;
+/** Quiet before the user starts speaking is not kept beyond this (it would only lengthen the audio) */
+const IDLE_RESTART_MS = 4000;
+/** A phrase is cut here even mid-speech: speech-to-text models read at most 30 s at a time */
+const MAX_PHRASE_MS = 25000;
 
 export interface DictationCallbacks {
     /** Everything heard in this session so far (kept phrases + the phrase being spoken) */
@@ -43,8 +47,11 @@ interface Phrase {
     id: number;
     recorder: MediaRecorder;
     chunks: Blob[];
+    startedAt: number;
     speechMs: number;
     discard: boolean;
+    /** Cut at MAX_PHRASE_MS while the user was still speaking: their turn goes on */
+    split: boolean;
 }
 
 /** A transcript worth keeping has a letter or a digit (not a lone "." from noise) */
@@ -85,6 +92,9 @@ export function useDictation(mode: MicMode, callbacks: DictationCallbacks) {
     const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const phraseRef = useRef<Phrase | null>(null);
     const phraseCounter = useRef(0);
+    /** Changes when the microphone starts or is cancelled: readings of an older session are dropped */
+    const sessionRef = useRef(0);
+    const orderRef = useRef<Promise<void>>(Promise.resolve());
     const mimeRef = useRef('audio/webm');
     const committedRef = useRef('');
     const interimRef = useRef('');
@@ -110,9 +120,19 @@ export function useDictation(mode: MicMode, callbacks: DictationCallbacks) {
         const stream = streamRef.current;
         if (!stream) return;
         const recorder = new MediaRecorder(stream, { mimeType: mimeRef.current });
-        const phrase: Phrase = { id: ++phraseCounter.current, recorder, chunks: [], speechMs: 0, discard: false };
+        const session = sessionRef.current;
+        const phrase: Phrase = {
+            id: ++phraseCounter.current,
+            recorder,
+            chunks: [],
+            startedAt: performance.now(),
+            speechMs: 0,
+            discard: false,
+            split: false,
+        };
         recorder.ondataavailable = (e) => e.data.size > 0 && phrase.chunks.push(e.data);
-        recorder.onstop = async () => {
+        recorder.onstop = () => {
+            if (session !== sessionRef.current) return;
             if (phrase.discard || phrase.speechMs < MIN_SPEECH_MS || phrase.chunks.length === 0) {
                 if (!phrase.discard) {
                     interimRef.current = '';
@@ -120,20 +140,25 @@ export function useDictation(mode: MicMode, callbacks: DictationCallbacks) {
                 }
                 return;
             }
-            try {
-                const text = await transcribe(new Blob(phrase.chunks, { type: mimeRef.current }));
-                if (phrase.discard) return;
-                if (meaningful(text)) committedRef.current = join(committedRef.current, text);
-                interimRef.current = '';
-                emit();
-                if (modeRef.current === 'voice' && committedRef.current) {
-                    const turn = committedRef.current;
-                    committedRef.current = '';
-                    cb.current.onTurnEnd(turn);
+            const reading = transcribe(new Blob(phrase.chunks, { type: mimeRef.current }));
+            reading.catch(() => {}); // handled in order below
+            // Phrases are kept in the order they were spoken, whichever reading finishes first
+            orderRef.current = orderRef.current.then(async () => {
+                try {
+                    const text = await reading;
+                    if (phrase.discard || session !== sessionRef.current) return;
+                    if (meaningful(text)) committedRef.current = join(committedRef.current, text);
+                    interimRef.current = '';
+                    emit();
+                    if (modeRef.current === 'voice' && committedRef.current && !phrase.split) {
+                        const turn = committedRef.current;
+                        committedRef.current = '';
+                        cb.current.onTurnEnd(turn);
+                    }
+                } catch (err) {
+                    if (session === sessionRef.current) fail(err);
                 }
-            } catch (err) {
-                fail(err);
-            }
+            });
         };
         recorder.start(250);
         phraseRef.current = phrase;
@@ -178,6 +203,7 @@ export function useDictation(mode: MicMode, callbacks: DictationCallbacks) {
             });
             streamRef.current = stream;
             mimeRef.current = pickMimeType();
+            sessionRef.current += 1;
             committedRef.current = '';
             interimRef.current = '';
             listeningRef.current = true;
@@ -217,11 +243,21 @@ export function useDictation(mode: MicMode, callbacks: DictationCallbacks) {
                         newPhrase();
                     }
                 } else if (phraseRef.current) {
+                    const phrase = phraseRef.current;
+                    const age = now - phrase.startedAt;
                     if (level > SPEECH_LEVEL) {
                         speakingRef.current = true;
-                        phraseRef.current.speechMs += dt;
+                        phrase.speechMs += dt;
                         lastLoudRef.current = now;
-                    } else if (speakingRef.current && level < QUIET_LEVEL && now - lastLoudRef.current > PAUSE_MS) {
+                    }
+                    if (speakingRef.current && level < QUIET_LEVEL && now - lastLoudRef.current > PAUSE_MS) {
+                        endPhrase(true);
+                    } else if (!speakingRef.current && level < QUIET_LEVEL && age > IDLE_RESTART_MS) {
+                        // Nothing said yet: start over so the silence is not sent
+                        dropPhrase();
+                        newPhrase();
+                    } else if (age > MAX_PHRASE_MS) {
+                        phrase.split = true;
                         endPhrase(true);
                     }
                 }
@@ -235,6 +271,7 @@ export function useDictation(mode: MicMode, callbacks: DictationCallbacks) {
                 if (!phrase || !listeningRef.current || interimBusyRef.current || phrase.speechMs < MIN_SPEECH_MS) return;
                 if (lastTranscribeMs > INTERIM_MAX_COST_MS) return;
                 interimBusyRef.current = true;
+                const session = sessionRef.current;
                 transcribe(new Blob(phrase.chunks, { type: mimeRef.current }))
                     .then((text) => {
                         if (phraseRef.current?.id === phrase.id && meaningful(text)) {
@@ -242,7 +279,7 @@ export function useDictation(mode: MicMode, callbacks: DictationCallbacks) {
                             emit();
                         }
                     })
-                    .catch(fail)
+                    .catch((err) => session === sessionRef.current && fail(err))
                     .finally(() => {
                         interimBusyRef.current = false;
                     });
@@ -261,6 +298,15 @@ export function useDictation(mode: MicMode, callbacks: DictationCallbacks) {
         if (modeRef.current === 'record') endPhrase(false);
         else dropPhrase();
         teardown();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    /** The user took over (typed in the box): stop now and drop everything not yet typed, including
+     * readings still on their way, so nothing overwrites what the user wrote. */
+    const cancel = useCallback(() => {
+        sessionRef.current += 1;
+        dropPhrase();
+        if (streamRef.current) teardown();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
@@ -288,5 +334,5 @@ export function useDictation(mode: MicMode, callbacks: DictationCallbacks) {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    return { active, start, stop, pauseListening, resumeListening };
+    return { active, start, stop, cancel, pauseListening, resumeListening };
 }
