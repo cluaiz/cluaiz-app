@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Square, FileCode, FileText, Plus, ChevronDown, Mic, Zap, Sparkles, Globe, Brain, Image as ImageIcon, Video, X, Clock, ChevronRight, UploadCloud, Link as LinkIcon, Layers, FolderUp, Database, BookOpen, ZapOff, Telescope, CornerDownRight, Check, AlignLeft, AlignJustify, Box, Server, Info, SlidersHorizontal } from 'lucide-react';
+import { Send, Square, FileCode, FileText, Plus, ChevronDown, Mic, Zap, Sparkles, Globe, Brain, Image as ImageIcon, Video, X, Clock, ChevronRight, UploadCloud, Link as LinkIcon, Layers, FolderUp, Database, BookOpen, ZapOff, Telescope, CornerDownRight, Check, AlignLeft, AlignJustify, Box, Server, Info, SlidersHorizontal, Trash2, Pencil } from 'lucide-react';
 import BorderGlow from '../../../components/ui/BorderGlow';
 import { Backlight } from '../../../components/ui/Backlight';
 import { useEngineStore } from '../../../store/engine/useEngineStore';
@@ -197,6 +197,68 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
     // Real Dynamic Tools from Engine backend (/api/components/list)
     const { getBaseUrl } = useConnectionStore();
+
+    // [P35] Codex Pending Queue & Steer State
+    const [pendingQueue, setPendingQueue] = useState<Array<{
+        id: string;
+        text: string;
+        options: import('../../../core/engine').SendChatOptions;
+    }>>([]);
+
+    const pendingQueueRef = useRef(pendingQueue);
+    pendingQueueRef.current = pendingQueue;
+
+    const handleSendMessageRef = useRef(handleSendMessage);
+    handleSendMessageRef.current = handleSendMessage;
+
+    const prevStreamingRef = useRef(isStreaming);
+    const dispatchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    // [P5] Reliable auto-dispatch on stream completion:
+    // Does NOT depend on pendingQueue or handleSendMessage so state re-renders never clear the dispatch timer!
+    useEffect(() => {
+        if (prevStreamingRef.current && !isStreaming && pendingQueueRef.current.length > 0) {
+            const nextItem = pendingQueueRef.current[0];
+            setPendingQueue(prev => prev.filter(q => q.id !== nextItem.id));
+
+            if (dispatchTimerRef.current) {
+                clearTimeout(dispatchTimerRef.current);
+            }
+            dispatchTimerRef.current = setTimeout(() => {
+                dispatchTimerRef.current = null;
+                handleSendMessageRef.current(nextItem.text, nextItem.options);
+            }, 120);
+        }
+        prevStreamingRef.current = isStreaming;
+    }, [isStreaming]);
+
+    useEffect(() => {
+        return () => {
+            if (dispatchTimerRef.current) {
+                clearTimeout(dispatchTimerRef.current);
+            }
+        };
+    }, []);
+
+    const handleSteer = (item: { id: string; text: string; options: import('../../../core/engine').SendChatOptions }) => {
+        onStopStreaming?.();
+        setPendingQueue(prev => prev.filter(q => q.id !== item.id));
+        setTimeout(() => {
+            handleSendMessage(item.text, item.options);
+        }, 150);
+    };
+
+    const handleRemoveQueued = (id: string) => {
+        setPendingQueue(prev => prev.filter(q => q.id !== id));
+    };
+
+    // [P3] Edit queued prompt: pop from queue, restore to input, focus input
+    const handleEditQueued = (item: { id: string; text: string }) => {
+        handleRemoveQueued(item.id);
+        replaceInputText(item.text);
+        inlineInputRef.current?.focus();
+    };
+
     const [backendTools, setBackendTools] = useState<{
         skills: { id: string; name: string; icon_svg?: string | null }[];
         plugins: { id: string; name: string; icon_svg?: string | null }[];
@@ -512,10 +574,6 @@ const BANNED_ARCHIVE_OR_BINARY_REGEX = /\.(zip|tar|gz|tgz|rar|7z|bz2|xz|exe|msi|
             toast.error('Cluaiz Engine is offline. Start engine to chat.');
             return;
         }
-        if (isStreaming) {
-            toast.info('Response is currently generating. Stop or wait for it to complete.');
-            return;
-        }
 
         const promptText = serializedText.trim();
         let finalParts: import('../../../api/engine/chat/chat.types').ChatMessagePart[] | undefined = undefined;
@@ -550,6 +608,22 @@ const BANNED_ARCHIVE_OR_BINARY_REGEX = /\.(zip|tar|gz|tgz|rar|7z|bz2|xz|exe|msi|
             parts: finalParts,
             attachments: attachmentsMeta
         };
+
+        if (isStreaming) {
+            // [P35] Instead of blocking toast, enqueue into pending queue
+            setPendingQueue(prev => [
+                ...prev,
+                {
+                    id: `queue-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                    text: promptText,
+                    options,
+                }
+            ]);
+            setInputValue('');
+            setStagedAttachments([]);
+            inlineInputRef.current?.clear();
+            return;
+        }
 
         handleSendMessage(promptText, options);
         setInputValue('');
@@ -1479,6 +1553,51 @@ const BANNED_ARCHIVE_OR_BINARY_REGEX = /\.(zip|tar|gz|tgz|rar|7z|bz2|xz|exe|msi|
                     <div className="text-xs font-medium text-[var(--text-primary)] truncate pr-4 pl-2.5 border-l-2 border-[var(--accent-color)] ml-1">
                         {replyingTo.text}
                     </div>
+                </div>
+            )}
+
+            {/* [P35] Codex Attached Queued Tab (Flush Inset within Input Shoulders) */}
+            {pendingQueue.length > 0 && (
+                <div className="mx-5 -mb-[1px] z-20 relative flex flex-col gap-1">
+                    {pendingQueue.map((item) => (
+                        <div
+                            key={item.id}
+                            className="w-full flex items-center justify-between px-3.5 py-1.5 rounded-t-[14px] bg-[var(--bg-secondary)] border border-b-0 border-[var(--border-color)] text-xs text-[var(--text-secondary)] shadow-sm select-none"
+                        >
+                            <div className="flex items-center gap-2 min-w-0 flex-1 mr-3">
+                                <CornerDownRight className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+                                <span className="truncate text-[12px] font-medium text-[var(--text-primary)]">
+                                    {item.text || 'Attached prompt'}
+                                </span>
+                            </div>
+                            <div className="flex items-center gap-3 shrink-0 border-l border-[var(--border-color)] pl-3">
+                                <button
+                                    type="button"
+                                    onClick={() => handleSteer(item)}
+                                    className="flex items-center gap-1 text-[11px] font-medium text-zinc-400 hover:text-white transition-colors cursor-pointer bg-transparent border-0 p-0"
+                                    title="Steer"
+                                >
+                                    <span>↳ Steer</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleEditQueued(item)}
+                                    className="text-zinc-500 hover:text-[var(--accent-color)] transition-colors cursor-pointer bg-transparent border-0 p-0"
+                                    title="Edit prompt"
+                                >
+                                    <Pencil className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleRemoveQueued(item.id)}
+                                    className="text-zinc-500 hover:text-red-400 transition-colors cursor-pointer bg-transparent border-0 p-0"
+                                    title="Cancel"
+                                >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                            </div>
+                        </div>
+                    ))}
                 </div>
             )}
 
