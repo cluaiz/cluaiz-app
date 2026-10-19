@@ -207,10 +207,10 @@ const CollapsibleUserMessage: React.FC<CollapsibleUserMessageProps> = ({
     }, [text]);
 
     return (
-        <div className="relative w-full">
+        <div className="relative w-full min-w-0 max-w-full overflow-hidden">
             <div
                 ref={contentRef}
-                className={`font-medium select-text break-words leading-relaxed font-[family-name:var(--font-family)] transition-all duration-200 ${isOverflowing && !isExpanded ? 'max-h-[170px] overflow-hidden' : ''
+                className={`font-medium select-text break-words break-all [overflow-wrap:anywhere] leading-relaxed font-[family-name:var(--font-family)] transition-all duration-200 ${isOverflowing && !isExpanded ? 'max-h-[170px] overflow-hidden' : ''
                     }`}
                 style={{ fontSize: 'var(--chat-bubble-font-size, 14px)', fontFamily: 'var(--font-family)' }}
                 onMouseUp={onMouseUp}
@@ -416,14 +416,15 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
             <MarkdownRenderer
                 content={text}
                 allowWorkspaceOpen={true}
-                className="user-message-markdown w-full text-inherit leading-relaxed [&_*]:text-inherit [&_p]:text-inherit [&_p]:my-0 [&_strong]:text-inherit [&_strong]:font-bold [&_em]:text-inherit [&_ul]:text-inherit [&_ul]:my-1 [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:text-inherit [&_ol]:my-1 [&_ol]:list-decimal [&_ol]:pl-4 [&_li]:text-inherit [&_blockquote]:border-l-2 [&_blockquote]:border-current [&_blockquote]:opacity-90 [&_blockquote]:my-1 [&_blockquote]:pl-2 [&_code]:bg-black/20 [&_code]:text-inherit [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_pre]:bg-black/30 [&_pre]:p-2 [&_pre]:rounded-md"
+                className="user-message-markdown w-full text-inherit leading-relaxed break-words break-all [overflow-wrap:anywhere] max-w-full [&_*]:text-inherit [&_p]:text-inherit [&_p]:my-0 [&_strong]:text-inherit [&_strong]:font-bold [&_em]:text-inherit [&_ul]:text-inherit [&_ul]:my-1 [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:text-inherit [&_ol]:my-1 [&_ol]:list-decimal [&_ol]:pl-4 [&_li]:text-inherit [&_blockquote]:border-l-2 [&_blockquote]:border-current [&_blockquote]:opacity-90 [&_blockquote]:my-1 [&_blockquote]:pl-2 [&_code]:bg-black/20 [&_code]:text-inherit [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_pre]:bg-black/30 [&_pre]:p-2 [&_pre]:rounded-md"
             />
         );
     };
 
     return (
         <div
-            className={`flex relative w-full gap-3 group ${isUser ? 'justify-end items-end' : 'justify-start items-start'}`}
+            id={`msg-turn-${msg.id || index}`}
+            className={`flex relative w-full gap-3 group group/turn ${isUser ? 'justify-end items-end' : 'justify-start items-start'}`}
             onClick={() => {
                 if (isSelectionMode && onToggleSelect) {
                     onToggleSelect();
@@ -443,7 +444,7 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
 
             {isUser ? (
                 /* User Message Outer Wrapper */
-                <div className="flex flex-col items-end self-end max-w-[92%] sm:max-w-[85%] md:max-w-[75%] w-fit gap-1.5 group/bubble select-text">
+                <div className="flex flex-col items-end self-end max-w-[92%] sm:max-w-[85%] md:max-w-[75%] w-fit min-w-0 max-w-full gap-1.5 group/bubble select-text">
                     {/* Top: Horizontal Attachment Slider (Exact same slider as input, outside & on top of text bubble) */}
                     {msg.attachments && msg.attachments.length > 0 && (
                         <div className="w-full max-w-full overflow-hidden">
@@ -467,7 +468,7 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
                                     handleMessageContextMenu(e, index);
                                 }
                             }}
-                            className={`flex flex-col w-fit rounded-2xl rounded-tr-sm p-3 shadow-sm relative transition-transform duration-200 self-end select-text ${isSelectionMode ? 'cursor-pointer hover:scale-[1.01]' : ''
+                            className={`flex flex-col w-fit max-w-full rounded-2xl rounded-tr-sm p-3 shadow-sm relative transition-all duration-300 self-end select-text break-words break-all [overflow-wrap:anywhere] overflow-hidden min-w-0 group-[.chat-turn-focused]/turn:brightness-125 group-[.chat-turn-focused]/turn:shadow-[0_0_16px_var(--accent-color)] ${isSelectionMode ? 'cursor-pointer hover:scale-[1.01]' : ''
                                 }`}
                             style={{
                                 backgroundColor: 'var(--accent-color)',
@@ -607,7 +608,7 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
                     {msg.text ? (
                         <div
                             onMouseUp={handleMouseUp}
-                            className="w-full overflow-hidden select-text text-[var(--text-primary)] font-[family-name:var(--font-family)]"
+                            className="w-full max-w-full overflow-hidden select-text text-[var(--text-primary)] font-[family-name:var(--font-family)] break-words break-all [overflow-wrap:anywhere] min-w-0 transition-all duration-300 group-[.chat-turn-focused]/turn:brightness-125"
                             style={{ fontSize: 'var(--chat-bubble-font-size, 14px)', fontFamily: 'var(--font-family)' }}
                         >
                             <MarkdownRenderer

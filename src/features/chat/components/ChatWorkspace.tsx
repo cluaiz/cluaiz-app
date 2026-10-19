@@ -13,6 +13,7 @@ import { DynamicGreeting } from './DynamicGreeting';
 import { ChatHeader } from './ChatHeader';
 import { ChatInput } from './ChatInput';
 import { MessageBubble } from './MessageBubble';
+import { ChatScrollbarMinimap } from './ChatScrollbarMinimap';
 import { DateRange } from '../../../components/ui/dropdown/CalendarDropdown';
 import { useChatScroll } from '../hooks/useChatScroll';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -529,53 +530,56 @@ main().catch(console.error);`);
                     </div>
                 ) : (
                     <>
-                        <div
-                            className="flex-1 overflow-y-auto p-4 font-[family-name:var(--font-family)] text-[13px] leading-relaxed relative z-0 lg:px-14"
-                            style={{ fontFamily: 'var(--font-family)', backgroundImage: chatBackground !== 'none' ? `url("${chatBackground}")` : 'none', backgroundSize: '120px', backgroundBlendMode: 'overlay', backgroundColor: 'var(--bg-primary)' }}
-                            onContextMenu={handleGlobalContextMenu}
-                            ref={viewportRef}
-                            onScroll={handleScroll}
-                        >
-                            <div className="flex flex-col space-y-4 w-full max-w-2xl lg:max-w-3xl 2xl:max-w-4xl mx-auto pb-36">
-                                {(() => {
-                                    let absoluteIndex = 0;
-                                    const grouped = (filteredMessages || []).reduce((groups, msg) => {
-                                        const safeDate = msg.date || (msg as any).timestamp || Date.now();
-                                        const dateStr = new Date(safeDate).toDateString();
-                                        if (!groups[dateStr]) groups[dateStr] = [];
-                                        groups[dateStr].push(msg);
-                                        return groups;
-                                    }, {} as Record<string, typeof filteredMessages>);
+                        <div className="flex-1 relative overflow-hidden flex flex-col min-h-0">
+                            <div
+                                className="flex-1 overflow-y-auto p-4 font-[family-name:var(--font-family)] text-[13px] leading-relaxed relative z-0 lg:px-14"
+                                style={{ fontFamily: 'var(--font-family)', backgroundImage: chatBackground !== 'none' ? `url("${chatBackground}")` : 'none', backgroundSize: '120px', backgroundBlendMode: 'overlay', backgroundColor: 'var(--bg-primary)' }}
+                                onContextMenu={handleGlobalContextMenu}
+                                ref={viewportRef}
+                                onScroll={handleScroll}
+                            >
+                                <div className="flex flex-col space-y-4 w-full max-w-2xl lg:max-w-3xl 2xl:max-w-4xl mx-auto pb-36">
+                                    {(() => {
+                                        let absoluteIndex = 0;
+                                        const grouped = (filteredMessages || []).reduce((groups, msg) => {
+                                            const safeDate = msg.date || (msg as any).timestamp || Date.now();
+                                            const dateStr = new Date(safeDate).toDateString();
+                                            if (!groups[dateStr]) groups[dateStr] = [];
+                                            groups[dateStr].push(msg);
+                                            return groups;
+                                        }, {} as Record<string, typeof filteredMessages>);
 
-                                    return Object.entries(grouped).map(([dateStr, groupMsgs]) => (
-                                        <div key={dateStr} className="relative flex flex-col">
+                                        return Object.entries(grouped).map(([dateStr, groupMsgs]) => (
+                                            <div key={dateStr} className="relative flex flex-col">
 
-                                            <div className="flex flex-col gap-4">
-                                                {groupMsgs.map((msg) => {
-                                                    const currentIndex = absoluteIndex++;
-                                                    return (
-                                                        <MessageBubble
-                                                            key={msg.id || currentIndex}
-                                                            msg={msg}
-                                                            index={currentIndex}
-                                                            handleMessageContextMenu={handleMessageContextMenu}
-                                                            onTextSelect={setSelectionMenu}
-                                                            onHighlightClick={setUnhighlightMenu}
-                                                            isSelectionMode={isSelectionMode}
-                                                            isSelected={selectedMessageIndices.includes(currentIndex)}
-                                                            onToggleSelect={() => handleToggleSelect(currentIndex)}
-                                                            onSkipThinking={handleSkipThinking}
-                                                            isStreaming={streamingHere && msg.id === messages[messages.length - 1]?.id}
-                                                            processingLabel={processing?.sessionId === activeSessionId ? processing.label : undefined}
-                                                        />
-                                                    );
-                                                })}
+                                                <div className="flex flex-col gap-4">
+                                                    {groupMsgs.map((msg) => {
+                                                        const currentIndex = absoluteIndex++;
+                                                        return (
+                                                            <MessageBubble
+                                                                key={msg.id || currentIndex}
+                                                                msg={msg}
+                                                                index={currentIndex}
+                                                                handleMessageContextMenu={handleMessageContextMenu}
+                                                                onTextSelect={setSelectionMenu}
+                                                                onHighlightClick={setUnhighlightMenu}
+                                                                isSelectionMode={isSelectionMode}
+                                                                isSelected={selectedMessageIndices.includes(currentIndex)}
+                                                                onToggleSelect={() => handleToggleSelect(currentIndex)}
+                                                                onSkipThinking={handleSkipThinking}
+                                                                isStreaming={streamingHere && msg.id === messages[messages.length - 1]?.id}
+                                                                processingLabel={processing?.sessionId === activeSessionId ? processing.label : undefined}
+                                                            />
+                                                        );
+                                                    })}
+                                                </div>
                                             </div>
-                                        </div>
-                                    ));
-                                })()}
-                                <div ref={bottomRef} className="h-6 flex-shrink-0" />
+                                        ));
+                                    })()}
+                                    <div ref={bottomRef} className="h-6 flex-shrink-0" />
+                                </div>
                             </div>
+                            <ChatScrollbarMinimap messages={messages} containerRef={viewportRef} sessionId={activeSessionId} />
                         </div>
 
                         <div className="relative">

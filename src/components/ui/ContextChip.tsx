@@ -2,6 +2,7 @@ import React from 'react';
 import { FileIcon, FolderIcon } from 'react-material-icon-theme';
 import { X, Sparkles } from 'lucide-react';
 import { Tooltip } from './tooltip';
+import { RichHoverCard } from './RichHoverCard';
 import { extractBaseName, getFileExtension, parseLineRange, getRelativeWorkspacePath } from '../../utils/filePath';
 import { useProjectStore } from '../../store/workspace/useProjectStore';
 import { useLayoutStore } from '../../store/ui/useLayoutStore';
@@ -168,48 +169,67 @@ export const ContextChip: React.FC<ContextChipProps> = ({
         return <Sparkles className="w-3.5 h-3.5 text-[var(--accent-color)] shrink-0" />;
     };
 
+    const chipBody = (
+        
+        <span
+            contentEditable={false}
+            data-chip-id={id}
+            data-chip-type={type}
+            data-raw-path={rawPath || ''}
+            data-line-range={lineRange || ''}
+            onClick={handleChipClick}
+            className={`relative inline-flex items-center align-middle gap-1.5 pl-2 ${onRemove ? 'pr-2 group-hover:pr-5' : 'pr-2'} py-0.5 mx-0.5 my-0.5 rounded-md bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[11px] font-mono font-medium text-[var(--text-primary)] hover:border-[var(--accent-color)]/60 transition-all select-all selection:bg-[var(--accent-color)] selection:text-white shadow-xs group cursor-pointer ${className}`}
+            style={{
+                verticalAlign: 'baseline',
+                lineHeight: '1.15rem'
+            }}
+        >
+            {renderIcon()}
+            <span className="truncate max-w-[130px] sm:max-w-[180px]" title={tooltipTitle}>
+                {displayName}
+            </span>
+
+            {lineRange && (
+                <span className="text-[9.5px] text-[var(--accent-color)] font-mono font-semibold px-1 py-0.2 rounded bg-[var(--accent-color)]/10 border border-[var(--accent-color)]/20 shrink-0">
+                    {lineRange}
+                </span>
+            )}
+
+            {!disabled && onRemove && (
+                <button
+                    type="button"
+                    contentEditable={false}
+                    onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onRemove();
+                    }}
+                    className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-rose-500/20 text-[var(--text-muted)] hover:text-rose-400 transition-opacity cursor-pointer bg-[var(--bg-secondary)]/90 backdrop-blur-xs"
+                    title="Remove reference"
+                >
+                    <X className="w-2.5 h-2.5" />
+                </button>
+            )}
+        </span>
+    );
+
+    if (type === 'file') {
+        return (
+            <RichHoverCard
+                title={displayName}
+                filePath={fullPath}
+                lineRange={lineRange}
+                position="top"
+                onOpenInEditor={() => handleChipClick({ preventDefault: () => {}, stopPropagation: () => {} } as any)}
+            >
+                {chipBody}
+            </RichHoverCard>
+        );
+    }
+
     return (
         <Tooltip title={tooltipTitle} subtitle={tooltipSubtitle} position="top">
-            <span
-                contentEditable={false}
-                data-chip-id={id}
-                data-chip-type={type}
-                data-raw-path={rawPath || ''}
-                data-line-range={lineRange || ''}
-                onClick={handleChipClick}
-                className={`relative inline-flex items-center align-middle gap-1.5 pl-2 ${onRemove ? 'pr-2 group-hover:pr-5' : 'pr-2'} py-0.5 mx-0.5 my-0.5 rounded-md bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[11px] font-mono font-medium text-[var(--text-primary)] hover:border-[var(--accent-color)]/60 transition-all select-all selection:bg-[var(--accent-color)] selection:text-white shadow-xs group cursor-pointer ${className}`}
-                style={{
-                    verticalAlign: 'baseline',
-                    lineHeight: '1.15rem'
-                }}
-            >
-                {renderIcon()}
-                <span className="truncate max-w-[130px] sm:max-w-[180px]" title={tooltipTitle}>
-                    {displayName}
-                </span>
-
-                {lineRange && (
-                    <span className="text-[9.5px] text-[var(--accent-color)] font-mono font-semibold px-1 py-0.2 rounded bg-[var(--accent-color)]/10 border border-[var(--accent-color)]/20 shrink-0">
-                        {lineRange}
-                    </span>
-                )}
-
-                {!disabled && onRemove && (
-                    <button
-                        type="button"
-                        contentEditable={false}
-                        onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            onRemove();
-                        }}
-                        className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-rose-500/20 text-[var(--text-muted)] hover:text-rose-400 transition-opacity cursor-pointer bg-[var(--bg-secondary)]/90 backdrop-blur-xs"
-                        title="Remove reference"
-                    >
-                        <X className="w-2.5 h-2.5" />
-                    </button>
-                )}
-            </span>
+            {chipBody}
         </Tooltip>
     );
 };
