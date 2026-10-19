@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, forwardRef, useImperativeHandle } from 'react';
 import { Mic, MicOff, ChevronDown } from 'lucide-react';
 import { motion } from 'framer-motion';
 import {
@@ -35,7 +35,12 @@ export interface VoiceInputControlProps {
  * Microphone button. Record: words are typed while you speak, stop when done. Voice mode: a pause
  * sends the turn, the answer is spoken (MessageBubble), then the microphone listens again.
  */
-export const VoiceInputControl: React.FC<VoiceInputControlProps> = ({
+export interface VoiceInputHandle {
+    /** Stops the microphone and drops what is not typed yet (the user typed instead) */
+    cancel: () => void;
+}
+
+export const VoiceInputControl = forwardRef<VoiceInputHandle, VoiceInputControlProps>(({
     disabled = false,
     className = '',
     isAnswering = false,
@@ -45,7 +50,7 @@ export const VoiceInputControl: React.FC<VoiceInputControlProps> = ({
     onError,
     onVoiceStateChange,
     onVoiceFrequencyChange,
-}) => {
+}, ref) => {
     const [micSettings, setMicSettings] = useState<MicSettings>(getStoredMicSettings);
     const mode = micSettings.mode;
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -119,6 +124,16 @@ export const VoiceInputControl: React.FC<VoiceInputControlProps> = ({
         dictation.stop();
         setLiveFrequency(0);
     };
+
+    // The user typed in the box: the microphone stops at once and nothing heard is typed any more
+    useImperativeHandle(ref, () => ({
+        cancel: () => {
+            awaitingAnswerRef.current = false;
+            if (fallbackRef.current) clearTimeout(fallbackRef.current);
+            dictation.cancel();
+            setLiveFrequency(0);
+        },
+    }));
 
     const toggleVoiceState = (e: React.MouseEvent) => {
         e.stopPropagation();
@@ -239,5 +254,6 @@ export const VoiceInputControl: React.FC<VoiceInputControlProps> = ({
             </div>
         </div>
     );
-};
+});
+VoiceInputControl.displayName = 'VoiceInputControl';
 export default VoiceInputControl;

@@ -12,7 +12,7 @@ import { systemApi } from '../../../api/engine/system/system.api';
 import { toast } from '../../../components/ui/toast';
 import { audioApi } from '../../../api/engine/audio/audio.api';
 import { InlinePromptInput, InlinePromptInputHandle } from '../../../components/ui/InlinePromptInput';
-import { VoiceInputControl, VoiceMode } from '../../../components/ui/VoiceInputControl';
+import { VoiceInputControl, VoiceInputHandle, VoiceMode } from '../../../components/ui/VoiceInputControl';
 import { extractBaseName } from '../../../utils/filePath';
 import { AttachmentStagingDeck, StagedAttachment } from './AttachmentStagingDeck';
 import { serializeStagedAttachments } from '../utils/attachmentSerializer';
@@ -130,6 +130,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     const [voiceFrequency, setVoiceFrequency] = useState(0);
     // Microphone text: what was in the box when the microphone started + what has been heard
     const dictationBaseRef = useRef('');
+    const voiceInputRef = useRef<VoiceInputHandle>(null);
     // Voice mode turn spoken while an answer was being written: sent once that answer has stopped
     const pendingTurnRef = useRef<string | null>(null);
 
@@ -1319,6 +1320,13 @@ const BANNED_ARCHIVE_OR_BINARY_REGEX = /\.(zip|tar|gz|tgz|rar|7z|bz2|xz|exe|msi|
             />
 
             {/* ---------------- ROW 1: INLINE PROMPT INPUT (Text + Embedded Context Chips) ---------------- */}
+            {/* Typing, deleting or pasting by hand stops the microphone (text set by the
+                microphone itself fires no input event) */}
+            <div
+                className="contents"
+                onInput={() => voiceInputRef.current?.cancel()}
+                onPaste={() => voiceInputRef.current?.cancel()}
+            >
             <InlinePromptInput
                 ref={inlineInputRef}
                 placeholder={isEngineOnline ? "Ask AI..." : "Cluaiz Engine is offline..."}
@@ -1331,6 +1339,7 @@ const BANNED_ARCHIVE_OR_BINARY_REGEX = /\.(zip|tar|gz|tgz|rar|7z|bz2|xz|exe|msi|
                 minHeight="22px"
                 maxHeight="160px"
             />
+            </div>
 
             {/* ---------------- ROW 2: CLEAN BOTTOM TOOLBAR ---------------- */}
             <div className="flex items-center justify-between pt-1 border-t border-[var(--border-color)]/20">
@@ -1353,6 +1362,7 @@ const BANNED_ARCHIVE_OR_BINARY_REGEX = /\.(zip|tar|gz|tgz|rar|7z|bz2|xz|exe|msi|
                     {renderModelSelector()}
 
                     <VoiceInputControl
+                        ref={voiceInputRef}
                         isAnswering={isStreaming}
                         onText={(heard) => replaceInputText(withBase(heard))}
                         onTurnEnd={handleVoiceTurn}
