@@ -468,13 +468,32 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
                                     handleMessageContextMenu(e, index);
                                 }
                             }}
-                            className={`flex flex-col w-fit max-w-full rounded-2xl rounded-tr-sm p-3 shadow-sm relative transition-all duration-300 self-end select-text break-words break-all [overflow-wrap:anywhere] overflow-hidden min-w-0 group-[.chat-turn-focused]/turn:brightness-125 group-[.chat-turn-focused]/turn:shadow-[0_0_16px_var(--accent-color)] ${isSelectionMode ? 'cursor-pointer hover:scale-[1.01]' : ''
+                            className={`flex flex-col w-fit max-w-full rounded-2xl rounded-tr-none p-3 shadow-xs border border-[var(--border-color)] relative transition-all duration-300 self-end select-text break-words break-all [overflow-wrap:anywhere] min-w-0 group-[.chat-turn-focused]/turn:border-[var(--accent-color)] group-[.chat-turn-focused]/turn:shadow-[0_0_12px_rgba(255,255,255,0.15)] ${isSelectionMode ? 'cursor-pointer hover:scale-[1.01]' : ''
                                 }`}
                             style={{
-                                backgroundColor: 'var(--accent-color)',
-                                color: 'var(--accent-contrast, #ffffff)',
+                                backgroundColor: 'var(--bg-secondary)',
+                                color: 'var(--text-primary)',
                             }}
                         >
+                            {/* Subtle Protruding Top-Right Speech Bubble Tail (Flush with top border) */}
+                            <svg
+                                className="absolute pointer-events-none z-10"
+                                style={{ right: '-4px', top: '-1px' }}
+                                width="7"
+                                height="10"
+                                viewBox="0 0 7 10"
+                                fill="none"
+                            >
+                                <path
+                                    d="M0 0.5H5.5C6.2 0.5 6.7 1.0 6.6 1.8C6.3 3.5 3.5 6.5 3.5 8.5L0 8.5Z"
+                                    fill="var(--bg-secondary)"
+                                />
+                                <path
+                                    d="M0 0.5H5.5C6.2 0.5 6.7 1.0 6.6 1.8C6.3 3.5 3.5 6.5 3.5 8.5"
+                                    stroke="var(--border-color)"
+                                    strokeWidth="1"
+                                />
+                            </svg>
                             {msg.isStarred && (
                                 <div className="absolute -top-2 -left-2 bg-yellow-500/20 text-yellow-500 p-0.5 rounded-full z-10 shadow-sm backdrop-blur-sm">
                                     <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>
@@ -483,7 +502,7 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
 
                             {/* Reply to Context Quote Banner */}
                             {msg.replyTo?.text && (
-                                <div className="mb-2 px-2.5 py-1.5 rounded-lg bg-black/15 border-l-2 border-white/70 text-xs opacity-95 text-left select-none">
+                                <div className="mb-2 px-2.5 py-1.5 rounded-lg bg-[var(--bg-tertiary)] border-l-2 border-[var(--border-color)] text-xs text-[var(--text-secondary)] text-left select-none">
                                     <div className="font-semibold text-[10px] opacity-75 uppercase tracking-wider mb-0.5">
                                         Replying to {msg.replyTo.sender === 'user' ? 'You' : (msg.replyTo.sender || 'Assistant')}
                                     </div>
@@ -499,11 +518,11 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
                             />
 
                             <div
-                                className="flex items-center justify-end gap-1 mt-1 font-[family-name:var(--font-family)] select-none opacity-85 ml-auto"
+                                className="flex items-center justify-end gap-1 mt-1 font-[family-name:var(--font-family)] select-none text-[var(--text-muted)] ml-auto"
                                 style={{ fontSize: 'calc(var(--chat-bubble-font-size, 14px) * 0.78)', fontFamily: 'var(--font-family)' }}
                             >
                                 <span>{formatDisplayTime(msg.time)}</span>
-                                <CheckCheck className="w-3.5 h-3.5 opacity-90" />
+                                <CheckCheck className="w-3.5 h-3.5 opacity-80" />
                             </div>
 
                             {/* Reactions for user */}

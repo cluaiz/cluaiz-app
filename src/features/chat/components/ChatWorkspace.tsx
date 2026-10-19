@@ -9,8 +9,6 @@ import { toast } from '../../../components/ui/toast';
 import { MessageContextMenu } from '../../../components/ui/context-menu/MessageContextMenu';
 import { GlobalChatContextMenu } from '../../../components/ui/context-menu/GlobalChatContextMenu';
 import { DynamicGreeting } from './DynamicGreeting';
-
-import { ChatHeader } from './ChatHeader';
 import { ChatInput } from './ChatInput';
 import { MessageBubble } from './MessageBubble';
 import { ChatScrollbarMinimap } from './ChatScrollbarMinimap';
@@ -486,23 +484,6 @@ main().catch(console.error);`);
                     </div>
                 )}
 
-                {!isIncognito && messages.length > 0 && (
-                    <div className="flex-shrink-0 relative z-10">
-                        <ChatHeader
-                            activeChatData={activeChatData}
-                            searchQuery={searchQuery}
-                            setSearchQuery={setSearchQuery}
-                            isFilterOpen={isFilterOpen}
-                            setIsFilterOpen={setIsFilterOpen}
-                            activeFilter={activeFilter}
-                            setActiveFilter={setActiveFilter}
-                            pinnedMessages={messages.map((m, i) => ({ ...m, originalIndex: i })).filter(m => m.pinned)}
-                            onUnpin={(index) => handleMessageAction('pin', index)}
-                        />
-                        {/* Bottom Fade-Out Shadow Effect for the entire header area */}
-                        <div className="absolute left-0 right-0 h-6 -bottom-6 bg-gradient-to-b from-[var(--bg-primary)] to-transparent pointer-events-none z-10" />
-                    </div>
-                )}
 
                 {messages.length === 0 ? (
                     <div className="flex-1 flex flex-col items-center justify-center p-2 sm:p-4 md:p-8 z-20 relative">
