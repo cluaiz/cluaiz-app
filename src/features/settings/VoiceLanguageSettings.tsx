@@ -59,16 +59,27 @@ export function VoiceLanguageSettings() {
                         The microphone recognises each sentence among these languages, so you can switch
                         between them as you talk. With none chosen, every language is considered, and
                         a sentence may come out in a language you do not speak (Hindi in Urdu script, for example).
+                        The list below is what the current speech-to-text model knows; a language it does not
+                        know is skipped (struck through), and if it knows none of yours, every language is considered.
                     </p>
 
                     <div className="flex flex-wrap gap-2 min-h-[32px] items-center">
                         {chosen.length === 0 ? (
                             <span className="text-[11px] font-semibold text-[var(--text-secondary)]">All languages (automatic)</span>
                         ) : (
-                            chosen.map((code) => (
+                            chosen.map((code) => {
+                                // Chosen with another model: this one skips it (speech still works)
+                                const unknown = !!available && !available.includes(code);
+                                return (
                                 <span
                                     key={code}
-                                    className="flex items-center gap-1.5 pl-3 pr-1.5 py-1 rounded-full text-[11px] font-semibold bg-[var(--accent-color)]/10 border border-[var(--accent-color)]/40 text-[var(--accent-color)]"
+                                    title={unknown ? 'The current speech-to-text model does not know this language, so it is skipped' : undefined}
+                                    className={cn(
+                                        'flex items-center gap-1.5 pl-3 pr-1.5 py-1 rounded-full text-[11px] font-semibold border',
+                                        unknown
+                                            ? 'border-dashed border-[var(--border-color)] text-[var(--text-muted)] line-through'
+                                            : 'bg-[var(--accent-color)]/10 border-[var(--accent-color)]/40 text-[var(--accent-color)]'
+                                    )}
                                 >
                                     {labels.get(code) || code}
                                     <button
@@ -80,7 +91,8 @@ export function VoiceLanguageSettings() {
                                         <X className="w-3 h-3" />
                                     </button>
                                 </span>
-                            ))
+                                );
+                            })
                         )}
                         {chosen.length > 0 && (
                             <button
