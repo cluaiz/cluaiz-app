@@ -60,6 +60,8 @@ export const RequestHeader: React.FC = () => {
             p.includes('/embedding') ||
             p.includes('/audio/transcriptions') ||
             p.includes('/audio/speech') ||
+            p.includes('/audio/voices') ||
+            p.includes('/audio/languages') ||
             p.includes('/ingest')
         ) {
             return true;

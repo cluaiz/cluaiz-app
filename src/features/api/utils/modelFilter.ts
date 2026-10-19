@@ -131,13 +131,13 @@ export const getFilteredModelsForEndpoint = (
         return installedModels.filter(isChatModel);
     }
 
-    // 3. Audio Speech-to-Text Transcription (/v1/audio/transcriptions)
-    if (p.includes('/audio/transcription') || p.includes('/stt')) {
+    // 3. Audio Speech-to-Text Transcription (/v1/audio/transcriptions, /v1/audio/languages)
+    if (p.includes('/audio/transcription') || p.includes('/audio/languages') || p.includes('/stt')) {
         return installedModels.filter(isSttModel);
     }
 
-    // 4. Audio Text-to-Speech / Voice synthesis (/v1/audio/speech, /v1/tts)
-    if (p.includes('/audio/speech') || p.includes('/tts')) {
+    // 4. Audio Text-to-Speech / Voice synthesis (/v1/audio/speech, /v1/audio/voices, /v1/tts)
+    if (p.includes('/audio/speech') || p.includes('/audio/voices') || p.includes('/tts')) {
         return installedModels.filter(isTtsModel);
     }
 

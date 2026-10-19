@@ -554,6 +554,16 @@
           "default": "auto"
         },
         {
+          "name": "languages",
+          "type": "array",
+          "req": false,
+          "desc": "Cluaiz extension: the languages the speaker uses (e.g. ['hi', 'en']). Without 'language', each request is identified among only these, so switching languages between sentences works and no unrelated language appears. Codes the model does not know are skipped; if it knows none, every language is considered. Empty: all languages. List them with GET /v1/audio/languages.",
+          "default": [
+            "hi",
+            "en"
+          ]
+        },
+        {
           "name": "temperature",
           "type": "float",
           "req": false,
@@ -582,7 +592,7 @@
           "default": 5
         }
       ],
-      "request_payload": "{\n  \"model\": \"whisper-large-v3-turbo-INT8\",\n  \"input_source\": {\n    \"type\": \"file\",\n    \"data\": \"C:\\\\Users\\\\Aryan\\\\Downloads\\\\harvard.mp3\"\n  },\n  \"language\": \"auto\",\n  \"temperature\": 0.0,\n  \"timestamps\": false,\n  \"stream\": false,\n  \"keep_alive\": 5\n}",
+      "request_payload": "{\n  \"model\": \"whisper-large-v3-turbo-INT8\",\n  \"input_source\": {\n    \"type\": \"file\",\n    \"data\": \"C:\\\\Users\\\\Aryan\\\\Downloads\\\\harvard.mp3\"\n  },\n  \"language\": \"auto\",\n  \"languages\": [\n    \"hi\",\n    \"en\"\n  ],\n  \"temperature\": 0.0,\n  \"timestamps\": false,\n  \"stream\": false,\n  \"keep_alive\": 5\n}",
       "response": "{\n  \"status\": \"success\",\n  \"task\": \"speech_to_text\",\n  \"model\": \"whisper-large-v3-turbo-INT8\",\n  \"output\": {\n    \"text\": \"Hello, this is a transcription test using Cluaiz Engine.\",\n    \"segments\": null\n  }\n}",
       "examples": [
         {
@@ -594,6 +604,30 @@
           "language": "python",
           "title": "Python (requests)",
           "code": "import requests\n\nheaders = {'Authorization': 'Bearer <token>'}\npayload = {\n    'model': 'whisper-large-v3-turbo-INT8',\n    'input_source': {'type': 'file', 'data': 'C:/Users/Aryan/Downloads/harvard.mp3'},\n    'language': 'auto',\n    'temperature': 0.0,\n    'timestamps': False,\n    'stream': False,\n    'keep_alive': 5\n}\nres = requests.post('http://localhost:8000/v1/audio/transcriptions', json=payload, headers=headers)\nprint(res.json()['output']['text'])"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/v1/audio/languages",
+      "desc": "Lists the languages a speech-to-text model can transcribe (codes for 'language' and 'languages'), read from the model's own tokenizer. Empty for a one-language model such as Moonshine.",
+      "docs_url": "/docs/api/inference/audio_transcriptions.md",
+      "params": [
+        {
+          "name": "model",
+          "type": "string",
+          "req": false,
+          "desc": "Installed STT model ID. Omitted: the active or first installed STT model.",
+          "default": "whisper-large-v3-turbo-FP16"
+        }
+      ],
+      "request_payload": "",
+      "response": "{\n  \"object\": \"list\",\n  \"model\": \"whisper-large-v3-turbo-FP16\",\n  \"data\": [\n    \"af\",\n    \"am\",\n    \"ar\",\n    \"...\",\n    \"en\",\n    \"...\",\n    \"hi\",\n    \"...\",\n    \"zh\"\n  ]\n}",
+      "examples": [
+        {
+          "language": "curl",
+          "title": "cURL",
+          "code": "curl 'http://localhost:8000/v1/audio/languages?model=whisper-large-v3-turbo-FP16' \\n  -H 'Authorization: Bearer <session-token>'"
         }
       ]
     },
@@ -621,14 +655,14 @@
           "name": "voice",
           "type": "string",
           "req": false,
-          "desc": "Voice persona or speaker ID within multi-speaker packages (e.g. 'default', 'en-us-ryan-medium', 'af_heart').",
+          "desc": "'default' picks a voice that speaks the text's language, or a voice of the model (Kokoro: af_heart, hf_alpha, ...). List them with GET /v1/audio/voices. Single-voice models (Piper) ignore it.",
           "default": "default"
         },
         {
           "name": "speed",
           "type": "float",
           "req": false,
-          "desc": "Voice playback speed multiplier (default: 1.0).",
+          "desc": "Speaking rate from 0.25 to 4.0 (1.0 = the model's normal pace).",
           "default": 1.0
         },
         {
@@ -658,6 +692,30 @@
           "language": "python",
           "title": "Python",
           "code": "import requests\n\nheaders = {'Authorization': 'Bearer <token>'}\nres = requests.post('http://localhost:8000/v1/audio/speech', json={\n    'model': 'piper-en-us-ryan-medium',\n    'input': 'Hello, welcome to Cluaiz Engine. you can now run ai.',\n    'voice': 'default',\n    'speed': 1.0,\n    'keep_alive': 5\n}, headers=headers)\nprint(res.json()['output']['audio_data'])"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/v1/audio/voices",
+      "desc": "Lists the voices of a text-to-speech model (values for 'voice') and the language each voice speaks. 'default' comes first; a single-voice model (Piper) has only it.",
+      "docs_url": "/docs/api/inference/audio_speech.md",
+      "params": [
+        {
+          "name": "model",
+          "type": "string",
+          "req": false,
+          "desc": "Installed TTS model ID. Omitted: the active or first installed TTS model.",
+          "default": "Kokoro-82M-v1.0-ONNX-UINT8"
+        }
+      ],
+      "request_payload": "",
+      "response": "{\n  \"object\": \"list\",\n  \"model\": \"Kokoro-82M-v1.0-ONNX-UINT8\",\n  \"data\": [\n    {\n      \"id\": \"default\",\n      \"language\": null,\n      \"default\": true\n    },\n    {\n      \"id\": \"af_heart\",\n      \"language\": \"en-us\",\n      \"default\": false\n    },\n    {\n      \"id\": \"hf_alpha\",\n      \"language\": \"hi\",\n      \"default\": false\n    }\n  ]\n}",
+      "examples": [
+        {
+          "language": "curl",
+          "title": "cURL",
+          "code": "curl 'http://localhost:8000/v1/audio/voices?model=Kokoro-82M-v1.0-ONNX-UINT8' \\n  -H 'Authorization: Bearer <session-token>'"
         }
       ]
     }
