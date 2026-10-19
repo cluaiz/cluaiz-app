@@ -88,7 +88,7 @@ export const audioApi = {
   /**
    * Generates spoken audio from text using OpenAI-compatible TTS.
    */
-  speech: async (payload: SpeechRequest): Promise<Blob> => {
+  speech: async (payload: SpeechRequest, signal?: AbortSignal): Promise<Blob> => {
     const baseUrl = client.getBaseUrl();
     const url = `${baseUrl}${AUDIO_ENDPOINTS.SPEECH}`;
     const token = client.getToken();
@@ -104,6 +104,7 @@ export const audioApi = {
       method: 'POST',
       headers,
       body: JSON.stringify(payload),
+      signal,
     });
 
     const contentType = res.headers.get('content-type') || '';

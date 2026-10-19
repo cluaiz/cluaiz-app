@@ -32,6 +32,19 @@ test('speech client returns decoded WAV bytes from the engine JSON envelope', as
     assert.deepEqual(Buffer.from(await blob.arrayBuffer()), wav);
 });
 
+test('speech cancellation reaches fetch and preserves AbortError', async t => {
+    const controller = new AbortController();
+    t.mock.method(globalThis, 'fetch', async (_url, options) => {
+        assert.equal(options?.signal, controller.signal);
+        return new Promise<Response>((_resolve, reject) => {
+            options?.signal?.addEventListener('abort', () => reject(options.signal?.reason), { once: true });
+        });
+    });
+    const pending = audioApi.speech({ input: 'hello' }, controller.signal);
+    controller.abort();
+    await assert.rejects(pending, { name: 'AbortError' });
+});
+
 test('speech client preserves binary responses and exposes actual engine errors', async t => {
     const mock = t.mock.method(globalThis, 'fetch', async () => new Response(wav, {
         headers: { 'Content-Type': 'audio/wav' }

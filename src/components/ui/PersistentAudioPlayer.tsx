@@ -128,6 +128,7 @@ export const PersistentAudioDeck: React.FC<PersistentAudioDeckProps> = ({
     const [status, setStatus] = useState<Status>('idle');
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
+    const [error, setError] = useState<string | null>(null);
 
     const settingsRef = useRef(ttsSettings);
     settingsRef.current = ttsSettings;
@@ -142,7 +143,7 @@ export const PersistentAudioDeck: React.FC<PersistentAudioDeckProps> = ({
     const currentPartRef = useRef<QueuedAudioPart | null>(null);
     const pausedRef = useRef(false);
     const producingRef = useRef(false); // audio is being made for this message
-    const producedAllRef = useRef(false); // every part of the message has been made
+    const producedAllRef = useRef(false); // all text queued; pendingRef tracks unfinished synthesis
     const liveRef = useRef(false); // following the answer as it is written
     const spokenUpToRef = useRef(0); // characters of the answer already sent to synthesis
     const sentenceIndexRef = useRef(0); // counter for sentence indices
@@ -189,16 +190,39 @@ export const PersistentAudioDeck: React.FC<PersistentAudioDeckProps> = ({
         producedAllRef.current = false;
         pausedRef.current = false;
         sentenceIndexRef.current = 0;
+        pendingRef.current = 0;
+        chainRef.current = Promise.resolve();
         setStatus('idle');
         setCurrentTime(0);
+        setDuration(0);
+        setError(null);
         useSpeechHighlightStore.getState().clear(messageId);
     }, [messageId]);
+
+    const fail = (cause: unknown) => {
+        const message = cause instanceof Error ? cause.message : 'Speech playback failed';
+        stopAll();
+        setError(message);
+        toast.error(message);
+        speechTurns.release(messageId);
+    };
+
+    const resumeAudio = (audio: HTMLAudioElement) => {
+        setStatus('playing');
+        useSpeechHighlightStore.getState().setPlaying(true);
+        audio.play().catch((cause) => {
+            if (audioRef.current === audio && !pausedRef.current && speechTurns.isSpeaking(messageId)) {
+                fail(cause);
+            }
+        });
+    };
 
     const finish = () => {
         audioRef.current = null;
         currentPartRef.current = null;
         playbackIndexRef.current = 0;
         producingRef.current = false;
+        liveRef.current = false;
         pausedRef.current = true;
         setStatus('paused');
         setCurrentTime(0);
@@ -236,26 +260,30 @@ export const PersistentAudioDeck: React.FC<PersistentAudioDeckProps> = ({
         });
 
         audio.onloadedmetadata = () => {
+            if (audioRef.current !== audio) return;
             if (isFinite(audio.duration)) setDuration(audio.duration);
             syncProgress();
         };
 
-        audio.ontimeupdate = syncProgress;
+        audio.ontimeupdate = () => {
+            if (audioRef.current === audio) syncProgress();
+        };
 
         const next = () => {
-            if (audioRef.current === audio) {
-                audioRef.current = null;
-                currentPartRef.current = null;
-            }
+            if (audioRef.current !== audio) return;
+            audioRef.current = null;
+            currentPartRef.current = null;
             playbackIndexRef.current = index + 1;
             playNextPart();
         };
 
         audio.onended = next;
-        audio.onerror = next;
-        setStatus('playing');
-        useSpeechHighlightStore.getState().setPlaying(true);
-        audio.play().catch(next);
+        audio.onerror = () => {
+            if (audioRef.current === audio) {
+                fail(new Error(audio.error?.message || 'Audio could not be played.'));
+            }
+        };
+        resumeAudio(audio);
     };
 
     /** Plays the next made part when it is this message's turn; finishes when all are played. */
@@ -297,6 +325,9 @@ export const PersistentAudioDeck: React.FC<PersistentAudioDeckProps> = ({
 
     /** Sends finished sentences to synthesis, one distinct sentence per queue part. */
     const takeSentences = (final: boolean) => {
+        const run = abortRef.current;
+        if (!run || run.signal.aborted) return;
+        const isCurrent = () => abortRef.current === run && !run.signal.aborted;
         while (true) {
             const full = textRef.current;
             const rest = full.slice(spokenUpToRef.current);
@@ -349,27 +380,27 @@ export const PersistentAudioDeck: React.FC<PersistentAudioDeckProps> = ({
                 pendingRef.current += 1;
                 chainRef.current = chainRef.current
                     .then(async () => {
-                        if (!liveRef.current && !producingRef.current) return;
-                        const blob = await audioApi.speech(payload(chunk));
-                        if (liveRef.current || producingRef.current) {
+                        if (!isCurrent()) return;
+                        const blob = await audioApi.speech(payload(chunk), run.signal);
+                        if (isCurrent()) {
                             addPart(blob, rawChunk, currentSentenceIndex, words, wordWeights, totalWeight);
                         }
                     })
                     .catch((err) => {
-                        if (!liveRef.current && !producingRef.current) return;
-                        toast.error(err?.message || 'Speech synthesis failed');
-                        stopAll();
-                        speechTurns.release(messageId);
+                        if (isCurrent()) fail(err);
                     })
                     .finally(() => {
+                        if (!isCurrent()) return;
                         pendingRef.current -= 1;
+                        if (producedAllRef.current && pendingRef.current === 0) producingRef.current = false;
                         playNextPart();
                     });
             }
         }
         if (final) {
             producedAllRef.current = true;
-            producingRef.current = false;
+            // End of input is not cancellation: queued requests still need to run.
+            if (pendingRef.current === 0) producingRef.current = false;
             playNextPart();
         }
     };
@@ -377,6 +408,8 @@ export const PersistentAudioDeck: React.FC<PersistentAudioDeckProps> = ({
     /** Follows the answer while it is written. */
     const startLive = () => {
         if (producingRef.current) return;
+        abortRef.current = new AbortController();
+        setError(null);
         liveRef.current = true;
         producingRef.current = true;
         producedAllRef.current = false;
@@ -386,7 +419,7 @@ export const PersistentAudioDeck: React.FC<PersistentAudioDeckProps> = ({
         takeSentences(!streamingRef.current);
     };
 
-    /** A finished message: the engine streams it sentence by sentence with live word tracking. */
+    /** A finished message: synthesize queued sentences with live word tracking. */
     const startFull = () => {
         // If already completely synthesized and cached: REPLAY INSTANTLY!
         if (cachedPartsRef.current.length > 0 && producedAllRef.current) {
@@ -395,6 +428,8 @@ export const PersistentAudioDeck: React.FC<PersistentAudioDeckProps> = ({
             return;
         }
         if (producingRef.current) return;
+        abortRef.current = new AbortController();
+        setError(null);
         producingRef.current = true;
         producedAllRef.current = false;
         spokenUpToRef.current = 0;
@@ -411,10 +446,8 @@ export const PersistentAudioDeck: React.FC<PersistentAudioDeckProps> = ({
 
             // 1. Instant replay if all audio already cached in memory
             if (cachedPartsRef.current.length > 0 && producedAllRef.current) {
-                if (audioRef.current && isFinite(audioRef.current.duration)) {
-                    setStatus('playing');
-                    useSpeechHighlightStore.getState().setPlaying(true);
-                    audioRef.current.play().catch(() => playNextPart());
+                if (audioRef.current) {
+                    resumeAudio(audioRef.current);
                 } else {
                     if (playbackIndexRef.current >= cachedPartsRef.current.length) {
                         playbackIndexRef.current = 0;
@@ -431,9 +464,7 @@ export const PersistentAudioDeck: React.FC<PersistentAudioDeckProps> = ({
             }
 
             if (audioRef.current) {
-                setStatus('playing');
-                useSpeechHighlightStore.getState().setPlaying(true);
-                audioRef.current.play().catch(() => playNextPart());
+                resumeAudio(audioRef.current);
             } else {
                 playNextPart();
             }
@@ -600,6 +631,7 @@ export const PersistentAudioDeck: React.FC<PersistentAudioDeckProps> = ({
                     )}
                 </div>
             </div>
+            {error && <p role="alert" className="mt-1 text-xs text-[var(--text-primary)]">{error} Press Play to retry.</p>}
         </div>
     );
 };

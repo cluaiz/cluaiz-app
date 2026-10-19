@@ -1,0 +1,103 @@
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
+const { createHarness } = require('./helpers/audio_deck_harness.cjs');
+const deferred = () => { let resolve, reject; const promise = new Promise((a, b) => { resolve = a; reject = b; }); return { promise, resolve, reject }; };
+const audio = () => new Blob(['audio']);
+
+test('completed message synthesizes both sentences, plays, pauses and replays cached parts', async () => {
+    const h = createHarness(), deck = h.mount({ autoStart: true });
+    await deck.flush();
+    assert.deepEqual(h.calls.map(c => c.payload.input), ['First sentence.', 'Second sentence.']);
+    assert.equal(h.audios.length, 1);
+    h.audios[0].metadata(4);
+    assert.match(deck.text, /00:00 \/ 00:04/);
+    deck.click('Pause'); assert.equal(h.audios[0].paused, true);
+    deck.click(); assert.equal(h.audios[0].paused, false);
+    h.audios[0].end(); assert.equal(h.audios.length, 2);
+    h.audios[1].end(); assert.equal(h.turns.isIdle(), true);
+    deck.click(); assert.equal(h.audios.length, 3);
+    assert.equal(h.calls.length, 2, 'replay must use cached audio');
+    deck.unmount(); assert.equal(h.revoked.length, 2);
+});
+
+test('live answer flushes its final sentence exactly once', async () => {
+    const h = createHarness(), deck = h.mount({ text: 'First sentence. Unfinished', isStreamingAi: true, autoStart: true });
+    await deck.flush(); assert.equal(h.calls.length, 1);
+    deck.render({ text: 'First sentence. Unfinished sentence', isStreamingAi: false });
+    await deck.flush();
+    assert.deepEqual(h.calls.map(c => c.payload.input), ['First sentence.', 'Unfinished sentence']);
+    h.audios[0].end(); h.audios[1].end();
+    assert.equal(h.turns.isIdle(), true); deck.unmount();
+});
+
+test('stop aborts fetch, a late result and old finalizer cannot corrupt a new run', async () => {
+    const old = deferred(), fresh = deferred();
+    let n = 0;
+    const h = createHarness(() => ++n === 1 ? old.promise : n === 2 ? fresh.promise : Promise.resolve(audio()));
+    const deck = h.mount({ autoStart: true });
+    await deck.flush();
+    const signal = h.calls[0].signal;
+    deck.click('Stop and hide'); assert.equal(signal.aborted, true);
+    deck.click(); await deck.flush();
+    assert.notEqual(h.calls[1].signal, signal);
+    old.resolve(audio()); await deck.flush();
+    assert.equal(h.audios.length, 0, 'stopped response must not start audio');
+    fresh.resolve(audio()); await deck.flush();
+    assert.equal(h.calls.length, 3, 'old queued sentence must not run');
+    h.audios[0].end(); h.audios[1].end();
+    assert.equal(h.turns.isIdle(), true, 'stale finalizer must not decrement the new pending count');
+    deck.unmount();
+});
+
+test('unmount cancels synthesis and ignores a late rejection', async () => {
+    const request = deferred(), h = createHarness(() => request.promise);
+    const deck = h.mount({ autoStart: true }); await deck.flush();
+    deck.unmount(); assert.equal(h.calls[0].signal.aborted, true);
+    request.reject(new Error('late network failure')); await deck.flush();
+    assert.equal(h.audios.length, 0); assert.deepEqual(h.errors, []);
+});
+
+test('engine rejection is visible and Play can retry the same message', async () => {
+    let fail = true;
+    const h = createHarness(async () => { if (fail) throw new Error('Model unavailable'); return audio(); });
+    const deck = h.mount({ autoStart: true }); await deck.flush();
+    assert.match(deck.alert, /Model unavailable/);
+    assert.equal(h.turns.isIdle(), true);
+    fail = false; deck.click(); await deck.flush();
+    assert.equal(deck.alert, ''); assert.equal(h.audios.length, 1);
+    deck.unmount();
+});
+
+test('decode errors are visible; stale media callbacks cannot advance retry playback', async () => {
+    const h = createHarness(), deck = h.mount({ autoStart: true }); await deck.flush();
+    const old = h.audios[0]; old.error = { message: 'Unsupported audio data' }; old.onerror();
+    assert.match(deck.alert, /Unsupported audio data/);
+    assert.equal(h.turns.isIdle(), true);
+    deck.click(); await deck.flush();
+    const count = h.audios.length;
+    old.onended(); old.metadata(99); old.onerror();
+    assert.equal(h.audios.length, count); assert.equal(deck.alert, '');
+    h.audios.at(-1).metadata(3); assert.match(deck.text, /00:03/);
+    deck.unmount();
+});
+
+test('play rejection is shown, while pause-induced rejection is ignored', async () => {
+    const h = createHarness(), deck = h.mount({ autoStart: true }); await deck.flush();
+    deck.click('Pause');
+    h.audios[0].play = () => Promise.reject(new Error('Browser blocked playback'));
+    deck.click(); await deck.flush();
+    assert.match(deck.alert, /Browser blocked playback/);
+    deck.click(); await deck.flush();
+    deck.click('Pause');
+    h.audios.at(-1).play = () => Promise.reject(new Error('interrupted by pause'));
+    deck.click(); deck.click('Pause'); await deck.flush();
+    assert.equal(deck.alert, ''); deck.unmount();
+});
+
+test('another message takes the speaking turn without old audio resuming', async () => {
+    const h = createHarness(), first = h.mount({ messageId: 'a', autoStart: true }); await first.flush();
+    const second = h.mount({ messageId: 'b', autoStart: true }); await second.flush();
+    assert.equal(h.audios[0].paused, true); assert.equal(h.turns.isSpeaking('b'), true);
+    h.audios[0].end(); assert.equal(h.audios.length, 2);
+    first.unmount(); assert.equal(h.turns.isSpeaking('b'), true); second.unmount();
+});
