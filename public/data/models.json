@@ -122,7 +122,7 @@
     {
       "method": "GET",
       "path": "/v1/models/installed",
-      "desc": "Lists locally installed models inside the cluaiz Vault.",
+      "desc": "Lists locally installed models inside the cluaiz Vault. Each model carries experimental: true when it is a text-to-speech family with unfinished engine support (keep it out of default choices and label it).",
       "docs_url": "/docs/api/models/list_models.md",
       "params": [],
       "response": "{\n  \"installed\": [\n    {\n      \"id\": \"llama-3-8b-instruct\",\n      \"status\": \"ready\",\n      \"size_gb\": 4.7,\n      \"category\": \"chat\",\n      \"location\": \"/vault/models/llama-3-8b.gguf\"\n    },\n    {\n      \"id\": \"all-minilm-l6-v2\",\n      \"status\": \"ready\",\n      \"size_gb\": 0.1,\n      \"category\": \"vector\",\n      \"location\": \"/vault/models/minilm.gguf\"\n    }\n  ]\n}",
