@@ -1,6 +1,19 @@
 import { create } from 'zustand';
 
+export interface ActiveAudioDeck {
+    messageId: string;
+    text: string;
+    isStreaming?: boolean;
+}
+
 export interface SpeechHighlightState {
+    /** Currently active top sticky audio deck, or null when closed */
+    activeDeck: ActiveAudioDeck | null;
+    /** Open or switch the active audio deck */
+    openDeck: (deck: ActiveAudioDeck) => void;
+    /** Close the active audio deck and stop speech */
+    closeDeck: () => void;
+
     /** The message ID currently being spoken */
     activeMessageId: string | null;
     /** The plain text of the current sentence being spoken */
@@ -27,17 +40,41 @@ export interface SpeechHighlightState {
     /** Update play/pause status */
     setPlaying: (isPlaying: boolean) => void;
 
+    /** Current speech power/frequency volume level (0.0 to 1.0) */
+    audioLevel: number;
+    /** Update speech power level */
+    setAudioLevel: (level: number) => void;
+
     /** Clear highlight state when playback stops, finishes, or is cancelled */
     clear: (messageId?: string) => void;
 }
 
 export const useSpeechHighlightStore = create<SpeechHighlightState>((set, get) => ({
+    activeDeck: null,
     activeMessageId: null,
     sentenceText: null,
     sentenceIndex: -1,
     activeWordIndex: -1,
     activeWord: null,
     isPlaying: false,
+    audioLevel: 0,
+
+    openDeck: (deck) => {
+        set({ activeDeck: deck });
+    },
+
+    closeDeck: () => {
+        set({
+            activeDeck: null,
+            activeMessageId: null,
+            sentenceText: null,
+            sentenceIndex: -1,
+            activeWordIndex: -1,
+            activeWord: null,
+            isPlaying: false,
+            audioLevel: 0,
+        });
+    },
 
     setActiveSentence: ({ messageId, sentenceText, sentenceIndex }) => {
         set({
@@ -59,16 +96,26 @@ export const useSpeechHighlightStore = create<SpeechHighlightState>((set, get) =
 
     setPlaying: (isPlaying) => set({ isPlaying }),
 
+    setAudioLevel: (audioLevel: number) => {
+        const current = get().audioLevel;
+        // Optimization: only update store if difference is discernible (> 0.02) to avoid unnecessary churn
+        if (Math.abs(current - audioLevel) > 0.02 || (audioLevel === 0 && current !== 0)) {
+            set({ audioLevel });
+        }
+    },
+
     clear: (messageId) => {
         const current = get().activeMessageId;
         if (!messageId || current === messageId) {
             set({
+                activeDeck: null,
                 activeMessageId: null,
                 sentenceText: null,
                 sentenceIndex: -1,
                 activeWordIndex: -1,
                 activeWord: null,
                 isPlaying: false,
+                audioLevel: 0,
             });
         }
     },

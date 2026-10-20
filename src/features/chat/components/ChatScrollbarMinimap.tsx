@@ -6,7 +6,7 @@ import React, {
     useRef,
     useState,
 } from 'react';
-import { RichHoverCard } from '../../../components/ui/RichHoverCard';
+import { RichHoverCard, stripMarkdown } from '../../../components/ui/RichHoverCard';
 import type { ChatMessage } from '../../../store/chat/useChatStore';
 
 export interface ChatScrollbarMinimapProps {
@@ -104,25 +104,25 @@ export const ChatScrollbarMinimap: React.FC<ChatScrollbarMinimapProps> = ({
             const rawText = (msg.text || '').trim();
             if (!rawText) return;
 
-            const cleanText = rawText.replace(STEP_REGEX, '').trim();
+            const cleanText = stripMarkdown(rawText.replace(STEP_REGEX, '')).trim();
             if (msg.sender === 'user') {
                 currentTurn = {
                     id: String(msg.id || `turn-${idx}`),
                     domId: `msg-turn-${msg.id || idx}`,
                     turnIndex: items.length + 1,
-                    userPrompt: rawText.slice(0, 200),
+                    userPrompt: stripMarkdown(rawText).slice(0, 200),
                     time: msg.time,
                 };
                 items.push(currentTurn);
             } else if (msg.sender === 'assistant') {
                 if (currentTurn && !currentTurn.aiSnippet) {
-                    currentTurn.aiSnippet = cleanText.slice(0, 260) || rawText.slice(0, 260);
+                    currentTurn.aiSnippet = cleanText.slice(0, 260);
                 } else {
                     items.push({
                         id: String(msg.id || `turn-${idx}`),
                         domId: `msg-turn-${msg.id || idx}`,
                         turnIndex: items.length + 1,
-                        aiSnippet: cleanText.slice(0, 260) || rawText.slice(0, 260),
+                        aiSnippet: cleanText.slice(0, 260),
                         time: msg.time,
                     });
                 }

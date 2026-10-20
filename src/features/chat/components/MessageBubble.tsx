@@ -6,7 +6,7 @@ import { EmojiMeta } from '../../../assets/EmojiMeta';
 import { ContextChip } from '../../../components/ui/ContextChip';
 import { extractBaseName } from '../../../utils/filePath';
 import { MarkdownRenderer } from '../../../components/ui/MarkdownRenderer';
-import { PersistentAudioDeck } from '../../../components/ui/PersistentAudioPlayer';
+import { useSpeechHighlightStore } from '../../../store/chat/useSpeechHighlightStore';
 import { useVoiceSessionStore } from '../../../store/chat/useVoiceSessionStore';
 
 function formatBytes(bytes?: number | null): string {
@@ -286,7 +286,12 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
     const isUser = msg.sender === 'user';
     const isThinking = Boolean(msg.thinking && !msg.text);
     const [isThinkingOpen, setIsThinkingOpen] = React.useState(isThinking);
-    const [isAudioDeckOpen, setIsAudioDeckOpen] = React.useState(false);
+    const activeDeck = useSpeechHighlightStore((s) => s.activeDeck);
+    const openDeck = useSpeechHighlightStore((s) => s.openDeck);
+    const closeDeck = useSpeechHighlightStore((s) => s.closeDeck);
+
+    const msgAudioId = msg.id || `${msg.time || ''}-${msg.text?.slice(0, 16) || ''}`;
+    const isThisDeckOpen = Boolean(activeDeck && activeDeck.messageId === msgAudioId);
     const thinkingScrollRef = React.useRef<HTMLDivElement>(null);
 
 
@@ -668,15 +673,25 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
                             {msg.text && (
                                 <button
                                     type="button"
-                                    onClick={() => setIsAudioDeckOpen(prev => !prev)}
+                                    onClick={() => {
+                                        if (isThisDeckOpen) {
+                                            closeDeck();
+                                        } else {
+                                            openDeck({
+                                                messageId: msgAudioId,
+                                                text: msg.text,
+                                                isStreaming,
+                                            });
+                                        }
+                                    }}
                                     className={`p-1 rounded-md transition-colors cursor-pointer flex items-center justify-center ${
-                                        isAudioDeckOpen
+                                        isThisDeckOpen
                                             ? 'text-[var(--accent-color)] bg-[var(--bg-tertiary)]'
                                             : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]'
                                     }`}
-                                    title={isAudioDeckOpen ? 'Close audio player' : 'Read aloud'}
+                                    title={isThisDeckOpen ? 'Close audio player' : 'Read aloud'}
                                 >
-                                    {isAudioDeckOpen ? (
+                                    {isThisDeckOpen ? (
                                         <VolumeXIcon size={14} isAnimated />
                                     ) : (
                                         <Volume2Icon size={14} isAnimated />
@@ -686,19 +701,6 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
                             <span>{formatDisplayTime(msg.time)}</span>
                         </div>
                     </div>
-
-                    {/* Dedicated Zero-Jitter Audio Player Deck (Positioned below TPS/TTFT/Tokens telemetry) */}
-                    {msg.text && isAudioDeckOpen && (
-                        <div className="w-full mt-2">
-                            <PersistentAudioDeck
-                                messageId={msg.id || `${msg.time || ''}-${msg.text.slice(0, 16)}`}
-                                text={msg.text}
-                                isStreamingAi={isStreaming}
-                                autoStart
-                                onClose={() => setIsAudioDeckOpen(false)}
-                            />
-                        </div>
-                    )}
 
                     {/* 7. Reactions for AI */}
                     {msg.reactions && msg.reactions.length > 0 && (

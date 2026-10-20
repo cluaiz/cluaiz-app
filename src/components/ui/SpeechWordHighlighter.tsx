@@ -39,7 +39,8 @@ function normalizeForSearch(str: string): string {
 function locateActiveWordRange(
     containerText: string,
     sentenceText: string,
-    activeWordIndex: number
+    activeWordIndex: number,
+    activeWord?: string | null
 ): { start: number; end: number } | null {
     if (!containerText || !sentenceText) return null;
 
@@ -52,72 +53,98 @@ function locateActiveWordRange(
 
     if (!cleanSentence) return null;
 
-    // 1. Direct exact or whitespace-normalized search
+    // 1. Direct exact search
     let sentStart = containerText.indexOf(cleanSentence);
 
+    // 2. Direct search with em-dash / punctuation tolerance
     if (sentStart === -1) {
-        // Try normalized substring search
-        const normContainer = normalizeForSearch(containerText);
-        const normSent = normalizeForSearch(cleanSentence);
-        const normIdx = normContainer.indexOf(normSent);
+        const alt1 = cleanSentence.replace(/, /g, '—');
+        sentStart = containerText.indexOf(alt1);
+    }
+    if (sentStart === -1) {
+        const alt2 = cleanSentence.replace(/, /g, '–');
+        sentStart = containerText.indexOf(alt2);
+    }
+    if (sentStart === -1) {
+        const alt3 = cleanSentence.replace(/, /g, ' ');
+        sentStart = containerText.indexOf(alt3);
+    }
 
-        if (normIdx !== -1) {
-            // Match the first 3-4 words in sequence to find exact sentence start in container
-            const firstWords = cleanSentence.split(/\s+/).slice(0, 4).map(w => w.replace(/[^\p{L}\p{N}_]/gu, '')).filter(Boolean);
-            if (firstWords.length > 0) {
-                const phrase = firstWords.join(' ').toLowerCase();
-                const normC = containerText.toLowerCase().replace(/[^\p{L}\p{N}_\s]/gu, ' ');
-                const phraseIdx = normC.indexOf(phrase);
-                if (phraseIdx !== -1) {
-                    sentStart = phraseIdx;
-                } else {
-                    const probe = firstWords[0].toLowerCase();
-                    const foundIdx = containerText.toLowerCase().indexOf(probe);
-                    if (foundIdx !== -1) {
-                        sentStart = foundIdx;
+    // 3. Multi-word phrase search (Unicode-safe, NO \b)
+    if (sentStart === -1) {
+        // Extract the first clean words from the sentence
+        const firstWords = cleanSentence
+            .split(/\s+/)
+            .map(w => w.replace(/[^\p{L}\p{N}_]/gu, ''))
+            .filter(w => w.length > 0);
+
+        if (firstWords.length >= 2) {
+            for (let count = Math.min(4, firstWords.length); count >= 2; count--) {
+                const phraseWords = firstWords.slice(0, count);
+                const escaped = phraseWords.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+                // Match words separated by any whitespace, punctuation, or symbols (\s, \p{P}, \p{S})
+                const pattern = escaped.join('[\\s\\p{P}\\p{S}]+');
+                try {
+                    const reg = new RegExp(pattern, 'u');
+                    const m = reg.exec(containerText);
+                    if (m) {
+                        sentStart = m.index;
+                        break;
                     }
+                } catch {
+                    // Ignore regex errors
                 }
             }
+        } else if (firstWords.length === 1 && firstWords[0].length >= 2) {
+            sentStart = containerText.indexOf(firstWords[0]);
         }
     }
 
     // Strict boundary: If this container does NOT contain the active sentence, return null.
-    // NEVER fall back to highlighting isolated words across other paragraphs.
     if (sentStart === -1) {
         return null;
     }
 
-    // 2. Tokenize words inside the located sentence to get the exact word offset
+    // 4. Tokenize words inside the located sentence
     const matchedSubstring = containerText.slice(sentStart);
     const wordRegex = /\S+/g;
-    const words: { start: number; end: number; raw: string }[] = [];
+    const words: { start: number; end: number; clean: string }[] = [];
     let match: RegExpExecArray | null;
+
     while ((match = wordRegex.exec(matchedSubstring)) !== null) {
-        words.push({
-            start: sentStart + match.index,
-            end: sentStart + match.index + match[0].length,
-            raw: match[0],
-        });
-        if (words.length > activeWordIndex + 8) break;
+        const raw = match[0];
+        const leadingPunctMatch = raw.match(/^[^\p{L}\p{N}_]+/u);
+        const leadingPunct = leadingPunctMatch ? leadingPunctMatch[0].length : 0;
+        const trailingPunctMatch = raw.match(/[^\p{L}\p{N}_]+$/u);
+        const trailingPunct = trailingPunctMatch ? trailingPunctMatch[0].length : 0;
+
+        const start = sentStart + match.index + leadingPunct;
+        const end = Math.max(start, sentStart + match.index + raw.length - trailingPunct);
+        const clean = raw.slice(leadingPunct, raw.length - trailingPunct);
+
+        words.push({ start, end, clean });
+        if (words.length > activeWordIndex + 25) break;
     }
 
     if (activeWordIndex >= 0 && activeWordIndex < words.length) {
-        return { start: words[activeWordIndex].start, end: words[activeWordIndex].end };
+        const expectedWord = (activeWord || '').replace(/[^\p{L}\p{N}_]/gu, '').toLowerCase();
+        let chosen = words[activeWordIndex];
+
+        // If there is a slight token drift, verify with immediate neighbors (+/- 1)
+        if (expectedWord && chosen.clean.toLowerCase() !== expectedWord) {
+            if (activeWordIndex > 0 && words[activeWordIndex - 1]?.clean.toLowerCase() === expectedWord) {
+                chosen = words[activeWordIndex - 1];
+            } else if (words[activeWordIndex + 1]?.clean.toLowerCase() === expectedWord) {
+                chosen = words[activeWordIndex + 1];
+            }
+        }
+
+        return { start: chosen.start, end: chosen.end };
     }
 
-    // Fallback within this container's sentence boundary only
-    const sentenceWords = cleanSentence.split(/\s+/).filter(Boolean);
-    const targetWord = sentenceWords[activeWordIndex] || '';
-    const cleanWord = targetWord.replace(/[^\p{L}\p{N}_]/gu, '');
-
-    if (cleanWord) {
-        const offsetInSent = matchedSubstring.toLowerCase().indexOf(cleanWord.toLowerCase());
-        if (offsetInSent !== -1) {
-            return {
-                start: sentStart + offsetInSent,
-                end: sentStart + offsetInSent + cleanWord.length,
-            };
-        }
+    // Trailing word fallback if index exceeds scanned tokens
+    if (words.length > 0 && activeWordIndex >= words.length) {
+        return { start: words[words.length - 1].start, end: words[words.length - 1].end };
     }
 
     return null;
@@ -162,6 +189,7 @@ function injectHighlightAtRange(
                 {before}
                 <span
                     key={`${path}-hl`}
+                    data-speech-active-word="true"
                     className="text-[var(--accent-color)] bg-[var(--accent-color)]/25 rounded-xs transition-colors duration-100"
                     style={{
                         boxDecorationBreak: 'clone',
@@ -206,6 +234,7 @@ export const SpeechWordHighlighter: React.FC<SpeechWordHighlighterProps> = ({
     const activeMessageId = useSpeechHighlightStore((s) => s.activeMessageId);
     const sentenceText = useSpeechHighlightStore((s) => s.sentenceText);
     const activeWordIndex = useSpeechHighlightStore((s) => s.activeWordIndex);
+    const activeWord = useSpeechHighlightStore((s) => s.activeWord);
     const isPlaying = useSpeechHighlightStore((s) => s.isPlaying);
 
     // If this message is not the one actively speaking, render raw children with 0 overhead
@@ -221,7 +250,7 @@ export const SpeechWordHighlighter: React.FC<SpeechWordHighlighterProps> = ({
     }
 
     const containerText = extractAllText(children);
-    const targetRange = locateActiveWordRange(containerText, sentenceText, activeWordIndex);
+    const targetRange = locateActiveWordRange(containerText, sentenceText, activeWordIndex, activeWord);
 
     if (!targetRange) {
         return <span className={className}>{children}</span>;

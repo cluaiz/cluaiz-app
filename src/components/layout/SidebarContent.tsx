@@ -609,8 +609,8 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                                         }
                                     }}
                                     className={`flex items-center gap-2 px-2.5 py-2 rounded-xl transition-all duration-150 cursor-pointer group relative overflow-hidden select-none ${isSelected
-                                        ? 'bg-[var(--accent-color)]/10 text-[var(--accent-color)] font-semibold border border-[var(--accent-color)]/25'
-                                        : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]/70 border border-transparent'
+                                        ? 'bg-[var(--accent-color)]/[0.04] text-[var(--text-primary)] font-medium border-[0.5px] border-[var(--accent-color)]/15'
+                                        : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]/70 border-[0.5px] border-transparent'
                                         } ${chat.archived ? 'opacity-[0.6]' : ''}`}
                                 >
                                     {/* Ribbon Tag overlay sticker */}
@@ -635,8 +635,10 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                                         {chat.name || 'New Chat'}
                                     </span>
                                     {streamingSessionId === chat.id && (
-                                        <span className="text-[10px] font-semibold text-[var(--accent-color)] animate-pulse shrink-0">
-                                            typing…
+                                        <span className="inline-flex items-center gap-1 shrink-0 px-1 py-0.5" title="Generating response...">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent-color)] animate-bounce" style={{ animationDelay: '0ms' }} />
+                                            <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent-color)] animate-bounce" style={{ animationDelay: '150ms' }} />
+                                            <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent-color)] animate-bounce" style={{ animationDelay: '300ms' }} />
                                         </span>
                                     )}
 

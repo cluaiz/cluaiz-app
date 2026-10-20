@@ -22,10 +22,14 @@ import { WorkspaceEditorPane } from '../../workspace';
 import { ResizableDivider } from '../../../components/ui/ResizableDivider';
 import { useChatSend } from '../hooks/useChatSend';
 import { cluaizEngine } from '../../../core/engine';
+import { PersistentAudioDeck } from '../../../components/ui/PersistentAudioPlayer';
+import { useSpeechHighlightStore } from '../../../store/chat/useSpeechHighlightStore';
 
 export function ChatWorkspace() {
     const { splitPaneWidth, setSplitPaneWidth, splitReversed, toggleSplitReversed, activeChatData } = useLayoutStore();
     const { chatBackground } = useThemeStore();
+    const activeAudioDeck = useSpeechHighlightStore((s) => s.activeDeck);
+    const closeAudioDeck = useSpeechHighlightStore((s) => s.closeDeck);
     const [isDragging, setIsDragging] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
     const [searchQuery, setSearchQuery] = useState('');
@@ -512,6 +516,27 @@ main().catch(console.error);`);
                 ) : (
                     <>
                         <div className="flex-1 relative overflow-hidden flex flex-col min-h-0">
+                            {/* Pinned Top Audio Player Deck - Fixed Flush at the Very Top of Chat */}
+                            <AnimatePresence>
+                                {activeAudioDeck && (
+                                    <motion.div
+                                        initial={{ opacity: 0, y: -10, scale: 0.98 }}
+                                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                                        exit={{ opacity: 0, y: -10, scale: 0.98 }}
+                                        transition={{ duration: 0.18, ease: 'easeOut' }}
+                                        className="relative z-30 w-full max-w-2xl lg:max-w-3xl 2xl:max-w-4xl mx-auto px-4 lg:px-0 pt-1.5 pb-0.5 flex-shrink-0"
+                                    >
+                                        <PersistentAudioDeck
+                                            messageId={activeAudioDeck.messageId}
+                                            text={activeAudioDeck.text}
+                                            isStreamingAi={activeAudioDeck.isStreaming}
+                                            autoStart
+                                            onClose={closeAudioDeck}
+                                        />
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+
                             {/* Full-width top smoke fade-out mask */}
                             <div className="absolute top-0 left-0 right-0 h-10 bg-gradient-to-b from-[var(--bg-primary)] via-[var(--bg-primary)]/80 to-transparent pointer-events-none z-10" />
 
@@ -523,6 +548,7 @@ main().catch(console.error);`);
                                 onScroll={handleScroll}
                             >
                                 <div className="flex flex-col space-y-4 w-full max-w-2xl lg:max-w-3xl 2xl:max-w-4xl mx-auto pb-36">
+
                                     {(() => {
                                         let absoluteIndex = 0;
                                         const grouped = (filteredMessages || []).reduce((groups, msg) => {

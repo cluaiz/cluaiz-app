@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Loader2 } from 'lucide-react';
+import { Loader2, X } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { PlayIcon, PauseIcon } from '@animateicons/react/lucide';
 import { audioApi } from '../../api/engine/audio/audio.api';
@@ -12,7 +12,7 @@ import {
     TtsSettings
 } from './AudioControlSettingsModal';
 
-const SPEED_STEPS = [0.75, 1.0, 1.25, 1.5, 2.0];
+const SPEED_STEPS = [0.75, 1.0, 1.25, 1.5];
 
 
 /** Whole-message audio already made, for replay with seeking (message id → WAV) */
@@ -316,6 +316,7 @@ export const PersistentAudioDeck: React.FC<PersistentAudioDeckProps> = ({
 
     useEffect(() => {
         if (status !== 'playing') {
+            useSpeechHighlightStore.getState().setAudioLevel(0);
             if (animFrameRef.current) {
                 cancelAnimationFrame(animFrameRef.current);
                 animFrameRef.current = null;
@@ -351,6 +352,7 @@ export const PersistentAudioDeck: React.FC<PersistentAudioDeckProps> = ({
                 const rawAvg = totalSpeechPower / (speechBins * 255);
                 // Dynamic voice gate: clean drop-off to 0 during silence / pauses between words
                 const voiceGate = Math.max(0, (rawAvg - 0.05) / 0.95);
+                useSpeechHighlightStore.getState().setAudioLevel(voiceGate);
 
                 for (let i = 0; i < barCount; i++) {
                     const ratio = i / (barCount - 1); // 0.0 (left) to 1.0 (right)
@@ -382,7 +384,26 @@ export const PersistentAudioDeck: React.FC<PersistentAudioDeckProps> = ({
                     newLevels[i] = Math.max(0.06, Math.min(0.95, wave));
                 }
                 setFreqLevels(newLevels);
+                useSpeechHighlightStore.getState().setAudioLevel(0.25);
             }
+
+            // 60fps real-time word highlight sync (eliminates 250ms ontimeupdate lag and word skipping)
+            if (status === 'playing' && audioRef.current && !pausedRef.current) {
+                const audio = audioRef.current;
+                const part = currentPartRef.current;
+                if (audio && part && isFinite(audio.duration) && audio.duration > 0 && part.words.length > 0) {
+                    const cur = audio.currentTime;
+                    const dur = audio.duration;
+                    const leadIn = Math.min(0.06, dur * 0.04);
+                    const leadOut = Math.min(0.10, dur * 0.05);
+                    const effectiveDur = Math.max(0.05, dur - leadIn - leadOut);
+                    const effectiveCur = Math.max(0, Math.min(effectiveDur, cur - leadIn));
+                    const progress = effectiveCur / effectiveDur;
+                    const wordIdx = calculateActiveWordIndex(progress, part.wordWeights, part.totalWeight, part.words.length);
+                    useSpeechHighlightStore.getState().updateWordProgress(wordIdx, part.words[wordIdx]);
+                }
+            }
+
             animFrameRef.current = requestAnimationFrame(updateFrequencies);
         };
 
@@ -408,7 +429,11 @@ export const PersistentAudioDeck: React.FC<PersistentAudioDeckProps> = ({
 
         if (isFinite(dur) && dur > 0 && part.words.length > 0) {
             setDuration(dur);
-            const progress = Math.min(1, Math.max(0, cur / dur));
+            const leadIn = Math.min(0.06, dur * 0.04);
+            const leadOut = Math.min(0.10, dur * 0.05);
+            const effectiveDur = Math.max(0.05, dur - leadIn - leadOut);
+            const effectiveCur = Math.max(0, Math.min(effectiveDur, cur - leadIn));
+            const progress = effectiveCur / effectiveDur;
             const wordIdx = calculateActiveWordIndex(progress, part.wordWeights, part.totalWeight, part.words.length);
             useSpeechHighlightStore.getState().updateWordProgress(wordIdx, part.words[wordIdx]);
         }
@@ -894,132 +919,162 @@ export const PersistentAudioDeck: React.FC<PersistentAudioDeckProps> = ({
         };
     }, [isDragging, handleSeekFromClientX]);
 
+    const scrollToActiveHighlight = useCallback(() => {
+        const el =
+            document.querySelector('[data-speech-active-word="true"]') ||
+            document.getElementById(`msg-turn-${messageId}`) ||
+            document.querySelector(`[data-message-id="${messageId}"]`);
+        if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    }, [messageId]);
+
     const effectiveTotalDuration = totalSynthesizedDuration > 0 ? totalSynthesizedDuration : (!isLiveStream && duration > 0 ? duration : 0);
     const progressPercent = effectiveTotalDuration > 0 ? Math.min(100, Math.max(0, ((cumulativeElapsed || currentTime) / effectiveTotalDuration) * 100)) : 0;
 
     return (
-        <div className={`relative w-full max-w-full font-[family-name:var(--font-family)] select-none ${className}`}>
+        <div className={`group/deck relative w-full max-w-full font-[family-name:var(--font-family)] select-none ${className}`}>
 
-            <div className="relative flex items-center justify-between gap-3 px-3.5 py-2 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-color)]/70 shadow-lg backdrop-blur-md transition-all duration-200 overflow-hidden">
-                <button
-                    type="button"
-                    onClick={togglePlay}
-                    className="flex items-center justify-center text-[var(--accent-color)] hover:text-[var(--text-primary)] transition-colors active:scale-90 cursor-pointer flex-shrink-0 z-10 p-1"
-                    title={status === 'playing' ? 'Pause' : 'Play'}
-                >
-                    {status === 'loading' ? (
-                        <Loader2 className="w-4 h-4 animate-spin text-[var(--accent-color)]" />
-                    ) : status === 'playing' ? (
-                        <PauseIcon size={18} isAnimated />
-                    ) : (
-                        <PlayIcon size={18} isAnimated className="ml-0.5" />
-                    )}
-                </button>
-
-                {/* Center Audio Track Area: Dense Waveform Scrubber */}
-                <div
-                    ref={waveformRef}
-                    onClick={(e) => {
-                        if (!isLiveStream) handleSeekFromClientX(e.clientX);
-                    }}
-                    onMouseDown={(e) => {
-                        if (!isLiveStream) {
-                            setIsDragging(true);
-                            handleSeekFromClientX(e.clientX);
-                        }
-                    }}
-                    onMouseMove={(e) => {
-                        if (!isLiveStream && waveformRef.current) {
-                            const rect = waveformRef.current.getBoundingClientRect();
-                            if (rect.width > 0) {
-                                setHoverFraction(Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width)));
-                            }
-                        }
-                    }}
-                    onMouseLeave={() => {
-                        setHoverFraction(null);
-                    }}
-                    className={`flex-1 relative flex items-center justify-between gap-[2px] h-7 px-1 mx-2 select-none ${
-                        isLiveStream ? 'cursor-default' : 'cursor-pointer group/wave'
-                    }`}
-                    title={isLiveStream ? 'Streaming audio…' : 'Click or drag across waveform to seek'}
-                >
-                    {DENSE_WAVE_BARS.map((baseHeight, idx) => {
-                        const barRatio = (idx + 0.5) / DENSE_WAVE_BARS.length;
-                        const isPlayed = !isLiveStream && barRatio <= (progressPercent / 100);
-                        const isHovered = !isLiveStream && hoverFraction !== null && barRatio <= hoverFraction;
-                        const isPlaying = status === 'playing';
-                        const isLoading = status === 'loading';
-
-                        const freq = isPlaying ? (freqLevels[idx] ?? 0) : 0;
-                        const currentHeight = isPlaying
-                            ? Math.round(3.5 + freq * (baseHeight - 3.5))
-                            : 3.5; // Visible 3.5px resting dot height when paused
-
-                        // Strictly Left-to-Right sweep timing: idx 0 starts first, idx 57 last
-                        const sweepDelay = `${(idx / DENSE_WAVE_BARS.length) * (isLoading ? 1.5 : 2.0)}s`;
-
-                        return (
-                            <span
-                                key={idx}
-                                style={{
-                                    height: isLoading ? undefined : `${currentHeight}px`,
-                                    animationDelay: (isLoading || isLiveStream) ? sweepDelay : undefined,
-                                }}
-                                className={`w-[2.5px] rounded-full transition-all duration-75 flex-shrink-0 ${
-                                    isLoading
-                                        ? 'cluaiz-loading-bar bg-[var(--accent-color)]/80'
-                                        : isLiveStream
-                                        ? isPlaying
-                                            ? 'cluaiz-pulse-bar bg-[var(--accent-color)]/80'
-                                            : 'bg-[var(--accent-color)]/40 opacity-40'
-                                        : isPlayed
-                                        ? 'bg-[var(--accent-color)]/80 shadow-[0_0_4px_var(--accent-color)]/25'
-                                        : isHovered
-                                        ? 'bg-[var(--accent-color)]/50'
-                                        : 'bg-[var(--text-muted)]/55'
-                                }`}
-                            />
-                        );
-                    })}
-                </div>
-
-                {/* Right controls: Timer, Speed pill, Close X */}
-                <div className="flex items-center gap-2 flex-shrink-0 z-10">
-                    {isLiveStream ? (
-                        /* Live timer: normal clean text without glowing badge */
-                        <span className="text-[10.5px] font-mono font-medium text-[var(--text-muted)] whitespace-nowrap">
-                            {status === 'loading' ? 'Preparing…' : formatTime(cumulativeElapsed || currentTime)}
-                        </span>
-                    ) : (
-                        /* Completed timer: currentTime / totalDuration */
-                        <span className="text-[10.5px] font-mono font-medium text-[var(--text-muted)] whitespace-nowrap">
-                            {formatTime(cumulativeElapsed || currentTime)} / {formatTime(effectiveTotalDuration)}
-                        </span>
-                    )}
-
-                    {/* Compact Click-to-Cycle Speed Pill */}
+            {/* Sound bar card wrapper with attached close button */}
+            <div className="relative">
+                <div className="relative flex items-center justify-between gap-3 px-3.5 py-2 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-color)]/70 shadow-lg backdrop-blur-md transition-all duration-200 overflow-hidden">
                     <button
                         type="button"
-                        onClick={() => {
-                            const current = ttsSettings.playbackSpeed || 1.0;
-                            const idx = SPEED_STEPS.indexOf(current);
-                            const nextSpeed = SPEED_STEPS[(idx + 1) % SPEED_STEPS.length];
-                            const updated = { ...ttsSettings, playbackSpeed: nextSpeed };
-                            setTtsSettings(updated);
-                            saveStoredTtsSettings(updated);
-                            if (audioRef.current) {
-                                audioRef.current.playbackRate = nextSpeed;
-                            }
-                        }}
-                        title="Click to cycle playback speed"
-                        className="px-1.5 py-0.5 text-[10.5px] font-mono font-semibold rounded text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] active:scale-95 transition-all select-none cursor-pointer"
+                        onClick={togglePlay}
+                        className="flex items-center justify-center text-[var(--accent-color)] hover:text-[var(--text-primary)] transition-colors active:scale-90 cursor-pointer flex-shrink-0 z-10 p-1"
+                        title={status === 'playing' ? 'Pause' : 'Play'}
                     >
-                        {(ttsSettings.playbackSpeed || 1.0)}x
+                        {status === 'loading' ? (
+                            <Loader2 className="w-4 h-4 animate-spin text-[var(--accent-color)]" />
+                        ) : status === 'playing' ? (
+                            <PauseIcon size={18} isAnimated />
+                        ) : (
+                            <PlayIcon size={18} isAnimated className="ml-0.5" />
+                        )}
                     </button>
 
+                    {/* Center Audio Track Area: Dense Waveform Scrubber */}
+                    <div
+                        ref={waveformRef}
+                        onClick={(e) => {
+                            if (!isLiveStream) handleSeekFromClientX(e.clientX);
+                        }}
+                        onMouseDown={(e) => {
+                            if (!isLiveStream) {
+                                setIsDragging(true);
+                                handleSeekFromClientX(e.clientX);
+                            }
+                        }}
+                        onMouseMove={(e) => {
+                            if (!isLiveStream && waveformRef.current) {
+                                const rect = waveformRef.current.getBoundingClientRect();
+                                if (rect.width > 0) {
+                                    setHoverFraction(Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width)));
+                                }
+                            }
+                        }}
+                        onMouseLeave={() => {
+                            setHoverFraction(null);
+                        }}
+                        className={`flex-1 relative flex items-center justify-between gap-[2px] h-7 px-1 mx-2 select-none ${
+                            isLiveStream ? 'cursor-default' : 'cursor-pointer group/wave'
+                        }`}
+                        title={isLiveStream ? 'Streaming audio…' : 'Click or drag across waveform to seek'}
+                    >
+                        {DENSE_WAVE_BARS.map((baseHeight, idx) => {
+                            const barRatio = (idx + 0.5) / DENSE_WAVE_BARS.length;
+                            const isPlayed = !isLiveStream && barRatio <= (progressPercent / 100);
+                            const isHovered = !isLiveStream && hoverFraction !== null && barRatio <= hoverFraction;
+                            const isPlaying = status === 'playing';
+                            const isLoading = status === 'loading';
+
+                            const freq = isPlaying ? (freqLevels[idx] ?? 0) : 0;
+                            const currentHeight = isPlaying
+                                ? Math.round(3.5 + freq * (baseHeight - 3.5))
+                                : 3.5; // Visible 3.5px resting dot height when paused
+
+                            // Strictly Left-to-Right sweep timing: idx 0 starts first, idx 57 last
+                            const sweepDelay = `${(idx / DENSE_WAVE_BARS.length) * (isLoading ? 1.5 : 2.0)}s`;
+
+                            return (
+                                <span
+                                    key={idx}
+                                    style={{
+                                        height: isLoading ? undefined : `${currentHeight}px`,
+                                        animationDelay: (isLoading || isLiveStream) ? sweepDelay : undefined,
+                                    }}
+                                    className={`w-[2.5px] rounded-full transition-all duration-75 flex-shrink-0 ${
+                                        isLoading
+                                            ? 'cluaiz-loading-bar bg-[var(--accent-color)]/80'
+                                            : isLiveStream
+                                            ? isPlaying
+                                                ? 'cluaiz-pulse-bar bg-[var(--accent-color)]/80'
+                                                : 'bg-[var(--accent-color)]/40 opacity-40'
+                                            : isPlayed
+                                            ? 'bg-[var(--accent-color)]/80 shadow-[0_0_4px_var(--accent-color)]/25'
+                                            : isHovered
+                                            ? 'bg-[var(--accent-color)]/50'
+                                            : 'bg-[var(--text-muted)]/55'
+                                    }`}
+                                />
+                            );
+                        })}
+                    </div>
+
+                    {/* Right controls: Timer, Speed pill */}
+                    <div className="flex items-center gap-2 flex-shrink-0 z-10">
+                        {/* Clickable Timer to jump directly to currently spoken word in chat */}
+                        <button
+                            type="button"
+                            onClick={scrollToActiveHighlight}
+                            title="Click to jump to active spoken word in chat"
+                            className="text-[10.5px] font-mono font-medium text-[var(--text-muted)] hover:text-[var(--accent-color)] hover:underline whitespace-nowrap transition-colors cursor-pointer select-none"
+                        >
+                            {isLiveStream ? (
+                                status === 'loading' ? 'Preparing…' : formatTime(cumulativeElapsed || currentTime)
+                            ) : (
+                                `${formatTime(cumulativeElapsed || currentTime)} / ${formatTime(effectiveTotalDuration)}`
+                            )}
+                        </button>
+
+                        {/* Compact Click-to-Cycle Speed Pill */}
+                        <button
+                            type="button"
+                            onClick={() => {
+                                const current = ttsSettings.playbackSpeed || 1.0;
+                                const idx = SPEED_STEPS.indexOf(current);
+                                const nextSpeed = SPEED_STEPS[(idx + 1) % SPEED_STEPS.length];
+                                const updated = { ...ttsSettings, playbackSpeed: nextSpeed };
+                                setTtsSettings(updated);
+                                saveStoredTtsSettings(updated);
+                                if (audioRef.current) {
+                                    audioRef.current.playbackRate = nextSpeed;
+                                }
+                            }}
+                            title="Click to cycle playback speed"
+                            className="px-1.5 py-0.5 text-[10.5px] font-mono font-semibold rounded text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] active:scale-95 transition-all select-none cursor-pointer"
+                        >
+                            {(ttsSettings.playbackSpeed || 1.0)}x
+                        </button>
+
+                    </div>
                 </div>
+
+                {/* Subtle floating close button centered directly on the bottom border of the soundbar */}
+                <button
+                    type="button"
+                    onClick={() => {
+                        stopAll();
+                        if (onClose) onClose();
+                        else useSpeechHighlightStore.getState().closeDeck();
+                    }}
+                    className="absolute left-1/2 -translate-x-1/2 -bottom-2.5 z-20 flex items-center justify-center w-5 h-5 rounded-full bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:border-[var(--accent-color)] hover:scale-110 active:scale-95 shadow-md opacity-0 pointer-events-none group-hover/deck:opacity-100 group-hover/deck:pointer-events-auto transition-all duration-150 cursor-pointer"
+                    title="Close audio player"
+                >
+                    <X className="w-3 h-3" />
+                </button>
             </div>
+
             {error && <p role="alert" className="mt-1 text-xs text-[var(--text-primary)]">{error} Press Play to retry.</p>}
         </div>
     );

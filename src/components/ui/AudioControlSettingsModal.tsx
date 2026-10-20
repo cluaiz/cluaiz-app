@@ -17,7 +17,7 @@ const MIC_MODES: { mode: MicSettings['mode']; label: string; description: string
 ];
 
 /** Speaking rates offered (the engine accepts 0.25–4) */
-const SPEEDS = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
+const SPEEDS = [0.5, 0.75, 1.0, 1.25, 1.5];
 
 export const MIC_SETTINGS_KEY = 'cluaiz_audio_mic_settings';
 

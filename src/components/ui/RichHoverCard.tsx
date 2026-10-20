@@ -6,20 +6,43 @@ import { FileIcon } from 'react-material-icon-theme';
 import { getFileExtension, extractBaseName } from '../../utils/filePath';
 import { useProjectStore } from '../../store/workspace/useProjectStore';
 
-function stripMarkdown(text: string): string {
+export function stripMarkdown(text: string): string {
     if (!text) return '';
     return text
-        .replace(/\*\*([^*]+)\*\*/g, '$1')       // bold **text**
-        .replace(/\*([^*]+)\*/g, '$1')           // italic *text*
-        .replace(/__([^_]+)__/g, '$1')           // bold __text__
-        .replace(/_([^_]+)_/g, '$1')             // italic _text_
-        .replace(/`([^`]+)`/g, '$1')             // inline code `code`
-        .replace(/^#+\s+/gm, '')                 // headers #, ##
-        .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // links [text](url)
-        .replace(/^\s*[-*+]\s+/gm, '')           // bullet points
-        .replace(/\n+/g, ' ')                    // newlines to space
+        // 1. Remove code blocks (fenced ```...``` and inline `...`)
+        .replace(/```[\s\S]*?```/g, ' ')
+        .replace(/`([^`]+)`/g, '$1')
+        // 2. Remove horizontal rules / dividers (***, ---, ___, * * *, - - -)
+        .replace(/^\s*([*_-])\s*(?:\1\s*){2,}\s*$/gm, ' ')
+        // 3. Remove bold + italic (***text*** or ___text___)
+        .replace(/\*\*\*([^*]+)\*\*\*/g, '$1')
+        .replace(/___([^_]+)___/g, '$1')
+        // 4. Remove bold (**text** or __text__)
+        .replace(/\*\*([^*]+)\*\*/g, '$1')
+        .replace(/__([^_]+)__/g, '$1')
+        // 5. Remove italic (*text* or _text_)
+        .replace(/\*([^*]+)\*/g, '$1')
+        .replace(/_([^_]+)_/g, '$1')
+        // 6. Remove headers (#, ##, ###, etc.)
+        .replace(/^#{1,6}\s+/gm, '')
+        // 7. Remove blockquotes (> text)
+        .replace(/^\s*>\s*/gm, '')
+        // 8. Remove images & links (![alt](url) -> '', [text](url) -> text)
+        .replace(/!\[([^\]]*)\]\([^)]+\)/g, '')
+        .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+        // 9. Remove bullet points and numbered list markers
+        .replace(/^\s*[-*+]\s+/gm, '')
+        .replace(/^\s*\d+\.\s+/gm, '')
+        // 10. Remove HTML tags
+        .replace(/<[^>]+>/g, '')
+        // 11. Remove any remaining stray asterisks or tildes
+        .replace(/\*{2,}/g, '')
+        .replace(/~{2,}/g, '')
+        // 12. Normalize multiple whitespace and newlines to a single space
+        .replace(/\s+/g, ' ')
         .trim();
 }
+
 
 export interface RichHoverCardProps {
     children: React.ReactNode;
