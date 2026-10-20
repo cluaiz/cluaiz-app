@@ -80,8 +80,7 @@ export function parseCurrentRoute(): RouteState {
         pathname.startsWith('/settings/') ||
         pathname.startsWith('/setting/') ||
         hash.startsWith('#/settings') ||
-        hash.startsWith('#/setting') ||
-        searchParams.has('tab');
+        hash.startsWith('#/setting');
 
     const rawTab = searchParams.get('tab') || extractTabFromPath(pathname) || extractTabFromHash(hash);
 
@@ -139,7 +138,16 @@ export function parseCurrentRoute(): RouteState {
 export function pushChatRoute(chatId: string | null, replace: boolean = false): void {
     if (typeof window === 'undefined') return;
     try {
+        const route = parseCurrentRoute();
+        // NEVER clobber settings or non-chat views with a chat route push
+        if (route.isSettingsOpen || (route.view && route.view !== 'chat')) {
+            return;
+        }
+
         const url = new URL(window.location.href);
+        // Explicitly set pathname to root for chat and clear any settings tab
+        url.pathname = '/';
+        url.searchParams.delete('tab');
         if (chatId) {
             url.searchParams.set('c', chatId);
         } else {
@@ -186,6 +194,7 @@ export function pushViewRoute(view: MainViewId, replace: boolean = false): void 
         const url = new URL(window.location.href);
         const targetPath = view === 'chat' ? '/' : `/${view}`;
         url.pathname = targetPath;
+        url.searchParams.delete('tab');
         if (view !== 'chat') {
             url.searchParams.delete('c');
         }

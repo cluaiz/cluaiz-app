@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { ThemeProvider } from './core/ThemeProvider';
 import { AppShell } from './components/layout/AppShell';
 import { ChatWorkspace } from './features/chat/components/ChatWorkspace';
@@ -42,7 +42,12 @@ function MainAppContent() {
 
     const handleCloseSettings = () => {
         setSettingsState(prev => ({ ...prev, isOpen: false }));
-        pushViewRoute(activeView);
+        const activeChatId = useChatStore.getState().activeSessionId;
+        if (activeView === 'chat' && activeChatId) {
+            pushChatRoute(activeChatId);
+        } else {
+            pushViewRoute(activeView);
+        }
     };
 
     const handleSettingsTabChange = (newTab: SettingsTabId) => {
@@ -50,26 +55,34 @@ function MainAppContent() {
         pushSettingsRoute(newTab);
     };
 
-    // Keep activeView synchronized with browser URL when settings modal is closed
+    // Synchronize browser URL when activeView changes after user interaction
+    const isFirstMountRef = useRef(true);
     useEffect(() => {
+        if (isFirstMountRef.current) {
+            isFirstMountRef.current = false;
+            // On initial load, honor the exact entered browser URL!
+            const currentRoute = parseCurrentRoute();
+            if (currentRoute.isSettingsOpen) {
+                pushSettingsRoute(currentRoute.settingsTab, true);
+            } else if (currentRoute.view === 'chat') {
+                if (currentRoute.activeChatId) {
+                    pushChatRoute(currentRoute.activeChatId, true);
+                }
+            } else {
+                pushViewRoute(currentRoute.view, true);
+            }
+            if (!currentRoute.isSettingsOpen && currentRoute.view && currentRoute.view !== useLayoutStore.getState().activeView) {
+                useLayoutStore.getState().setActiveView(currentRoute.view);
+            }
+            return;
+        }
+
         if (!settingsState.isOpen) {
             pushViewRoute(activeView);
         }
     }, [activeView, settingsState.isOpen]);
 
     useEffect(() => {
-        // Initial URL route verification & sync
-        const currentRoute = parseCurrentRoute();
-        if (currentRoute.isSettingsOpen) {
-            pushSettingsRoute(currentRoute.settingsTab, true);
-        } else if (currentRoute.view === 'chat' && currentRoute.activeChatId) {
-            pushChatRoute(currentRoute.activeChatId, true);
-        } else {
-            pushViewRoute(currentRoute.view, true);
-        }
-        if (currentRoute.view && currentRoute.view !== activeView) {
-            useLayoutStore.getState().setActiveView(currentRoute.view);
-        }
 
         const handleOpenLauncher = (e: any) => {
             if (e.detail && typeof e.detail.x === 'number') {
@@ -94,7 +107,7 @@ function MainAppContent() {
             if (route.activeChatId !== undefined) {
                 const currentActive = useChatStore.getState().activeSessionId;
                 if (currentActive !== route.activeChatId) {
-                    useChatStore.getState().switchSession(route.activeChatId);
+                    useChatStore.getState().switchSession(route.activeChatId, false);
                 }
             }
         };

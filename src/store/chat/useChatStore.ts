@@ -90,7 +90,7 @@ interface ChatStore {
     hydrateFromStorage: () => Promise<void>;
     /** `incognito` = a private chat that is never written to storage */
     createNewSession: (initialTitle?: string, options?: { incognito?: boolean }) => string;
-    switchSession: (sessionId: string | null) => Promise<void>;
+    switchSession: (sessionId: string | null, syncUrl?: boolean) => Promise<void>;
     deleteSession: (sessionId: string) => void;
     finalizeAssistantMessage: (sessionId: string) => Promise<void>;
 
@@ -240,7 +240,8 @@ export const useChatStore = create<ChatStore>()(
 
                     // Priority: URL (?c=...) is the single source of truth.
                     // If URL has no ?c= (user was on New Chat or root path), retain clean New Chat (null).
-                    const routeChatId = parseCurrentRoute().activeChatId;
+                    const currentRoute = parseCurrentRoute();
+                    const routeChatId = currentRoute.activeChatId;
                     let targetActiveId: string | null = null;
                     if (routeChatId && sessionsMap[routeChatId]) {
                         targetActiveId = routeChatId;
@@ -255,12 +256,17 @@ export const useChatStore = create<ChatStore>()(
                         isHydrated: true
                     });
 
-                    // Sync active chat to URL and load messages
+                    // Sync active chat to URL and load messages ONLY if user is currently on the chat view and settings is closed!
+                    const shouldSyncUrl = !currentRoute.isSettingsOpen && currentRoute.view === 'chat';
                     if (targetActiveId) {
-                        pushChatRoute(targetActiveId, true);
-                        get().switchSession(targetActiveId);
+                        if (shouldSyncUrl) {
+                            pushChatRoute(targetActiveId, true);
+                        }
+                        get().switchSession(targetActiveId, shouldSyncUrl);
                     } else {
-                        pushChatRoute(null, true);
+                        if (shouldSyncUrl) {
+                            pushChatRoute(null, true);
+                        }
                     }
                 } else {
                     // Empty catalog: clean New Chat state ready for user input
@@ -269,7 +275,10 @@ export const useChatStore = create<ChatStore>()(
                         activeSessionId: null,
                         isHydrated: true
                     });
-                    pushChatRoute(null, true);
+                    const currentRoute = parseCurrentRoute();
+                    if (!currentRoute.isSettingsOpen && currentRoute.view === 'chat') {
+                        pushChatRoute(null, true);
+                    }
                 }
             } catch (err) {
                 console.error("[ChatStore] Storage hydration error:", err);
@@ -308,7 +317,7 @@ export const useChatStore = create<ChatStore>()(
             return id;
         },
 
-        switchSession: async (sessionId: string | null) => {
+        switchSession: async (sessionId: string | null, syncUrl: boolean = true) => {
             const currentGen = ++sessionSwitchGeneration;
             // A normal chat keeps answering in the background; leaving a private chat stops its answer
             const streaming = get().streamingSessionId;
@@ -319,7 +328,9 @@ export const useChatStore = create<ChatStore>()(
                 } catch { }
             }
             set({ activeSessionId: sessionId });
-            pushChatRoute(sessionId);
+            if (syncUrl) {
+                pushChatRoute(sessionId);
+            }
 
             if (!sessionId) {
                 syncIndexToStorage(get().sessions, null);

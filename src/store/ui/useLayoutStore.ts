@@ -84,8 +84,23 @@ export const useLayoutStore = create<LayoutState>()(
                 rightPanelWidth: state.rightPanelWidth,
                 splitPaneWidth: state.splitPaneWidth,
                 splitReversed: state.splitReversed,
-                activeView: state.activeView,
             }),
+            onRehydrateStorage: () => (state) => {
+                if (state) {
+                    // Always default activeView in-memory, never from stale storage
+                    state.activeView = 'chat';
+                    try {
+                        const raw = localStorage.getItem('cluaiz-layout-storage');
+                        if (raw) {
+                            const parsed = JSON.parse(raw);
+                            if (parsed.state && 'activeView' in parsed.state) {
+                                delete parsed.state.activeView;
+                                localStorage.setItem('cluaiz-layout-storage', JSON.stringify(parsed));
+                            }
+                        }
+                    } catch {}
+                }
+            }
         }
     )
 );
