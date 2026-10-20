@@ -238,6 +238,9 @@ export const PersistentAudioDeck: React.FC<PersistentAudioDeckProps> = ({
             cancelAnimationFrame(animFrameRef.current);
             animFrameRef.current = null;
         }
+        if (typeof navigator !== 'undefined' && 'mediaSession' in navigator) {
+            navigator.mediaSession.playbackState = 'none';
+        }
         setFreqLevels(new Array(DENSE_WAVE_BARS.length).fill(0));
         useSpeechHighlightStore.getState().clear(messageId);
     }, [messageId]);
@@ -278,9 +281,13 @@ export const PersistentAudioDeck: React.FC<PersistentAudioDeckProps> = ({
     }, []);
 
     const resumeAudio = (audio: HTMLAudioElement) => {
+        pausedRef.current = false;
         setStatus('playing');
         audio.playbackRate = settingsRef.current.playbackSpeed || 1.0;
         useSpeechHighlightStore.getState().setPlaying(true);
+        if (typeof navigator !== 'undefined' && 'mediaSession' in navigator) {
+            navigator.mediaSession.playbackState = 'playing';
+        }
         connectAnalyser(audio);
         audio.play().catch((cause) => {
             if (audioRef.current === audio && !pausedRef.current && speechTurns.isSpeaking(messageId)) {
@@ -300,6 +307,9 @@ export const PersistentAudioDeck: React.FC<PersistentAudioDeckProps> = ({
         setCumulativeElapsed(0);
         setStatus('paused');
         setCurrentTime(0);
+        if (typeof navigator !== 'undefined' && 'mediaSession' in navigator) {
+            navigator.mediaSession.playbackState = 'none';
+        }
         useSpeechHighlightStore.getState().clear(messageId);
         speechTurns.release(messageId);
     };
@@ -454,6 +464,28 @@ export const PersistentAudioDeck: React.FC<PersistentAudioDeckProps> = ({
 
         audio.ontimeupdate = () => {
             if (audioRef.current === audio) syncProgress();
+        };
+
+        audio.onpause = () => {
+            if (audioRef.current === audio && !audio.ended) {
+                pausedRef.current = true;
+                setStatus('paused');
+                useSpeechHighlightStore.getState().setPlaying(false);
+                if (typeof navigator !== 'undefined' && 'mediaSession' in navigator) {
+                    navigator.mediaSession.playbackState = 'paused';
+                }
+            }
+        };
+
+        audio.onplay = () => {
+            if (audioRef.current === audio) {
+                pausedRef.current = false;
+                setStatus('playing');
+                useSpeechHighlightStore.getState().setPlaying(true);
+                if (typeof navigator !== 'undefined' && 'mediaSession' in navigator) {
+                    navigator.mediaSession.playbackState = 'playing';
+                }
+            }
         };
 
         const next = () => {
@@ -685,6 +717,9 @@ export const PersistentAudioDeck: React.FC<PersistentAudioDeckProps> = ({
             audioRef.current?.pause();
             setStatus('paused');
             useSpeechHighlightStore.getState().setPlaying(false);
+            if (typeof navigator !== 'undefined' && 'mediaSession' in navigator) {
+                navigator.mediaSession.playbackState = 'paused';
+            }
         },
     };
 
@@ -727,6 +762,57 @@ export const PersistentAudioDeck: React.FC<PersistentAudioDeckProps> = ({
     useEffect(() => () => {
         stopAll();
         speechTurns.release(messageId);
+    }, [messageId, stopAll]);
+
+    // System & Browser MediaSession synchronization (Chrome Media Hub, OS & Bluetooth Media Keys)
+    useEffect(() => {
+        if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
+
+        try {
+            navigator.mediaSession.metadata = new MediaMetadata({
+                title: 'Cluaiz Speech',
+                artist: 'Cluaiz Assistant',
+                album: 'Chat Voice',
+            });
+
+            navigator.mediaSession.setActionHandler('play', () => {
+                if (!speechTurns.isSpeaking(messageId)) {
+                    speechTurns.request(turn);
+                } else if (audioRef.current && pausedRef.current) {
+                    resumeAudio(audioRef.current);
+                } else {
+                    playNextPart();
+                }
+            });
+
+            navigator.mediaSession.setActionHandler('pause', () => {
+                if (audioRef.current && !pausedRef.current) {
+                    pausedRef.current = true;
+                    audioRef.current.pause();
+                    setStatus('paused');
+                    useSpeechHighlightStore.getState().setPlaying(false);
+                    navigator.mediaSession.playbackState = 'paused';
+                }
+            });
+
+            navigator.mediaSession.setActionHandler('stop', () => {
+                stopAll();
+                speechTurns.release(messageId);
+            });
+        } catch {
+            // MediaSession error guard
+        }
+
+        return () => {
+            if (typeof navigator !== 'undefined' && 'mediaSession' in navigator) {
+                try {
+                    navigator.mediaSession.setActionHandler('play', null);
+                    navigator.mediaSession.setActionHandler('pause', null);
+                    navigator.mediaSession.setActionHandler('stop', null);
+                    navigator.mediaSession.playbackState = 'none';
+                } catch {}
+            }
+        };
     }, [messageId, stopAll]);
 
 
