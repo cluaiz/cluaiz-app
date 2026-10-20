@@ -155,15 +155,14 @@ export const RichHoverCard: React.FC<RichHoverCardProps> = ({
         <AnimatePresence>
             {isOpen && (
                 <motion.div
-                    initial={{ opacity: 0, scale: 0.95, x: position === 'right' ? -6 : 0, y: position === 'top' ? 6 : 0 }}
-                    animate={{ opacity: 1, scale: 1, x: 0, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.95, x: position === 'right' ? -4 : 0 }}
+                    initial={{ opacity: 0, scale: 0.95, x: position === 'right' ? -6 : 0, y: usePortal ? '-50%' : (position === 'top' ? 6 : 0) }}
+                    animate={{ opacity: 1, scale: 1, x: 0, y: usePortal ? '-50%' : 0 }}
+                    exit={{ opacity: 0, scale: 0.95, x: position === 'right' ? -4 : 0, y: usePortal ? '-50%' : 0 }}
                     transition={{ duration: 0.1, ease: 'easeOut' }}
                     className={`z-[99999] pointer-events-auto w-[260px] sm:w-[280px] p-2.5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-color)] shadow-[0_12px_36px_rgba(0,0,0,0.85)] backdrop-blur-2xl text-left select-none ${usePortal ? 'fixed' : `absolute ${getPositionClasses()}`}`}
                     style={usePortal && coords ? {
                         top: coords.top,
                         left: coords.left,
-                        transform: 'translateY(-50%)'
                     } : undefined}
                     onMouseEnter={() => {
                         if (closeTimeoutRef.current) {

@@ -178,20 +178,30 @@ export function pushSettingsRoute(tab: SettingsTabId, replace: boolean = false):
 
 /**
  * Reverts URL to the underlying active view when Settings is closed.
+ * Preserves query params (such as ?c=chat_...) when viewing chat.
  */
 export function pushViewRoute(view: MainViewId, replace: boolean = false): void {
-    const targetUrl = view === 'chat' ? '/' : `/${view}`;
-    const currentPath = window.location.pathname;
+    if (typeof window === 'undefined') return;
+    try {
+        const url = new URL(window.location.href);
+        const targetPath = view === 'chat' ? '/' : `/${view}`;
+        url.pathname = targetPath;
+        if (view !== 'chat') {
+            url.searchParams.delete('c');
+        }
+        const targetUrl = url.pathname + (url.search ? url.search : '') + url.hash;
+        const currentUrl = window.location.pathname + window.location.search + window.location.hash;
 
-    if (currentPath === targetUrl && !window.location.search) {
-        return;
-    }
+        if (targetUrl === currentUrl) {
+            return;
+        }
 
-    if (replace) {
-        window.history.replaceState({ isSettings: false, view }, '', targetUrl);
-    } else {
-        window.history.pushState({ isSettings: false, view }, '', targetUrl);
-    }
+        if (replace) {
+            window.history.replaceState({ isSettings: false, view }, '', targetUrl);
+        } else {
+            window.history.pushState({ isSettings: false, view }, '', targetUrl);
+        }
+    } catch {}
 }
 
 /**

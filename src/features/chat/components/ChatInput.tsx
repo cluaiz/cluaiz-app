@@ -424,7 +424,6 @@ const BANNED_ARCHIVE_OR_BINARY_REGEX = /\.(zip|tar|gz|tgz|rar|7z|bz2|xz|exe|msi|
             lineCount: lines
         };
         setStagedAttachments(prev => [newSnippet, ...prev]);
-        toast.info(`Converted large text (${lines} lines) to staged document`);
         return true;
     };
 
@@ -1530,35 +1529,173 @@ const BANNED_ARCHIVE_OR_BINARY_REGEX = /\.(zip|tar|gz|tgz|rar|7z|bz2|xz|exe|msi|
         }
     }, [inputValue, selectedSkills.length, currentModel.shortName]);
 
+    const handleJumpToReplyTarget = (msgIndex: number, textSnippet?: string) => {
+        const container = (document.querySelector(`[data-message-index="${msgIndex}"]`) as HTMLElement | null) ||
+            document.getElementById(`msg-turn-${msgIndex}`);
+        if (!container) return;
+
+        const cleanText = (textSnippet || '').trim();
+
+        if (cleanText) {
+            // Clear any existing active pulse marks to avoid duplicates
+            const existingMarks = container.querySelectorAll('.reply-target-text-pulse');
+            existingMarks.forEach((m) => {
+                if (m.parentNode) {
+                    while (m.firstChild) {
+                        m.parentNode.insertBefore(m.firstChild, m);
+                    }
+                    m.remove();
+                }
+            });
+            container.normalize();
+
+            // Split selection into distinct lines/paragraphs
+            const linesToFind = cleanText
+                .split(/\r?\n/)
+                .map((s) => s.trim())
+                .filter((s) => s.length > 2);
+
+            const createdMarks: HTMLElement[] = [];
+
+            for (const line of linesToFind) {
+                const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null);
+                let node: Node | null;
+                let targetRange: Range | null = null;
+
+                // 1. Exact match attempt inside paragraph text node
+                while ((node = walker.nextNode())) {
+                    if ((node.parentElement as HTMLElement | null)?.classList.contains('reply-target-text-pulse')) continue;
+                    const val = node.textContent || '';
+                    const idx = val.indexOf(line);
+                    if (idx !== -1) {
+                        targetRange = document.createRange();
+                        targetRange.setStart(node, idx);
+                        targetRange.setEnd(node, idx + line.length);
+                        break;
+                    }
+                }
+
+                // 2. Substring fallback if line contains inline formatting differences
+                if (!targetRange && line.length > 15) {
+                    const sub = line.slice(0, 25);
+                    const subWalker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null);
+                    while ((node = subWalker.nextNode())) {
+                        if ((node.parentElement as HTMLElement | null)?.classList.contains('reply-target-text-pulse')) continue;
+                        const val = node.textContent || '';
+                        const idx = val.indexOf(sub);
+                        if (idx !== -1) {
+                            targetRange = document.createRange();
+                            targetRange.setStart(node, idx);
+                            targetRange.setEnd(node, Math.min(val.length, idx + line.length));
+                            break;
+                        }
+                    }
+                }
+
+                if (targetRange) {
+                    const mark = document.createElement('mark');
+                    mark.className = 'reply-target-text-pulse';
+                    mark.style.backgroundColor = 'rgba(var(--accent-color-rgb, 249, 115, 22), 0.28)';
+                    mark.style.color = 'inherit';
+                    mark.style.borderRadius = '3px';
+                    mark.style.padding = '0';
+                    mark.style.margin = '0';
+                    mark.style.border = 'none';
+                    mark.style.outline = 'none';
+                    mark.style.boxShadow = 'none';
+                    mark.style.transition = 'background-color 0.45s ease-out';
+
+                    try {
+                        targetRange.surroundContents(mark);
+                        createdMarks.push(mark);
+                    } catch {
+                        // If surroundContents fails across tags, continue to next line
+                    }
+                }
+            }
+
+            if (createdMarks.length > 0) {
+                // Scroll directly to the first highlighted paragraph
+                createdMarks[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+                // Pulse outer turn border as well for context
+                container.classList.remove('chat-turn-focused');
+                void container.offsetWidth;
+                container.classList.add('chat-turn-focused');
+
+                setTimeout(() => {
+                    createdMarks.forEach((m) => {
+                        m.style.backgroundColor = 'transparent';
+                    });
+                    container.classList.remove('chat-turn-focused');
+                    setTimeout(() => {
+                        createdMarks.forEach((m) => {
+                            if (m.parentNode) {
+                                while (m.firstChild) {
+                                    m.parentNode.insertBefore(m.firstChild, m);
+                                }
+                                m.remove();
+                            }
+                        });
+                        container.normalize();
+                    }, 450);
+                }, 2200);
+                return;
+            }
+        }
+
+        // Fallback: scroll container directly
+        container.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        container.classList.remove('chat-turn-focused');
+        void container.offsetWidth;
+        container.classList.add('chat-turn-focused');
+        setTimeout(() => {
+            container.classList.remove('chat-turn-focused');
+        }, 1800);
+    };
+
     return (
         <div className={`w-full min-w-0 max-w-full max-[300px]:p-0.5 p-1 pb-0 flex-shrink-0 z-10 relative ${isFloating ? 'bg-transparent' : 'bg-[var(--bg-primary)]'}`}>
             {/* Top Fade-Out Shadow Effect */}
 
 
-            {/* Replying Card */}
-            {replyingTo && (
-                <div className="mb-3 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl px-3 py-2.5 flex flex-col gap-1 relative overflow-hidden group shadow-sm mx-1">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-1.5 text-[var(--text-muted)] text-[0.65rem] font-medium uppercase tracking-wider">
-                            <CornerDownRight className="w-3.5 h-3.5 text-[var(--accent-color)]" />
-                            {replyingTo.type === 'selection' ? 'Replying to selection' : 'Replying to message'}
-                        </div>
-                        <button
-                            onClick={() => setReplyingTo?.(null)}
-                            className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors p-0.5 rounded-md hover:bg-[var(--bg-tertiary)]"
-                        >
-                            <X className="w-3.5 h-3.5" />
-                        </button>
-                    </div>
-                    <div className="text-xs font-medium text-[var(--text-primary)] truncate pr-4 pl-2.5 border-l-2 border-[var(--accent-color)] ml-1">
-                        {replyingTo.text}
-                    </div>
-                </div>
-            )}
-
-            {/* [P35] Codex Attached Queued Tab (Flush Inset within Input Shoulders) */}
-            {pendingQueue.length > 0 && (
+            {/* Attached Tabs Stack: Replying & Pending Queue (Flush Inset within Input Shoulders) */}
+            {(replyingTo || pendingQueue.length > 0) && (
                 <div className="mx-5 -mb-[1px] z-20 relative flex flex-col gap-1">
+                    {/* [P1, P2, P4, P5, P6, P7] Attached Replying Tab */}
+                    {replyingTo && (
+                        <div className="w-full flex items-center justify-between px-3.5 py-1.5 rounded-t-[14px] bg-[var(--bg-secondary)] border border-b-0 border-[var(--border-color)] text-xs text-[var(--text-secondary)] shadow-sm select-none">
+                            <div
+                                onClick={() => handleJumpToReplyTarget(replyingTo.messageIndex, replyingTo.text)}
+                                className="flex items-center gap-2 min-w-0 flex-1 mr-3 cursor-pointer group/reply hover:opacity-90 transition-opacity"
+                                title="Click to view referenced text in chat"
+                            >
+                                <CornerDownRight className="w-3.5 h-3.5 text-[var(--accent-color)] shrink-0 transition-transform group-hover/reply:translate-x-0.5" />
+                                <span className="text-[10px] uppercase font-bold text-[var(--accent-color)] tracking-wider shrink-0">
+                                    Reply
+                                </span>
+                                <span className="text-zinc-500 shrink-0 select-none">|</span>
+                                <span className="truncate text-[12px] font-medium text-[var(--text-primary)] group-hover/reply:underline underline-offset-2">
+                                    {replyingTo.text}
+                                </span>
+                            </div>
+                            <div className="flex items-center shrink-0 border-l border-[var(--border-color)] pl-3">
+                                <button
+                                    type="button"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setReplyingTo?.(null);
+                                    }}
+                                    className="text-zinc-500 hover:text-red-400 transition-colors cursor-pointer bg-transparent border-0 p-0 flex items-center justify-center"
+                                    title="Cancel reply"
+                                >
+                                    <X className="w-3.5 h-3.5" />
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* [P35 & P3] Attached Queued Prompts (Steer Tab) */}
                     {pendingQueue.map((item) => (
                         <div
                             key={item.id}

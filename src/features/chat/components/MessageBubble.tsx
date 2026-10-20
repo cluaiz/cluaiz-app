@@ -424,6 +424,7 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
     return (
         <div
             id={`msg-turn-${msg.id || index}`}
+            data-message-index={index}
             className={`flex relative w-full gap-3 group group/turn ${isUser ? 'justify-end items-end' : 'justify-start items-start'}`}
             onClick={() => {
                 if (isSelectionMode && onToggleSelect) {

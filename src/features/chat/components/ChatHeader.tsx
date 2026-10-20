@@ -39,9 +39,9 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 </div>
             ) : (
                 <div
-                    
+
                 >
-                   
+
                 </div>
             )}
 

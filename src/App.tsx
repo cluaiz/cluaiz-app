@@ -18,7 +18,7 @@ import { SmoothFollowCursor } from './components/ui/cursor/SmoothFollowCursor';
 import { NeonPulseCursor } from './components/ui/cursor/NeonPulseCursor';
 import { CanvasCursor } from './components/ui/cursor/CanvasCursor';
 import { AuraCursor } from './components/ui/cursor/AuraCursor';
-import { parseCurrentRoute, pushSettingsRoute, pushViewRoute, SettingsTabId } from './core/router';
+import { parseCurrentRoute, pushSettingsRoute, pushViewRoute, pushChatRoute, SettingsTabId } from './core/router';
 import { useChatStore } from './store/chat/useChatStore';
 import { ToastContainer } from './components/ui/toast';
 
@@ -62,6 +62,8 @@ function MainAppContent() {
         const currentRoute = parseCurrentRoute();
         if (currentRoute.isSettingsOpen) {
             pushSettingsRoute(currentRoute.settingsTab, true);
+        } else if (currentRoute.view === 'chat' && currentRoute.activeChatId) {
+            pushChatRoute(currentRoute.activeChatId, true);
         } else {
             pushViewRoute(currentRoute.view, true);
         }

@@ -376,14 +376,14 @@ export const PersistentAudioDeck: React.FC<PersistentAudioDeckProps> = ({
 
             if (chunk.replace(/[^\p{L}\p{N}]/gu, '').length > 0) {
                 const currentSentenceIndex = sentenceIndexRef.current++;
-                const { words, wordWeights, totalWeight } = tokenizeSentenceWords(rawChunk);
+                const { words, wordWeights, totalWeight } = tokenizeSentenceWords(chunk);
                 pendingRef.current += 1;
                 chainRef.current = chainRef.current
                     .then(async () => {
                         if (!isCurrent()) return;
                         const blob = await audioApi.speech(payload(chunk), run.signal);
                         if (isCurrent()) {
-                            addPart(blob, rawChunk, currentSentenceIndex, words, wordWeights, totalWeight);
+                            addPart(blob, chunk, currentSentenceIndex, words, wordWeights, totalWeight);
                         }
                     })
                     .catch((err) => {

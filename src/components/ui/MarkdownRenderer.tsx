@@ -574,42 +574,54 @@ const MarkdownRendererComponent: React.FC<MarkdownRendererProps> = ({
                     h1({ children, id }: any) {
                         return (
                             <h1 id={id} className="scroll-mt-28 mt-6 mb-4 text-2xl font-black uppercase tracking-tight text-[var(--text-primary)] leading-snug first:mt-0">
-                                {children}
+                                <SpeechWordHighlighter messageId={messageId}>
+                                    {children}
+                                </SpeechWordHighlighter>
                             </h1>
                         );
                     },
                     h2({ children, id }: any) {
                         return (
                             <h2 id={id} className="scroll-mt-24 mt-8 mb-3 text-xl sm:text-2xl font-black uppercase tracking-tight text-[var(--text-primary)] leading-snug first:mt-0">
-                                {children}
+                                <SpeechWordHighlighter messageId={messageId}>
+                                    {children}
+                                </SpeechWordHighlighter>
                             </h2>
                         );
                     },
                     h3({ children, id }: any) {
                         return (
                             <h3 id={id} className="scroll-mt-24 mt-6 mb-3 text-base font-black uppercase tracking-widest text-[var(--text-primary)] first:mt-0">
-                                {children}
+                                <SpeechWordHighlighter messageId={messageId}>
+                                    {children}
+                                </SpeechWordHighlighter>
                             </h3>
                         );
                     },
                     h4({ children, id }: any) {
                         return (
                             <h4 id={id} className="scroll-mt-24 mt-5 mb-2 text-sm font-black uppercase tracking-[0.2em] text-[var(--text-secondary)]">
-                                {children}
+                                <SpeechWordHighlighter messageId={messageId}>
+                                    {children}
+                                </SpeechWordHighlighter>
                             </h4>
                         );
                     },
                     h5({ children, id }: any) {
                         return (
                             <h5 id={id} className="scroll-mt-24 mt-4 mb-2 text-xs font-black uppercase tracking-[0.25em] text-[var(--text-muted)]">
-                                {children}
+                                <SpeechWordHighlighter messageId={messageId}>
+                                    {children}
+                                </SpeechWordHighlighter>
                             </h5>
                         );
                     },
                     h6({ children, id }: any) {
                         return (
                             <h6 id={id} className="scroll-mt-24 mt-4 mb-2 text-[10px] font-black uppercase tracking-[0.3em] text-[var(--text-muted)]">
-                                {children}
+                                <SpeechWordHighlighter messageId={messageId}>
+                                    {children}
+                                </SpeechWordHighlighter>
                             </h6>
                         );
                     },

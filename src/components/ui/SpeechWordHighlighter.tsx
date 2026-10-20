@@ -68,15 +68,20 @@ function highlightTextChildren(
     path = 'root'
 ): React.ReactNode {
     if (typeof node === 'string') {
-        const trimmedTarget = sentenceText.trim();
-        if (!trimmedTarget) return node;
+        const cleanTarget = sentenceText
+            .replace(/^#+\s+/gm, '')
+            .replace(/(\*\*|__)(.*?)\1/g, '$2')
+            .replace(/[*_~]{1,3}(?=\S)|(?<=\S)[*_~]{1,3}/g, '')
+            .replace(/`([^`]*)`/g, '$1')
+            .trim();
+        if (!cleanTarget) return node;
 
-        let targetIdx = node.indexOf(trimmedTarget);
+        let targetIdx = node.indexOf(cleanTarget);
 
         // Fallback: match using normalized spaces
         if (targetIdx === -1) {
             const normNode = node.replace(/\s+/g, ' ');
-            const normTarget = trimmedTarget.replace(/\s+/g, ' ');
+            const normTarget = cleanTarget.replace(/\s+/g, ' ');
             const normIdx = normNode.indexOf(normTarget);
             if (normIdx !== -1) {
                 const firstWord = normTarget.split(' ')[0];
@@ -88,7 +93,7 @@ function highlightTextChildren(
 
         if (targetIdx !== -1) {
             const before = node.slice(0, targetIdx);
-            const matchedLen = Math.min(trimmedTarget.length, node.length - targetIdx);
+            const matchedLen = Math.min(cleanTarget.length, node.length - targetIdx);
             const target = node.slice(targetIdx, targetIdx + matchedLen);
             const after = node.slice(targetIdx + matchedLen);
 
