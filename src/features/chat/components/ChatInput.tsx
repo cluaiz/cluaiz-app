@@ -1758,9 +1758,9 @@ const BANNED_ARCHIVE_OR_BINARY_REGEX = /\.(zip|tar|gz|tgz|rar|7z|bz2|xz|exe|msi|
                         onDragOver={handleDragOver}
                         onDragLeave={handleDragLeave}
                         onDrop={handleDrop}
-                        className={`relative z-10 flex flex-col w-full max-w-full min-w-0 gap-1.5 bg-[var(--bg-primary)] rounded-[20px] border p-2.5 sm:p-3 max-[300px]:p-1.5 transition-all duration-200 ${isDraggingOver
-                            ? 'border-[var(--accent-color)] ring-2 ring-[var(--accent-color)]/30 bg-[var(--accent-color)]/5'
-                            : 'border-[var(--border-color)] focus-within:border-[rgba(var(--accent-color-rgb),0.1)] focus-within:shadow-[0_0_0_1px_rgba(var(--accent-color-rgb),0.4)]'
+                        className={`relative z-10 flex flex-col w-full max-w-full min-w-0 gap-1.5 bg-[var(--bg-primary)] rounded-[20px] border-[0.5px] p-2.5 sm:p-3 max-[300px]:p-1.5 transition-all duration-200 ${isDraggingOver
+                            ? 'border-[var(--accent-color)] ring-1 ring-[var(--accent-color)]/30 bg-[var(--accent-color)]/5'
+                            : 'border-[var(--border-color)]/20 focus-within:border-[var(--accent-color)]/25 focus-within:shadow-[0_0_0_0.5px_rgba(var(--accent-color-rgb),0.15)]'
                             }`}
                         style={{
                             borderStyle: 'var(--border-style)',
@@ -1788,9 +1788,9 @@ const BANNED_ARCHIVE_OR_BINARY_REGEX = /\.(zip|tar|gz|tgz|rar|7z|bz2|xz|exe|msi|
                         onDragOver={handleDragOver}
                         onDragLeave={handleDragLeave}
                         onDrop={handleDrop}
-                        className={`relative z-10 flex flex-col w-full max-w-full min-w-0 gap-1.5 bg-[var(--bg-primary)] rounded-[20px] border p-2.5 sm:p-3 max-[300px]:p-1.5 transition-all duration-200 ${isDraggingOver
-                            ? 'border-[var(--accent-color)] ring-2 ring-[var(--accent-color)]/30 bg-[var(--accent-color)]/5'
-                            : 'border-[var(--border-color)] focus-within:border-[rgba(var(--accent-color-rgb),0.1)] focus-within:shadow-[0_0_0_1px_rgba(var(--accent-color-rgb),0.4)]'
+                        className={`relative z-10 flex flex-col w-full max-w-full min-w-0 gap-1.5 bg-[var(--bg-primary)] rounded-[20px] border-[0.5px] p-2.5 sm:p-3 max-[300px]:p-1.5 transition-all duration-200 ${isDraggingOver
+                            ? 'border-[var(--accent-color)] ring-1 ring-[var(--accent-color)]/30 bg-[var(--accent-color)]/5'
+                            : 'border-[var(--border-color)]/20 focus-within:border-[var(--accent-color)]/25 focus-within:shadow-[0_0_0_0.5px_rgba(var(--accent-color-rgb),0.15)]'
                             }`}
                         style={{
                             borderStyle: 'var(--border-style)',

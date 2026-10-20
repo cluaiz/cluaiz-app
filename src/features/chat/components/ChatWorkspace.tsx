@@ -512,6 +512,9 @@ main().catch(console.error);`);
                 ) : (
                     <>
                         <div className="flex-1 relative overflow-hidden flex flex-col min-h-0">
+                            {/* Full-width top smoke fade-out mask */}
+                            <div className="absolute top-0 left-0 right-0 h-10 bg-gradient-to-b from-[var(--bg-primary)] via-[var(--bg-primary)]/80 to-transparent pointer-events-none z-10" />
+
                             <div
                                 className="flex-1 overflow-y-auto p-4 font-[family-name:var(--font-family)] text-[13px] leading-relaxed relative z-0 lg:px-14"
                                 style={{ fontFamily: 'var(--font-family)', backgroundImage: chatBackground !== 'none' ? `url("${chatBackground}")` : 'none', backgroundSize: '120px', backgroundBlendMode: 'overlay', backgroundColor: 'var(--bg-primary)' }}
