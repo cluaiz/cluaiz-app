@@ -19,6 +19,26 @@ export const DEFAULT_TTS_SETTINGS: TtsSettings = {
     playbackSpeed: 1, selectedModel: '', selectedVoice: 'default', selectedLanguage: 'auto',
 };
 
+const listeners = new Set<(settings: TtsSettings) => void>();
+
+/** Playback speed can change on cached audio; synthesis identity cannot. */
+export const speechPreferenceKey = (settings: TtsSettings): string => JSON.stringify([
+    settings.selectedModel, settings.selectedVoice, settings.selectedLanguage,
+    settings.voiceMode, settings.referenceSource, settings.coherentInput,
+]);
+
+export function subscribeTtsSettings(listener: (settings: TtsSettings) => void): () => void {
+    listeners.add(listener);
+    const storage = (event: StorageEvent) => {
+        if (event.key === TTS_SETTINGS_KEY || event.key === null) listener(getStoredTtsSettings());
+    };
+    if (typeof window !== 'undefined') window.addEventListener('storage', storage);
+    return () => {
+        listeners.delete(listener);
+        if (typeof window !== 'undefined') window.removeEventListener('storage', storage);
+    };
+}
+
 function modelSettings(raw: unknown): TtsModelSettings {
     const value = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {};
     return {
@@ -54,7 +74,10 @@ export function saveStoredTtsSettings(settings: TtsSettings): boolean {
             ...getStoredTtsSettings().models, ...settings.models,
             [settings.selectedModel || '']: modelSettings(settings),
         } };
-        localStorage.setItem(TTS_SETTINGS_KEY, JSON.stringify(updated));
+        const encoded = JSON.stringify(updated);
+        if (localStorage.getItem(TTS_SETTINGS_KEY) === encoded) return true;
+        localStorage.setItem(TTS_SETTINGS_KEY, encoded);
+        listeners.forEach(listener => listener(getStoredTtsSettings()));
         return true;
     } catch { return false; }
 }

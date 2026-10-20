@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { getStoredTtsSettings, saveStoredTtsSettings, settingsForTtsModel, TTS_SETTINGS_KEY } from '../src/services/audio/ttsSettings';
+import { getStoredTtsSettings, saveStoredTtsSettings, settingsForTtsModel, subscribeTtsSettings, speechPreferenceKey, TTS_SETTINGS_KEY } from '../src/services/audio/ttsSettings';
 import { audioApi } from '../src/api/engine/audio/audio.api';
 
 const values = new Map<string, string>();
@@ -44,4 +44,19 @@ test('old engine voice responses stay compatible without invented languages', as
     t.mock.method(globalThis, 'fetch', async () => Response.json({ data: [{ id: 'one', language: 'hi', default: false }] }));
     assert.deepEqual((await audioApi.voiceCatalog()).capabilities.languages, ['hi']);
     assert.equal((await audioApi.voices()).length, 1);
+});
+
+test('successful same-document saves notify playback; unsubscribe and failed saves do not', t => {
+    values.clear();
+    const seen: string[] = [];
+    const stop = subscribeTtsSettings(settings => seen.push(settings.selectedModel || ''));
+    const settings = { playbackSpeed: 1, selectedModel: 'a', selectedVoice: 'one' };
+    assert.equal(saveStoredTtsSettings(settings), true);
+    assert.deepEqual(seen, ['a']);
+    assert.equal(speechPreferenceKey(settings), speechPreferenceKey({ ...settings, playbackSpeed: 1.5 }));
+    assert.notEqual(speechPreferenceKey(settings), speechPreferenceKey({ ...settings, selectedVoice: 'two' }));
+    stop(); saveStoredTtsSettings({ ...settings, selectedModel: 'b' });
+    assert.deepEqual(seen, ['a']);
+    t.mock.method(localStorage, 'setItem', () => { throw new Error('Blocked storage'); });
+    assert.equal(saveStoredTtsSettings(settings), false);
 });
