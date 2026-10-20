@@ -669,14 +669,14 @@
           "name": "speed",
           "type": "float",
           "req": false,
-          "desc": "ONNX speaking rate 0.25 to 4.0. GGUF supports only 1.0; another value errors instead of being ignored.",
+          "desc": "Speaking rate 0.25 to 4.0. Kokoro/Piper use model duration controls; GGUF and Audio8 use pitch-preserving output tempo at the native sample rate. Other families depend on their runtime.",
           "default": 1.0
         },
         {
           "name": "stream",
           "type": "boolean",
           "req": false,
-          "desc": "SSE response: Kokoro/Piper can send completed audio parts; GGUF speech currently sends only the final buffered result.",
+          "desc": "SSE response: Kokoro/Piper send settled sentence audio; GGUF and Audio8 send newly generated audio parts, then the whole WAV. Closing the consumer stops output; other families depend on their runtime.",
           "default": false
         },
         {
