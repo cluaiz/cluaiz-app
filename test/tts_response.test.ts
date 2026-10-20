@@ -56,6 +56,38 @@ test('speech client preserves binary responses and exposes actual engine errors'
     await assert.rejects(audioApi.speech({ input: 'hello' }), /did not contain audio data/);
 });
 
+test('speech retries only bounded admission failures before audio and preserves cancellation', async t => {
+    let count = 0;
+    const mock = t.mock.method(globalThis, 'fetch', async () => {
+        if (++count < 3) return Response.json({ error: { type: 'speech_busy', message: 'Worker releasing' } },
+            { status: 429, headers: { 'Retry-After': '0' } });
+        return Response.json({ output: { audio_data: `data:audio/wav;base64,${base64}` } });
+    });
+    assert.equal((await audioApi.speech({ input: 'hello' })).type, 'audio/wav');
+    assert.equal(count, 3);
+    count = 0;
+    mock.mock.mockImplementation(async () => {
+        count++;
+        return Response.json({ error: { type: 'speech_busy', message: 'Still busy' } },
+            { status: 429, headers: { 'Retry-After': '0' } });
+    });
+    await assert.rejects(audioApi.speech({ input: 'hello' }), /Still busy/);
+    assert.equal(count, 5, 'bounded initial request plus four retries');
+    count = 0;
+    mock.mock.mockImplementation(async () => {
+        count++;
+        return Response.json({ error: { type: 'quota_error', message: 'Other refusal' } }, { status: 429 });
+    });
+    await assert.rejects(audioApi.speech({ input: 'hello' }), /Other refusal/);
+    assert.equal(count, 1);
+    const controller = new AbortController();
+    mock.mock.mockImplementation(async () => {
+        setTimeout(() => controller.abort(), 10);
+        return Response.json({ error: { type: 'speech_busy', message: 'Wait' } }, { status: 429 });
+    });
+    await assert.rejects(audioApi.speech({ input: 'hello' }, controller.signal), { name: 'AbortError' });
+});
+
 test('speech voice dropdown uses top-level voice and omits the default sentinel', () => {
     useApiStore.setState({ activeEndpoint: { path: '/v1/audio/speech' } as any,
         reqBody: JSON.stringify({ model: 'selected-package', input: 'hello', parameters: { voice_id: 'default' } }) });

@@ -42,6 +42,18 @@ test('streamed speech surfaces the engine error', async t => {
     await assert.rejects(audioApi.speechStream({ input: 'x', speed: 9 }, () => {}), /speed must be between/);
 });
 
+test('a stream failure after delivered audio never replays the request', async t => {
+    let calls = 0, parts = 0;
+    t.mock.method(globalThis, 'fetch', async () => {
+        calls++;
+        return new Response(`data: ${JSON.stringify({ type: 'speech.audio.delta', audio: uri })}\n\n`
+            + `data: ${JSON.stringify({ status: 'error', error: { type: 'speech_busy', message: 'Native failure' } })}\n\n`,
+        { headers: { 'Content-Type': 'text/event-stream' } });
+    });
+    await assert.rejects(audioApi.speechStream({ input: 'hello' }, () => parts++), /Native failure/);
+    assert.equal(parts, 1); assert.equal(calls, 1);
+});
+
 test('one message speaks at a time: a new one cuts off the old, listeners hear when it is quiet', () => {
     const log: string[] = [];
     const turn = (id: string) => ({ id, start: () => log.push(`start ${id}`), stop: () => log.push(`stop ${id}`) });

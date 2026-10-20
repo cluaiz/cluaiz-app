@@ -1,6 +1,7 @@
 import { client } from '../../client';
 import { AUDIO_ENDPOINTS } from './audio.endpoints';
 import { base64ToBlob, sniffMimeType } from '../../../utils/mimeSniffer';
+import { requestSpeech } from './speechRequest';
 import type {
   SpeechRequest,
   TranscriptionResponse,
@@ -25,9 +26,9 @@ export const audioApi = {
     return (await audioApi.voiceCatalog(model)).data;
   },
 
-  voiceCatalog: async (model?: string): Promise<TtsVoiceCatalog> => {
+  voiceCatalog: async (model?: string, signal?: AbortSignal): Promise<TtsVoiceCatalog> => {
     const query = model ? `?model=${encodeURIComponent(model)}` : '';
-    const res = await fetch(`${client.getBaseUrl()}${AUDIO_ENDPOINTS.VOICES}${query}`, { headers: authHeaders(false) });
+    const res = await fetch(`${client.getBaseUrl()}${AUDIO_ENDPOINTS.VOICES}${query}`, { headers: authHeaders(false), signal });
     if (!res.ok) throw new Error(`Voice list failed: ${res.status} ${res.statusText}`);
     const body = await res.json();
     const data: TtsVoice[] = Array.isArray(body?.data) ? body.data : [];
@@ -55,7 +56,7 @@ export const audioApi = {
     onPart: (part: Blob) => void,
     signal?: AbortSignal
   ): Promise<Blob> => {
-    const res = await fetch(`${client.getBaseUrl()}${AUDIO_ENDPOINTS.SPEECH}`, {
+    const res = await requestSpeech(`${client.getBaseUrl()}${AUDIO_ENDPOINTS.SPEECH}`, {
       method: 'POST',
       headers: { ...authHeaders(true), Accept: 'text/event-stream' },
       body: JSON.stringify({ ...payload, stream: true }),
@@ -109,7 +110,7 @@ export const audioApi = {
       headers['Authorization'] = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
     }
 
-    const res = await fetch(url, {
+    const res = await requestSpeech(url, {
       method: 'POST',
       headers,
       body: JSON.stringify(payload),
