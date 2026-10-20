@@ -114,6 +114,44 @@ body {
   pointer-events: none;
 }
 
+/* Waveform streaming sequential pulse beam animation */
+@keyframes cluaiz-wave-beam {
+  0% {
+    opacity: 0.35;
+  }
+  15% {
+    opacity: 1;
+  }
+  30%, 100% {
+    opacity: 0.35;
+  }
+}
+
+.cluaiz-pulse-bar {
+  animation: cluaiz-wave-beam 2.0s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+/* Loading wave animation: sweeps smoothly Left to Right across waveform bars */
+@keyframes cluaiz-loading-sweep {
+  0% {
+    height: 3.5px;
+    opacity: 0.35;
+  }
+  30% {
+    height: 16px;
+    opacity: 1;
+    filter: drop-shadow(0 0 3px var(--accent-color));
+  }
+  60%, 100% {
+    height: 3.5px;
+    opacity: 0.35;
+  }
+}
+
+.cluaiz-loading-bar {
+  animation: cluaiz-loading-sweep 1.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
 /* Custom transitions */
 .transition-all-theme {
   transition: background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),

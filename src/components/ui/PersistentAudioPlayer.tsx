@@ -1,15 +1,19 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Play, Pause, Loader2, X, Radio } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { PlayIcon, PauseIcon } from '@animateicons/react/lucide';
 import { audioApi } from '../../api/engine/audio/audio.api';
 import { speechTurns } from '../../services/audio/speechTurns';
 import { useSpeechHighlightStore } from '../../store/chat/useSpeechHighlightStore';
 import { toast } from './toast';
 import {
-    AudioPlayerPopover,
     getStoredTtsSettings,
+    saveStoredTtsSettings,
     TtsSettings
 } from './AudioControlSettingsModal';
+
+const SPEED_STEPS = [0.75, 1.0, 1.25, 1.5, 2.0];
+
 
 /** Whole-message audio already made, for replay with seeking (message id → WAV) */
 const fullAudioCache = new Map<string, { url: string; textLength: number }>();
@@ -38,9 +42,10 @@ const speakable = (markdown: string): string =>
         .replace(/^[ \t]*>\s*/gm, '')
         // Remove bullet markers at start of lines (* item, - item, + item)
         .replace(/^[ \t]*[-*+]\s+/gm, '')
-        // Remove bold / italic formatting
+        // Remove bold / italic formatting without destroying snake_case identifiers like execute_code
         .replace(/(\*\*|__)(.*?)\1/g, '$2')
-        .replace(/[*_~]{1,3}(?=\S)|(?<=\S)[*_~]{1,3}/g, '')
+        .replace(/[*~]{1,3}(?=\S)|(?<=\S)[*~]{1,3}/g, '')
+        .replace(/(?<=^|\s)_(?=\S)(.*?)(?<=\S)_(?=\s|$|[.,!?;:।])/g, '$1')
         // Replace multiple dashes or em-dashes with a natural pause
         .replace(/-{2,}|[—–]/g, ', ')
         // Collapse whitespace
@@ -97,6 +102,21 @@ function calculateActiveWordIndex(
     return wordCount - 1;
 }
 
+
+
+/**
+ * Dynamic speech frequency waveform bars (58 dense bars).
+ * Organic vocal profile with natural speech harmonic heights (5px to 26px).
+ */
+const DENSE_WAVE_BARS = [
+    6, 10, 14, 18, 12, 16, 22, 17, 23, 14,
+    19, 25, 18, 11, 16, 22, 19, 14, 22, 26,
+    19, 15, 23, 25, 18, 13, 20, 26, 21, 15,
+    23, 17, 12, 19, 25, 18, 13, 21, 19, 15,
+    23, 18, 12, 16, 22, 16, 19, 14, 18, 12,
+    16, 10, 14, 18, 13, 9, 7, 5,
+];
+
 export interface PersistentAudioDeckProps {
     messageId: string;
     text: string;
@@ -124,11 +144,24 @@ export const PersistentAudioDeck: React.FC<PersistentAudioDeckProps> = ({
     className = '',
 }) => {
     const [ttsSettings, setTtsSettings] = useState<TtsSettings>(getStoredTtsSettings);
-    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [status, setStatus] = useState<Status>('idle');
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
+    const [cumulativeElapsed, setCumulativeElapsed] = useState(0);
+    const [totalSynthesizedDuration, setTotalSynthesizedDuration] = useState(0);
+    const [isLiveStream, setIsLiveStream] = useState(true);
+    const [isDragging, setIsDragging] = useState(false);
+    const [hoverFraction, setHoverFraction] = useState<number | null>(null);
     const [error, setError] = useState<string | null>(null);
+
+    const waveformRef = useRef<HTMLDivElement>(null);
+    const completedDurationRef = useRef(0);
+    const partDurationsRef = useRef<number[]>([]);
+
+    const [freqLevels, setFreqLevels] = useState<number[]>(() => new Array(DENSE_WAVE_BARS.length).fill(0));
+    const audioCtxRef = useRef<AudioContext | null>(null);
+    const analyserRef = useRef<AnalyserNode | null>(null);
+    const animFrameRef = useRef<number | null>(null);
 
     const settingsRef = useRef(ttsSettings);
     settingsRef.current = ttsSettings;
@@ -150,7 +183,6 @@ export const PersistentAudioDeck: React.FC<PersistentAudioDeckProps> = ({
     const pendingRef = useRef(0); // sentences being synthesized
     const chainRef = useRef<Promise<void>>(Promise.resolve());
     const abortRef = useRef<AbortController | null>(null);
-    const progressBarRef = useRef<HTMLDivElement>(null);
 
     const formatTime = (secs: number) => {
         if (!secs || isNaN(secs) || secs < 0) return '00:00';
@@ -164,7 +196,8 @@ export const PersistentAudioDeck: React.FC<PersistentAudioDeckProps> = ({
         return {
             input,
             model: s.selectedModel || undefined,
-            voice: s.selectedVoice && s.selectedVoice !== 'default' ? s.selectedVoice : undefined,
+            voice: s.voiceMode === 'reference_source' && s.referenceSource?.trim() ? s.referenceSource.trim() : (s.selectedVoice && s.selectedVoice !== 'default' ? s.selectedVoice : undefined),
+            language: s.selectedLanguage && s.selectedLanguage !== 'auto' ? s.selectedLanguage : undefined,
             speed: s.playbackSpeed || 1.0,
         };
     };
@@ -192,10 +225,20 @@ export const PersistentAudioDeck: React.FC<PersistentAudioDeckProps> = ({
         sentenceIndexRef.current = 0;
         pendingRef.current = 0;
         chainRef.current = Promise.resolve();
+        completedDurationRef.current = 0;
+        partDurationsRef.current = [];
+        setCumulativeElapsed(0);
+        setTotalSynthesizedDuration(0);
+        setIsLiveStream(true);
         setStatus('idle');
         setCurrentTime(0);
         setDuration(0);
         setError(null);
+        if (animFrameRef.current) {
+            cancelAnimationFrame(animFrameRef.current);
+            animFrameRef.current = null;
+        }
+        setFreqLevels(new Array(DENSE_WAVE_BARS.length).fill(0));
         useSpeechHighlightStore.getState().clear(messageId);
     }, [messageId]);
 
@@ -207,9 +250,38 @@ export const PersistentAudioDeck: React.FC<PersistentAudioDeckProps> = ({
         speechTurns.release(messageId);
     };
 
+    const connectAnalyser = useCallback((audio: HTMLAudioElement) => {
+        try {
+            if (!audioCtxRef.current) {
+                const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+                if (AudioCtx) {
+                    audioCtxRef.current = new AudioCtx();
+                    const analyser = audioCtxRef.current.createAnalyser();
+                    analyser.fftSize = 128;
+                    analyser.smoothingTimeConstant = 0.65;
+                    analyser.minDecibels = -80;
+                    analyser.maxDecibels = -25;
+                    analyserRef.current = analyser;
+                    analyser.connect(audioCtxRef.current.destination);
+                }
+            }
+            if (audioCtxRef.current && analyserRef.current) {
+                if (audioCtxRef.current.state === 'suspended') {
+                    audioCtxRef.current.resume().catch(() => {});
+                }
+                const source = audioCtxRef.current.createMediaElementSource(audio);
+                source.connect(analyserRef.current);
+            }
+        } catch {
+            // Gracefully ignore if source is already connected
+        }
+    }, []);
+
     const resumeAudio = (audio: HTMLAudioElement) => {
         setStatus('playing');
+        audio.playbackRate = settingsRef.current.playbackSpeed || 1.0;
         useSpeechHighlightStore.getState().setPlaying(true);
+        connectAnalyser(audio);
         audio.play().catch((cause) => {
             if (audioRef.current === audio && !pausedRef.current && speechTurns.isSpeaking(messageId)) {
                 fail(cause);
@@ -224,11 +296,95 @@ export const PersistentAudioDeck: React.FC<PersistentAudioDeckProps> = ({
         producingRef.current = false;
         liveRef.current = false;
         pausedRef.current = true;
+        completedDurationRef.current = 0;
+        setCumulativeElapsed(0);
         setStatus('paused');
         setCurrentTime(0);
         useSpeechHighlightStore.getState().clear(messageId);
         speechTurns.release(messageId);
     };
+
+    useEffect(() => {
+        if (status !== 'playing') {
+            if (animFrameRef.current) {
+                cancelAnimationFrame(animFrameRef.current);
+                animFrameRef.current = null;
+            }
+            return;
+        }
+
+        const analyser = analyserRef.current;
+        const binCount = analyser ? analyser.frequencyBinCount : 64;
+        const dataArray = new Uint8Array(binCount);
+        const barCount = DENSE_WAVE_BARS.length;
+
+        const updateFrequencies = () => {
+            let hasSignal = false;
+            if (analyser) {
+                analyser.getByteFrequencyData(dataArray);
+                for (let j = 0; j < binCount; j++) {
+                    if (dataArray[j] > 4) {
+                        hasSignal = true;
+                        break;
+                    }
+                }
+            }
+
+            if (hasSignal && analyser) {
+                const newLevels = new Array(barCount);
+                // Speech formants reside primarily in bins 0-16 (up to ~6 kHz)
+                const speechBins = Math.min(binCount, 16);
+                let totalSpeechPower = 0;
+                for (let j = 0; j < speechBins; j++) {
+                    totalSpeechPower += dataArray[j];
+                }
+                const rawAvg = totalSpeechPower / (speechBins * 255);
+                // Dynamic voice gate: clean drop-off to 0 during silence / pauses between words
+                const voiceGate = Math.max(0, (rawAvg - 0.05) / 0.95);
+
+                for (let i = 0; i < barCount; i++) {
+                    const ratio = i / (barCount - 1); // 0.0 (left) to 1.0 (right)
+                    // Map bars across speech formants so all 58 bars are actively engaged
+                    const targetBin = Math.min(speechBins - 1, Math.round(Math.pow(ratio, 0.9) * (speechBins - 1)));
+                    
+                    // Subtract noise floor so quiet pauses between syllables drop cleanly to 0
+                    const rawVal = Math.max(0, (dataArray[targetBin] - 15) / 240);
+
+                    // Speech formant pre-emphasis boost: higher speech harmonics have lower raw energy
+                    const formantBoost = 1.0 + Math.pow(ratio, 0.75) * 1.5;
+                    const barFreq = Math.min(1.0, rawVal * formantBoost);
+
+                    // Tone and rhythm modulation: ensures bars across the spectrum follow voice inflection without false floor
+                    const barProfile = DENSE_WAVE_BARS[i] / 24;
+                    const toneComponent = voiceGate * (0.3 + 0.7 * barProfile);
+
+                    // Directly match voice: jumps on words, drops down to 0 on pauses
+                    const level = Math.max(barFreq, toneComponent * 0.85);
+                    newLevels[i] = Math.max(0, Math.min(1.0, level));
+                }
+                setFreqLevels(newLevels);
+            } else {
+                // Organic vocal frequency envelope modulation (propagating strictly Left to Right)
+                const t = performance.now() * 0.007;
+                const newLevels = new Array(barCount);
+                for (let i = 0; i < barCount; i++) {
+                    const wave = Math.sin(t * 1.8 - i * 0.32) * 0.35 + Math.cos(t * 2.4 - i * 0.22) * 0.25 + 0.35;
+                    newLevels[i] = Math.max(0.06, Math.min(0.95, wave));
+                }
+                setFreqLevels(newLevels);
+            }
+            animFrameRef.current = requestAnimationFrame(updateFrequencies);
+        };
+
+        animFrameRef.current = requestAnimationFrame(updateFrequencies);
+
+        return () => {
+            if (animFrameRef.current) {
+                cancelAnimationFrame(animFrameRef.current);
+                animFrameRef.current = null;
+            }
+        };
+    }, [status]);
 
     const syncProgress = useCallback(() => {
         const audio = audioRef.current;
@@ -238,12 +394,39 @@ export const PersistentAudioDeck: React.FC<PersistentAudioDeckProps> = ({
         const cur = audio.currentTime;
         const dur = audio.duration;
         setCurrentTime(cur);
+        setCumulativeElapsed(completedDurationRef.current + cur);
 
         if (isFinite(dur) && dur > 0 && part.words.length > 0) {
             setDuration(dur);
             const progress = Math.min(1, Math.max(0, cur / dur));
             const wordIdx = calculateActiveWordIndex(progress, part.wordWeights, part.totalWeight, part.words.length);
             useSpeechHighlightStore.getState().updateWordProgress(wordIdx, part.words[wordIdx]);
+        }
+    }, []);
+
+    const checkIfAllDone = useCallback(() => {
+        if (
+            producedAllRef.current &&
+            pendingRef.current === 0 &&
+            !streamingRef.current
+        ) {
+            const count = cachedPartsRef.current.length;
+            if (count === 0) return;
+            let allKnown = true;
+            let sum = 0;
+            for (let i = 0; i < count; i++) {
+                const d = partDurationsRef.current[i];
+                if (d && d > 0) {
+                    sum += d;
+                } else {
+                    allKnown = false;
+                    break;
+                }
+            }
+            if (allKnown && sum > 0) {
+                setTotalSynthesizedDuration(sum);
+                setIsLiveStream(false);
+            }
         }
     }, []);
 
@@ -261,7 +444,11 @@ export const PersistentAudioDeck: React.FC<PersistentAudioDeckProps> = ({
 
         audio.onloadedmetadata = () => {
             if (audioRef.current !== audio) return;
-            if (isFinite(audio.duration)) setDuration(audio.duration);
+            if (isFinite(audio.duration) && audio.duration > 0) {
+                partDurationsRef.current[index] = audio.duration;
+                setDuration(audio.duration);
+                checkIfAllDone();
+            }
             syncProgress();
         };
 
@@ -271,6 +458,9 @@ export const PersistentAudioDeck: React.FC<PersistentAudioDeckProps> = ({
 
         const next = () => {
             if (audioRef.current !== audio) return;
+            if (isFinite(audio.duration) && audio.duration > 0) {
+                completedDurationRef.current += audio.duration;
+            }
             audioRef.current = null;
             currentPartRef.current = null;
             playbackIndexRef.current = index + 1;
@@ -311,8 +501,9 @@ export const PersistentAudioDeck: React.FC<PersistentAudioDeckProps> = ({
         wordWeights: number[],
         totalWeight: number
     ) => {
+        const url = URL.createObjectURL(blob);
         cachedPartsRef.current.push({
-            url: URL.createObjectURL(blob),
+            url,
             ownsUrl: true,
             rawSentence,
             sentenceIndex,
@@ -320,6 +511,17 @@ export const PersistentAudioDeck: React.FC<PersistentAudioDeckProps> = ({
             wordWeights,
             totalWeight,
         });
+
+        // Immediately probe metadata for this chunk so totalDuration is ready as soon as all chunks finish
+        const probeAudio = new Audio(url);
+        probeAudio.preload = 'metadata';
+        probeAudio.onloadedmetadata = () => {
+            if (isFinite(probeAudio.duration) && probeAudio.duration > 0) {
+                partDurationsRef.current[sentenceIndex] = probeAudio.duration;
+                checkIfAllDone();
+            }
+        };
+
         playNextPart();
     };
 
@@ -340,8 +542,8 @@ export const PersistentAudioDeck: React.FC<PersistentAudioDeckProps> = ({
             }
 
             let cut = 0;
-            // Find the first sentence ending punctuation or newline
-            const match = rest.match(/[.!?।;:]+(?=\s|$)|\n+/);
+            // Find the first sentence ending punctuation or newline (ignoring list numbers like 1. or 2.)
+            const match = rest.match(/(?<!\b\d)[.!?।;:]+(?=\s|$)|\n+/);
             if (match && match.index !== undefined) {
                 const candidateEnd = match.index + match[0].length;
                 // Guard: check if candidate is inside an unclosed code block
@@ -392,7 +594,10 @@ export const PersistentAudioDeck: React.FC<PersistentAudioDeckProps> = ({
                     .finally(() => {
                         if (!isCurrent()) return;
                         pendingRef.current -= 1;
-                        if (producedAllRef.current && pendingRef.current === 0) producingRef.current = false;
+                        if (producedAllRef.current && pendingRef.current === 0) {
+                            producingRef.current = false;
+                            checkIfAllDone();
+                        }
                         playNextPart();
                     });
             }
@@ -400,7 +605,10 @@ export const PersistentAudioDeck: React.FC<PersistentAudioDeckProps> = ({
         if (final) {
             producedAllRef.current = true;
             // End of input is not cancellation: queued requests still need to run.
-            if (pendingRef.current === 0) producingRef.current = false;
+            if (pendingRef.current === 0) {
+                producingRef.current = false;
+                checkIfAllDone();
+            }
             playNextPart();
         }
     };
@@ -410,19 +618,21 @@ export const PersistentAudioDeck: React.FC<PersistentAudioDeckProps> = ({
         if (producingRef.current) return;
         abortRef.current = new AbortController();
         setError(null);
+        setIsLiveStream(true);
         liveRef.current = true;
         producingRef.current = true;
         producedAllRef.current = false;
         spokenUpToRef.current = 0;
         sentenceIndexRef.current = 0;
         playbackIndexRef.current = 0;
+        setStatus('loading');
         takeSentences(!streamingRef.current);
     };
 
     /** A finished message: synthesize queued sentences with live word tracking. */
     const startFull = () => {
         // If already completely synthesized and cached: REPLAY INSTANTLY!
-        if (cachedPartsRef.current.length > 0 && producedAllRef.current) {
+        if (cachedPartsRef.current.length > 0 && producedAllRef.current && pendingRef.current === 0) {
             playbackIndexRef.current = 0;
             playNextPart();
             return;
@@ -430,6 +640,7 @@ export const PersistentAudioDeck: React.FC<PersistentAudioDeckProps> = ({
         if (producingRef.current) return;
         abortRef.current = new AbortController();
         setError(null);
+        setIsLiveStream(true);
         producingRef.current = true;
         producedAllRef.current = false;
         spokenUpToRef.current = 0;
@@ -518,117 +729,209 @@ export const PersistentAudioDeck: React.FC<PersistentAudioDeckProps> = ({
         speechTurns.release(messageId);
     }, [messageId, stopAll]);
 
-    const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
-        e.stopPropagation();
-        const audio = audioRef.current;
-        const rect = progressBarRef.current?.getBoundingClientRect();
-        if (!audio || !rect || !duration) return;
-        const fraction = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-        audio.currentTime = fraction * duration;
-        setCurrentTime(audio.currentTime);
-        syncProgress();
-    };
 
-    const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
-    const following = isStreamingAi && liveRef.current;
-    const statusLabel =
-        status === 'loading' ? 'Preparing speech…'
-                : following && status === 'playing' ? 'Speaking while the answer is written…'
-                    : null;
+    const executeSeek = useCallback((fraction: number) => {
+        const targetTotal = totalSynthesizedDuration > 0 ? totalSynthesizedDuration : (duration > 0 ? duration : 0);
+        if (targetTotal <= 0) return;
+
+        // If playing single continuous audio
+        if (totalSynthesizedDuration <= 0 && duration > 0 && audioRef.current) {
+            audioRef.current.currentTime = fraction * duration;
+            setCurrentTime(audioRef.current.currentTime);
+            setCumulativeElapsed(audioRef.current.currentTime);
+            syncProgress();
+            return;
+        }
+
+        // If seeking across synthesized chunks
+        if (cachedPartsRef.current.length > 0) {
+            const targetTime = fraction * targetTotal;
+            let accumulated = 0;
+            let targetIdx = 0;
+            let timeInPart = 0;
+
+            for (let i = 0; i < cachedPartsRef.current.length; i++) {
+                const partDur = partDurationsRef.current[i] || 2.0;
+                if (targetTime < accumulated + partDur || i === cachedPartsRef.current.length - 1) {
+                    targetIdx = i;
+                    timeInPart = Math.max(0, targetTime - accumulated);
+                    break;
+                }
+                accumulated += partDur;
+            }
+
+            completedDurationRef.current = accumulated;
+            setCumulativeElapsed(targetTime);
+
+            if (playbackIndexRef.current === targetIdx && audioRef.current) {
+                audioRef.current.currentTime = timeInPart;
+                setCurrentTime(timeInPart);
+            } else {
+                audioRef.current?.pause();
+                audioRef.current = null;
+                currentPartRef.current = null;
+                playbackIndexRef.current = targetIdx;
+                const part = cachedPartsRef.current[targetIdx];
+                if (part) {
+                    playFile(part, targetIdx);
+                    setTimeout(() => {
+                        if (audioRef.current) {
+                            audioRef.current.currentTime = timeInPart;
+                            setCurrentTime(timeInPart);
+                        }
+                    }, 50);
+                }
+            }
+        }
+    }, [totalSynthesizedDuration, duration, syncProgress]);
+
+    const handleSeekFromClientX = useCallback((clientX: number) => {
+        const rect = waveformRef.current?.getBoundingClientRect();
+        if (!rect || rect.width <= 0) return;
+        const fraction = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+        executeSeek(fraction);
+    }, [executeSeek]);
+
+    useEffect(() => {
+        if (!isDragging) return;
+        const onMouseMove = (e: MouseEvent) => {
+            handleSeekFromClientX(e.clientX);
+        };
+        const onMouseUp = () => {
+            setIsDragging(false);
+        };
+        window.addEventListener('mousemove', onMouseMove);
+        window.addEventListener('mouseup', onMouseUp);
+        return () => {
+            window.removeEventListener('mousemove', onMouseMove);
+            window.removeEventListener('mouseup', onMouseUp);
+        };
+    }, [isDragging, handleSeekFromClientX]);
+
+    const effectiveTotalDuration = totalSynthesizedDuration > 0 ? totalSynthesizedDuration : (!isLiveStream && duration > 0 ? duration : 0);
+    const progressPercent = effectiveTotalDuration > 0 ? Math.min(100, Math.max(0, ((cumulativeElapsed || currentTime) / effectiveTotalDuration) * 100)) : 0;
 
     return (
-        <div
-            className={`relative w-full max-w-full font-[family-name:var(--font-family)] select-none ${className}`}
-            onContextMenu={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setIsSettingsOpen(true);
-            }}
-        >
-            <AudioPlayerPopover
-                isOpen={isSettingsOpen}
-                onClose={() => setIsSettingsOpen(false)}
-                onSettingsChange={(newSettings) => setTtsSettings(newSettings)}
-            />
+        <div className={`relative w-full max-w-full font-[family-name:var(--font-family)] select-none ${className}`}>
 
-            <div className="flex items-center justify-between gap-2.5 px-3 py-1.5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-color)]/60 shadow-sm transition-all duration-150">
+            <div className="relative flex items-center justify-between gap-3 px-3.5 py-2 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-color)]/70 shadow-lg backdrop-blur-md transition-all duration-200 overflow-hidden">
                 <button
                     type="button"
                     onClick={togglePlay}
-                    className="w-6 h-6 rounded-full flex items-center justify-center bg-[var(--accent-color)] text-[var(--accent-contrast)] hover:opacity-90 transition-transform active:scale-95 cursor-pointer flex-shrink-0"
+                    className="flex items-center justify-center text-[var(--accent-color)] hover:text-[var(--text-primary)] transition-colors active:scale-90 cursor-pointer flex-shrink-0 z-10 p-1"
                     title={status === 'playing' ? 'Pause' : 'Play'}
                 >
                     {status === 'loading' ? (
-                        <Loader2 className="w-3 h-3 animate-spin" />
+                        <Loader2 className="w-4 h-4 animate-spin text-[var(--accent-color)]" />
                     ) : status === 'playing' ? (
-                        <Pause className="w-3 h-3 fill-current" />
+                        <PauseIcon size={18} isAnimated />
                     ) : (
-                        <Play className="w-3 h-3 fill-current ml-0.5" />
+                        <PlayIcon size={18} isAnimated className="ml-0.5" />
                     )}
                 </button>
 
-                {statusLabel ? (
-                    <div className="flex items-center gap-2 flex-1 min-w-0">
-                        <div className="flex items-center gap-0.5 h-3.5">
-                            {[0.4, 0.8, 1.0, 0.6, 0.3].map((scale, i) => (
-                                <motion.span
-                                    key={i}
-                                    className="w-[2px] bg-[var(--accent-color)] rounded-full"
-                                    animate={status === 'playing' ? { height: [`${4 * scale}px`, `${14 * scale}px`, `${4 * scale}px`] } : { height: '4px' }}
-                                    transition={{ repeat: Infinity, duration: 0.6, delay: i * 0.1 }}
-                                />
-                            ))}
-                        </div>
-                        <span className="text-[10px] font-semibold text-[var(--accent-color)] flex items-center gap-1 truncate">
-                            <Radio className={`w-3 h-3 shrink-0 ${status === 'playing' ? 'animate-pulse' : 'text-[var(--text-muted)]'}`} />
-                            {statusLabel}
-                        </span>
-                    </div>
-                ) : (
-                    <div className="flex items-center gap-2 flex-1 min-w-0">
-                        <div
-                            ref={progressBarRef}
-                            onClick={handleSeek}
-                            className="flex-1 h-1.5 bg-[var(--bg-tertiary)] hover:h-2 rounded-full cursor-pointer relative overflow-hidden transition-all"
-                        >
-                            <div
-                                className="h-full bg-[var(--accent-color)] rounded-full transition-all duration-100"
-                                style={{ width: `${progressPercent}%` }}
-                            />
-                        </div>
-                        <span className="text-[10px] font-mono font-medium text-[var(--text-muted)] whitespace-nowrap">
-                            {formatTime(currentTime)} / {formatTime(duration)}
-                        </span>
-                    </div>
-                )}
+                {/* Center Audio Track Area: Dense Waveform Scrubber */}
+                <div
+                    ref={waveformRef}
+                    onClick={(e) => {
+                        if (!isLiveStream) handleSeekFromClientX(e.clientX);
+                    }}
+                    onMouseDown={(e) => {
+                        if (!isLiveStream) {
+                            setIsDragging(true);
+                            handleSeekFromClientX(e.clientX);
+                        }
+                    }}
+                    onMouseMove={(e) => {
+                        if (!isLiveStream && waveformRef.current) {
+                            const rect = waveformRef.current.getBoundingClientRect();
+                            if (rect.width > 0) {
+                                setHoverFraction(Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width)));
+                            }
+                        }
+                    }}
+                    onMouseLeave={() => {
+                        setHoverFraction(null);
+                    }}
+                    className={`flex-1 relative flex items-center justify-between gap-[2px] h-7 px-1 mx-2 select-none ${
+                        isLiveStream ? 'cursor-default' : 'cursor-pointer group/wave'
+                    }`}
+                    title={isLiveStream ? 'Streaming audio…' : 'Click or drag across waveform to seek'}
+                >
+                    {DENSE_WAVE_BARS.map((baseHeight, idx) => {
+                        const barRatio = (idx + 0.5) / DENSE_WAVE_BARS.length;
+                        const isPlayed = !isLiveStream && barRatio <= (progressPercent / 100);
+                        const isHovered = !isLiveStream && hoverFraction !== null && barRatio <= hoverFraction;
+                        const isPlaying = status === 'playing';
+                        const isLoading = status === 'loading';
 
-                <div className="flex items-center gap-1.5 flex-shrink-0">
+                        const freq = isPlaying ? (freqLevels[idx] ?? 0) : 0;
+                        const currentHeight = isPlaying
+                            ? Math.round(3.5 + freq * (baseHeight - 3.5))
+                            : 3.5; // Visible 3.5px resting dot height when paused
+
+                        // Strictly Left-to-Right sweep timing: idx 0 starts first, idx 57 last
+                        const sweepDelay = `${(idx / DENSE_WAVE_BARS.length) * (isLoading ? 1.5 : 2.0)}s`;
+
+                        return (
+                            <span
+                                key={idx}
+                                style={{
+                                    height: isLoading ? undefined : `${currentHeight}px`,
+                                    animationDelay: (isLoading || isLiveStream) ? sweepDelay : undefined,
+                                }}
+                                className={`w-[2.5px] rounded-full transition-all duration-75 flex-shrink-0 ${
+                                    isLoading
+                                        ? 'cluaiz-loading-bar bg-[var(--accent-color)]/80'
+                                        : isLiveStream
+                                        ? isPlaying
+                                            ? 'cluaiz-pulse-bar bg-[var(--accent-color)]/80'
+                                            : 'bg-[var(--accent-color)]/40 opacity-40'
+                                        : isPlayed
+                                        ? 'bg-[var(--accent-color)]/80 shadow-[0_0_4px_var(--accent-color)]/25'
+                                        : isHovered
+                                        ? 'bg-[var(--accent-color)]/50'
+                                        : 'bg-[var(--text-muted)]/55'
+                                }`}
+                            />
+                        );
+                    })}
+                </div>
+
+                {/* Right controls: Timer, Speed pill, Close X */}
+                <div className="flex items-center gap-2 flex-shrink-0 z-10">
+                    {isLiveStream ? (
+                        /* Live timer: normal clean text without glowing badge */
+                        <span className="text-[10.5px] font-mono font-medium text-[var(--text-muted)] whitespace-nowrap">
+                            {status === 'loading' ? 'Preparing…' : formatTime(cumulativeElapsed || currentTime)}
+                        </span>
+                    ) : (
+                        /* Completed timer: currentTime / totalDuration */
+                        <span className="text-[10.5px] font-mono font-medium text-[var(--text-muted)] whitespace-nowrap">
+                            {formatTime(cumulativeElapsed || currentTime)} / {formatTime(effectiveTotalDuration)}
+                        </span>
+                    )}
+
+                    {/* Compact Click-to-Cycle Speed Pill */}
                     <button
                         type="button"
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            setIsSettingsOpen(true);
+                        onClick={() => {
+                            const current = ttsSettings.playbackSpeed || 1.0;
+                            const idx = SPEED_STEPS.indexOf(current);
+                            const nextSpeed = SPEED_STEPS[(idx + 1) % SPEED_STEPS.length];
+                            const updated = { ...ttsSettings, playbackSpeed: nextSpeed };
+                            setTtsSettings(updated);
+                            saveStoredTtsSettings(updated);
+                            if (audioRef.current) {
+                                audioRef.current.playbackRate = nextSpeed;
+                            }
                         }}
-                        className="px-1.5 py-0.5 text-[9.5px] font-semibold rounded bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--border-color)]/30 transition-colors cursor-pointer"
-                        title="Speech settings"
+                        title="Click to cycle playback speed"
+                        className="px-1.5 py-0.5 text-[10.5px] font-mono font-semibold rounded text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] active:scale-95 transition-all select-none cursor-pointer"
                     >
-                        {ttsSettings.playbackSpeed}x
+                        {(ttsSettings.playbackSpeed || 1.0)}x
                     </button>
-                    {onClose && (
-                        <button
-                            type="button"
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                stopAll();
-                                speechTurns.release(messageId);
-                                onClose();
-                            }}
-                            className="p-1 rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-colors cursor-pointer"
-                            title="Stop and hide"
-                        >
-                            <X className="w-3 h-3" />
-                        </button>
-                    )}
+
                 </div>
             </div>
             {error && <p role="alert" className="mt-1 text-xs text-[var(--text-primary)]">{error} Press Play to retry.</p>}
