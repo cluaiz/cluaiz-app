@@ -1,12 +1,12 @@
 import React from 'react';
-import { CheckCheck, ChevronDown, ChevronUp, FileText, FileCode, Image as ImageIcon, Film, Music, Volume2, VolumeX, Loader2 } from 'lucide-react';
+import { Volume2Icon, VolumeXIcon } from '@animateicons/react/lucide';
+import { CheckCheck, ChevronDown, ChevronUp, FileText, FileCode, Image as ImageIcon, Film, Music, Loader2 } from 'lucide-react';
 import { LottieEmoji } from '../../../components/ui/context-menu/LottieEmoji';
 import { EmojiMeta } from '../../../assets/EmojiMeta';
 import { ContextChip } from '../../../components/ui/ContextChip';
 import { extractBaseName } from '../../../utils/filePath';
 import { MarkdownRenderer } from '../../../components/ui/MarkdownRenderer';
 import { PersistentAudioDeck } from '../../../components/ui/PersistentAudioPlayer';
-import { AudioPlayerPopover } from '../../../components/ui/AudioControlSettingsModal';
 import { useVoiceSessionStore } from '../../../store/chat/useVoiceSessionStore';
 
 function formatBytes(bytes?: number | null): string {
@@ -287,8 +287,6 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
     const isThinking = Boolean(msg.thinking && !msg.text);
     const [isThinkingOpen, setIsThinkingOpen] = React.useState(isThinking);
     const [isAudioDeckOpen, setIsAudioDeckOpen] = React.useState(false);
-
-    const [isAudioSettingsOpen, setIsAudioSettingsOpen] = React.useState(false);
     const thinkingScrollRef = React.useRef<HTMLDivElement>(null);
 
 
@@ -639,19 +637,6 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
                         </div>
                     ) : null}
 
-                    {/* Dedicated Zero-Jitter Audio Player Deck */}
-                    {msg.text && isAudioDeckOpen && (
-                        <div className="w-full mt-2">
-                            <PersistentAudioDeck
-                                messageId={msg.id || `${msg.time || ''}-${msg.text.slice(0, 16)}`}
-                                text={msg.text}
-                                isStreamingAi={isStreaming}
-                                autoStart
-                                onClose={() => setIsAudioDeckOpen(false)}
-                            />
-                        </div>
-                    )}
-
                     {/* 5. Waiting indicator when streaming/generating and no text/tools/thinking yet */}
                     {isStreaming && !msg.text && !msg.toolCalls?.some(tc => tc.status === 'running') && !msg.thinking && !msg.postToolThinking && !msg.telemetry && (
                         <div className="flex items-center gap-1.5 py-2 px-1 text-[var(--text-muted)]">
@@ -681,33 +666,39 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
 
                         <div className="flex items-center gap-2 ml-auto" style={{ fontSize: 'inherit' }}>
                             {msg.text && (
-                                <div className="relative flex items-center">
-                                    <button
-                                        type="button"
-                                        onClick={() => setIsAudioDeckOpen(prev => !prev)}
-                                        onContextMenu={(e) => {
-                                            e.preventDefault();
-                                            e.stopPropagation();
-                                            setIsAudioSettingsOpen(true);
-                                        }}
-                                        className={`p-1 rounded-md transition-colors cursor-pointer ${
-                                            isAudioDeckOpen
-                                                ? 'text-[var(--accent-color)] bg-[var(--bg-tertiary)]'
-                                                : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]'
-                                        }`}
-                                        title={isAudioDeckOpen ? 'Close audio player' : 'Read aloud (Right-click for settings)'}
-                                    >
-                                        <Volume2 className="w-3.5 h-3.5" />
-                                    </button>
-                                    <AudioPlayerPopover
-                                        isOpen={isAudioSettingsOpen}
-                                        onClose={() => setIsAudioSettingsOpen(false)}
-                                    />
-                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setIsAudioDeckOpen(prev => !prev)}
+                                    className={`p-1 rounded-md transition-colors cursor-pointer flex items-center justify-center ${
+                                        isAudioDeckOpen
+                                            ? 'text-[var(--accent-color)] bg-[var(--bg-tertiary)]'
+                                            : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]'
+                                    }`}
+                                    title={isAudioDeckOpen ? 'Close audio player' : 'Read aloud'}
+                                >
+                                    {isAudioDeckOpen ? (
+                                        <VolumeXIcon size={14} isAnimated />
+                                    ) : (
+                                        <Volume2Icon size={14} isAnimated />
+                                    )}
+                                </button>
                             )}
                             <span>{formatDisplayTime(msg.time)}</span>
                         </div>
                     </div>
+
+                    {/* Dedicated Zero-Jitter Audio Player Deck (Positioned below TPS/TTFT/Tokens telemetry) */}
+                    {msg.text && isAudioDeckOpen && (
+                        <div className="w-full mt-2">
+                            <PersistentAudioDeck
+                                messageId={msg.id || `${msg.time || ''}-${msg.text.slice(0, 16)}`}
+                                text={msg.text}
+                                isStreamingAi={isStreaming}
+                                autoStart
+                                onClose={() => setIsAudioDeckOpen(false)}
+                            />
+                        </div>
+                    )}
 
                     {/* 7. Reactions for AI */}
                     {msg.reactions && msg.reactions.length > 0 && (

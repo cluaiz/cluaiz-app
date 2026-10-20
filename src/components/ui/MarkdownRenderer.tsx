@@ -720,7 +720,9 @@ const MarkdownRendererComponent: React.FC<MarkdownRendererProps> = ({
                     th({ children }: any) {
                         return (
                             <th className="px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)] whitespace-nowrap border-r border-[var(--border-color)] last:border-r-0 select-none bg-[var(--bg-secondary)]/50">
-                                {children}
+                                <SpeechWordHighlighter messageId={messageId}>
+                                    {children}
+                                </SpeechWordHighlighter>
                             </th>
                         );
                     },
@@ -728,7 +730,9 @@ const MarkdownRendererComponent: React.FC<MarkdownRendererProps> = ({
                         return (
                             <td className="px-4 py-2.5 text-xs font-mono text-[var(--text-primary)] align-top border-r border-[var(--border-color)] last:border-r-0">
                                 <div className="w-max max-w-[350px] whitespace-normal break-words leading-relaxed">
-                                    {children}
+                                    <SpeechWordHighlighter messageId={messageId}>
+                                        {children}
+                                    </SpeechWordHighlighter>
                                 </div>
                             </td>
                         );
