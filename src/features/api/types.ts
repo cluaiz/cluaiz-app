@@ -36,6 +36,7 @@ export interface InstalledModel {
     id: string;
     name?: string;
     category?: string;
+    format_type?: string;
     supported_tasks?: string[];
     extra_files?: any[];
 }

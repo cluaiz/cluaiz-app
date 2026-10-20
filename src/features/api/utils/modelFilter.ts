@@ -1,4 +1,17 @@
-import { InstalledModel } from '../types';
+import type { ApiEndpoint, InstalledModel } from '../types';
+
+/** The header and payload store must agree on whether this route accepts a model. */
+export const endpointUsesModel = (endpoint: ApiEndpoint | null): boolean => {
+    if (!endpoint) return false;
+    const p = endpoint.path.toLowerCase();
+    if (p.includes('/ingest')) return false;
+    if (p.includes('/plan')) return true;
+    if (['/chat/cancel', '/chat/skip-reasoning', '/chat/context_telemetry', '/system/',
+        '/storage', '/config', '/health', '/info'].some(path => p.includes(path))) return false;
+    return ['/chat', '/completion', '/embedding', '/audio/'].some(path => p.includes(path))
+        || !!endpoint.request_payload?.includes('"model"')
+        || !!endpoint.params?.some(param => param.name === 'model');
+};
 
 /**
  * Categorization checkers matching Developer Hub & EngineStore taxonomy.
@@ -79,8 +92,9 @@ export const isChatModel = (m: InstalledModel): boolean => {
 };
 
 export const isEmbeddingModel = (m: InstalledModel): boolean => {
-    const tasks = (m.supported_tasks || []).map((t) => t.toLowerCase());
-    if (tasks.includes('embedding') || tasks.includes('embed')) return true;
+    const tasks = (m.supported_tasks || []).map((t) => t.toLowerCase().replace(/-/g, '_'));
+    if (['embedding', 'embed', 'feature_extraction', 'sentence_similarity',
+        'vision_embedding', 'image_feature_extraction'].some(task => tasks.includes(task))) return true;
 
     const cat = m.category?.toLowerCase();
     if (cat === 'embedding') return true;
@@ -143,13 +157,13 @@ export const getFilteredModelsForEndpoint = (
 
     // 5. Embeddings (/v1/embeddings)
     if (p.includes('/embedding')) {
-        return installedModels.filter(isEmbeddingModel);
+        return installedModels.filter(m => isEmbeddingModel(m)
+            && (!m.format_type || m.format_type.toLowerCase() === 'onnx'));
     }
 
-    // 7. Ingestion / Vision (/v1/ingest)
+    // Native extraction has no model argument; vision Q&A and vectors use their own routes.
     if (p.includes('/ingest')) {
-        const ingestModels = installedModels.filter((m) => isVisionIngestModel(m) || isEmbeddingModel(m));
-        return ingestModels.length > 0 ? ingestModels : installedModels;
+        return [];
     }
 
     // Fallback: If endpoint accepts a model, return all installed models

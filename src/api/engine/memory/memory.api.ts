@@ -16,7 +16,7 @@ export const memoryApi = {
   },
 
   /**
-   * Ingests files or raw content into the local vector database with chunking and embeddings.
+   * Extracts ordered document text/chunks; vector generation and persistence are separate.
    */
   ingest: async (payload: IngestPayload): Promise<IngestResponse> => {
     return client.post<IngestResponse>(MEMORY_ENDPOINTS.INGEST, payload);

@@ -1,8 +1,10 @@
 export interface EmbeddingRequest {
-  input: string | string[];
+  input: string | string[] | Array<{ type: 'text'; text: string } | { type: 'image'; source: string }>;
   model?: string;
-  encoding_format?: 'float' | 'base64' | string;
+  encoding_format?: 'float';
   user?: string;
+  /** Minutes; 0 unloads after execution and -1 retains indefinitely. */
+  keep_alive?: number;
 }
 
 export interface EmbeddingData {
@@ -25,34 +27,44 @@ export interface EmbeddingResponse {
 
 export interface OutputControls {
   return_text?: boolean;
-  return_embeddings?: boolean;
+  return_embeddings?: false;
 }
 
 export interface ChunkingStrategy {
-  type?: string;
+  type?: 'semantic';
+  /** Maximum UTF-8 bytes, not model tokens. */
   max_chunk_size?: number;
-  overlap?: number;
-}
-
-export interface VisionSettings {
-  use_vision?: boolean;
-  detail_level?: 'low' | 'high' | 'auto' | string;
-  system_instruction?: string;
+  overlap?: 0;
 }
 
 export interface IngestPayload {
   source: string | string[];
-  namespace?: string;
-  model?: string;
   output_controls?: OutputControls;
   chunking_strategy?: ChunkingStrategy;
-  vision_settings?: VisionSettings;
+}
+
+export interface DocumentPart {
+  page: number | null;
+  method: string;
+  text?: string;
+  omissions: string[];
+  warnings: string[];
+  ocr_confidence?: number;
+}
+
+export interface IngestSource {
+  source: string;
+  status: 'ingested' | 'partial' | 'error';
+  mime_type?: string;
+  chunk_size?: number;
+  chunks_count?: number;
+  parts?: DocumentPart[];
+  chunks?: string[];
+  error?: string;
 }
 
 export interface IngestResponse {
-  status: string;
-  chunks_processed: number;
-  namespace?: string;
-  message?: string;
-  [key: string]: any;
+  status: 'success' | 'partial' | 'error';
+  total_sources: number;
+  processed_sources: IngestSource[];
 }

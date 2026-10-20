@@ -122,14 +122,14 @@
           "type": "number",
           "req": false,
           "desc": "Penalizes new tokens based on their presence in generated text so far.",
-          "default": 0.0
+          "default": 0
         },
         {
           "name": "frequency_penalty",
           "type": "number",
           "req": false,
           "desc": "Penalizes new tokens proportionally to their frequency in generated text so far.",
-          "default": 0.0
+          "default": 0
         },
         {
           "name": "temporary_chat",
@@ -437,7 +437,7 @@
           "name": "input",
           "type": "string / array",
           "req": true,
-          "desc": "Input text, array of strings, or image base64 data to embed.",
+          "desc": "Text, a string batch, or exactly one {type: 'image', source: '<URI/path>'} with optional text parts.",
           "default": [
             "The quick brown fox jumps over the lazy dog",
             "Dense vector embeddings for semantic search"
@@ -447,15 +447,21 @@
           "name": "model",
           "type": "string",
           "req": false,
-          "desc": "Embedding model name (e.g. bge-m3, nomic-embed-text).",
+          "desc": "Installed supported ONNX embedding model ID. GGUF embedding execution is not currently wired to this endpoint.",
           "default": "bge-m3"
         },
         {
           "name": "encoding_format",
           "type": "string",
           "req": false,
-          "desc": "Format for returning the embeddings ('float' or 'base64').",
+          "desc": "Only 'float' output is currently supported; other encodings are rejected.",
           "default": "float"
+        },
+        {
+          "name": "keep_alive",
+          "type": "integer",
+          "req": false,
+          "desc": "Retention in minutes: 0 unloads after execution; -1 retains indefinitely."
         }
       ],
       "request_payload": "{\n  \"model\": \"bge-m3\",\n  \"input\": [\n    \"The quick brown fox jumps over the lazy dog\",\n    \"Dense vector embeddings for semantic search\"\n  ],\n  \"encoding_format\": \"float\"\n}",
@@ -502,7 +508,7 @@
         }
       ],
       "request_payload": "{\n  \"source\": \"data:text/plain;base64,SGVsbG8gQ2x1YWl6IEVuZ2luZSE=\",\n  \"output_controls\": {\n    \"return_text\": true\n  }\n}",
-      "response": "{\n  \"status\": \"success\",\n  \"processed_sources\": [\n    {\n      \"source\": \"data:text/plain;base64,...\",\n      \"status\": \"ingested\",\n      \"mime\": \"text/plain\",\n      \"byte_size\": 21,\n      \"chunk_count\": 1,\n      \"chunks\": [\n        \"Hello Cluaiz Engine!\"\n      ],\n      \"parts\": [\n        {\n          \"page\": 1,\n          \"method\": \"text_extraction\",\n          \"text\": \"Hello Cluaiz Engine!\",\n          \"omissions\": [],\n          \"warnings\": []\n        }\n      ]\n    }\n  ]\n}",
+      "response": "{\n  \"status\": \"success\",\n  \"processed_sources\": [\n    {\n      \"source\": \"data:text/plain;base64,...\",\n      \"status\": \"ingested\",\n      \"chunks\": [\n        \"Hello Cluaiz Engine!\"\n      ],\n      \"parts\": [\n        {\n          \"page\": null,\n          \"method\": \"utf8\",\n          \"text\": \"Hello Cluaiz Engine!\",\n          \"omissions\": [],\n          \"warnings\": []\n        }\n      ],\n      \"mime_type\": \"text/plain\",\n      \"chunks_count\": 1,\n      \"chunk_size\": 512\n    }\n  ],\n  \"total_sources\": 1\n}",
       "examples": [
         {
           "language": "curl",
@@ -568,7 +574,7 @@
           "type": "float",
           "req": false,
           "desc": "Sampling temperature for greedy decoding (0.0 recommended for maximum transcription accuracy).",
-          "default": 0.0
+          "default": 0
         },
         {
           "name": "timestamps",
@@ -670,7 +676,7 @@
           "type": "float",
           "req": false,
           "desc": "Speaking rate 0.25 to 4.0. Kokoro/Piper use model duration controls; GGUF and Audio8 use pitch-preserving output tempo at the native sample rate. Other families depend on their runtime.",
-          "default": 1.0
+          "default": 1
         },
         {
           "name": "stream",

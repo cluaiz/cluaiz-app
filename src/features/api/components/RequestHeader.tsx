@@ -4,7 +4,7 @@ import { useConnectionStore } from '../../../store/engine/useConnectionStore';
 import { ApiProtocol } from '../types';
 import { executeApiRequest } from '../services/apiTransport';
 import { CustomDropdown } from '../../../components/ui/dropdown/CustomDropdown';
-import { getFilteredModelsForEndpoint } from '../utils/modelFilter';
+import { endpointUsesModel, getFilteredModelsForEndpoint } from '../utils/modelFilter';
 import { Play, RotateCcw, Loader2 } from 'lucide-react';
 
 export const RequestHeader: React.FC = () => {
@@ -47,50 +47,7 @@ export const RequestHeader: React.FC = () => {
         }
     };
 
-    // Model selector is applicable for Chat, Audio (STT/TTS), Embeddings, and Hardware Plan endpoints
-    const isModelEndpoint = useMemo(() => {
-        if (!activeEndpoint) return false;
-        const p = activeEndpoint.path.toLowerCase();
-
-        // 1. Endpoints that explicitly take models
-        if (
-            p.includes('/plan') ||
-            p.includes('/chat/completions') ||
-            p.includes('/completion') ||
-            p.includes('/embedding') ||
-            p.includes('/audio/transcriptions') ||
-            p.includes('/audio/speech') ||
-            p.includes('/audio/voices') ||
-            p.includes('/audio/languages') ||
-            p.includes('/ingest')
-        ) {
-            return true;
-        }
-
-        // 2. Control/diagnostic endpoints that do not take a model selector
-        if (
-            p.includes('/chat/cancel') ||
-            p.includes('/chat/skip-reasoning') ||
-            p.includes('/chat/context_telemetry') ||
-            p.includes('/system/') ||
-            p.includes('/storage') ||
-            p.includes('/config') ||
-            p.includes('/health') ||
-            p.includes('/info')
-        ) {
-            return false;
-        }
-
-        // 3. Fallback: payload inspection
-        if (activeEndpoint.request_payload && activeEndpoint.request_payload.includes('"model"')) {
-            return true;
-        }
-        if (activeEndpoint.params && activeEndpoint.params.some(param => param.name === 'model')) {
-            return true;
-        }
-
-        return p.includes('/chat');
-    }, [activeEndpoint]);
+    const isModelEndpoint = endpointUsesModel(activeEndpoint);
 
     const protocolOptions = useMemo(
         () => [

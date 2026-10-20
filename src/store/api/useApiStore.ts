@@ -3,6 +3,7 @@ import { ApiEndpoint, ApiGroup, ApiProtocol, ExecutionMetrics, HttpMethod, Insta
 import { useConnectionStore } from '../engine/useConnectionStore';
 import { http, modelsApi } from '../../api';
 import { AUDIO_ENDPOINTS } from '../../api/engine/audio/audio.endpoints';
+import { endpointUsesModel } from '../../features/api/utils/modelFilter';
 import { pushApiRoute } from '../../core/router';
 
 interface ApiStoreState {
@@ -342,24 +343,15 @@ export const useApiStore = create<ApiStoreState>()((set, get) => ({
     setSelectedModel: (selectedModel) => {
         set({ selectedModel });
         const ep = get().activeEndpoint;
-        const isModelEndpoint = ep && (
-            ep.path.toLowerCase().includes('/chat') ||
-            ep.path.toLowerCase().includes('/completion') ||
-            ep.path.toLowerCase().includes('/embedding') ||
-            ep.path.toLowerCase().includes('/plan') ||
-            ep.path.toLowerCase().includes('/audio') ||
-            ep.path.toLowerCase().includes('/ingest')
-        );
+        if (!endpointUsesModel(ep)) return;
 
         // Dynamically update model field inside JSON payload only for model-compatible endpoints
         try {
             const current = get().reqBody;
             if (current.trim().startsWith('{')) {
                 const obj = JSON.parse(current);
-                if (isModelEndpoint || 'model' in obj) {
-                    obj.model = selectedModel;
-                    set({ reqBody: JSON.stringify(obj, null, 2) });
-                }
+                obj.model = selectedModel;
+                set({ reqBody: JSON.stringify(obj, null, 2) });
             }
         } catch {
             // Ignore non-JSON payloads

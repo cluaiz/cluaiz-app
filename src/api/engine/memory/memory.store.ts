@@ -12,7 +12,7 @@ export interface MemoryState {
   lastEmbeddings: EmbeddingData[];
   isIngesting: boolean;
   lastIngestResult: IngestResponse | null;
-  status: Status;
+  status: Status | 'partial';
   error: string | null;
 
   // Actions
@@ -29,7 +29,7 @@ export const useMemoryStore = create<MemoryState>((set) => ({
   error: null,
 
   generateEmbeddings: async (req) => {
-    set({ status: 'pending', error: null });
+    set({ status: 'pending', error: null, lastEmbeddings: [] });
     try {
       const res = await memoryApi.generateEmbeddings(req);
       const data = res.data || [];
@@ -43,14 +43,17 @@ export const useMemoryStore = create<MemoryState>((set) => ({
   },
 
   ingestContent: async (payload) => {
-    set({ isIngesting: true, status: 'pending', error: null });
+    set({ isIngesting: true, status: 'pending', error: null, lastIngestResult: null });
     try {
       const res = await memoryApi.ingest(payload);
       set({
         isIngesting: false,
         lastIngestResult: res,
-        status: 'success',
-        error: null,
+        status: res.status,
+        error: res.status === 'success' ? null : res.processed_sources.flatMap(source => [
+          ...(source.error ? [source.error] : []),
+          ...(source.parts || []).flatMap(part => [...part.warnings, ...part.omissions]),
+        ]).join('; ') || 'Document extraction is incomplete. Inspect the returned sources.',
       });
       return res;
     } catch (err) {
