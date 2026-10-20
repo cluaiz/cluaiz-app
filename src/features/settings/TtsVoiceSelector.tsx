@@ -2,7 +2,8 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { Volume2, Globe, Sparkles } from 'lucide-react';
 import { CustomDropdown, DropdownOption } from '../../components/ui/dropdown/CustomDropdown';
 import { audioApi } from '../../api/engine/audio/audio.api';
-import type { TtsVoice } from '../../api/engine/audio/audio.types';
+import type { TtsVoice, TtsCapabilities } from '../../api/engine/audio/audio.types';
+import { settingsForTtsModel } from '../../services/audio/ttsSettings';
 import { languageLabel } from '../../services/audio/speakerLanguages';
 import {
     getStoredTtsSettings,
@@ -27,21 +28,7 @@ const LANG_DISPLAY_NAMES: Record<string, string> = {
 };
 
 function inferVoiceLanguage(v: TtsVoice): string | null {
-    if (v.language) return v.language.toLowerCase();
-    if (v.id === 'default') return null;
-    const prefix = v.id.slice(0, 2).toLowerCase();
-    switch (prefix[0]) {
-        case 'a': return 'en-us';
-        case 'b': return 'en-gb';
-        case 'h': return 'hi';
-        case 'j': return 'ja';
-        case 'z': return 'zh';
-        case 'e': return 'es';
-        case 'f': return 'fr';
-        case 'i': return 'it';
-        case 'p': return 'pt';
-        default: return null;
-    }
+    return v.language?.toLowerCase() || null;
 }
 
 function getLangDisplayName(code: string): string {
@@ -52,6 +39,8 @@ export function TtsVoiceSelector({ modelId }: TtsVoiceSelectorProps) {
     const [voices, setVoices] = useState<TtsVoice[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [capabilities, setCapabilities] = useState<TtsCapabilities | null>(null);
+    const [referenceSource, setReferenceSource] = useState('');
 
     const [selectedVoice, setSelectedVoice] = useState<string>(() => {
         const stored = getStoredTtsSettings();
@@ -71,26 +60,28 @@ export function TtsVoiceSelector({ modelId }: TtsVoiceSelectorProps) {
         setError(null);
 
         audioApi
-            .voices(modelId)
-            .then((list) => {
+            .voiceCatalog(modelId)
+            .then(({ data: list, capabilities: caps }) => {
                 if (!isMounted) return;
                 setVoices(list);
-
-                const currentStored = getStoredTtsSettings().selectedVoice || 'default';
+                setCapabilities(caps);
+                const preference = settingsForTtsModel(modelId);
+                const currentStored = preference.selectedVoice || 'default';
                 const matchedVoice = list.find((v) => v.id === currentStored);
                 const nextVoice = matchedVoice ? currentStored : (list[0]?.id || 'default');
                 setSelectedVoice(nextVoice);
 
-                // Auto-detect language of initial voice
-                if (matchedVoice && matchedVoice.id !== 'default') {
-                    const l = inferVoiceLanguage(matchedVoice);
-                    if (l) setSelectedLang(l);
-                }
+                const nextLanguage = caps.language_control === 'explicit' && caps.languages.includes(preference.selectedLanguage || '') ? preference.selectedLanguage! : 'auto';
+                setSelectedLang(nextLanguage === 'auto' ? 'all' : nextLanguage);
+                setReferenceSource(preference.referenceSource || '');
 
                 saveStoredTtsSettings({
-                    ...getStoredTtsSettings(),
+                    ...preference,
                     selectedModel: modelId,
                     selectedVoice: nextVoice,
+                    selectedLanguage: nextLanguage,
+                    coherentInput: caps.coherent_input,
+                    voiceMode: caps.voice_mode,
                 });
             })
             .catch((err) => {
@@ -108,7 +99,7 @@ export function TtsVoiceSelector({ modelId }: TtsVoiceSelectorProps) {
 
     // Distinct list of available languages for this model
     const languageOptions: DropdownOption[] = useMemo(() => {
-        const langSet = new Set<string>();
+        const langSet = new Set<string>(capabilities?.languages || []);
         for (const v of voices) {
             const l = inferVoiceLanguage(v);
             if (l) langSet.add(l);
@@ -118,8 +109,8 @@ export function TtsVoiceSelector({ modelId }: TtsVoiceSelectorProps) {
         const opts: DropdownOption[] = [
             {
                 value: 'all',
-                label: 'All Languages',
-                description: `Show all ${voices.length} voices in model`,
+                label: capabilities?.language_control === 'auto' ? 'Automatic (from text)' : 'Auto (from text or voice)',
+                description: 'Let the model choose the spoken language',
             },
         ];
 
@@ -128,12 +119,12 @@ export function TtsVoiceSelector({ modelId }: TtsVoiceSelectorProps) {
             opts.push({
                 value: code,
                 label: getLangDisplayName(code),
-                description: `${count} ${count === 1 ? 'voice' : 'voices'} available`,
+                description: count ? `${count} ${count === 1 ? 'voice' : 'voices'} available` : 'Model language',
             });
         }
 
         return opts;
-    }, [voices]);
+    }, [voices, capabilities]);
 
     // Voices filtered by chosen language
     const filteredVoices = useMemo(() => {
@@ -155,44 +146,28 @@ export function TtsVoiceSelector({ modelId }: TtsVoiceSelectorProps) {
             const langSuffix = langCode ? ` · ${getLangDisplayName(langCode)}` : '';
             return {
                 value: v.id,
-                label: isDef ? 'Default Voice (Language Auto-Detect)' : `${v.id}${langSuffix}`,
-                description: isDef ? 'Engine dynamically matches voice to message language' : `Voice ID: ${v.id}`,
+                label: isDef ? (capabilities?.coherent_input ? 'Generated voice (no fixed speaker)' : 'Default Voice') : `${v.id}${langSuffix}`,
+                description: isDef ? (capabilities?.coherent_input ? 'Use a reference for a consistent speaker' : 'The model chooses its voice') : `Voice ID: ${v.id}`,
             };
         });
-    }, [filteredVoices]);
+    }, [filteredVoices, capabilities]);
 
     const handleLanguageChange = (langCode: string) => {
         setSelectedLang(langCode);
-        // If current voice is not in the filtered language, switch to first available voice or default
-        if (langCode !== 'all') {
-            const matching = voices.filter((v) => inferVoiceLanguage(v) === langCode);
-            if (matching.length > 0 && !matching.some((v) => v.id === selectedVoice)) {
-                const newVoiceId = matching[0].id;
-                setSelectedVoice(newVoiceId);
-                saveStoredTtsSettings({
-                    ...getStoredTtsSettings(),
-                    selectedModel: modelId,
-                    selectedVoice: newVoiceId,
-                });
-            }
-        }
+        const matching = voices.filter(v => inferVoiceLanguage(v) === langCode);
+        const voice = voices.find(v => v.id === selectedVoice);
+        const nextVoice = langCode !== 'all' && voice?.language && voice.language !== langCode ? matching[0]?.id || 'default' : selectedVoice;
+        setSelectedVoice(nextVoice);
+        saveStoredTtsSettings({ ...settingsForTtsModel(modelId), selectedVoice: nextVoice, selectedLanguage: langCode === 'all' ? 'auto' : langCode });
     };
 
     const handleVoiceChange = (voiceId: string) => {
         setSelectedVoice(voiceId);
-        // Sync language selector if a specific voice was picked
-        const targetVoice = voices.find((v) => v.id === voiceId);
-        if (targetVoice && targetVoice.id !== 'default') {
-            const l = inferVoiceLanguage(targetVoice);
-            if (l && selectedLang !== 'all' && selectedLang !== l) {
-                setSelectedLang(l);
-            }
-        }
-
         saveStoredTtsSettings({
-            ...getStoredTtsSettings(),
+            ...settingsForTtsModel(modelId),
             selectedModel: modelId,
             selectedVoice: voiceId,
+            selectedLanguage: selectedLang === 'all' ? 'auto' : selectedLang,
         });
     };
 
@@ -208,7 +183,7 @@ export function TtsVoiceSelector({ modelId }: TtsVoiceSelectorProps) {
                         <span>Voice & Spoken Language Configuration</span>
                         {voices.length > 0 && (
                             <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-[var(--bg-tertiary)] text-[var(--text-muted)] border border-[var(--border-color)]">
-                                {voices.length} {voices.length === 1 ? 'voice' : 'voices'}
+                                {voices.filter(v => !v.default).length} named voices
                             </span>
                         )}
                     </div>
@@ -231,7 +206,7 @@ export function TtsVoiceSelector({ modelId }: TtsVoiceSelectorProps) {
                         value={selectedLang}
                         onChange={handleLanguageChange}
                         placeholder={loading ? 'Loading languages...' : 'Select language...'}
-                        disabled={loading || voices.length === 0}
+                        disabled={loading || voices.length === 0 || capabilities?.language_control === 'auto'}
                         loading={loading}
                         className="w-full text-xs"
                     />
@@ -254,6 +229,23 @@ export function TtsVoiceSelector({ modelId }: TtsVoiceSelectorProps) {
                     />
                 </div>
             </div>
+
+            {capabilities?.voice_mode === 'reference_source' && (
+                <label className="block text-xs text-[var(--text-secondary)]">
+                    Reference audio file path or URL (clear speech from the speaker you want)
+                    <input aria-label="Speaker reference audio" value={referenceSource}
+                        placeholder="Optional: audio file path or https:// URL"
+                        className="mt-1 w-full rounded border border-[var(--border-color)] bg-[var(--bg-primary)] p-2"
+                        onChange={event => {
+                            const source = event.target.value;
+                            setReferenceSource(source);
+                            if (!saveStoredTtsSettings({ ...settingsForTtsModel(modelId), referenceSource: source })) setError('Unable to save speech settings');
+                        }} />
+                </label>
+            )}
+            {capabilities?.voice_mode === 'reference_profile' && (
+                <p className="text-xs text-[var(--text-muted)]">Language follows the text. Choose an installed reference profile for a consistent speaker. Without one, the model generates a voice.</p>
+            )}
 
             {error && (
                 <div className="text-xs text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-lg p-2">

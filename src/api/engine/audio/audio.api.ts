@@ -5,6 +5,7 @@ import type {
   SpeechRequest,
   TranscriptionResponse,
   TtsVoice,
+  TtsVoiceCatalog,
 } from './audio.types';
 
 const authHeaders = (json: boolean): Record<string, string> => {
@@ -21,11 +22,19 @@ const dataUriToBlob = (audio: string): Blob => base64ToBlob(audio, sniffMimeType
 export const audioApi = {
   /** Voices of a TTS model (the TTS slot's model when omitted); "default" first. */
   voices: async (model?: string): Promise<TtsVoice[]> => {
+    return (await audioApi.voiceCatalog(model)).data;
+  },
+
+  voiceCatalog: async (model?: string): Promise<TtsVoiceCatalog> => {
     const query = model ? `?model=${encodeURIComponent(model)}` : '';
     const res = await fetch(`${client.getBaseUrl()}${AUDIO_ENDPOINTS.VOICES}${query}`, { headers: authHeaders(false) });
     if (!res.ok) throw new Error(`Voice list failed: ${res.status} ${res.statusText}`);
     const body = await res.json();
-    return Array.isArray(body?.data) ? body.data : [];
+    const data: TtsVoice[] = Array.isArray(body?.data) ? body.data : [];
+    return { model: body.model, data, capabilities: body.capabilities ?? {
+      languages: [...new Set(data.flatMap(v => v.language ? [v.language] : []))],
+      language_control: 'explicit', voice_mode: 'preset', coherent_input: false,
+    } };
   },
 
   /** Language codes a speech-to-text model can transcribe (the STT slot's model when omitted). */

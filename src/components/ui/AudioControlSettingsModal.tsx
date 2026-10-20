@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Mic, Volume2, AudioLines } from 'lucide-react';
 import { CustomDropdown, FLOATING_MENU_ATTR } from './dropdown/CustomDropdown';
-import { modelsApi } from '../../api';
 import { audioApi } from '../../api/engine/audio/audio.api';
 import type { TtsVoice } from '../../api/engine/audio/audio.types';
+import { getStoredTtsSettings, saveStoredTtsSettings, type TtsSettings } from '../../services/audio/ttsSettings';
+export { getStoredTtsSettings, saveStoredTtsSettings, DEFAULT_TTS_SETTINGS, TTS_SETTINGS_KEY, type TtsSettings } from '../../services/audio/ttsSettings';
 
 export interface MicSettings {
     /** record_send: words are typed while you speak; live_interaction: voice mode (talk with the AI) */
@@ -15,30 +16,15 @@ const MIC_MODES: { mode: MicSettings['mode']; label: string; description: string
     { mode: 'live_interaction', label: 'Voice mode', description: 'Talk with the AI: a pause sends, the answer is spoken, then it listens again.', icon: AudioLines },
 ];
 
-export interface TtsSettings {
-    /** Speaking rate sent to the engine (1 = normal) */
-    playbackSpeed: number;
-    /** TTS model id; empty = the engine's TTS model */
-    selectedModel?: string;
-    /** Voice id of that model; 'default' = a voice for the text's language */
-    selectedVoice?: string;
-}
-
 /** Speaking rates offered (the engine accepts 0.25–4) */
-const SPEEDS = [0.75, 1.0, 1.25, 1.5];
+const SPEEDS = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
 
 export const MIC_SETTINGS_KEY = 'cluaiz_audio_mic_settings';
-export const TTS_SETTINGS_KEY = 'cluaiz_audio_tts_settings';
 
 export const DEFAULT_MIC_SETTINGS: MicSettings = {
     mode: 'record_send',
 };
 
-export const DEFAULT_TTS_SETTINGS: TtsSettings = {
-    playbackSpeed: 1.0,
-    selectedModel: '',
-    selectedVoice: 'default',
-};
 
 export const getStoredMicSettings = (): MicSettings => {
     try {
@@ -52,20 +38,6 @@ export const saveStoredMicSettings = (settings: MicSettings) => {
     try {
         localStorage.setItem(MIC_SETTINGS_KEY, JSON.stringify(settings));
         localStorage.setItem('cluaiz_voice_mode', settings.mode);
-    } catch { }
-};
-
-export const getStoredTtsSettings = (): TtsSettings => {
-    try {
-        const saved = localStorage.getItem(TTS_SETTINGS_KEY);
-        if (saved) return { ...DEFAULT_TTS_SETTINGS, ...JSON.parse(saved) };
-    } catch { }
-    return DEFAULT_TTS_SETTINGS;
-};
-
-export const saveStoredTtsSettings = (settings: TtsSettings) => {
-    try {
-        localStorage.setItem(TTS_SETTINGS_KEY, JSON.stringify(settings));
     } catch { }
 };
 
@@ -205,7 +177,6 @@ export const AudioPlayerPopover: React.FC<AudioPlayerPopoverProps> = ({
     onSettingsChange,
 }) => {
     const [settings, setSettings] = useState<TtsSettings>(getStoredTtsSettings);
-    const [models, setModels] = useState<string[]>([]);
     const [voices, setVoices] = useState<TtsVoice[]>([]);
     const [voicesLoading, setVoicesLoading] = useState(false);
     const popoverRef = useRef<HTMLDivElement>(null);
@@ -213,17 +184,9 @@ export const AudioPlayerPopover: React.FC<AudioPlayerPopoverProps> = ({
     useEffect(() => {
         if (!isOpen) return;
         setSettings(getStoredTtsSettings());
-        modelsApi.getInstalledModels().then((res: any) => {
-            const list = res?.models || (Array.isArray(res) ? res : (res?.installed || res?.data || []));
-            setModels(
-                list
-                    .filter((m: any) => typeof m !== 'string' && (m.category || '').toLowerCase() === 'tts')
-                    .map((m: any) => m.id)
-            );
-        }).catch(() => setModels([]));
     }, [isOpen]);
 
-    // Voices of the chosen model (or of the engine's TTS model for Auto)
+    // Voices for TTS synthesis
     useEffect(() => {
         if (!isOpen) return;
         setVoicesLoading(true);
@@ -266,11 +229,6 @@ export const AudioPlayerPopover: React.FC<AudioPlayerPopoverProps> = ({
         description: v.default ? "A voice that speaks the text's language" : languageName(v.language),
     })), [voices]);
 
-    const modelOptions = React.useMemo(
-        () => [{ value: '', label: "Auto (the engine's TTS model)" }, ...models.map((id) => ({ value: id, label: id }))],
-        [models]
-    );
-
     if (!isOpen) return null;
 
     const update = (updates: Partial<TtsSettings>) => {
@@ -312,34 +270,22 @@ export const AudioPlayerPopover: React.FC<AudioPlayerPopoverProps> = ({
             {/* Speed */}
             <div className="flex flex-col gap-1">
                 <span className="text-[9.5px] font-semibold text-[var(--text-muted)] uppercase tracking-wider">Speed</span>
-                <div className="flex items-center gap-1 bg-[var(--bg-secondary)] p-1 rounded-xl border border-[var(--border-color)]/30">
+                <div className="grid grid-cols-3 gap-1.5 bg-[var(--bg-secondary)] p-1.5 rounded-xl border border-[var(--border-color)]/30">
                     {SPEEDS.map((spd) => (
                         <button
                             key={spd}
                             type="button"
                             onClick={() => update({ playbackSpeed: spd })}
-                            className={`flex-1 py-1 rounded-lg text-[10px] font-semibold transition-all cursor-pointer ${
+                            className={`py-1 rounded-lg text-[10px] font-semibold transition-all cursor-pointer text-center ${
                                 settings.playbackSpeed === spd
                                     ? 'bg-[var(--accent-color)] text-[var(--accent-contrast)] shadow-sm'
-                                    : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                                    : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]'
                             }`}
                         >
                             {spd}x
                         </button>
                     ))}
                 </div>
-            </div>
-
-            {/* Model (a voice belongs to a model: changing the model goes back to the Auto voice) */}
-            <div className="flex flex-col gap-1">
-                <label className="text-[9.5px] font-semibold text-[var(--text-muted)] uppercase tracking-wider">Model</label>
-                <CustomDropdown
-                    floating
-                    options={modelOptions}
-                    value={settings.selectedModel || ''}
-                    onChange={(val) => update({ selectedModel: val, selectedVoice: 'default' })}
-                    className="w-full"
-                />
             </div>
         </div>
     );

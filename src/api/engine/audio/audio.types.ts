@@ -52,10 +52,24 @@ export interface TtsVoice {
   default: boolean;
 }
 
+export interface TtsCapabilities {
+  languages: string[];
+  language_control: 'explicit' | 'auto';
+  voice_mode: 'preset' | 'embedded' | 'reference_source' | 'reference_profile';
+  coherent_input: boolean;
+}
+
+export interface TtsVoiceCatalog {
+  model?: string;
+  data: TtsVoice[];
+  capabilities: TtsCapabilities;
+}
+
 export interface SpeechRequest {
   model?: string;
   input: string;
   voice?: string;
+  language?: string;
   response_format?: 'mp3' | 'opus' | 'aac' | 'flac' | 'wav' | 'pcm';
   speed?: number;
   stream?: boolean;
