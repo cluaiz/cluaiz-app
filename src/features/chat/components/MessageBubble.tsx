@@ -312,8 +312,8 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
     React.useEffect(() => {
         if (isUser || !isStreaming || !voiceMode || autoOpenedRef.current) return;
         autoOpenedRef.current = true;
-        setIsAudioDeckOpen(true);
-    }, [isUser, isStreaming, voiceMode]);
+        openDeck({ messageId: msgAudioId, text: msg.text || '', isStreaming: true });
+    }, [isUser, isStreaming, voiceMode, msgAudioId, msg.text, openDeck]);
 
     const handleMouseUp = () => {
         if (!onTextSelect) return;

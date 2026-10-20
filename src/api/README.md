@@ -257,6 +257,12 @@ const { skills, installSkill, clearCache } = useSkillsStore();
 
 ---
 
+## Document and speech contracts
+
+`memoryApi.ingest` extracts text/chunks without a model or database persistence. Its result carries `status`, `total_sources` and `processed_sources`; `useMemoryStore` retains partial content with `status:partial` and omission details. Image embeddings use typed image/text parts, float output and optional `keep_alive` minutes. The explorer header and payload store share `endpointUsesModel`, so native extraction cannot inject a rejected model field.
+
+The read-aloud player fetches the actual voice capabilities for each run. Coherent models wait for completed text and buffer one complete WAV before playback; preset voices retain sentence queuing. This trades startup delay for avoiding independent sentence generations/playback underruns within that utterance. Playback rate owns speed once. Model/voice/language/reference changes cancel incompatible synthesis/cache; speed-only changes retain reusable audio. Only pre-output HTTP429 `speech_busy` is retried (four retries, abortable waits); stream errors after delivered audio are never replayed. No realtime, speaker-identity or audible-quality guarantee follows from these controls.
+
 ## 7. Team Workflow for 20–30 Engineers
 
 To avoid merge conflicts when 20–30 developers work on this repo:

@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { PlayIcon, PauseIcon } from '@animateicons/react/lucide';
 import { audioApi } from '../../api/engine/audio/audio.api';
 import { speechTurns } from '../../services/audio/speechTurns';
+import { speechPreferenceKey, subscribeTtsSettings } from '../../services/audio/ttsSettings';
 import { useSpeechHighlightStore } from '../../store/chat/useSpeechHighlightStore';
 import { toast } from './toast';
 import {
@@ -131,8 +132,8 @@ export interface PersistentAudioDeckProps {
 type Status = 'idle' | 'loading' | 'playing' | 'paused';
 
 /**
- * Speaks a message. While the answer is still being written, each finished sentence is spoken as
- * soon as it is synthesized; a finished message is streamed sentence by sentence by the engine.
+ * Preset voices queue sentences. Coherent models wait for complete text and buffer one WAV,
+ * avoiding independent sentence generations and playback underruns within that utterance.
  * Only one message speaks at a time (speechTurns).
  */
 export const PersistentAudioDeck: React.FC<PersistentAudioDeckProps> = ({
@@ -183,6 +184,7 @@ export const PersistentAudioDeck: React.FC<PersistentAudioDeckProps> = ({
     const pendingRef = useRef(0); // sentences being synthesized
     const chainRef = useRef<Promise<void>>(Promise.resolve());
     const abortRef = useRef<AbortController | null>(null);
+    const runSettingsRef = useRef<TtsSettings | null>(null);
 
     const formatTime = (secs: number) => {
         if (!secs || isNaN(secs) || secs < 0) return '00:00';
@@ -192,13 +194,12 @@ export const PersistentAudioDeck: React.FC<PersistentAudioDeckProps> = ({
     };
 
     const payload = (input: string) => {
-        const s = settingsRef.current;
+        const s = runSettingsRef.current || settingsRef.current;
         return {
             input,
             model: s.selectedModel || undefined,
             voice: s.voiceMode === 'reference_source' && s.referenceSource?.trim() ? s.referenceSource.trim() : (s.selectedVoice && s.selectedVoice !== 'default' ? s.selectedVoice : undefined),
             language: s.selectedLanguage && s.selectedLanguage !== 'auto' ? s.selectedLanguage : undefined,
-            speed: s.playbackSpeed || 1.0,
         };
     };
 
@@ -214,6 +215,7 @@ export const PersistentAudioDeck: React.FC<PersistentAudioDeckProps> = ({
     const stopAll = useCallback(() => {
         abortRef.current?.abort();
         abortRef.current = null;
+        runSettingsRef.current = null;
         audioRef.current?.pause();
         audioRef.current = null;
         currentPartRef.current = null;
@@ -244,6 +246,16 @@ export const PersistentAudioDeck: React.FC<PersistentAudioDeckProps> = ({
         setFreqLevels(new Array(DENSE_WAVE_BARS.length).fill(0));
         useSpeechHighlightStore.getState().clear(messageId);
     }, [messageId]);
+
+    useEffect(() => subscribeTtsSettings(next => {
+        if (speechPreferenceKey(next) !== speechPreferenceKey(settingsRef.current)) {
+            stopAll();
+            speechTurns.release(messageId);
+        }
+        settingsRef.current = next;
+        setTtsSettings(next);
+        if (audioRef.current) audioRef.current.playbackRate = next.playbackSpeed || 1;
+    }), [messageId, stopAll]);
 
     const fail = (cause: unknown) => {
         const message = cause instanceof Error ? cause.message : 'Speech playback failed';
@@ -573,6 +585,7 @@ export const PersistentAudioDeck: React.FC<PersistentAudioDeckProps> = ({
         const probeAudio = new Audio(url);
         probeAudio.preload = 'metadata';
         probeAudio.onloadedmetadata = () => {
+            if (cachedPartsRef.current[sentenceIndex]?.url !== url) return;
             if (isFinite(probeAudio.duration) && probeAudio.duration > 0) {
                 partDurationsRef.current[sentenceIndex] = probeAudio.duration;
                 checkIfAllDone();
@@ -582,10 +595,12 @@ export const PersistentAudioDeck: React.FC<PersistentAudioDeckProps> = ({
         playNextPart();
     };
 
-    /** Sends finished sentences to synthesis, one distinct sentence per queue part. */
+    /** Coherent models get one complete input; preset models keep the sentence queue. */
     const takeSentences = (final: boolean) => {
         const run = abortRef.current;
-        if (!run || run.signal.aborted) return;
+        const settings = runSettingsRef.current;
+        if (!run || run.signal.aborted || !settings) return;
+        if (settings.coherentInput && !final) return;
         const isCurrent = () => abortRef.current === run && !run.signal.aborted;
         while (true) {
             const full = textRef.current;
@@ -600,7 +615,7 @@ export const PersistentAudioDeck: React.FC<PersistentAudioDeckProps> = ({
 
             let cut = 0;
             // Find the first sentence ending punctuation or newline (ignoring list numbers like 1. or 2.)
-            const match = rest.match(/(?<!\b\d)[.!?।;:]+(?=\s|$)|\n+/);
+            const match = settings.coherentInput ? null : rest.match(/(?<!\b\d)[.!?।;:]+(?=\s|$)|\n+/);
             if (match && match.index !== undefined) {
                 const candidateEnd = match.index + match[0].length;
                 // Guard: check if candidate is inside an unclosed code block
@@ -670,6 +685,23 @@ export const PersistentAudioDeck: React.FC<PersistentAudioDeckProps> = ({
         }
     };
 
+    const prepareSynthesis = (run: AbortController) => {
+        runSettingsRef.current = null;
+        const settings = { ...settingsRef.current };
+        void audioApi.voiceCatalog(settings.selectedModel || undefined, run.signal).then(catalog => {
+            if (abortRef.current !== run || run.signal.aborted) return;
+            runSettingsRef.current = {
+                ...settings, selectedModel: catalog.model || settings.selectedModel,
+                coherentInput: catalog.capabilities.coherent_input,
+                voiceMode: catalog.capabilities.voice_mode,
+                selectedLanguage: catalog.capabilities.language_control === 'auto' ? 'auto' : settings.selectedLanguage,
+            };
+            takeSentences(!streamingRef.current);
+        }).catch(cause => {
+            if (abortRef.current === run && !run.signal.aborted) fail(cause);
+        });
+    };
+
     /** Follows the answer while it is written. */
     const startLive = () => {
         if (producingRef.current) return;
@@ -683,7 +715,7 @@ export const PersistentAudioDeck: React.FC<PersistentAudioDeckProps> = ({
         sentenceIndexRef.current = 0;
         playbackIndexRef.current = 0;
         setStatus('loading');
-        takeSentences(!streamingRef.current);
+        prepareSynthesis(abortRef.current);
     };
 
     /** A finished message: synthesize queued sentences with live word tracking. */
@@ -704,7 +736,7 @@ export const PersistentAudioDeck: React.FC<PersistentAudioDeckProps> = ({
         sentenceIndexRef.current = 0;
         playbackIndexRef.current = 0;
         setStatus('loading');
-        takeSentences(true);
+        prepareSynthesis(abortRef.current);
     };
 
     const turn = {
@@ -738,6 +770,10 @@ export const PersistentAudioDeck: React.FC<PersistentAudioDeckProps> = ({
             }
         },
         stop: () => {
+            if (producingRef.current) {
+                stopAll();
+                return;
+            }
             pausedRef.current = true;
             audioRef.current?.pause();
             setStatus('paused');

@@ -20,9 +20,12 @@ function load(relative, imports, globals = {}) {
     return exports;
 }
 
-exports.createHarness = (speech = async () => new Blob(['audio'])) => {
+exports.createHarness = (speech = async () => new Blob(['audio']), options = {}) => {
     let active;
-    const calls = [], audios = [], revoked = [], errors = [];
+    const calls = [], audios = [], probes = [], revoked = [], errors = [], catalogs = [];
+    let settings = { playbackSpeed: 1, ...options.settings };
+    const listeners = new Set();
+    const settingsModule = load('src/services/audio/ttsSettings.ts', {});
     const turns = load('src/services/audio/speechTurns.ts', {}).speechTurns;
     const sameDeps = (a, b) => a && b && a.length === b.length && a.every((v, i) => Object.is(v, b[i]));
     const slot = init => {
@@ -52,28 +55,42 @@ exports.createHarness = (speech = async () => new Blob(['audio'])) => {
         }
         play() { this.paused = false; this.playCalls++; return Promise.resolve(); }
         pause() { this.paused = true; }
+        set preload(value) {
+            if (value === 'metadata') { audios.splice(audios.indexOf(this), 1); probes.push(this); }
+        }
         metadata(duration = 4) { this.duration = duration; this.onloadedmetadata?.(); }
         end() { this.paused = true; this.onended?.(); }
     }
-    const highlight = { clear() {}, setPlaying() {}, setActiveSentence() {}, updateWordProgress() {} };
+    const highlight = { clear() {}, setPlaying() {}, setActiveSentence() {}, updateWordProgress() {}, setAudioLevel() {} };
     const Deck = load('src/components/ui/PersistentAudioPlayer.tsx', {
         react: hooks,
         'react/jsx-runtime': { jsx: (type, props) => ({ type, props }), jsxs: (type, props) => ({ type, props }) },
         'lucide-react': {}, 'framer-motion': { motion: { span: 'span' } },
+        '@animateicons/react/lucide': {},
         '../../api/engine/audio/audio.api': { audioApi: { speech: (payload, signal) => {
             calls.push({ payload, signal }); return speech(payload, signal);
+        }, voiceCatalog: (model, signal) => {
+            catalogs.push({ model, signal });
+            return options.catalog ? options.catalog(model, signal) : Promise.resolve({ model,
+                capabilities: { coherent_input: false, voice_mode: 'preset', language_control: 'explicit', ...options.capabilities } });
         } } },
         '../../services/audio/speechTurns': { speechTurns: turns },
+        '../../services/audio/ttsSettings': {
+            speechPreferenceKey: settingsModule.speechPreferenceKey,
+            subscribeTtsSettings: listener => { listeners.add(listener); return () => listeners.delete(listener); },
+        },
         '../../store/chat/useSpeechHighlightStore': { useSpeechHighlightStore: { getState: () => highlight } },
         './toast': { toast: { error: message => errors.push(message) } },
-        './AudioControlSettingsModal': { getStoredTtsSettings: () => ({ playbackSpeed: 1 }), AudioPlayerPopover: 'popover' },
-    }, { Audio: AudioBoundary, URL: {
+        './AudioControlSettingsModal': { getStoredTtsSettings: () => settings, saveStoredTtsSettings() {} },
+    }, { Audio: AudioBoundary, requestAnimationFrame: () => 1, cancelAnimationFrame() {}, URL: {
         createObjectURL: () => `blob:part-${calls.length}`, revokeObjectURL: url => revoked.push(url),
     } }).PersistentAudioDeck;
     const nodes = node => !node || typeof node !== 'object' ? [] :
         [node, ...[node.props?.children].flat(Infinity).flatMap(nodes)];
     const text = node => [node].flat(Infinity).map(v => v && typeof v === 'object' ? text(v.props?.children) : v ?? '').join('');
-    return { calls, audios, revoked, errors, turns, mount(props = {}) {
+    return { calls, audios, probes, revoked, errors, turns, catalogs,
+        settings(next) { settings = { ...settings, ...next }; listeners.forEach(listener => listener(settings)); },
+        mount(props = {}) {
         const instance = { slots: [], cursor: 0, effects: [], tree: null, props: {
             messageId: 'message', text: 'First sentence. Second sentence.', onClose() {}, ...props,
         } };

@@ -9,7 +9,8 @@ test('completed message synthesizes both sentences, plays, pauses and replays ca
     await deck.flush();
     assert.deepEqual(h.calls.map(c => c.payload.input), ['First sentence.', 'Second sentence.']);
     assert.equal(h.audios.length, 1);
-    h.audios[0].metadata(4);
+    h.probes.forEach(probe => probe.metadata(2));
+    h.audios[0].metadata(2);
     assert.match(deck.text, /00:00 \/ 00:04/);
     deck.click('Pause'); assert.equal(h.audios[0].paused, true);
     deck.click(); assert.equal(h.audios[0].paused, false);
@@ -37,7 +38,7 @@ test('stop aborts fetch, a late result and old finalizer cannot corrupt a new ru
     const deck = h.mount({ autoStart: true });
     await deck.flush();
     const signal = h.calls[0].signal;
-    deck.click('Stop and hide'); assert.equal(signal.aborted, true);
+    deck.click('Close audio player'); assert.equal(signal.aborted, true);
     deck.click(); await deck.flush();
     assert.notEqual(h.calls[1].signal, signal);
     old.resolve(audio()); await deck.flush();
@@ -77,7 +78,8 @@ test('decode errors are visible; stale media callbacks cannot advance retry play
     const count = h.audios.length;
     old.onended(); old.metadata(99); old.onerror();
     assert.equal(h.audios.length, count); assert.equal(deck.alert, '');
-    h.audios.at(-1).metadata(3); assert.match(deck.text, /00:03/);
+    h.probes.slice(-2).forEach(probe => probe.metadata(1.5));
+    assert.match(deck.text, /00:03/);
     deck.unmount();
 });
 
@@ -100,4 +102,51 @@ test('another message takes the speaking turn without old audio resuming', async
     assert.equal(h.audios[0].paused, true); assert.equal(h.turns.isSpeaking('b'), true);
     h.audios[0].end(); assert.equal(h.audios.length, 2);
     first.unmount(); assert.equal(h.turns.isSpeaking('b'), true); second.unmount();
+});
+
+test('coherent capability buffers the complete live answer in one referenced synthesis', async () => {
+    const pending = deferred();
+    const h = createHarness(() => pending.promise, {
+        settings: { selectedModel: 'reference-model', selectedLanguage: 'en', referenceSource: 'speaker.wav', playbackSpeed: 1.25 },
+        capabilities: { coherent_input: true, voice_mode: 'reference_source' },
+    });
+    const deck = h.mount({ autoStart: true, text: 'First sentence.', isStreamingAi: true });
+    await deck.flush(); assert.equal(h.calls.length, 0);
+    deck.render({ text: 'First sentence. Second sentence.', isStreamingAi: false });
+    await deck.flush();
+    assert.equal(h.calls.length, 1);
+    assert.equal(h.calls[0].payload.input, 'First sentence. Second sentence.');
+    assert.equal(h.calls[0].payload.voice, 'speaker.wav');
+    assert.equal(h.calls[0].payload.speed, undefined, 'browser rate owns speed once');
+    assert.equal(h.audios.length, 0, 'do not play incomplete native output');
+    pending.resolve(audio()); await deck.flush();
+    assert.equal(h.audios.length, 1); assert.equal(h.audios[0].playbackRate, 1.25);
+    h.audios[0].end(); deck.click(); await deck.flush();
+    assert.equal(h.calls.length, 1, 'complete coherent WAV is replayed from cache');
+    deck.unmount();
+});
+
+test('changing model cancels old synthesis and does not reuse its cached voice', async () => {
+    const old = deferred();
+    let count = 0;
+    const h = createHarness(() => ++count === 1 ? old.promise : Promise.resolve(audio()), {
+        settings: { selectedModel: 'old-model' }, capabilities: { coherent_input: true },
+    });
+    const deck = h.mount({ autoStart: true }); await deck.flush();
+    h.settings({ selectedModel: 'new-model', selectedVoice: 'new-voice' });
+    assert.equal(h.calls[0].signal.aborted, true);
+    old.resolve(audio()); await deck.flush(); assert.equal(h.audios.length, 0);
+    deck.click(); await deck.flush();
+    assert.equal(h.calls[1].payload.model, 'new-model');
+    assert.equal(h.calls[1].payload.voice, 'new-voice');
+    assert.equal(h.audios.length, 1);
+    deck.unmount();
+});
+
+test('cancelled capability lookup cannot start a stale synthesis', async () => {
+    const catalog = deferred(), h = createHarness(undefined, { catalog: () => catalog.promise });
+    const deck = h.mount({ autoStart: true }); await deck.flush();
+    deck.click('Close audio player'); assert.equal(h.catalogs[0].signal.aborted, true);
+    catalog.resolve({ capabilities: { coherent_input: true } }); await deck.flush();
+    assert.equal(h.calls.length, 0); deck.unmount();
 });
