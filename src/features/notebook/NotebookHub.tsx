@@ -32,7 +32,6 @@ import { NotebookCard } from './components/NotebookCard';
 import { NotebookListRow } from './components/NotebookListRow';
 import { BookWorkspace } from './components/BookWorkspace';
 import { PageEditorWorkspace } from './components/PageEditorWorkspace';
-import { CreateItemModal } from './components/CreateItemModal';
 
 const cn = (...classes: (string | undefined | null | false)[]) => classes.filter(Boolean).join(' ');
 
@@ -51,10 +50,11 @@ export const NotebookHub: React.FC = () => {
         setSearchQuery,
         getBreadcrumbs,
         getItem,
+        createItem,
     } = useNotebookStore();
 
     const [isSortDropdownOpen, setIsSortDropdownOpen] = useState(false);
-    const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+    const [isCreatingInline, setIsCreatingInline] = useState(false);
     const [shelfFilter, setShelfFilter] = useState<'all' | 'books' | 'pages'>('all');
     const sortTriggerRef = useRef<HTMLButtonElement>(null);
 
@@ -317,7 +317,7 @@ export const NotebookHub: React.FC = () => {
                     {/* Primary "+ New" Button */}
                     {!activePageId && (
                         <Button
-                            onClick={() => setIsCreateModalOpen(true)}
+                            onClick={() => setIsCreatingInline(true)}
                             className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold shadow-md shadow-[var(--accent-color)]/10 active:scale-95"
                         >
                             <Plus className="w-3.5 h-3.5" />
@@ -398,7 +398,7 @@ export const NotebookHub: React.FC = () => {
                                         : 'Create your first project notebook to organize documents, nested sub-books, and contextual AI chats.'}
                                 </p>
                                 <Button
-                                    onClick={() => setIsCreateModalOpen(true)}
+                                    onClick={() => setIsCreatingInline(true)}
                                     className="rounded-xl text-xs font-bold px-4 py-2"
                                 >
                                     <Plus className="w-3.5 h-3.5 mr-1.5" />
@@ -407,6 +407,26 @@ export const NotebookHub: React.FC = () => {
                             </div>
                         ) : viewMode === 'grid' ? (
                             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                                {isCreatingInline && (
+                                    <NotebookCard
+                                        initialEditing={true}
+                                        defaultItemType={shelfFilter === 'pages' ? 'page' : 'book'}
+                                        parentId={null}
+                                        onSaveNew={(data) => {
+                                            const newId = createItem({
+                                                title: data.title,
+                                                itemType: data.itemType,
+                                                parentId: null,
+                                                description: data.description,
+                                                icon: data.icon,
+                                                coverTheme: data.coverTheme,
+                                                coverImage: data.coverImage,
+                                            });
+                                            setIsCreatingInline(false);
+                                        }}
+                                        onCancelNew={() => setIsCreatingInline(false)}
+                                    />
+                                )}
                                 {rootItems.map((item) => (
                                     <NotebookCard key={item.id} item={item} onOpen={handleOpenItem} />
                                 ))}
@@ -421,14 +441,6 @@ export const NotebookHub: React.FC = () => {
                     </div>
                 )}
             </div>
-
-            {/* Create Item Modal */}
-            <CreateItemModal
-                open={isCreateModalOpen}
-                onClose={() => setIsCreateModalOpen(false)}
-                defaultItemType="book"
-                parentId={currentFolderId}
-            />
         </div>
     );
 };

@@ -86,7 +86,7 @@ export const NotebookListRow: React.FC<NotebookListRowProps> = ({ item, onOpen }
                         <h4 className="text-xs font-bold text-[var(--text-primary)] group-hover:text-[var(--accent-color)] transition-colors truncate">
                             {item.title}
                         </h4>
-                        <span className={cn('text-[9px] font-bold uppercase tracking-wider px-2 py-0.2 rounded-full border shrink-0', theme.badgeBg)}>
+                        <span className={cn('text-[9px] font-bold uppercase tracking-wider px-2 py-0.2 rounded-full border shrink-0', theme.badgeClass)}>
                             {isBook ? 'Notebook' : 'Page'}
                         </span>
                     </div>

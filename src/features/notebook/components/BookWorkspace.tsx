@@ -32,7 +32,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Input } from '../../../components/ui/Input';
 import { NotebookCard } from './NotebookCard';
 import { NotebookListRow } from './NotebookListRow';
-import { CreateItemModal } from './CreateItemModal';
 import { useChatStore } from '../../../store/chat/useChatStore';
 import { useLayoutStore } from '../../../store/ui/useLayoutStore';
 
@@ -51,7 +50,8 @@ export const BookWorkspace: React.FC<BookWorkspaceProps> = ({ book }) => {
         addSourceToItem,
         removeSourceFromItem,
         createItemChat,
-        updateItem
+        updateItem,
+        createItem,
     } = useNotebookStore();
 
     const chatSessions = useChatStore((s) => s.sessions);
@@ -65,9 +65,9 @@ export const BookWorkspace: React.FC<BookWorkspaceProps> = ({ book }) => {
     // Tabs inside book: 'contents' | 'sources' | 'chats'
     const [activeTab, setActiveTab] = useState<'contents' | 'sources' | 'chats'>('contents');
 
-    // Modals
-    const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-    const [createModalType, setCreateModalType] = useState<'book' | 'page'>('book');
+    // Inline creation states
+    const [isCreatingSubBook, setIsCreatingSubBook] = useState(false);
+    const [isCreatingSubPage, setIsCreatingSubPage] = useState(false);
     const [isAddSourceModalOpen, setIsAddSourceModalOpen] = useState(false);
     const [inspectSource, setInspectSource] = useState<NotebookSource | null>(null);
     const [copiedSourceId, setCopiedSourceId] = useState<string | null>(null);
@@ -150,52 +150,69 @@ export const BookWorkspace: React.FC<BookWorkspaceProps> = ({ book }) => {
     return (
         <div className="flex-1 overflow-y-auto pb-24">
             {/* 💎 Hero Cover Banner */}
-            <div className={cn('h-44 sm:h-52 w-full bg-gradient-to-r relative border-b border-[var(--border-color)]/60 p-6 flex flex-col justify-end', theme.gradient)}>
-                <div className="max-w-6xl w-full mx-auto relative z-10 flex items-end justify-between gap-4">
-                    <div className="flex items-end gap-4">
-                        <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-3xl bg-[var(--bg-primary)] border-2 border-[var(--border-color)] shadow-xl flex items-center justify-center text-3xl sm:text-4xl select-none shrink-0 -mb-8">
+            <div
+                style={!book.coverImage ? theme.coverStyle : undefined}
+                className="h-36 sm:h-44 w-full relative border-b border-[var(--border-color)]/60 overflow-hidden"
+            >
+                {book.coverImage && (
+                    <>
+                        <img
+                            src={book.coverImage}
+                            alt=""
+                            className="absolute inset-0 w-full h-full object-cover"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
+                    </>
+                )}
+            </div>
+
+            {/* Main Header & Content Container — Outside overflow-hidden for ZERO clipping */}
+            <div className="max-w-6xl mx-auto px-4 sm:px-6">
+                {/* Header Row with Pure Big Emoji, Title & Quick Actions */}
+                <div className="-mt-8 sm:-mt-10 mb-6 relative z-10 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+                    <div className="flex items-end gap-3 sm:gap-4">
+                        {/* Pure Big Emoji — Zero Background Box, Zero Border, Zero Clipping */}
+                        <div className="text-5xl sm:text-6xl select-none leading-none drop-shadow-xl shrink-0 cursor-default">
                             {book.icon || '📘'}
                         </div>
-                        <div className="mb-2">
-                            <span className={cn('text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border shadow-sm', theme.badgeBg)}>
+                        <div className="mb-0.5">
+                            <span className={cn('text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border shadow-sm', theme.badgeClass)}>
                                 Notebook Container
                             </span>
-                            <h1 className="text-xl sm:text-2xl font-bold text-white drop-shadow-md truncate mt-1">
+                            <h1 className="text-2xl sm:text-3xl font-bold text-[var(--text-primary)] truncate mt-1">
                                 {book.title}
                             </h1>
                         </div>
                     </div>
 
                     {/* Quick Action Buttons */}
-                    <div className="hidden sm:flex items-center gap-2 mb-2">
+                    <div className="flex items-center gap-2 mb-0.5">
                         <Button
                             size="sm"
                             onClick={() => {
-                                setCreateModalType('page');
-                                setIsCreateModalOpen(true);
+                                setIsCreatingSubPage(true);
+                                setActiveTab('contents');
                             }}
-                            className="rounded-xl text-xs font-bold bg-white text-neutral-900 hover:bg-neutral-100 shadow-lg active:scale-95"
+                            className="rounded-xl text-xs font-bold bg-white text-neutral-900 hover:bg-neutral-100 shadow-md active:scale-95"
                         >
                             <Plus className="w-3.5 h-3.5 mr-1" />
                             New Page
                         </Button>
                         <Button
                             size="sm"
+                            variant="outline"
                             onClick={() => {
-                                setCreateModalType('book');
-                                setIsCreateModalOpen(true);
+                                setIsCreatingSubBook(true);
+                                setActiveTab('contents');
                             }}
-                            className="rounded-xl text-xs font-bold bg-black/40 hover:bg-black/60 text-white backdrop-blur-md border border-white/20 active:scale-95"
+                            className="rounded-xl text-xs font-bold border-[var(--border-color)] bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] active:scale-95"
                         >
                             <BookOpen className="w-3.5 h-3.5 mr-1" />
                             New Sub-Book
                         </Button>
                     </div>
                 </div>
-            </div>
 
-            {/* Description & Tab Bar Container */}
-            <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-10">
                 {/* Description Row */}
                 <div className="mb-6 flex items-start justify-between gap-4">
                     <div className="flex-1">
@@ -226,32 +243,6 @@ export const BookWorkspace: React.FC<BookWorkspaceProps> = ({ book }) => {
                                 <Edit3 className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity text-[var(--accent-color)] shrink-0" />
                             </div>
                         )}
-                    </div>
-
-                    <div className="flex items-center gap-2 shrink-0 sm:hidden">
-                        <Button
-                            size="sm"
-                            onClick={() => {
-                                setCreateModalType('page');
-                                setIsCreateModalOpen(true);
-                            }}
-                            className="rounded-xl text-xs font-bold"
-                        >
-                            <Plus className="w-3.5 h-3.5 mr-1" />
-                            Page
-                        </Button>
-                        <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                                setCreateModalType('book');
-                                setIsCreateModalOpen(true);
-                            }}
-                            className="rounded-xl text-xs font-bold"
-                        >
-                            <BookOpen className="w-3.5 h-3.5 mr-1" />
-                            Sub-Book
-                        </Button>
                     </div>
                 </div>
 
@@ -324,10 +315,7 @@ export const BookWorkspace: React.FC<BookWorkspaceProps> = ({ book }) => {
                                     <Button
                                         variant="ghost"
                                         size="sm"
-                                        onClick={() => {
-                                            setCreateModalType('book');
-                                            setIsCreateModalOpen(true);
-                                        }}
+                                        onClick={() => setIsCreatingSubBook(true)}
                                         className="h-7 text-xs font-semibold text-[var(--accent-color)]"
                                     >
                                         <Plus className="w-3 h-3 mr-1" /> Add Sub-Book
@@ -336,6 +324,26 @@ export const BookWorkspace: React.FC<BookWorkspaceProps> = ({ book }) => {
 
                                 {viewMode === 'grid' ? (
                                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                        {isCreatingSubBook && (
+                                            <NotebookCard
+                                                initialEditing={true}
+                                                defaultItemType="book"
+                                                parentId={book.id}
+                                                onSaveNew={(data) => {
+                                                    createItem({
+                                                        title: data.title,
+                                                        itemType: 'book',
+                                                        parentId: book.id,
+                                                        description: data.description,
+                                                        icon: data.icon,
+                                                        coverTheme: data.coverTheme,
+                                                        coverImage: data.coverImage,
+                                                    });
+                                                    setIsCreatingSubBook(false);
+                                                }}
+                                                onCancelNew={() => setIsCreatingSubBook(false)}
+                                            />
+                                        )}
                                         {subBooks.map((item) => (
                                             <NotebookCard key={item.id} item={item} onOpen={handleOpenItem} />
                                         ))}
@@ -361,10 +369,7 @@ export const BookWorkspace: React.FC<BookWorkspaceProps> = ({ book }) => {
                                     <Button
                                         variant="ghost"
                                         size="sm"
-                                        onClick={() => {
-                                            setCreateModalType('page');
-                                            setIsCreateModalOpen(true);
-                                        }}
+                                        onClick={() => setIsCreatingSubPage(true)}
                                         className="h-7 text-xs font-semibold text-[var(--accent-color)]"
                                     >
                                         <Plus className="w-3 h-3 mr-1" /> Add Page
@@ -373,6 +378,26 @@ export const BookWorkspace: React.FC<BookWorkspaceProps> = ({ book }) => {
 
                                 {viewMode === 'grid' ? (
                                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                        {isCreatingSubPage && (
+                                            <NotebookCard
+                                                initialEditing={true}
+                                                defaultItemType="page"
+                                                parentId={book.id}
+                                                onSaveNew={(data) => {
+                                                    createItem({
+                                                        title: data.title,
+                                                        itemType: 'page',
+                                                        parentId: book.id,
+                                                        description: data.description,
+                                                        icon: data.icon,
+                                                        coverTheme: data.coverTheme,
+                                                        coverImage: data.coverImage,
+                                                    });
+                                                    setIsCreatingSubPage(false);
+                                                }}
+                                                onCancelNew={() => setIsCreatingSubPage(false)}
+                                            />
+                                        )}
                                         {pages.map((item) => (
                                             <NotebookCard key={item.id} item={item} onOpen={handleOpenItem} />
                                         ))}
@@ -402,10 +427,7 @@ export const BookWorkspace: React.FC<BookWorkspaceProps> = ({ book }) => {
                                 <div className="flex items-center justify-center gap-3">
                                     <Button
                                         size="sm"
-                                        onClick={() => {
-                                            setCreateModalType('page');
-                                            setIsCreateModalOpen(true);
-                                        }}
+                                        onClick={() => setIsCreatingSubPage(true)}
                                         className="rounded-xl text-xs font-semibold"
                                     >
                                         <Plus className="w-3.5 h-3.5 mr-1" />
@@ -414,10 +436,7 @@ export const BookWorkspace: React.FC<BookWorkspaceProps> = ({ book }) => {
                                     <Button
                                         size="sm"
                                         variant="outline"
-                                        onClick={() => {
-                                            setCreateModalType('book');
-                                            setIsCreateModalOpen(true);
-                                        }}
+                                        onClick={() => setIsCreatingSubBook(true)}
                                         className="rounded-xl text-xs font-semibold"
                                     >
                                         <BookOpen className="w-3.5 h-3.5 mr-1" />
@@ -599,14 +618,6 @@ export const BookWorkspace: React.FC<BookWorkspaceProps> = ({ book }) => {
                     </div>
                 )}
             </div>
-
-            {/* Modal to create sub-book or page */}
-            <CreateItemModal
-                open={isCreateModalOpen}
-                onClose={() => setIsCreateModalOpen(false)}
-                defaultItemType={createModalType}
-                parentId={book.id}
-            />
 
             {/* Modal to Add Source */}
             <Dialog open={isAddSourceModalOpen} onOpenChange={setIsAddSourceModalOpen}>

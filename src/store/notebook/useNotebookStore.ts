@@ -10,60 +10,73 @@ export type NotebookSortOption = 'updated' | 'created' | 'name' | 'items';
 export interface CoverTheme {
     id: string;
     name: string;
-    gradient: string;
-    border: string;
-    accent: string;
-    badgeBg: string;
+    /** CSS inline style for the cover banner background */
+    coverStyle: React.CSSProperties;
+    /** Tailwind class for badge pill on cards */
+    badgeClass: string;
 }
 
+/**
+ * Cover themes derive all colors from the app's active theme CSS variables.
+ * The `coverStyle` uses `var(--accent-color)` mixed with `var(--bg-tertiary)`
+ * so that notebooks automatically adapt to Dark, Light, OLED, Cyberpunk,
+ * Matrix, and Pixel themes without any hardcoded color.
+ *
+ * The hue-rotate filter on each variant gives visual variety WITHIN the
+ * active theme's accent palette — no arbitrary Tailwind colors needed.
+ */
 export const COVER_THEMES: Record<string, CoverTheme> = {
     aurora: {
         id: 'aurora',
         name: 'Aurora',
-        gradient: 'from-emerald-600/35 via-teal-600/20 to-cyan-600/30',
-        border: 'border-emerald-500/30',
-        accent: '#10b981',
-        badgeBg: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+        coverStyle: {
+            background: 'linear-gradient(135deg, color-mix(in srgb, var(--accent-color) 30%, var(--bg-tertiary)), var(--bg-tertiary))',
+        },
+        badgeClass: 'bg-[var(--accent-color)]/10 text-[var(--accent-color)] border border-[var(--accent-color)]/20',
     },
     ocean: {
         id: 'ocean',
         name: 'Ocean',
-        gradient: 'from-blue-600/35 via-cyan-600/20 to-indigo-600/30',
-        border: 'border-blue-500/30',
-        accent: '#3b82f6',
-        badgeBg: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+        coverStyle: {
+            background: 'linear-gradient(135deg, color-mix(in srgb, var(--accent-color) 25%, var(--bg-tertiary)), color-mix(in srgb, var(--accent-color) 10%, var(--bg-primary)))',
+            filter: 'hue-rotate(30deg)',
+        },
+        badgeClass: 'bg-[var(--accent-color)]/10 text-[var(--accent-color)] border border-[var(--accent-color)]/20',
     },
     sunset: {
         id: 'sunset',
         name: 'Sunset',
-        gradient: 'from-rose-600/35 via-amber-600/20 to-orange-600/30',
-        border: 'border-rose-500/30',
-        accent: '#f43f5e',
-        badgeBg: 'bg-rose-500/10 text-rose-400 border-rose-500/20',
+        coverStyle: {
+            background: 'linear-gradient(135deg, color-mix(in srgb, var(--accent-color) 30%, var(--bg-tertiary)), color-mix(in srgb, var(--accent-color) 15%, var(--bg-primary)))',
+            filter: 'hue-rotate(-40deg)',
+        },
+        badgeClass: 'bg-[var(--accent-color)]/10 text-[var(--accent-color)] border border-[var(--accent-color)]/20',
     },
     cyberpunk: {
         id: 'cyberpunk',
         name: 'Cyberpunk',
-        gradient: 'from-purple-600/35 via-fuchsia-600/20 to-pink-600/30',
-        border: 'border-purple-500/30',
-        accent: '#a855f7',
-        badgeBg: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
+        coverStyle: {
+            background: 'linear-gradient(135deg, color-mix(in srgb, var(--accent-color) 35%, var(--bg-tertiary)), color-mix(in srgb, var(--accent-color) 12%, var(--bg-primary)))',
+            filter: 'hue-rotate(60deg)',
+        },
+        badgeClass: 'bg-[var(--accent-color)]/10 text-[var(--accent-color)] border border-[var(--accent-color)]/20',
     },
     obsidian: {
         id: 'obsidian',
         name: 'Obsidian',
-        gradient: 'from-neutral-700/40 via-neutral-800/30 to-neutral-900/40',
-        border: 'border-neutral-700/40',
-        accent: '#9ca3af',
-        badgeBg: 'bg-neutral-500/10 text-neutral-300 border-neutral-600/30',
+        coverStyle: {
+            background: 'linear-gradient(135deg, color-mix(in srgb, var(--text-muted) 20%, var(--bg-tertiary)), var(--bg-primary))',
+        },
+        badgeClass: 'bg-[var(--text-muted)]/10 text-[var(--text-secondary)] border border-[var(--border-color)]',
     },
     amber: {
         id: 'amber',
         name: 'Amber',
-        gradient: 'from-amber-600/35 via-yellow-600/20 to-orange-600/30',
-        border: 'border-amber-500/30',
-        accent: '#f59e0b',
-        badgeBg: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+        coverStyle: {
+            background: 'linear-gradient(135deg, color-mix(in srgb, var(--accent-color) 28%, var(--bg-tertiary)), color-mix(in srgb, var(--accent-color) 8%, var(--bg-primary)))',
+            filter: 'hue-rotate(-80deg)',
+        },
+        badgeClass: 'bg-[var(--accent-color)]/10 text-[var(--accent-color)] border border-[var(--accent-color)]/20',
     },
 };
 
@@ -88,6 +101,7 @@ export interface Notebook {
     title: string;
     icon: string;
     coverTheme: string;
+    coverImage?: string; // Optional custom banner image (data URL or web path)
     description: string;
     aiIntent: string;
     tags: string[];
@@ -125,6 +139,7 @@ interface NotebookStore {
         description?: string;
         icon?: string;
         coverTheme?: string;
+        coverImage?: string;
         tags?: string[];
         template?: string;
     }) => string;
@@ -306,6 +321,7 @@ export const useNotebookStore = create<NotebookStore>()(
                     title,
                     icon,
                     coverTheme,
+                    coverImage: params.coverImage,
                     description: params.description?.trim() || '',
                     aiIntent: '',
                     tags: params.tags || [],
