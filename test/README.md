@@ -1,5 +1,7 @@
 # Chat attachment regression tests
 
+`attachment_serializer.test.ts` runs the actual upload serializer with browser FileReader as the transport boundary. It checks video payload compatibility (no unsupported `fps`), preservation of audio MIME/bytes through `audio_url`, and unchanged code/PDF/image/pasted-text order. Run it with the same esbuild/Node commands below; actual codec/model execution is tested separately by the engine's isolated media acceptance.
+
 Run from the App repository with the existing Node and esbuild dependencies; no package installation is required.
 
 ```powershell
