@@ -42,8 +42,10 @@ interface LayoutState {
     setDateRange: (range: DateRange | undefined) => void;
     activeChatData: ActiveChatData | null;
     setActiveChatData: (data: ActiveChatData | null) => void;
-    activeView: 'chat' | 'notebook' | 'settings' | 'dashboard' | 'tools' | 'apis' | 'toolkit';
-    setActiveView: (view: 'chat' | 'notebook' | 'settings' | 'dashboard' | 'tools' | 'apis' | 'toolkit') => void;
+    activeView: 'chat' | 'notebook' | 'settings' | 'dashboard' | 'tools' | 'apis' | 'toolkit' | 'library';
+    setActiveView: (view: 'chat' | 'notebook' | 'settings' | 'dashboard' | 'tools' | 'apis' | 'toolkit' | 'library') => void;
+    previewModalAsset: any | null;
+    setPreviewModalAsset: (asset: any | null) => void;
 }
 
 export const useLayoutStore = create<LayoutState>()(
@@ -76,6 +78,8 @@ export const useLayoutStore = create<LayoutState>()(
             setActiveChatData: (activeChatData) => set({ activeChatData }),
             activeView: 'chat',
             setActiveView: (activeView) => set({ activeView }),
+            previewModalAsset: null,
+            setPreviewModalAsset: (previewModalAsset) => set({ previewModalAsset }),
         }),
         {
             name: 'cluaiz-layout-storage',

@@ -33,7 +33,7 @@ export const VALID_SETTINGS_TABS: SettingsTabId[] = [
     'help'
 ];
 
-export type MainViewId = 'chat' | 'notebook' | 'settings' | 'dashboard' | 'tools' | 'apis' | 'toolkit';
+export type MainViewId = 'chat' | 'notebook' | 'settings' | 'dashboard' | 'tools' | 'apis' | 'toolkit' | 'library';
 
 export interface RouteState {
     view: MainViewId;
@@ -120,6 +120,8 @@ export function parseCurrentRoute(): RouteState {
         view = 'apis';
     } else if (pathname.includes('/toolkit')) {
         view = 'toolkit';
+    } else if (pathname.includes('/library') || hash.includes('/library')) {
+        view = 'library';
     }
 
     const activeChatId = searchParams.get('c') || null;
@@ -138,12 +140,6 @@ export function parseCurrentRoute(): RouteState {
 export function pushChatRoute(chatId: string | null, replace: boolean = false): void {
     if (typeof window === 'undefined') return;
     try {
-        const route = parseCurrentRoute();
-        // NEVER clobber settings or non-chat views with a chat route push
-        if (route.isSettingsOpen || (route.view && route.view !== 'chat')) {
-            return;
-        }
-
         const url = new URL(window.location.href);
         // Explicitly set pathname to root for chat and clear any settings tab
         url.pathname = '/';
@@ -158,9 +154,9 @@ export function pushChatRoute(chatId: string | null, replace: boolean = false): 
         if (targetUrl === currentUrl) return;
 
         if (replace) {
-            window.history.replaceState({ activeChatId: chatId }, '', targetUrl);
+            window.history.replaceState({ activeChatId: chatId, view: 'chat' }, '', targetUrl);
         } else {
-            window.history.pushState({ activeChatId: chatId }, '', targetUrl);
+            window.history.pushState({ activeChatId: chatId, view: 'chat' }, '', targetUrl);
         }
     } catch {}
 }

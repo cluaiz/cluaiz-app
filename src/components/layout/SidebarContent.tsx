@@ -23,13 +23,14 @@ import {
     MessageCircleWarning,
     Code2,
     FolderGit2,
+    FolderArchive,
     LayoutDashboard,
     Wrench,
     Boxes,
     Settings
 } from 'lucide-react';
 import { useProjectStore } from '../../store/workspace/useProjectStore';
-import { pushViewRoute } from '../../core/router';
+import { pushViewRoute, pushChatRoute } from '../../core/router';
 import { ApiSidebar } from '../../features/api/components/ApiSidebar';
 import { Tag } from '../ui/Tag';
 import { ChatRibbon } from '../ui/ChatRibbon';
@@ -652,7 +653,10 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                                         if (selectMode) {
                                             toggleSelectChat(chat.id);
                                         } else {
+                                            useLayoutStore.getState().setActiveView('chat');
+                                            pushViewRoute('chat');
                                             switchSession(chat.id);
+                                            pushChatRoute(chat.id);
                                             setActiveChatData({
                                                 id: chat.id,
                                                 name: chat.name,
@@ -908,7 +912,25 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                                 </button>
                             </Tooltip>
 
-                            {/* 4. Dashboard */}
+                            {/* 4. Notebook (Projects & Knowledge Hub) */}
+                            <Tooltip title="Notebook" position="right">
+                                <button
+                                    onClick={() => {
+                                        useLayoutStore.getState().setActiveView('notebook');
+                                        pushViewRoute('notebook');
+                                        setIsFlyoutOpen(false);
+                                    }}
+                                    className={`p-2 rounded-xl transition-colors active:scale-95 cursor-pointer ${
+                                        activeView === 'notebook'
+                                            ? 'bg-[var(--accent-color)]/10 text-[var(--accent-color)]'
+                                            : 'hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                                    }`}
+                                >
+                                    <NotebookPen className="w-5 h-5" />
+                                </button>
+                            </Tooltip>
+
+                            {/* 5. Dashboard */}
                             <Tooltip title="Dashboard" position="right">
                                 <button
                                     onClick={() => {
@@ -923,6 +945,24 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                                     }`}
                                 >
                                     <LayoutDashboard className="w-5 h-5" />
+                                </button>
+                            </Tooltip>
+
+                            {/* Library (Media & Files Hub) */}
+                            <Tooltip title="Library" position="right">
+                                <button
+                                    onClick={() => {
+                                        useLayoutStore.getState().setActiveView('library');
+                                        pushViewRoute('library');
+                                        setIsFlyoutOpen(false);
+                                    }}
+                                    className={`p-2 rounded-xl transition-colors active:scale-95 cursor-pointer ${
+                                        activeView === 'library'
+                                            ? 'bg-[var(--accent-color)]/10 text-[var(--accent-color)]'
+                                            : 'hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                                    }`}
+                                >
+                                    <FolderArchive className="w-5 h-5" />
                                 </button>
                             </Tooltip>
 
@@ -1009,6 +1049,8 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                                     <button
                                         ref={plusBtnRef}
                                         onClick={() => {
+                                            useLayoutStore.getState().setActiveView('chat');
+                                            pushViewRoute('chat');
                                             document.dispatchEvent(new CustomEvent('start-new-chat'));
                                         }}
                                         className="p-1.5 rounded hover:bg-[var(--bg-tertiary)] text-[var(--text-primary)] transition-colors active:scale-95 cursor-pointer"
@@ -1165,6 +1207,8 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                                         <Tooltip title="New Chat" position="bottom">
                                             <button
                                                 onClick={() => {
+                                                    useLayoutStore.getState().setActiveView('chat');
+                                                    pushViewRoute('chat');
                                                     document.dispatchEvent(new CustomEvent('start-new-chat'));
                                                     setIsFlyoutOpen(false);
                                                 }}

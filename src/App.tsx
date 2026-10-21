@@ -9,9 +9,11 @@ import { AuthTokenModal } from './features/settings/components/AuthTokenModal';
 import { Cpu, Database, Maximize2 } from 'lucide-react';
 import { useThemeStore } from './store/ui/useThemeStore';
 import { useLayoutStore } from './store/ui/useLayoutStore';
-import { NotebookEditor } from './features/notebook/NotebookEditor';
+import { NotebookHub } from './features/notebook/NotebookHub';
 import { ApiWorkspace } from './features/api/ApiWorkspace';
 import { ToolsWorkspace } from './features/tools';
+import { LibraryHub, AssetPreviewModal } from './features/library';
+import { openAttachmentInWorkspace } from './features/chat/utils/workspaceAttachmentOpener';
 import { ElasticSlider } from './components/ui/cursor/ElasticSlider';
 import ClickSpark from './components/ui/ClickSpark';
 import { SmoothFollowCursor } from './components/ui/cursor/SmoothFollowCursor';
@@ -31,7 +33,7 @@ function MainAppContent() {
         tab: initialRoute.settingsTab
     });
     const { textScale, setTextScale, theme, darkAccent, lightAccent, cursorType } = useThemeStore();
-    const { activeView } = useLayoutStore();
+    const { activeView, previewModalAsset, setPreviewModalAsset } = useLayoutStore();
     const activeAccent = theme !== 'light' ? darkAccent : lightAccent;
 
     const handleOpenSettings = (tab?: string) => {
@@ -168,11 +170,13 @@ function MainAppContent() {
                 }
                 mainContent={
                     activeView === 'notebook' ? (
-                        <NotebookEditor />
+                        <NotebookHub />
                     ) : activeView === 'apis' ? (
                         <ApiWorkspace />
                     ) : activeView === 'tools' ? (
                         <ToolsWorkspace />
+                    ) : activeView === 'library' ? (
+                        <LibraryHub />
                     ) : (
                         <ChatWorkspace />
                     )
@@ -203,6 +207,27 @@ function MainAppContent() {
 
             {/* Global Auth Disconnect Recovery Modal */}
             <AuthTokenModal />
+
+            {/* Global Unified Asset & File Preview Modal (Shared across Library and Chat) */}
+            <AssetPreviewModal
+                asset={previewModalAsset}
+                onClose={() => setPreviewModalAsset(null)}
+                onOpenInWorkspace={(asset) => {
+                    openAttachmentInWorkspace({
+                        name: asset.name,
+                        size: asset.size,
+                        type: asset.type,
+                        previewUrl: asset.previewUrl,
+                        pastedContent: asset.content
+                    });
+                }}
+                onJumpToChat={async (sessionId) => {
+                    useLayoutStore.getState().setActiveView('chat');
+                    pushViewRoute('chat');
+                    await useChatStore.getState().switchSession(sessionId);
+                    pushChatRoute(sessionId);
+                }}
+            />
 
             {/* Global Notification & Toast Portal */}
             <ToastContainer />
