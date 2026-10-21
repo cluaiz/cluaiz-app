@@ -1380,7 +1380,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 type="file"
                 ref={fileInputRef}
                 multiple
-                accept={isVisionSupported ? `${BASE_DOC_AND_CODE_ACCEPT},${VISION_MEDIA_ACCEPT}` : BASE_DOC_AND_CODE_ACCEPT}
+                accept={`${BASE_DOC_AND_CODE_ACCEPT},audio/*${isVisionSupported ? `,${VISION_MEDIA_ACCEPT},video/*` : ''}`}
                 onChange={handleFileSelect}
                 className="hidden"
             />

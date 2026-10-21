@@ -15,6 +15,21 @@ node node_modules/.cache/cluaiz-tests/chat_send.test.mjs
 
 History tests preserve successful/current attachments and exclude failed or legacy unanswered turns. Stream tests cover structured errors, one completion notification, HTTP413, premature EOF, cancellation and consumer failures. The React hook test runs the actual hook, engine adapter, SSE reader and store, with storage/network boundaries replaced for isolation. It verifies the visible error message and same-chat retry payload; it does not inspect browser layout or run a model.
 
+`chat_upload.browser.cjs` uses an existing Playwright package and installed Chrome with an isolated browser profile, an isolated release engine and the built App. It exercises the real upload button/file chooser, browser FileReader, HTTP/SSE, rendered answer and reload persistence. No inference response is replaced. The App picker offers audio, and also video when the selected model supports visual input; the existing staging checks still reject archives/executables.
+
+Supply these environment variables from the App repository:
+
+- `CLUAIZ_BROWSER_PLAYWRIGHT`: existing Playwright package directory (no installation by the test).
+- `CLUAIZ_BROWSER_ENGINE`: release engine executable.
+- `CLUAIZ_BROWSER_SEED_HOME`: disposable engine fixture home with registry, settings and native media assets; model weights remain external/read-only. Native assets are hardlinked, so both homes must be on the same volume.
+- `CLUAIZ_BROWSER_VISION_MODEL`: installed compatible model ID in that registry.
+- `CLUAIZ_BROWSER_MEDIA_FIXTURES`: existing genuine `jfk.wav` and `red-blue-audio.mp4` fixture directory, used for picker/media cases.
+- `CLUAIZ_BROWSER_GUARD_HOME`: optional original home whose settings/registry/permission/token hashes must stay unchanged (only equality is reported).
+
+Run `node test/chat_upload.browser.cjs --picker` for filters, real audio/video staging/removal and executable rejection; `--text` for real TSX/Markdown answers and chat refresh; `--visual` for image/PDF and optional audio/video recognition; no flag runs text and media. Build the App first. By default the test starts its own local preview; optional `CLUAIZ_BROWSER_APP_URL` uses an existing App server. Only the App and isolated local engine origins are allowed by the browser network boundary. Test-owned processes close on success/failure. Evidence goes into ignored `node_modules/.cache/cluaiz-tests/browser-upload/`.
+
+The fixture uses thinking off and temperature zero; byte/context/RAM limits stay at their seed values. Optional `CLUAIZ_BROWSER_BATCH_TOKENS` sets batch and microbatch only in the disposable home. An observed memory refusal is recorded separately and leaves exit code 2; it never counts as successful recognition. Screenshots/requests/answers are retained per case. Windows browser behavior does not certify Tauri native dialogs, other platforms, arbitrary codecs or recognition accuracy outside these fixtures.
+
 Retention tests cover Settings → Chats & History: defaults never delete, archive timers count from the archive time (legacy archived chats start their timer instead of being deleted), protected/open/private chats are untouched, and delete-inactive and keep-at-most order.
 
 TTS response regressions run with the same esbuild/Node workflow using `test/tts_response.test.ts`. They cover WAV data URI/raw Base64 decoding, WAV versus WebP RIFF signatures, JSON-envelope and binary speech responses, visible structured errors, missing-audio rejection, and default/custom voice payload mapping. These tests replace the network boundary; real model/API synthesis and audible speech quality need separate evidence.
