@@ -22,6 +22,9 @@ export interface ApiEndpoint {
     docs_url?: string;
     docs_content?: string;
     request_payload?: string;
+    payload_examples?: { id: string; title: string; payload: string;
+        model_task?: 'text_embedding' | 'image_embedding' | 'vision' }[];
+    payload_examples_url?: string;
     params?: ApiParameter[];
     response?: string;
     examples?: CodeSnippet[];
@@ -38,6 +41,8 @@ export interface InstalledModel {
     category?: string;
     format_type?: string;
     supported_tasks?: string[];
+    experimental?: boolean;
+    metadata?: { tts_family?: string; stt_family?: string };
     extra_files?: any[];
 }
 

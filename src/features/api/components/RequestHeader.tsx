@@ -4,8 +4,10 @@ import { useConnectionStore } from '../../../store/engine/useConnectionStore';
 import { ApiProtocol } from '../types';
 import { executeApiRequest } from '../services/apiTransport';
 import { CustomDropdown } from '../../../components/ui/dropdown/CustomDropdown';
-import { endpointUsesModel, getFilteredModelsForEndpoint } from '../utils/modelFilter';
+import { endpointUsesModel, getFilteredModelsForEndpoint, isEmbeddingModel } from '../utils/modelFilter';
 import { Play, RotateCcw, Loader2 } from 'lucide-react';
+import { audioApi } from '../../../api/engine/audio/audio.api';
+import { AUDIO_ENDPOINTS } from '../../../api/engine/audio/audio.endpoints';
 
 export const RequestHeader: React.FC = () => {
     const {
@@ -60,31 +62,39 @@ export const RequestHeader: React.FC = () => {
     // Filter models specifically for the active endpoint's task
     const modelOptions = useMemo(() => {
         if (!activeEndpoint) return [];
-        const filtered = getFilteredModelsForEndpoint(activeEndpoint.path, installedModels);
+        const filtered = getFilteredModelsForEndpoint(activeEndpoint.path, installedModels, reqBody);
         const p = activeEndpoint.path.toLowerCase();
 
         const allowsAuto = p.includes('/chat') || p.includes('/plan');
         const opts = filtered.map((m) => ({
             value: m.id,
-            label: m.id
+            label: `${m.id}${m.experimental ? ' (Experimental)' : ''}`,
+            description: p.includes('/ingest') ? (isEmbeddingModel(m)
+                ? `${m.format_type || ''} embedding vectors`
+                : 'Model-generated text from images/documents') : undefined
         }));
 
+        if (p.includes('/ingest')) {
+            return [{ value: '', label: 'Native extraction (no model)' }, ...opts];
+        }
         if (allowsAuto) {
             return [{ value: 'auto', label: 'Model: Auto' }, ...opts];
         }
         return opts;
-    }, [activeEndpoint, installedModels]);
+    }, [activeEndpoint?.path, installedModels, reqBody]);
 
-    // Ensure selected model is always valid and synchronized into the payload
+    // Discovery reads the selected package; STT routes have languages, not speaker voices.
     useEffect(() => {
-        if (!isModelEndpoint || !modelOptions.length) return;
-        const exists = modelOptions.some(o => o.value === selectedModel);
-        if (!exists && modelOptions[0]) {
-            setSelectedModel(modelOptions[0].value);
-        } else if (exists && selectedModel) {
-            setSelectedModel(selectedModel);
-        }
-    }, [activeEndpoint?.path, isModelEndpoint, modelOptions]);
+        useApiStore.setState({ availableVoices: [{ value: 'default', label: 'Default Voice' }] });
+        if (activeEndpoint?.path !== AUDIO_ENDPOINTS.SPEECH || !selectedModel) return;
+        const controller = new AbortController();
+        audioApi.voiceCatalog(selectedModel, controller.signal).then(catalog => {
+            if (!controller.signal.aborted) useApiStore.setState({ availableVoices: catalog.data.map(voice => ({
+                value: voice.id, label: `${voice.id}${voice.language ? ` (${voice.language})` : ''}`
+            })) });
+        }).catch(() => { /* Default stays usable; discovery errors do not replace the payload. */ });
+        return () => controller.abort();
+    }, [activeEndpoint?.path, selectedModel]);
 
     const voiceOptions = useMemo(
         () =>
@@ -171,7 +181,7 @@ export const RequestHeader: React.FC = () => {
         }
     };
 
-    const isAudioEndpoint = activeEndpoint?.path.includes('/audio');
+    const isSpeechEndpoint = activeEndpoint?.path === AUDIO_ENDPOINTS.SPEECH;
 
     return (
         <div className="flex flex-col gap-2 p-3 bg-[var(--bg-secondary)] border-b border-[var(--border-color)]">
@@ -194,17 +204,19 @@ export const RequestHeader: React.FC = () => {
                     options={protocolOptions}
                 />
 
-                {/* Model Selector (Only for Chat / Completion / Embedding Endpoints) */}
+                {/* Reuse the same selector for every endpoint that accepts a model. */}
                 {isModelEndpoint && (
                     <CustomDropdown
                         value={selectedModel}
                         onChange={(val) => setSelectedModel(val)}
                         options={modelOptions}
+                        placeholder="No compatible installed models"
+                        disabled={modelOptions.length === 0}
                     />
                 )}
 
-                {/* Voice Selector (Only for Audio Endpoints) */}
-                {isAudioEndpoint && (
+                {/* Speaker choices belong only to speech synthesis. */}
+                {isSpeechEndpoint && (
                     <CustomDropdown
                         value={selectedVoice}
                         onChange={(val) => setSelectedVoice(val)}

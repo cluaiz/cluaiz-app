@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useApiStore } from '../../../store/api/useApiStore';
 import { MarkdownRenderer } from '../../../components/ui/MarkdownRenderer';
 import { CodeEditor } from '../../../components/ui/CodeEditor';
+import { CustomDropdown } from '../../../components/ui/dropdown/CustomDropdown';
 import { FileText, Code2, Braces, Sliders, Check, Copy, Sparkles, RotateCcw } from 'lucide-react';
 
 export const RequestTabs: React.FC = () => {
@@ -20,6 +21,8 @@ export const RequestTabs: React.FC = () => {
 
     const [activeSnippetLang, setActiveSnippetLang] = useState<string>('curl');
     const [copiedSnippet, setCopiedSnippet] = useState(false);
+    const [payloadExample, setPayloadExample] = useState('');
+    useEffect(() => setPayloadExample(''), [activeEndpoint?.path]);
 
     const handleCopySnippet = (code: string) => {
         navigator.clipboard.writeText(code);
@@ -124,6 +127,15 @@ export const RequestTabs: React.FC = () => {
                 {/* 1. Body Editor Tab */}
                 {activeTab === 'params' && (
                     <div className="h-full flex flex-col">
+                        {!!activeEndpoint?.payload_examples?.length && (
+                            <div className="flex items-center gap-2 pb-2">
+                                <span className="text-xs text-[var(--text-muted)]">Payload example</span>
+                                <CustomDropdown value={payloadExample} placeholder="Choose input type..."
+                                    options={activeEndpoint.payload_examples.map(example => ({value: example.id, label: example.title}))}
+                                    onChange={id => { useApiStore.getState().applyPayloadExample(id); setPayloadExample(id); }}
+                                    floating />
+                            </div>
+                        )}
                         <div className="flex-1 min-h-0">
                             <CodeEditor
                                 value={reqBody}

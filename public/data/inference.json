@@ -4,33 +4,18 @@
     {
       "method": "POST",
       "path": "/v1/chat/completions",
-      "desc": "OpenAI-compatible conversational dialogue and multimodal VLM endpoint. Supports streaming, system prompts, JSON mode, reasoning budget control, and image/video inputs. Every reply includes 'engine': llama.cpp's own timings, the thinking budget used (budget_tokens, capped, used_tokens, ended_by) and the llama.cpp load values of the model.",
+      "desc": "Chat and model-supported image/audio/video answers. file_url uses native document text, or rendered PDF pages for a selected image-capable package with projector. Auto uses the configured slot, not automatic media-capability matching.",
       "docs_url": "/docs/api/inference/chat_completions.md",
       "params": [
         {
           "name": "messages",
           "type": "array",
           "req": true,
-          "desc": "Array of conversation turns (system, user, assistant, tool). Content supports plain text string or multimodal array with image/file attachments (type: 'text' | 'image_url' | 'file_url' | 'input_audio').",
+          "desc": "Conversation turns. content is text or ordered parts: text, image_url, audio_url, input_audio, file_url, video_url. Media capabilities/projectors must match the selected model.",
           "default": [
             {
-              "role": "system",
-              "content": "You are a helpful AI assistant."
-            },
-            {
               "role": "user",
-              "content": [
-                {
-                  "type": "text",
-                  "text": "Analyze this attached image and describe what you see:"
-                },
-                {
-                  "type": "image_url",
-                  "image_url": {
-                    "url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
-                  }
-                }
-              ]
+              "content": "Hello! Explain what a local AI engine does."
             }
           ]
         },
@@ -169,7 +154,7 @@
           "name": "keep_alive",
           "type": "integer",
           "req": false,
-          "desc": "Minutes to keep the model loaded after the reply; 0 = unload right after the reply.",
+          "desc": "Retention in minutes, not seconds: 0 unloads; -1/omitted retains; positive values expire after completion.",
           "default": null
         },
         {
@@ -215,28 +200,23 @@
           "default": null
         }
       ],
-      "request_payload": "{\n  \"model\": \"auto\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a helpful AI assistant.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": [\n        {\n          \"type\": \"text\",\n          \"text\": \"Analyze this attached image and describe what you see:\"\n        },\n        {\n          \"type\": \"image_url\",\n          \"image_url\": {\n            \"url\": \"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=\"\n          }\n        }\n      ]\n    }\n  ],\n  \"stream\": true,\n  \"temperature\": 0.7,\n  \"max_tokens\": 2048,\n  \"top_p\": 0.95,\n  \"top_k\": 40,\n  \"min_p\": 0.05,\n  \"repetition_penalty\": 1.1,\n  \"presence_penalty\": 0.0,\n  \"frequency_penalty\": 0.0,\n  \"think_mode\": \"auto\",\n  \"reasoning_effort\": \"auto\",\n  \"reasoning_budget_message\": \" Time to answer.\",\n  \"temporary_chat\": \"lite\",\n  \"session_id\": \"session-default\",\n  \"llama\": {\n    \"n_ctx\": 0,\n    \"cache_type_k\": \"auto\",\n    \"cache_type_v\": \"auto\",\n    \"flash_attn\": \"auto\"\n  }\n}",
+      "request_payload": "{\n  \"model\": \"auto\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Hello! Explain what a local AI engine does.\"\n    }\n  ],\n  \"stream\": true,\n  \"temperature\": 0.7,\n  \"max_tokens\": 2048,\n  \"top_p\": 0.95,\n  \"top_k\": 40,\n  \"min_p\": 0.05,\n  \"repetition_penalty\": 1.1,\n  \"presence_penalty\": 0,\n  \"frequency_penalty\": 0,\n  \"think_mode\": \"auto\",\n  \"reasoning_effort\": \"auto\",\n  \"reasoning_budget_message\": \" Time to answer.\",\n  \"temporary_chat\": \"lite\",\n  \"session_id\": \"session-default\",\n  \"llama\": {\n    \"n_ctx\": 0,\n    \"cache_type_k\": \"auto\",\n    \"cache_type_v\": \"auto\",\n    \"flash_attn\": \"auto\"\n  }\n}",
       "response": "{\n  \"id\": \"chatcmpl-123e4567-e89b-12d3-a456-426614174000\",\n  \"object\": \"chat.completion\",\n  \"created\": 1718301294,\n  \"model\": \"auto\",\n  \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\": \"assistant\",\n        \"content\": \"Quantum computing is a rapidly evolving technology that harnesses the laws of quantum mechanics to solve problems too complex for classical computers.\"\n      },\n      \"finish_reason\": \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 24,\n    \"completion_tokens\": 21,\n    \"total_tokens\": 45\n  },\n  \"engine\": {\n    \"timings\": {\n      \"prompt_n\": 24,\n      \"prompt_ms\": 31.2,\n      \"prompt_per_second\": 769.2,\n      \"predicted_n\": 21,\n      \"predicted_ms\": 290.4,\n      \"predicted_per_second\": 72.3\n    },\n    \"thinking\": null,\n    \"load\": {\n      \"placement\": \"GpuOnly\",\n      \"n_ctx\": 4096,\n      \"n_gpu_layers\": -1,\n      \"total_layers\": 36,\n      \"n_cpu_moe\": 0,\n      \"offload_kqv\": true,\n      \"op_offload\": true,\n      \"cache_type\": \"Kv16\",\n      \"planner\": \"Full GPU: weights ... vs usable VRAM ...\",\n      \"settings\": {\n        \"n_batch\": 512,\n        \"n_ubatch\": 512,\n        \"n_threads\": 8,\n        \"n_threads_batch\": 8,\n        \"flash_attn\": \"Auto\",\n        \"use_mmap\": true\n      }\n    }\n  }\n}",
       "examples": [
         {
           "language": "curl",
-          "title": "cURL (Text & Streaming)",
-          "code": "curl -X POST http://localhost:8000/v1/chat/completions \\\n  -H 'Content-Type: application/json' \\\n  -d '{\n    \"model\": \"auto\",\n    \"messages\": [\n      {\"role\": \"system\", \"content\": \"You are a helpful assistant.\"},\n      {\"role\": \"user\", \"content\": \"Explain gravity.\"}\n    ],\n    \"stream\": true,\n    \"temperature\": 0.7,\n    \"think_mode\": \"auto\"\n  }'"
-        },
-        {
-          "language": "curl",
-          "title": "cURL (Multimodal Vision)",
-          "code": "curl -X POST http://localhost:8000/v1/chat/completions \\\n  -H 'Content-Type: application/json' \\\n  -d '{\n    \"model\": \"auto\",\n    \"messages\": [\n      {\n        \"role\": \"user\",\n        \"content\": [\n          {\"type\": \"text\", \"text\": \"Describe this diagram in detail.\"},\n          {\"type\": \"image_url\", \"image_url\": {\"url\": \"https://example.com/architecture.png\"}}\n        ]\n      }\n    ],\n    \"stream\": true\n  }'"
+          "title": "cURL (POSIX shell)",
+          "code": "curl --fail-with-body http://127.0.0.1:8000/v1/chat/completions \\\n  -H \"Authorization: Bearer $CLUAIZ_TOKEN\" \\\n  -H \"Content-Type: application/json\" \\\n  --data-binary @request.json\n\n# Save the Body Payload as request.json first.\n# Replace sample model IDs/sources with real installed IDs/files."
         },
         {
           "language": "python",
-          "title": "Python (OpenAI Client & Reasoning)",
-          "code": "from openai import OpenAI\n\nclient = OpenAI(base_url='http://localhost:8000/v1', api_key='sk-no-key-required')\n\nresponse = client.chat.completions.create(\n    model=\"auto\",\n    messages=[\n        {\"role\": \"system\", \"content\": \"You are a helpful assistant.\"},\n        {\"role\": \"user\", \"content\": \"Explain the P vs NP problem.\"}\n    ],\n    extra_body={\n        \"think_mode\": \"auto\",\n        \"reasoning_effort\": \"medium\",\n        \"min_p\": 0.05\n    }\n)\nprint(response.choices[0].message.content)"
+          "title": "Python (requests)",
+          "code": "import json\nimport os\nimport requests\n\npayload = json.loads(r'''{\n  \"model\": \"auto\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Hello! Explain what a local AI engine does.\"\n    }\n  ],\n  \"stream\": false,\n  \"max_tokens\": 128,\n  \"keep_alive\": 0\n}''')\nresponse = requests.post(\n    \"http://127.0.0.1:8000/v1/chat/completions\",\n    headers={\"Authorization\": \"Bearer \" + os.environ[\"CLUAIZ_TOKEN\"]},\n    json=payload\n)\nresponse.raise_for_status()\ndata = response.json()\nprint(data[\"choices\"][0][\"message\"][\"content\"])"
         },
         {
           "language": "javascript",
-          "title": "Node.js (OpenAI Client)",
-          "code": "import OpenAI from 'openai';\n\nconst openai = new OpenAI({\n  baseURL: 'http://localhost:8000/v1',\n  apiKey: 'sk-no-key-required'\n});\n\nasync function main() {\n  const completion = await openai.chat.completions.create({\n    messages: [{ role: 'user', content: 'Explain gravity.' }],\n    model: 'auto',\n  });\n  console.log(completion.choices[0].message.content);\n}\nmain();"
+          "title": "JavaScript (fetch)",
+          "code": "// Set token to your configured Bearer token and model to an installed ID.\nconst payload = {\n  \"model\": \"auto\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Hello! Explain what a local AI engine does.\"\n    }\n  ],\n  \"stream\": false,\n  \"max_tokens\": 128,\n  \"keep_alive\": 0\n};\nconst response = await fetch(\"http://127.0.0.1:8000/v1/chat/completions\", {\n  method: \"POST\",\n  headers: {\"Content-Type\": \"application/json\", Authorization: `Bearer ${token}`},\n  body: JSON.stringify(payload)\n});\nif (!response.ok) throw new Error(await response.text());\nconst data = await response.json();\nconsole.log(data.choices[0].message.content);"
         }
       ]
     },
@@ -430,201 +410,235 @@
     {
       "method": "POST",
       "path": "/v1/embeddings",
-      "desc": "OpenAI-compatible multimodal dense vector embedding endpoint. Encodes text chunks, search queries, or visual assets into normalized float vectors.",
+      "desc": "Vectors from the selected installed embedding model. Text/batches: compatible ONNX/GGUF. Image: compatible ONNX graph. For PDF/DOCX source files use /v1/ingest with a selected embedding model, or send previously extracted chunks here. Response arrays are illustrative/abbreviated.",
       "docs_url": "/docs/api/inference/embeddings.md",
       "params": [
-        {
-          "name": "input",
-          "type": "string / array",
-          "req": true,
-          "desc": "Text, a string batch, or exactly one {type: 'image', source: '<URI/path>'} with optional text parts.",
-          "default": [
-            "The quick brown fox jumps over the lazy dog",
-            "Dense vector embeddings for semantic search"
-          ]
-        },
         {
           "name": "model",
           "type": "string",
           "req": false,
-          "desc": "Installed compatible ONNX/GGUF embedding model ID. GGUF accepts text only; image input requires an ONNX graph.",
-          "default": "bge-m3"
+          "desc": "Exact installed embedding ID. Text: compatible ONNX/GGUF. Image parts: ONNX image graph only; GGUF multimodal embeddings are not implemented.",
+          "default": "<installed-embedding-model-id>"
+        },
+        {
+          "name": "input",
+          "type": "string / array",
+          "req": true,
+          "desc": "One text, a non-empty string batch, or exactly one {type:'image', source:'<URI/path>'} with optional text parts. See Documentation for each payload shape.",
+          "default": [
+            "A document paragraph.",
+            "A search query."
+          ]
         },
         {
           "name": "encoding_format",
           "type": "string",
           "req": false,
-          "desc": "Only 'float' output is currently supported; other encodings are rejected.",
+          "desc": "Only float output is supported. Dimensions come from the model; no dimensions override.",
           "default": "float"
         },
         {
           "name": "keep_alive",
           "type": "integer",
           "req": false,
-          "desc": "Retention in minutes: 0 unloads after execution; -1 retains indefinitely."
+          "desc": "Minutes: 0 unloads after execution; positive values expire; -1/omitted retains.",
+          "default": 0
+        },
+        {
+          "name": "user",
+          "type": "string",
+          "req": false,
+          "desc": "Optional caller identifier; does not create a vector-store namespace."
         }
       ],
-      "request_payload": "{\n  \"model\": \"bge-m3\",\n  \"input\": [\n    \"The quick brown fox jumps over the lazy dog\",\n    \"Dense vector embeddings for semantic search\"\n  ],\n  \"encoding_format\": \"float\"\n}",
+      "request_payload": "{\n  \"model\": \"<installed-embedding-model-id>\",\n  \"input\": [\n    \"A document paragraph.\",\n    \"A search query.\"\n  ],\n  \"encoding_format\": \"float\",\n  \"keep_alive\": 0\n}",
       "response": "{\n  \"object\": \"list\",\n  \"data\": [\n    {\n      \"object\": \"embedding\",\n      \"embedding\": [\n        0.0123,\n        -0.0456,\n        0.0789\n      ],\n      \"index\": 0\n    },\n    {\n      \"object\": \"embedding\",\n      \"embedding\": [\n        -0.0987,\n        0.0654,\n        0.0321\n      ],\n      \"index\": 1\n    }\n  ],\n  \"model\": \"bge-m3\",\n  \"usage\": {\n    \"prompt_tokens\": 15,\n    \"total_tokens\": 15\n  }\n}",
       "examples": [
         {
           "language": "curl",
-          "title": "cURL",
-          "code": "curl -X POST http://localhost:8000/v1/embeddings \\\n  -H 'Content-Type: application/json' \\\n  -d '{\n    \"model\": \"bge-m3\",\n    \"input\": [\"Semantic retrieval in Rust\", \"AI inference\"]\n  }'"
+          "title": "cURL (POSIX shell)",
+          "code": "curl --fail-with-body http://127.0.0.1:8000/v1/embeddings \\\n  -H \"Authorization: Bearer $CLUAIZ_TOKEN\" \\\n  -H \"Content-Type: application/json\" \\\n  --data-binary @request.json\n\n# Save the Body Payload as request.json first.\n# Replace sample model IDs/sources with real installed IDs/files."
         },
         {
           "language": "python",
-          "title": "Python (OpenAI Client)",
-          "code": "from openai import OpenAI\n\nclient = OpenAI(base_url='http://localhost:8000/v1', api_key='sk-no-key-required')\n\nresponse = client.embeddings.create(\n    model=\"bge-m3\",\n    input=[\"Semantic retrieval in Rust\", \"AI inference\"]\n)\nprint(f\"Embedding dimension: {len(response.data[0].embedding)}\")"
+          "title": "Python (requests)",
+          "code": "import json\nimport os\nimport requests\n\npayload = json.loads(r'''{\n  \"model\": \"<installed-embedding-model-id>\",\n  \"input\": [\n    \"A document paragraph.\",\n    \"A search query.\"\n  ],\n  \"encoding_format\": \"float\",\n  \"keep_alive\": 0\n}''')\npayload[\"model\"] = os.environ[\"CLUAIZ_MODEL\"]\nresponse = requests.post(\n    \"http://127.0.0.1:8000/v1/embeddings\",\n    headers={\"Authorization\": \"Bearer \" + os.environ[\"CLUAIZ_TOKEN\"]},\n    json=payload\n)\nresponse.raise_for_status()\ndata = response.json()\nprint([len(item[\"embedding\"]) for item in data[\"data\"]])"
         },
         {
           "language": "javascript",
-          "title": "Node.js (OpenAI Client)",
-          "code": "import OpenAI from 'openai';\n\nconst openai = new OpenAI({\n  baseURL: 'http://localhost:8000/v1',\n  apiKey: 'sk-no-key-required'\n});\n\nasync function main() {\n  const response = await openai.embeddings.create({\n    model: 'bge-m3',\n    input: ['Semantic retrieval in Rust', 'AI inference']\n  });\n  console.log(`Generated ${response.data.length} embeddings!`);\n}\nmain();"
+          "title": "JavaScript (fetch)",
+          "code": "// Set token to your configured Bearer token and model to an installed ID.\nconst payload = {\n  \"model\": \"<installed-embedding-model-id>\",\n  \"input\": [\n    \"A document paragraph.\",\n    \"A search query.\"\n  ],\n  \"encoding_format\": \"float\",\n  \"keep_alive\": 0\n};\npayload.model = model;\nconst response = await fetch(\"http://127.0.0.1:8000/v1/embeddings\", {\n  method: \"POST\",\n  headers: {\"Content-Type\": \"application/json\", Authorization: `Bearer ${token}`},\n  body: JSON.stringify(payload)\n});\nif (!response.ok) throw new Error(await response.text());\nconst data = await response.json();\nconsole.log(data.data.map(item => item.embedding.length));"
         }
-      ]
+      ],
+      "payload_examples_url": "/data/embedding_examples.json"
     },
     {
       "method": "POST",
       "path": "/v1/ingest",
-      "desc": "Native Document AI & Spatial Vision OCR extraction endpoint. Powered by embedded PDFium and Tesseract 5.2.0 OCR. Ingests, parses, and extracts clean text from PDFs (text & scanned), Word (.docx), text files, and images without requiring an LLM model.",
+      "desc": "Native document extraction with optional selected-model processing. Omit model for PDF/OCR/Word/text extraction; choose a text embedding model for chunks, an ONNX image embedding graph for images/PDF pages, or a GGUF vision model for generated text. Check processing and model on each source.",
       "docs_url": "/docs/api/inference/ingest.md",
       "params": [
         {
           "name": "source",
           "type": "string / array",
           "req": true,
-          "desc": "Local authorized file path, HTTP URL, or Base64 Data URI (e.g. data:application/pdf;base64,...).",
-          "default": "data:text/plain;base64,SGVsbG8gQ2x1YWl6IEVuZ2luZSE="
+          "desc": "One or an ordered array of real document data URIs, allowed URLs or authorized paths on the engine host.",
+          "default": "data:text/plain;base64,SGVsbG8gQ2x1YWl6IQ=="
         },
         {
           "name": "output_controls",
           "type": "object",
           "req": false,
-          "desc": "Control returned extraction fields. Set 'return_text': true to receive extracted text and chunks.",
+          "desc": "return_text controls returned text/chunks. Selected embedding models produce embeddings automatically; return_embeddings:true requires an embedding model. No persistent vector database is created.",
           "default": {
             "return_text": true
           }
+        },
+        {
+          "name": "chunking_strategy",
+          "type": "object",
+          "req": false,
+          "desc": "Only semantic chunking, zero overlap. max_chunk_size is positive UTF-8 bytes, not tokens.",
+          "default": {
+            "type": "semantic",
+            "max_chunk_size": 512,
+            "overlap": 0
+          }
+        },
+        {
+          "name": "model",
+          "type": "string",
+          "req": false,
+          "desc": "Optional exact installed model ID. Omitted/auto: native extraction. Select a compatible text/image embedding or generative GGUF vision package. Folder category alone does not establish OCR capability."
+        },
+        {
+          "name": "vision_settings",
+          "type": "object",
+          "req": false,
+          "desc": "For a selected generative vision model: use_vision (default true for image/PDF pages), optional system_instruction and positive max_tokens per image/page. use_vision:false reads via native extraction first. detail_level is unsupported."
         }
       ],
-      "request_payload": "{\n  \"source\": \"data:text/plain;base64,SGVsbG8gQ2x1YWl6IEVuZ2luZSE=\",\n  \"output_controls\": {\n    \"return_text\": true\n  }\n}",
+      "request_payload": "{\n  \"source\": \"data:text/plain;base64,SGVsbG8gQ2x1YWl6IQ==\",\n  \"output_controls\": {\n    \"return_text\": true\n  },\n  \"chunking_strategy\": {\n    \"type\": \"semantic\",\n    \"max_chunk_size\": 512,\n    \"overlap\": 0\n  }\n}",
       "response": "{\n  \"status\": \"success\",\n  \"processed_sources\": [\n    {\n      \"source\": \"data:text/plain;base64,...\",\n      \"status\": \"ingested\",\n      \"chunks\": [\n        \"Hello Cluaiz Engine!\"\n      ],\n      \"parts\": [\n        {\n          \"page\": null,\n          \"method\": \"utf8\",\n          \"text\": \"Hello Cluaiz Engine!\",\n          \"omissions\": [],\n          \"warnings\": []\n        }\n      ],\n      \"mime_type\": \"text/plain\",\n      \"chunks_count\": 1,\n      \"chunk_size\": 512\n    }\n  ],\n  \"total_sources\": 1\n}",
       "examples": [
         {
           "language": "curl",
-          "title": "cURL",
-          "code": "curl -X POST http://localhost:8000/v1/ingest \\\n  -H 'Content-Type: application/json' \\\n  -H 'Authorization: Bearer <session-token>' \\\n  -d '{\"source\": \"data:text/plain;base64,SGVsbG8gQ2x1YWl6IQ==\", \"output_controls\": {\"return_text\": true}}'"
+          "title": "cURL (POSIX shell)",
+          "code": "curl --fail-with-body http://127.0.0.1:8000/v1/ingest \\\n  -H \"Authorization: Bearer $CLUAIZ_TOKEN\" \\\n  -H \"Content-Type: application/json\" \\\n  --data-binary @request.json\n\n# Save the Body Payload as request.json first.\n# Replace sample model IDs/sources with real installed IDs/files."
         },
         {
           "language": "python",
-          "title": "Python",
-          "code": "import requests\n\npayload = {\"source\": \"data:text/plain;base64,SGVsbG8gQ2x1YWl6IQ==\", \"output_controls\": {\"return_text\": True}}\nheaders = {\"Authorization\": \"Bearer <token>\"}\nres = requests.post('http://localhost:8000/v1/ingest', json=payload, headers=headers)\nprint(res.json())"
+          "title": "Python (requests)",
+          "code": "import json\nimport os\nimport requests\n\npayload = json.loads(r'''{\n  \"source\": \"data:text/plain;base64,SGVsbG8gQ2x1YWl6IQ==\",\n  \"output_controls\": {\n    \"return_text\": true\n  },\n  \"chunking_strategy\": {\n    \"type\": \"semantic\",\n    \"max_chunk_size\": 512,\n    \"overlap\": 0\n  }\n}''')\nresponse = requests.post(\n    \"http://127.0.0.1:8000/v1/ingest\",\n    headers={\"Authorization\": \"Bearer \" + os.environ[\"CLUAIZ_TOKEN\"]},\n    json=payload\n)\nresponse.raise_for_status()\ndata = response.json()\nprint(data[\"status\"])\nfor source in data[\"processed_sources\"]:\n    print(source[\"status\"], source.get(\"chunks\", []))"
+        },
+        {
+          "language": "javascript",
+          "title": "JavaScript (fetch)",
+          "code": "// Set token to your configured Bearer token and model to an installed ID.\nconst payload = {\n  \"source\": \"data:text/plain;base64,SGVsbG8gQ2x1YWl6IQ==\",\n  \"output_controls\": {\n    \"return_text\": true\n  },\n  \"chunking_strategy\": {\n    \"type\": \"semantic\",\n    \"max_chunk_size\": 512,\n    \"overlap\": 0\n  }\n};\nconst response = await fetch(\"http://127.0.0.1:8000/v1/ingest\", {\n  method: \"POST\",\n  headers: {\"Content-Type\": \"application/json\", Authorization: `Bearer ${token}`},\n  body: JSON.stringify(payload)\n});\nif (!response.ok) throw new Error(await response.text());\nconst data = await response.json();\nconsole.log(data);"
         }
-      ]
+      ],
+      "payload_examples_url": "/data/ingest_examples.json"
     },
     {
       "method": "POST",
       "path": "/v1/audio/transcriptions",
-      "desc": "ONNX Speech-to-Text (STT / ASR) transcription endpoint powered by Whisper. Transcribes audio recordings and voice notes directly into text via pure JSON.",
+      "desc": "Recording-to-text with a compatible installed ONNX STT package (Whisper/supported Moonshine exports). JSON only; no multipart. Greedy decoding at temperature 0; timestamps/VAD/diarization are not implemented.",
       "docs_url": "/docs/api/inference/audio_transcriptions.md",
       "params": [
         {
           "name": "model",
           "type": "string",
           "req": false,
-          "desc": "ASR Speech-to-Text installed model ID (e.g. whisper-large-v3-turbo-INT8).",
-          "default": "whisper-large-v3-turbo-INT8"
-        },
-        {
-          "name": "input_source",
-          "type": "object",
-          "req": false,
-          "desc": "Audio input source descriptor: {'type': 'file' | 'audio' | 'base64' | 'url', 'data': '...'}. Optional if 'file' string is provided directly.",
-          "default": {
-            "type": "file",
-            "data": "C:\\Users\\Aryan\\Downloads\\harvard.mp3"
-          }
+          "desc": "Exact installed STT package ID. Omitted/auto uses the active eligible slot or an eligible installed package.",
+          "default": "<installed-stt-model-id>"
         },
         {
           "name": "file",
           "type": "string",
           "req": false,
-          "desc": "Direct local audio file path or URI (OpenAI-compatible convenience field alternative to input_source).",
-          "default": "C:\\Users\\Aryan\\Downloads\\harvard.mp3"
+          "desc": "JSON source shortcut: authorized engine-host path, real audio data URI or allowed URL. Use file OR input_source.",
+          "default": "C:/audio/voice_memo.wav"
+        },
+        {
+          "name": "input_source",
+          "type": "object",
+          "req": false,
+          "desc": "Alternative to file: {type:'audio', data:'data:audio/wav;base64,<actual-bytes>'}. Takes precedence if both are sent."
         },
         {
           "name": "language",
           "type": "string",
           "req": false,
-          "desc": "Spoken language code (e.g. 'auto' for automatic language detection, 'en', 'hi', 'es').",
+          "desc": "Known spoken language code, or auto/omitted for package-supported identification. Omit when using candidate languages.",
           "default": "auto"
         },
         {
           "name": "languages",
           "type": "array",
           "req": false,
-          "desc": "Cluaiz extension: the languages the speaker uses (e.g. ['hi', 'en']). Without 'language', each request is identified among only these, so switching languages between sentences works and no unrelated language appears. Codes the model does not know are skipped; if it knows none, every language is considered. Empty: all languages. List them with GET /v1/audio/languages.",
-          "default": [
-            "hi",
-            "en"
-          ]
+          "desc": "Up to 10 candidate language codes, e.g. ['hi','en']. Unknown candidates are skipped; no recognition-accuracy guarantee."
         },
         {
           "name": "temperature",
           "type": "float",
           "req": false,
-          "desc": "Sampling temperature for greedy decoding (0.0 recommended for maximum transcription accuracy).",
+          "desc": "Only 0 is implemented; nonzero values return an error.",
           "default": 0
         },
         {
           "name": "timestamps",
           "type": "boolean",
           "req": false,
-          "desc": "Whether to return segment timestamps in output (default: false for greedy raw text).",
+          "desc": "Only false is implemented; true returns an error, output.segments is null.",
           "default": false
         },
         {
           "name": "stream",
           "type": "boolean",
           "req": false,
-          "desc": "Whether to stream partial transcribed tokens in real-time via Server-Sent Events (SSE).",
+          "desc": "true: SSE token events and a terminal done/error event; false: complete JSON.",
           "default": false
         },
         {
           "name": "keep_alive",
           "type": "integer",
           "req": false,
-          "desc": "Session memory retention in minutes (e.g. 5, 0 to unload immediately, -1 for indefinite RAM residence).",
-          "default": 5
+          "desc": "Minutes: 0 unloads, positive values expire, -1/omitted retains.",
+          "default": 0
         }
       ],
-      "request_payload": "{\n  \"model\": \"whisper-large-v3-turbo-INT8\",\n  \"input_source\": {\n    \"type\": \"file\",\n    \"data\": \"C:\\\\Users\\\\Aryan\\\\Downloads\\\\harvard.mp3\"\n  },\n  \"language\": \"auto\",\n  \"languages\": [\n    \"hi\",\n    \"en\"\n  ],\n  \"temperature\": 0.0,\n  \"timestamps\": false,\n  \"stream\": false,\n  \"keep_alive\": 5\n}",
+      "request_payload": "{\n  \"model\": \"<installed-stt-model-id>\",\n  \"file\": \"C:/audio/voice_memo.wav\",\n  \"language\": \"auto\",\n  \"temperature\": 0,\n  \"timestamps\": false,\n  \"stream\": false,\n  \"keep_alive\": 0\n}",
       "response": "{\n  \"status\": \"success\",\n  \"task\": \"speech_to_text\",\n  \"model\": \"whisper-large-v3-turbo-INT8\",\n  \"output\": {\n    \"text\": \"Hello, this is a transcription test using Cluaiz Engine.\",\n    \"segments\": null\n  }\n}",
       "examples": [
         {
           "language": "curl",
-          "title": "cURL",
-          "code": "curl -X POST http://localhost:8000/v1/audio/transcriptions \\\n  -H 'Content-Type: application/json' \\\n  -H 'Authorization: Bearer <session-token>' \\\n  -d '{\n    \"model\": \"whisper-large-v3-turbo-INT8\",\n    \"input_source\": {\"type\": \"file\", \"data\": \"C:/Users/Aryan/Downloads/harvard.mp3\"},\n    \"language\": \"auto\",\n    \"temperature\": 0.0,\n    \"timestamps\": false,\n    \"stream\": false,\n    \"keep_alive\": 5\n  }'"
+          "title": "cURL (POSIX shell)",
+          "code": "curl --fail-with-body http://127.0.0.1:8000/v1/audio/transcriptions \\\n  -H \"Authorization: Bearer $CLUAIZ_TOKEN\" \\\n  -H \"Content-Type: application/json\" \\\n  --data-binary @request.json\n\n# Save the Body Payload as request.json first.\n# Replace sample model IDs/sources with real installed IDs/files."
         },
         {
           "language": "python",
           "title": "Python (requests)",
-          "code": "import requests\n\nheaders = {'Authorization': 'Bearer <token>'}\npayload = {\n    'model': 'whisper-large-v3-turbo-INT8',\n    'input_source': {'type': 'file', 'data': 'C:/Users/Aryan/Downloads/harvard.mp3'},\n    'language': 'auto',\n    'temperature': 0.0,\n    'timestamps': False,\n    'stream': False,\n    'keep_alive': 5\n}\nres = requests.post('http://localhost:8000/v1/audio/transcriptions', json=payload, headers=headers)\nprint(res.json()['output']['text'])"
+          "code": "import json\nimport os\nimport requests\n\npayload = json.loads(r'''{\n  \"model\": \"<installed-stt-model-id>\",\n  \"file\": \"C:/audio/voice_memo.wav\",\n  \"language\": \"auto\",\n  \"temperature\": 0,\n  \"timestamps\": false,\n  \"stream\": false,\n  \"keep_alive\": 0\n}''')\npayload[\"model\"] = os.environ[\"CLUAIZ_MODEL\"]\nresponse = requests.post(\n    \"http://127.0.0.1:8000/v1/audio/transcriptions\",\n    headers={\"Authorization\": \"Bearer \" + os.environ[\"CLUAIZ_TOKEN\"]},\n    json=payload\n)\nresponse.raise_for_status()\ndata = response.json()\nprint(data[\"output\"][\"text\"])"
+        },
+        {
+          "language": "javascript",
+          "title": "JavaScript (fetch)",
+          "code": "// Set token to your configured Bearer token and model to an installed ID.\nconst payload = {\n  \"model\": \"<installed-stt-model-id>\",\n  \"file\": \"C:/audio/voice_memo.wav\",\n  \"language\": \"auto\",\n  \"temperature\": 0,\n  \"timestamps\": false,\n  \"stream\": false,\n  \"keep_alive\": 0\n};\npayload.model = model;\nconst response = await fetch(\"http://127.0.0.1:8000/v1/audio/transcriptions\", {\n  method: \"POST\",\n  headers: {\"Content-Type\": \"application/json\", Authorization: `Bearer ${token}`},\n  body: JSON.stringify(payload)\n});\nif (!response.ok) throw new Error(await response.text());\nconst data = await response.json();\nconsole.log(data.output.text);"
         }
       ]
     },
     {
       "method": "GET",
       "path": "/v1/audio/languages",
-      "desc": "Lists the languages a speech-to-text model can transcribe (codes for 'language' and 'languages'), read from the model's own tokenizer. Empty for a one-language model such as Moonshine.",
+      "desc": "Inspect a selected ONNX STT tokenizer's language codes. Empty can mean a monolingual model; it does not mean every language is supported.",
       "docs_url": "/docs/api/inference/audio_transcriptions.md",
       "params": [
         {
           "name": "model",
           "type": "string",
           "req": false,
-          "desc": "Installed STT model ID. Omitted: the active or first installed STT model.",
-          "default": "whisper-large-v3-turbo-FP16"
+          "desc": "Exact installed STT ID in the URL query (?model=...). No GET request body. Omission uses the eligible active/default package.",
+          "default": "<installed-stt-model-id>"
         }
       ],
       "request_payload": "",
@@ -632,15 +646,20 @@
       "examples": [
         {
           "language": "curl",
-          "title": "cURL",
-          "code": "curl 'http://localhost:8000/v1/audio/languages?model=whisper-large-v3-turbo-FP16' \\n  -H 'Authorization: Bearer <session-token>'"
+          "title": "cURL (POSIX shell)",
+          "code": "curl --get http://127.0.0.1:8000/v1/audio/languages \\\n  -H \"Authorization: Bearer $CLUAIZ_TOKEN\" \\\n  --data-urlencode \"model=$CLUAIZ_MODEL\""
+        },
+        {
+          "language": "python",
+          "title": "Python (requests)",
+          "code": "import os\nimport requests\nresponse = requests.get(\"http://127.0.0.1:8000/v1/audio/languages\",\n    headers={\"Authorization\": \"Bearer \" + os.environ[\"CLUAIZ_TOKEN\"]},\n    params={\"model\": os.environ[\"CLUAIZ_MODEL\"]})\nresponse.raise_for_status()\nprint(response.json())"
         }
       ]
     },
     {
       "method": "POST",
       "path": "/v1/audio/speech",
-      "desc": "Text-to-speech with an installed ONNX package or experimental GGUF speech backbone/projector. Returns a WAV data URI; GGUF can condition on reference audio and uses its native supported languages.",
+      "desc": "Text-to-speech with a compatible installed ONNX package or GGUF speech backbone plus matching codec/projector. Select package-specific voices/languages. GGUF CPU/Auto/GPU split uses engine settings; no device field in this payload.",
       "docs_url": "/docs/api/inference/audio_speech.md",
       "params": [
         {
@@ -655,20 +674,20 @@
           "type": "string",
           "req": false,
           "desc": "Installed ONNX TTS or GGUF speech package with an audio-generation projector (e.g. Piper, Kokoro, Qwen3-TTS Base GGUF). Model support does not imply verified voice quality.",
-          "default": "piper-en-us-ryan-medium"
+          "default": "<installed-tts-model-id>"
         },
         {
           "name": "voice",
           "type": "string",
           "req": false,
-          "desc": "ONNX: 'default' or a listed model voice (Kokoro: af_heart, hf_alpha); Piper has one voice. GGUF: 'default' uses the native unconditioned voice; otherwise an audio data URI, authorized local audio file or allowed remote URL supplies a speaker reference. Kokoro voice IDs do not apply to GGUF.",
+          "desc": "Package speaker ID from /audio/voices, or default. GGUF reference_source accepts real reference audio sources; Audio8 reference_profile uses package-local encoded profiles. IDs are not interchangeable.",
           "default": "default"
         },
         {
           "name": "language",
           "type": "string",
           "req": false,
-          "desc": "ONNX: text language for spelling/numbers, inferred from script/voice/model when omitted. GGUF: native language selector; Qwen3-TTS supports en, zh, ja, ko, de, fr, ru, pt, es, it and rejects hi. Omitted/auto uses its native default (English); set explicitly for non-English speech.",
+          "desc": "Supported text language from /audio/voices capabilities. Qwen uses its native languages; Audio8 is automatic and rejects forced languages. Omit/auto uses the package default.",
           "default": "auto"
         },
         {
@@ -693,42 +712,52 @@
           "default": 5
         }
       ],
-      "request_payload": "{\n  \"model\": \"piper-en-us-ryan-medium\",\n  \"input\": \"Hello, welcome to Cluaiz Engine. you can now run ai.\",\n  \"voice\": \"default\",\n  \"speed\": 1.0,\n  \"stream\": false,\n  \"keep_alive\": 5\n}",
+      "request_payload": "{\n  \"model\": \"<installed-tts-model-id>\",\n  \"input\": \"Hello! This is one complete narration.\",\n  \"speed\": 1,\n  \"stream\": false,\n  \"keep_alive\": 0\n}",
       "response": "{\n  \"status\": \"success\",\n  \"task\": \"text_to_speech\",\n  \"model\": \"piper-en-us-ryan-medium\",\n  \"output\": {\n    \"audio_data\": \"data:audio/wav;base64,UklGRsYLAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQILAAA...\"\n  }\n}",
       "examples": [
         {
           "language": "curl",
-          "title": "cURL",
-          "code": "curl -X POST http://localhost:8000/v1/audio/speech \\\n  -H 'Content-Type: application/json' \\\n  -H 'Authorization: Bearer <session-token>' \\\n  -d '{\n    \"model\": \"piper-en-us-ryan-medium\",\n    \"input\": \"Hello, welcome to Cluaiz Engine. you can now run ai.\",\n    \"voice\": \"default\",\n    \"speed\": 1.0,\n    \"keep_alive\": 5\n  }'"
+          "title": "cURL (POSIX shell)",
+          "code": "curl --fail-with-body http://127.0.0.1:8000/v1/audio/speech \\\n  -H \"Authorization: Bearer $CLUAIZ_TOKEN\" \\\n  -H \"Content-Type: application/json\" \\\n  --data-binary @request.json\n\n# Save the Body Payload as request.json first.\n# Replace sample model IDs/sources with real installed IDs/files."
         },
         {
           "language": "python",
-          "title": "Python",
-          "code": "import requests\n\nheaders = {'Authorization': 'Bearer <token>'}\nres = requests.post('http://localhost:8000/v1/audio/speech', json={\n    'model': 'piper-en-us-ryan-medium',\n    'input': 'Hello, welcome to Cluaiz Engine. you can now run ai.',\n    'voice': 'default',\n    'speed': 1.0,\n    'keep_alive': 5\n}, headers=headers)\nprint(res.json()['output']['audio_data'])"
+          "title": "Python (requests)",
+          "code": "import json\nimport os\nimport requests\n\npayload = json.loads(r'''{\n  \"model\": \"<installed-tts-model-id>\",\n  \"input\": \"Hello! This is one complete narration.\",\n  \"speed\": 1,\n  \"stream\": false,\n  \"keep_alive\": 0\n}''')\npayload[\"model\"] = os.environ[\"CLUAIZ_MODEL\"]\nresponse = requests.post(\n    \"http://127.0.0.1:8000/v1/audio/speech\",\n    headers={\"Authorization\": \"Bearer \" + os.environ[\"CLUAIZ_TOKEN\"]},\n    json=payload\n)\nresponse.raise_for_status()\ndata = response.json()\nimport base64\nuri = data[\"output\"][\"audio_data\"]\nwith open(\"speech.wav\", \"wb\") as audio:\n    audio.write(base64.b64decode(uri.split(\",\", 1)[1]))"
+        },
+        {
+          "language": "javascript",
+          "title": "JavaScript (fetch)",
+          "code": "// Set token to your configured Bearer token and model to an installed ID.\nconst payload = {\n  \"model\": \"<installed-tts-model-id>\",\n  \"input\": \"Hello! This is one complete narration.\",\n  \"speed\": 1,\n  \"stream\": false,\n  \"keep_alive\": 0\n};\npayload.model = model;\nconst response = await fetch(\"http://127.0.0.1:8000/v1/audio/speech\", {\n  method: \"POST\",\n  headers: {\"Content-Type\": \"application/json\", Authorization: `Bearer ${token}`},\n  body: JSON.stringify(payload)\n});\nif (!response.ok) throw new Error(await response.text());\nconst data = await response.json();\nconst audio = new Audio(data.output.audio_data);\nawait audio.play(); // Browser playback may require a user gesture."
         }
       ]
     },
     {
       "method": "GET",
       "path": "/v1/audio/voices",
-      "desc": "Lists the voices of a text-to-speech model (values for 'voice') and the language each voice speaks. 'default' comes first; a single-voice model (Piper) has only it.",
+      "desc": "Inspect selected TTS voices plus capabilities: languages, language_control, voice_mode and coherent_input. Default is a control, not a named speaker; generated voices may need reference audio.",
       "docs_url": "/docs/api/inference/audio_speech.md",
       "params": [
         {
           "name": "model",
           "type": "string",
           "req": false,
-          "desc": "Installed TTS model ID. Omitted: the active or first installed TTS model.",
-          "default": "Kokoro-82M-v1.0-ONNX-UINT8"
+          "desc": "Exact installed TTS ID in the URL query (?model=...). No GET request body. Omission uses the eligible active/default package.",
+          "default": "<installed-tts-model-id>"
         }
       ],
       "request_payload": "",
-      "response": "{\n  \"object\": \"list\",\n  \"model\": \"Kokoro-82M-v1.0-ONNX-UINT8\",\n  \"data\": [\n    {\n      \"id\": \"default\",\n      \"language\": null,\n      \"default\": true\n    },\n    {\n      \"id\": \"af_heart\",\n      \"language\": \"en-us\",\n      \"default\": false\n    },\n    {\n      \"id\": \"hf_alpha\",\n      \"language\": \"hi\",\n      \"default\": false\n    }\n  ]\n}",
+      "response": "{\n  \"object\": \"list\",\n  \"model\": \"Kokoro-82M-v1.0-ONNX-UINT8\",\n  \"data\": [\n    {\n      \"id\": \"default\",\n      \"language\": null,\n      \"default\": true\n    },\n    {\n      \"id\": \"af_heart\",\n      \"language\": \"en-us\",\n      \"default\": false\n    },\n    {\n      \"id\": \"hf_alpha\",\n      \"language\": \"hi\",\n      \"default\": false\n    }\n  ],\n  \"capabilities\": {\n    \"languages\": [\n      \"en\",\n      \"hi\"\n    ],\n    \"language_control\": \"explicit\",\n    \"voice_mode\": \"preset\",\n    \"coherent_input\": false\n  }\n}",
       "examples": [
         {
           "language": "curl",
-          "title": "cURL",
-          "code": "curl 'http://localhost:8000/v1/audio/voices?model=Kokoro-82M-v1.0-ONNX-UINT8' \\n  -H 'Authorization: Bearer <session-token>'"
+          "title": "cURL (POSIX shell)",
+          "code": "curl --get http://127.0.0.1:8000/v1/audio/voices \\\n  -H \"Authorization: Bearer $CLUAIZ_TOKEN\" \\\n  --data-urlencode \"model=$CLUAIZ_MODEL\""
+        },
+        {
+          "language": "python",
+          "title": "Python (requests)",
+          "code": "import os\nimport requests\nresponse = requests.get(\"http://127.0.0.1:8000/v1/audio/voices\",\n    headers={\"Authorization\": \"Bearer \" + os.environ[\"CLUAIZ_TOKEN\"]},\n    params={\"model\": os.environ[\"CLUAIZ_MODEL\"]})\nresponse.raise_for_status()\nprint(response.json())"
         }
       ]
     }
