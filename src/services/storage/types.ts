@@ -7,6 +7,13 @@ export interface SessionIndexItem {
     updatedAt: number;
     messageCount?: number;
     lastMessagePreview?: string;
+    tags?: string[];
+    pinned?: boolean;
+    pinnedAt?: number;
+    favourite?: boolean;
+    archived?: boolean;
+    archivedAt?: number;
+    muted?: boolean;
 }
 
 export interface SessionsIndex {

@@ -256,14 +256,31 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
         }
     }, [sessions]);
 
-    // Filter tabs: standard categories + dynamic user tags
+    // Filter tabs: standard categories + dynamic user tags (only show tags actively assigned to >=1 chat)
     const filterTabs = useMemo(() => {
-        const baseTabs = ['All', 'Old', 'Archive'];
+        const hasPinnedChats = chats.some(c => c.pinned && !c.archived);
+        const baseTabs = hasPinnedChats ? ['All', 'Pinned', 'Old', 'Archive'] : ['All', 'Old', 'Archive'];
+
+        // Tags actively assigned to non-archived chats
+        const activeChatTags = new Set(
+            chats
+                .filter(c => !c.archived)
+                .flatMap(c => (c.tags || []).map(t => t.split(':')[0].toLowerCase()))
+        );
+
         const userTags = poolRibbons
             .map(t => t.split(':')[0])
-            .filter(t => Boolean(t) && !baseTabs.some(b => b.toLowerCase() === t.toLowerCase()));
+            .filter(t => Boolean(t) && activeChatTags.has(t.toLowerCase()) && !baseTabs.some(b => b.toLowerCase() === t.toLowerCase()));
+
         return [...baseTabs, ...Array.from(new Set(userTags))];
-    }, [poolRibbons]);
+    }, [poolRibbons, chats]);
+
+    // Gracefully reset filter to 'All' if active filter tab is no longer in filterTabs
+    useEffect(() => {
+        if (!filterTabs.some(t => t.toLowerCase() === activeFilter.toLowerCase())) {
+            setActiveFilter('All');
+        }
+    }, [filterTabs, activeFilter]);
 
     // Context Menu State
     const [contextMenu, setContextMenu] = useState<{
@@ -463,6 +480,8 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
         if (filterNorm === 'all') {
             // Default view: exclude archived chats
             if (chat.archived) return false;
+        } else if (filterNorm === 'pinned') {
+            if (!chat.pinned || chat.archived) return false;
         } else if (filterNorm === 'favourites') {
             if (!chat.favourite || chat.archived) return false;
         } else if (filterNorm === 'old') {
@@ -479,6 +498,13 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
         return true;
         // Sort: pinned chats float to top, most recently pinned first; then newest updated chats on top
     }).sort((a, b) => {
+        // When 'old' filter is active, sort strictly from oldest to newest (ascending)
+        if (activeFilter.toLowerCase() === 'old') {
+            const timeA = a.updatedAt || (a.time ? getChatDate(a.time).getTime() : 0);
+            const timeB = b.updatedAt || (b.time ? getChatDate(b.time).getTime() : 0);
+            return timeA - timeB;
+        }
+
         if (a.pinned && !b.pinned) return -1;
         if (!a.pinned && b.pinned) return 1;
         if (a.pinned && b.pinned) return (b.pinnedAt ?? 0) - (a.pinnedAt ?? 0);
@@ -487,14 +513,44 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
 
     const targetChatForModal = chats.find(c => c.id === labelTargetId);
 
-    // Date grouping for clean ChatGPT/Claude style layout
+    // Date & Pinned grouping for clean ChatGPT/Claude style layout
     const groupedChats = useMemo(() => {
+        const isOldFilter = activeFilter.toLowerCase() === 'old';
+
+        if (isOldFilter) {
+            // When 'Old' filter is selected: arrange from Oldest to Newest
+            const now = new Date();
+            const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+            const startOfYesterday = startOfToday - 24 * 60 * 60 * 1000;
+            const startOf7Days = startOfToday - 7 * 24 * 60 * 60 * 1000;
+
+            const groups: { title: string; chats: MockChat[] }[] = [
+                { title: 'Older', chats: [] },
+                { title: 'Previous 7 Days', chats: [] },
+                { title: 'Yesterday', chats: [] }
+            ];
+
+            filteredChats.forEach(chat => {
+                const time = chat.updatedAt || (chat.time ? getChatDate(chat.time).getTime() : 0);
+                if (time < startOf7Days) {
+                    groups[0].chats.push(chat);
+                } else if (time < startOfYesterday) {
+                    groups[1].chats.push(chat);
+                } else {
+                    groups[2].chats.push(chat);
+                }
+            });
+
+            return groups.filter(g => g.chats.length > 0);
+        }
+
+        // Standard / All / Pinned / Ribbon filter grouping
         const now = new Date();
         const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
         const startOfYesterday = startOfToday - 24 * 60 * 60 * 1000;
         const startOf7Days = startOfToday - 7 * 24 * 60 * 60 * 1000;
 
-        const groups: { title: string; chats: MockChat[] }[] = [
+        const dateGroups: { title: string; chats: MockChat[] }[] = [
             { title: 'Today', chats: [] },
             { title: 'Yesterday', chats: [] },
             { title: 'Previous 7 Days', chats: [] },
@@ -504,18 +560,18 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
         filteredChats.forEach(chat => {
             const time = chat.updatedAt || (chat.time ? getChatDate(chat.time).getTime() : 0);
             if (time >= startOfToday) {
-                groups[0].chats.push(chat);
+                dateGroups[0].chats.push(chat);
             } else if (time >= startOfYesterday) {
-                groups[1].chats.push(chat);
+                dateGroups[1].chats.push(chat);
             } else if (time >= startOf7Days) {
-                groups[2].chats.push(chat);
+                dateGroups[2].chats.push(chat);
             } else {
-                groups[3].chats.push(chat);
+                dateGroups[3].chats.push(chat);
             }
         });
 
-        return groups.filter(g => g.chats.length > 0);
-    }, [filteredChats]);
+        return dateGroups.filter(g => g.chats.length > 0);
+    }, [filteredChats, activeFilter]);
 
     // Reusable Chat Directory (Clean Search + Horizontal Filter Tabs + Chat List)
     const renderChatDirectory = (inFlyout: boolean = false) => (
@@ -580,8 +636,9 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                 {groupedChats.map((group) => (
                     <div key={group.title} className="space-y-0.5">
                         {/* Section Header */}
-                        <div className="px-2.5 pt-2 pb-1 text-[11px] font-semibold text-[var(--text-muted)] tracking-wide select-none">
-                            {group.title}
+                        <div className="px-2.5 pt-2 pb-1 text-[11px] font-semibold text-[var(--text-muted)] tracking-wide select-none flex items-center gap-1.5">
+                            {group.title === 'Pinned' && <Pin className="w-3 h-3 text-[var(--accent-color)]" />}
+                            <span>{group.title}</span>
                         </div>
 
                         {/* Chats in this group */}

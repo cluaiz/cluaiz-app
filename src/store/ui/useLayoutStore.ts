@@ -26,6 +26,7 @@ interface LayoutState {
     rightPanelWidth: number;
     splitPaneWidth: number;
     splitReversed: boolean;
+    workspaceSidebarOpen: boolean;
     dateRange: DateRange | undefined;
     toggleSidebar: () => void;
     setSidebarWidth: (width: number) => void;
@@ -37,6 +38,7 @@ interface LayoutState {
     setRightPanelWidth: (width: number) => void;
     setSplitPaneWidth: (width: number) => void;
     toggleSplitReversed: () => void;
+    setWorkspaceSidebarOpen: (open: boolean) => void;
     setDateRange: (range: DateRange | undefined) => void;
     activeChatData: ActiveChatData | null;
     setActiveChatData: (data: ActiveChatData | null) => void;
@@ -56,6 +58,7 @@ export const useLayoutStore = create<LayoutState>()(
             rightPanelWidth: 320,
             splitPaneWidth: 100, // default 100% (hidden right pane)
             splitReversed: false,
+            workspaceSidebarOpen: true,
             dateRange: undefined,
             toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
             setSidebarWidth: (width) => set({ sidebarWidth: width }),
@@ -67,6 +70,7 @@ export const useLayoutStore = create<LayoutState>()(
             setRightPanelWidth: (rightPanelWidth) => set({ rightPanelWidth }),
             setSplitPaneWidth: (splitPaneWidth) => set({ splitPaneWidth }),
             toggleSplitReversed: () => set((state) => ({ splitReversed: !state.splitReversed })),
+            setWorkspaceSidebarOpen: (workspaceSidebarOpen) => set({ workspaceSidebarOpen }),
             setDateRange: (dateRange) => set({ dateRange }),
             activeChatData: null,
             setActiveChatData: (activeChatData) => set({ activeChatData }),

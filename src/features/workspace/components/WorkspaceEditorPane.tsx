@@ -58,9 +58,16 @@ export const WorkspaceEditorPane: React.FC = () => {
         openWorkspace
     } = useProjectStore();
 
-    const { splitPaneWidth, setSplitPaneWidth, splitReversed, toggleSplitReversed } = useLayoutStore();
+    const { splitPaneWidth, setSplitPaneWidth, splitReversed, toggleSplitReversed, workspaceSidebarOpen, setWorkspaceSidebarOpen } = useLayoutStore();
     const [isMaximized, setIsMaximized] = useState(false);
-    const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+    const isSidebarOpen = workspaceSidebarOpen;
+    const setIsSidebarOpen = (valOrFn: boolean | ((prev: boolean) => boolean)) => {
+        if (typeof valOrFn === 'function') {
+            setWorkspaceSidebarOpen(valOrFn(workspaceSidebarOpen));
+        } else {
+            setWorkspaceSidebarOpen(valOrFn);
+        }
+    };
     const [sidebarWidth, setSidebarWidth] = useState(230);
     const [isOpeningFolder, setIsOpeningFolder] = useState(false);
     const [openingWorkspacePath, setOpeningWorkspacePath] = useState<string | null>(null);
@@ -677,30 +684,38 @@ export const WorkspaceEditorPane: React.FC = () => {
             {/* Split Workspace Body: File Tree (Left) + Monaco CodeEditor (Right) */}
             <div ref={containerRef} className="flex-1 flex overflow-hidden relative">
 
-                {/* Explorer File Tree Sub-Panel (Resizable) */}
-                {isSidebarOpen && (
-                    <div
-                        style={{ width: `${sidebarWidth}px` }}
-                        className="h-full border-r border-[var(--border-color)]/60 bg-[var(--bg-secondary)]/60 flex-shrink-0 overflow-hidden"
-                    >
-                        <WorkspaceFileTree
-                            files={activeProject.files}
-                            folders={activeProject.folders || []}
-                            activeFilePath={activeProject.activeFilePath}
-                            workspaceName={activeProject.name}
-                            rootPath={activeProject.rootPath}
-                            onSelectFile={handleSelectFile}
-                            onCreateFile={(fileName) => createFile(fileName)}
-                            onCreateFolder={(folderName) => createFolder(folderName)}
-                            onDeleteFile={(filePath) => deleteFile(filePath)}
-                            onRenameFile={(oldP, newP) => renameFile(oldP, newP)}
-                            onCopyFile={(srcP, destP) => copyFile(srcP, destP)}
-                            onOpenTerminal={handleOpenTerminal}
-                            onRefresh={() => syncFromDisk()}
-                            isSyncing={isSyncing}
-                        />
-                    </div>
-                )}
+                {/* Explorer File Tree Sub-Panel (Resizable - Temporary attachment files excluded) */}
+                {isSidebarOpen && (() => {
+                    const treeFiles: Record<string, any> = {};
+                    Object.entries(activeProject.files || {}).forEach(([p, f]) => {
+                        if (!f.isTemporary) {
+                            treeFiles[p] = f;
+                        }
+                    });
+                    return (
+                        <div
+                            style={{ width: `${sidebarWidth}px` }}
+                            className="h-full border-r border-[var(--border-color)]/60 bg-[var(--bg-secondary)]/60 flex-shrink-0 overflow-hidden"
+                        >
+                            <WorkspaceFileTree
+                                files={treeFiles}
+                                folders={activeProject.folders || []}
+                                activeFilePath={activeProject.activeFilePath}
+                                workspaceName={activeProject.name}
+                                rootPath={activeProject.rootPath}
+                                onSelectFile={handleSelectFile}
+                                onCreateFile={(fileName) => createFile(fileName)}
+                                onCreateFolder={(folderName) => createFolder(folderName)}
+                                onDeleteFile={(filePath) => deleteFile(filePath)}
+                                onRenameFile={(oldP, newP) => renameFile(oldP, newP)}
+                                onCopyFile={(srcP, destP) => copyFile(srcP, destP)}
+                                onOpenTerminal={handleOpenTerminal}
+                                onRefresh={() => syncFromDisk()}
+                                isSyncing={isSyncing}
+                            />
+                        </div>
+                    );
+                })()}
 
                 {/* Resizer Handle */}
                 {isSidebarOpen && (

@@ -161,7 +161,14 @@ const syncIndexToStorage = (sessions: Record<string, ChatSession>, activeId: str
             createdAt: s.createdAt,
             updatedAt: s.updatedAt,
             messageCount: s.messages ? s.messages.length : (s.messageCount || 0),
-            lastMessagePreview: preview || undefined
+            lastMessagePreview: preview || undefined,
+            tags: s.tags || [],
+            pinned: Boolean(s.pinned),
+            pinnedAt: s.pinnedAt,
+            favourite: Boolean(s.favourite),
+            archived: Boolean(s.archived),
+            archivedAt: s.archivedAt,
+            muted: Boolean(s.muted)
         };
     });
 
@@ -224,12 +231,14 @@ export const useChatStore = create<ChatStore>()(
                         sessionsMap[s.id] = {
                             id: s.id,
                             title: s.title || 'New Chat',
-                            tags: [],
+                            tags: Array.isArray(s.tags) ? s.tags : [],
                             unread: 0,
-                            pinned: false,
-                            favourite: false,
-                            archived: false,
-                            muted: false,
+                            pinned: Boolean(s.pinned),
+                            pinnedAt: s.pinnedAt,
+                            favourite: Boolean(s.favourite),
+                            archived: Boolean(s.archived),
+                            archivedAt: s.archivedAt,
+                            muted: Boolean(s.muted),
                             createdAt: s.createdAt || Date.now(),
                             updatedAt: s.updatedAt || Date.now(),
                             lastMessagePreview: s.lastMessagePreview,

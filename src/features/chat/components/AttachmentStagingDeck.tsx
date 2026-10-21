@@ -1,6 +1,7 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { ChevronLeft, ChevronRight, X, FileCode, Video, Image as ImageIcon, Music, CornerDownRight } from 'lucide-react';
 import { FileIcon } from 'react-material-icon-theme';
+import { openAttachmentInWorkspace } from '../utils/workspaceAttachmentOpener';
 
 export interface StagedAttachment {
     id: string;
@@ -228,7 +229,10 @@ export const AttachmentCard: React.FC<{
         <div
             draggable={draggable}
             onDragStart={onDragStart}
-            className={`group relative shrink-0 w-24 h-28 sm:w-26 sm:h-30 rounded-2xl border border-[var(--border-color)]/80 hover:border-[var(--accent-color)]/70 shadow-sm ${isMedia ? 'bg-transparent' : 'bg-[var(--bg-secondary)]'} overflow-hidden transition-colors duration-150 ${item.isPastedText ? 'cursor-grab active:cursor-grabbing' : ''} ${className}`}
+            onClick={() => {
+                openAttachmentInWorkspace(item);
+            }}
+            className={`group relative shrink-0 w-24 h-28 sm:w-26 sm:h-30 rounded-2xl border border-[var(--border-color)]/80 hover:border-[var(--accent-color)]/70 shadow-sm ${isMedia ? 'bg-transparent' : 'bg-[var(--bg-secondary)]'} overflow-hidden transition-colors duration-150 cursor-pointer ${item.isPastedText ? 'cursor-grab active:cursor-grabbing' : ''} ${className}`}
         >
             {/* Inner Card Content */}
             <div className="w-full h-full rounded-2xl overflow-hidden relative">
@@ -374,7 +378,11 @@ export const AttachmentStagingDeck: React.FC<AttachmentStagingDeckProps> = ({
                 {/* Portrait Cards Queue (Tight gap, zero top/left gap, strict max-w-full min-w-0) */}
                 <div
                     ref={scrollContainerRef}
-                    className="flex items-center gap-2 overflow-x-auto pt-0 pb-0.5 px-0 scroll-smooth [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden w-full max-w-full min-w-0 bg-transparent"
+                    className="flex items-center gap-2 overflow-x-auto pt-0 pb-0.5 px-0 scroll-smooth no-scrollbar w-full max-w-full min-w-0 bg-transparent"
+                    style={{
+                        scrollbarWidth: 'none',
+                        msOverflowStyle: 'none'
+                    }}
                 >
                     {attachments.map((item) => (
                         <AttachmentCard

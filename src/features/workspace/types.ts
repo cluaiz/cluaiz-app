@@ -4,6 +4,7 @@ export interface ProjectFile {
     content: string;
     language: string;
     isModified?: boolean;
+    isTemporary?: boolean;
 }
 
 export interface FileTreeNode {
