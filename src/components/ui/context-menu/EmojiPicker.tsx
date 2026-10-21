@@ -8,6 +8,7 @@ interface EmojiPickerProps {
     onSelect: (emoji: string) => void;
     onClose?: () => void;
     isOpen?: boolean;
+    noAnimation?: boolean;
 }
 
 const CATEGORIES = [
@@ -38,7 +39,7 @@ function cn(...classes: (string | boolean | undefined | null)[]) {
     return classes.filter(Boolean).join(' ');
 }
 
-export const EmojiPicker: React.FC<EmojiPickerProps> = ({ onSelect }) => {
+export const EmojiPicker: React.FC<EmojiPickerProps> = ({ onSelect, noAnimation = false }) => {
     const [search, setSearch] = useState('');
     const [activeCategory, setActiveCategory] = useState('Smileys and emotions');
     const [recent, setRecent] = useState<string[]>([]);
@@ -72,15 +73,22 @@ export const EmojiPicker: React.FC<EmojiPickerProps> = ({ onSelect }) => {
         return (Object.entries(EmojiMeta) as [string, EmojiMetadata][]).filter(([_, data]) => data.category === activeCategory);
     }, [search, activeCategory, recent]);
 
+    const ContainerComponent = noAnimation ? 'div' : motion.div;
+    const animationProps = noAnimation
+        ? {}
+        : {
+              initial: { opacity: 0, scale: 0.95, y: 10 },
+              animate: { opacity: 1, scale: 1, y: 0 },
+              exit: { opacity: 0, scale: 0.95, y: 10 },
+          };
+
     return (
-        <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 10 }}
-            className="w-[320px] h-[350px] bg-white dark:bg-zinc-950/95 backdrop-blur-md border border-black/10 dark:border-white/10 rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+        <ContainerComponent
+            {...animationProps}
+            className="w-[320px] h-[360px] bg-white dark:bg-zinc-950/95 backdrop-blur-md border border-black/10 dark:border-white/10 rounded-2xl shadow-2xl flex flex-col overflow-hidden"
         >
-            {/* Header */}
-            <div className="p-3 border-b border-black/5 dark:border-white/5 bg-black/5 dark:bg-white/5 space-y-3">
+            {/* Header with Search and Categories - shrink-0 prevents cut-off */}
+            <div className="p-3 border-b border-black/5 dark:border-white/5 bg-black/5 dark:bg-white/5 space-y-3 shrink-0">
                 <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 dark:text-zinc-400" />
                     <input
@@ -165,6 +173,6 @@ export const EmojiPicker: React.FC<EmojiPickerProps> = ({ onSelect }) => {
                     </div>
                 )}
             </div>
-        </motion.div>
+        </ContainerComponent>
     );
 };
