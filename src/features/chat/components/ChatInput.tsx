@@ -317,10 +317,10 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         return getSkillIcon(name);
     };
 
-// Strict format whitelists: zero archives (.zip, .tar), zero executables (.exe)
-const BASE_DOC_AND_CODE_ACCEPT = ".pdf,.docx,.doc,.txt,.md,.csv,.json,.toml,.yaml,.yml,.rs,.ts,.tsx,.js,.jsx,.py,.c,.cpp,.h,.go,.html,.css,.sql,.sh,.log";
-const VISION_MEDIA_ACCEPT = ".png,.jpg,.jpeg,.webp,.gif,.bmp,image/*";
-const BANNED_ARCHIVE_OR_BINARY_REGEX = /\.(zip|tar|gz|tgz|rar|7z|bz2|xz|exe|msi|bin|dll|iso|dmg|apk|sys)$/i;
+    // Strict format whitelists: zero archives (.zip, .tar), zero executables (.exe)
+    const BASE_DOC_AND_CODE_ACCEPT = ".pdf,.docx,.doc,.txt,.md,.csv,.json,.toml,.yaml,.yml,.rs,.ts,.tsx,.js,.jsx,.py,.c,.cpp,.h,.go,.html,.css,.sql,.sh,.log";
+    const VISION_MEDIA_ACCEPT = ".png,.jpg,.jpeg,.webp,.gif,.bmp,image/*";
+    const BANNED_ARCHIVE_OR_BINARY_REGEX = /\.(zip|tar|gz|tgz|rar|7z|bz2|xz|exe|msi|bin|dll|iso|dmg|apk|sys)$/i;
 
     const handleStageFiles = (files: FileList | any[] | any) => {
         if (!files || files.length === 0) return;
@@ -739,7 +739,7 @@ const BANNED_ARCHIVE_OR_BINARY_REGEX = /\.(zip|tar|gz|tgz|rar|7z|bz2|xz|exe|msi|
                     setIsVisionSupported(Boolean(imageInput.available));
                 }
             })
-            .catch(() => {});
+            .catch(() => { });
 
         return () => { isMounted = false; };
     }, [currentModel?.id, installedModelsMap]);
@@ -1400,18 +1400,18 @@ const BANNED_ARCHIVE_OR_BINARY_REGEX = /\.(zip|tar|gz|tgz|rar|7z|bz2|xz|exe|msi|
                 onInput={() => voiceInputRef.current?.cancel()}
                 onPaste={() => voiceInputRef.current?.cancel()}
             >
-            <InlinePromptInput
-                ref={inlineInputRef}
-                placeholder={isEngineOnline ? "Ask AI..." : "Cluaiz Engine is offline..."}
-                onTextChange={(val) => setInputValue(val)}
-                onSubmit={handlePromptSubmit}
-                onDropFiles={handleStageFiles}
-                onPasteLargeText={handlePasteLargeText}
-                onDropSnippet={(snippetId) => handleRemoveAttachment(snippetId)}
-                disabled={!isEngineOnline}
-                minHeight="22px"
-                maxHeight="160px"
-            />
+                <InlinePromptInput
+                    ref={inlineInputRef}
+                    placeholder={isEngineOnline ? "Ask AI..." : "Cluaiz Engine is offline..."}
+                    onTextChange={(val) => setInputValue(val)}
+                    onSubmit={handlePromptSubmit}
+                    onDropFiles={handleStageFiles}
+                    onPasteLargeText={handlePasteLargeText}
+                    onDropSnippet={(snippetId) => handleRemoveAttachment(snippetId)}
+                    disabled={!isEngineOnline}
+                    minHeight="22px"
+                    maxHeight="160px"
+                />
             </div>
 
             {/* ---------------- ROW 2: CLEAN BOTTOM TOOLBAR ---------------- */}

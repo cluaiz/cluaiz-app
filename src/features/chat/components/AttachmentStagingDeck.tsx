@@ -2,6 +2,8 @@ import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { ChevronLeft, ChevronRight, X, FileCode, Video, Image as ImageIcon, Music, CornerDownRight } from 'lucide-react';
 import { FileIcon } from 'react-material-icon-theme';
 import { openAttachmentInWorkspace } from '../utils/workspaceAttachmentOpener';
+import { useLayoutStore } from '../../../store/ui/useLayoutStore';
+import type { LibraryAsset } from '../../library/types';
 
 export interface StagedAttachment {
     id: string;
@@ -217,6 +219,7 @@ export const AttachmentCard: React.FC<{
         isPastedText?: boolean;
         pastedContent?: string;
         lineCount?: number;
+        file?: File | Blob;
     };
     onRemove?: () => void;
     onExpandPastedText?: () => void;
@@ -229,8 +232,48 @@ export const AttachmentCard: React.FC<{
         <div
             draggable={draggable}
             onDragStart={onDragStart}
-            onClick={() => {
-                openAttachmentInWorkspace(item);
+            onClick={async () => {
+                const isMedia = item.type?.startsWith('image/') || item.type?.startsWith('video/') || /\.(png|jpe?g|webp|gif|svg|bmp|ico|mp4|mov|avi|mkv|webm)$/i.test(item.name);
+                let content = item.pastedContent || item.previewUrl;
+                if (item.file instanceof File || item.file instanceof Blob) {
+                    try {
+                        const isText = item.type?.startsWith('text/') || /\.(tsx?|jsx?|rs|py|json|md|txt|html|css|yaml|yml|toml|sh|bat|cmd|env|lock|sql|c|cpp|h|java|go|xml)$/i.test(item.name);
+                        if (isText) {
+                            content = await item.file.text();
+                        }
+                    } catch { }
+                }
+
+                // Decode base64 if it's text data URI
+                const isTextLike = item.type?.startsWith('text/') || /\.(tsx?|jsx?|rs|py|json|md|txt|html|css|yaml|yml|toml|sh|bat|cmd|env|lock|sql|c|cpp|h|java|go|xml)$/i.test(item.name);
+                if (content && typeof content === 'string' && content.startsWith('data:') && isTextLike) {
+                    try {
+                        const base64 = content.split(',')[1];
+                        if (base64) {
+                            const binaryString = atob(base64);
+                            const bytes = new Uint8Array(binaryString.length);
+                            for (let i = 0; i < binaryString.length; i++) {
+                                bytes[i] = binaryString.charCodeAt(i);
+                            }
+                            content = new TextDecoder('utf-8').decode(bytes);
+                        }
+                    } catch { }
+                }
+
+                const assetToPreview: LibraryAsset = {
+                    id: item.id || `att-${item.name}-${Date.now()}`,
+                    name: item.name,
+                    size: item.size || 0,
+                    type: item.type || '',
+                    category: isMedia ? 'media' : 'files',
+                    extension: item.name.split('.').pop()?.toLowerCase() || '',
+                    previewUrl: item.previewUrl,
+                    content: content || item.pastedContent,
+                    usages: [],
+                    latestTimestamp: Date.now()
+                };
+
+                useLayoutStore.getState().setPreviewModalAsset(assetToPreview);
             }}
             className={`group relative shrink-0 w-24 h-28 sm:w-26 sm:h-30 rounded-2xl border border-[var(--border-color)]/80 hover:border-[var(--accent-color)]/70 shadow-sm ${isMedia ? 'bg-transparent' : 'bg-[var(--bg-secondary)]'} overflow-hidden transition-colors duration-150 cursor-pointer ${item.isPastedText ? 'cursor-grab active:cursor-grabbing' : ''} ${className}`}
         >

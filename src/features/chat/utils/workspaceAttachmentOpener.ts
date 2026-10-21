@@ -49,8 +49,30 @@ export async function openAttachmentInWorkspace(item: AttachmentOpenTarget): Pro
         }
     }
 
+    // If content is a data URI and it is a code or text file, decode the base64 payload into real text
+    const isTextLike = item.type?.startsWith('text/') ||
+        /\.(tsx?|jsx?|rs|py|json|md|txt|html|css|yaml|yml|toml|sh|bat|cmd|env|lock|sql|c|cpp|h|java|go|xml)$/i.test(item.name);
+
+    if (content.startsWith('data:') && isTextLike) {
+        try {
+            const base64 = content.split(',')[1];
+            if (base64) {
+                const binaryString = atob(base64);
+                const bytes = new Uint8Array(binaryString.length);
+                for (let i = 0; i < binaryString.length; i++) {
+                    bytes[i] = binaryString.charCodeAt(i);
+                }
+                content = new TextDecoder('utf-8').decode(bytes);
+            }
+        } catch {
+            try {
+                content = atob(content.split(',')[1] || '');
+            } catch {}
+        }
+    }
+
     // If still empty and it's a known text file, leave empty string so editor can render
-    if (!content && /\.(tsx?|jsx?|rs|py|json|md|txt|html|css|yaml|yml|toml|sh|bat|cmd)$/i.test(item.name)) {
+    if (!content && isTextLike) {
         content = '';
     }
 

@@ -1,4 +1,4 @@
-import { StagedAttachment } from '../components/AttachmentStagingDeck';
+import type { StagedAttachment } from '../components/AttachmentStagingDeck';
 import type { ChatMessagePart } from '../../../api/engine/chat/chat.types';
 
 /**
@@ -26,6 +26,7 @@ export interface SerializedAttachmentsResult {
  * - Images (PNG, JPG, WEBP, GIF) -> { type: 'image_url', image_url: { url: DataURI } }
  * - Documents (PDF, Word, Code, Text) -> { type: 'file_url', file_url: { url: DataURI, name } }
  * - Videos -> { type: 'video_url', video_url: { url: DataURI } }
+ * - Audio -> { type: 'audio_url', audio_url: { url: DataURI } }, retaining its MIME type
  * - Pasted Code / Text Snippets -> { type: 'text', text: formattedCodeBlock }
  * - User Prompt Text -> { type: 'text', text: userPrompt }
  */
@@ -83,8 +84,7 @@ export async function serializeStagedAttachments(
                     parts.push({
                         type: 'video_url',
                         video_url: {
-                            url: dataUri,
-                            fps: 1
+                            url: dataUri
                         }
                     });
                     attachmentsMeta.push({
@@ -95,14 +95,9 @@ export async function serializeStagedAttachments(
                     });
                 } else if (mime.startsWith('audio/')) {
                     hasMultimodal = true;
-                    const base64Data = dataUri.split(',')[1] || '';
-                    const format = mime.includes('mp3') ? 'mp3' : 'wav';
                     parts.push({
-                        type: 'input_audio',
-                        input_audio: {
-                            data: base64Data,
-                            format
-                        }
+                        type: 'audio_url',
+                        audio_url: { url: dataUri }
                     });
                     attachmentsMeta.push({
                         name: att.name,
@@ -123,7 +118,8 @@ export async function serializeStagedAttachments(
                     attachmentsMeta.push({
                         name: att.name,
                         size: att.size,
-                        type: att.type || mime
+                        type: att.type || mime,
+                        previewUrl: dataUri
                     });
                 }
             } catch (err) {

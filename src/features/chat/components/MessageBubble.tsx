@@ -453,13 +453,53 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
                     {msg.attachments && msg.attachments.length > 0 && (
                         <div className="w-full max-w-full overflow-hidden">
                             <AttachmentStagingDeck
-                                attachments={msg.attachments.map((att, attIdx) => ({
-                                    id: (att as any).id || `att-${attIdx}`,
-                                    name: att.name,
-                                    size: att.size || 0,
-                                    type: att.type || '',
-                                    previewUrl: att.previewUrl,
-                                }))}
+                                attachments={msg.attachments.map((att, attIdx) => {
+                                    // 1. Resolve preview / Data URI from matching part in msg.parts if not on att (100% same as Library)
+                                    let resolvedUrl = att.previewUrl;
+                                    if (!resolvedUrl && Array.isArray(msg.parts)) {
+                                        const matchingPart = msg.parts.find(
+                                            (p) =>
+                                                (p.type === 'file_url' && p.file_url?.name === att.name) ||
+                                                (p.type === 'image_url' && p.image_url?.name === att.name)
+                                        );
+                                        if (matchingPart) {
+                                            resolvedUrl = matchingPart.file_url?.url || matchingPart.image_url?.url;
+                                        }
+                                    }
+
+                                    // 2. Decode text/code content from Base64 Data URI (100% same as Library)
+                                    let decodedContent: string | undefined = undefined;
+                                    const isTextLike =
+                                        (att.type && att.type.startsWith('text/')) ||
+                                        /\.(tsx?|jsx?|rs|py|json|md|txt|html|css|yaml|yml|toml|sh|bat|cmd|env|lock|sql|c|cpp|h|java|go|xml)$/i.test(att.name);
+
+                                    if (resolvedUrl && resolvedUrl.startsWith('data:') && isTextLike) {
+                                        try {
+                                            const base64 = resolvedUrl.split(',')[1];
+                                            if (base64) {
+                                                const binaryString = atob(base64);
+                                                const bytes = new Uint8Array(binaryString.length);
+                                                for (let i = 0; i < binaryString.length; i++) {
+                                                    bytes[i] = binaryString.charCodeAt(i);
+                                                }
+                                                decodedContent = new TextDecoder('utf-8').decode(bytes);
+                                            }
+                                        } catch {
+                                            try {
+                                                decodedContent = atob(resolvedUrl.split(',')[1] || '');
+                                            } catch {}
+                                        }
+                                    }
+
+                                    return {
+                                        id: (att as any).id || `att-${attIdx}`,
+                                        name: att.name,
+                                        size: att.size || 0,
+                                        type: att.type || '',
+                                        previewUrl: resolvedUrl,
+                                        pastedContent: decodedContent
+                                    };
+                                })}
                             />
                         </div>
                     )}

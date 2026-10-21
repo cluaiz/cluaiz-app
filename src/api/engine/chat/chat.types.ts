@@ -8,7 +8,8 @@ export type ChatMessagePart =
   | { type: 'text'; text: string }
   | { type: 'image_url'; image_url: { url: string; detail?: 'low' | 'high' | 'auto' } }
   | { type: 'file_url'; file_url: { url: string; name?: string; detail?: 'full' | 'summary' | 'auto' } }
-  | { type: 'video_url'; video_url: { url: string; fps?: number } }
+  | { type: 'video_url'; video_url: { url: string; include_audio?: boolean } }
+  | { type: 'audio_url'; audio_url: { url: string } }
   | { type: 'input_audio'; input_audio: { data: string; format: 'wav' | 'mp3' } };
 
 export interface ChatMessage {
