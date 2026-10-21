@@ -447,7 +447,7 @@
           "name": "model",
           "type": "string",
           "req": false,
-          "desc": "Installed supported ONNX embedding model ID. GGUF embedding execution is not currently wired to this endpoint.",
+          "desc": "Installed compatible ONNX/GGUF embedding model ID. GGUF accepts text only; image input requires an ONNX graph.",
           "default": "bge-m3"
         },
         {

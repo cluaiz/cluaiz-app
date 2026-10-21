@@ -53,11 +53,12 @@ test('native extraction never receives a model from the explorer model selector'
     assert.equal(endpointUsesModel({ method: 'POST', path: '/v1/embeddings', desc: '' }), true);
 });
 
-test('embedding selector includes image graphs and excludes a known unwired GGUF backend', () => {
+test('embedding selector includes supported ONNX and GGUF backends', () => {
     const models = [
         { id: 'text', category: 'embedding', format_type: 'onnx' },
         { id: 'image', category: 'ingest', format_type: 'ONNX', supported_tasks: ['image-feature-extraction'] },
         { id: 'native', category: 'embedding', format_type: 'gguf' },
+        { id: 'unsupported', category: 'embedding', format_type: 'safetensors' },
     ];
-    assert.deepEqual(getFilteredModelsForEndpoint('/v1/embeddings', models).map(model => model.id), ['text', 'image']);
+    assert.deepEqual(getFilteredModelsForEndpoint('/v1/embeddings', models).map(model => model.id), ['text', 'image', 'native']);
 });

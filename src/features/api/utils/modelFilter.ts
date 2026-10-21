@@ -158,7 +158,7 @@ export const getFilteredModelsForEndpoint = (
     // 5. Embeddings (/v1/embeddings)
     if (p.includes('/embedding')) {
         return installedModels.filter(m => isEmbeddingModel(m)
-            && (!m.format_type || m.format_type.toLowerCase() === 'onnx'));
+            && (!m.format_type || ['onnx', 'gguf'].includes(m.format_type.toLowerCase())));
     }
 
     // Native extraction has no model argument; vision Q&A and vectors use their own routes.
