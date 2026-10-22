@@ -4,7 +4,9 @@ import { useLayoutStore } from '../../../store/ui/useLayoutStore';
 import { useThemeStore } from '../../../store/ui/useThemeStore';
 import { useEngineStore } from '../../../store/engine/useEngineStore';
 import { useChatStore } from '../../../store/chat/useChatStore';
-import { ChevronDown, Copy, Trash2, X, HatGlasses, FileText, WifiOff, ArrowLeftRight } from 'lucide-react';
+import { ChevronDown, Copy, Trash2, X, FileText, WifiOff, ArrowLeftRight } from 'lucide-react';
+import * as Icons from '../../../components/animate-ui/icons';
+import { useIconHover } from '../../../components/animate-ui/icons';
 import { toast } from '../../../components/ui/toast';
 import { MessageContextMenu } from '../../../components/ui/context-menu/MessageContextMenu';
 import { GlobalChatContextMenu } from '../../../components/ui/context-menu/GlobalChatContextMenu';
@@ -24,6 +26,33 @@ import { useChatSend } from '../hooks/useChatSend';
 import { cluaizEngine } from '../../../core/engine';
 import { PersistentAudioDeck } from '../../../components/ui/PersistentAudioPlayer';
 import { useSpeechHighlightStore } from '../../../store/chat/useSpeechHighlightStore';
+
+const PrivateModeToggleButton: React.FC<{
+    isIncognito: boolean;
+    onClick: () => void;
+}> = ({ isIncognito, onClick }) => {
+    const { ref: iconRef, triggerProps } = useIconHover();
+    return (
+        <Tooltip
+            title={isIncognito ? 'Disable Private Mode' : 'Enable Private Mode'}
+            position="bottom-end"
+        >
+            <button
+                type="button"
+                onClick={onClick}
+                onMouseEnter={triggerProps.onMouseEnter}
+                onMouseLeave={triggerProps.onMouseLeave}
+                className={`flex items-center justify-center w-10 h-10 rounded-full border transition-colors shadow-sm cursor-pointer ${
+                    isIncognito
+                        ? 'bg-[var(--text-primary)] text-[var(--bg-primary)] border-[var(--text-primary)]'
+                        : 'bg-[var(--bg-secondary)] text-[var(--text-muted)] border-[var(--border-color)] hover:text-[var(--text-primary)] hover:border-[var(--text-primary)]'
+                }`}
+            >
+                <Icons.Lock ref={iconRef} className="w-5 h-5" />
+            </button>
+        </Tooltip>
+    );
+};
 
 export function ChatWorkspace() {
     const { splitPaneWidth, setSplitPaneWidth, splitReversed, toggleSplitReversed, activeChatData } = useLayoutStore();
@@ -464,27 +493,17 @@ main().catch(console.error);`);
                 {/* Top Right Incognito Toggle - Only on Landing Page */}
                 {messages.length === 0 && (
                     <div className="absolute top-4 right-4 z-40">
-                        <Tooltip
-                            title={isIncognito ? 'Disable Private Mode' : 'Enable Private Mode'}
-                            position="bottom-end"
-                        >
-                            <button
-                                onClick={() => {
-                                    if (isIncognito && activeSessionId) {
-                                        cluaizEngine.stop().catch(console.warn);
-                                        deleteSession(activeSessionId);
-                                        switchSession(null);
-                                    }
-                                    setIsIncognito(!isIncognito);
-                                }}
-                                className={`flex items-center justify-center w-10 h-10 rounded-full border transition-colors shadow-sm ${isIncognito
-                                    ? 'bg-[var(--text-primary)] text-[var(--bg-primary)] border-[var(--text-primary)]'
-                                    : 'bg-[var(--bg-secondary)] text-[var(--text-muted)] border-[var(--border-color)] hover:text-[var(--text-primary)] hover:border-[var(--text-primary)]'
-                                    }`}
-                            >
-                                <HatGlasses size={20} />
-                            </button>
-                        </Tooltip>
+                        <PrivateModeToggleButton
+                            isIncognito={isIncognito}
+                            onClick={() => {
+                                if (isIncognito && activeSessionId) {
+                                    cluaizEngine.stop().catch(console.warn);
+                                    deleteSession(activeSessionId);
+                                    switchSession(null);
+                                }
+                                setIsIncognito(!isIncognito);
+                            }}
+                        />
                     </div>
                 )}
 

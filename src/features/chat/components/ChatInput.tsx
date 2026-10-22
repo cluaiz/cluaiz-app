@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Send, Square, FileCode, FileText, Plus, ChevronDown, Mic, Zap, Sparkles, Globe, Brain, Image as ImageIcon, Video, X, Clock, ChevronRight, UploadCloud, Link as LinkIcon, Layers, FolderUp, Database, BookOpen, ZapOff, Telescope, CornerDownRight, Check, AlignLeft, AlignJustify, Box, Server, Info, SlidersHorizontal, Trash2, Pencil } from 'lucide-react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { Send, Square, FileCode, FileText, Plus, ChevronDown, Mic, Zap, Sparkles, Globe, Brain, Image as ImageIcon, Video, X, Clock, ChevronRight, UploadCloud, Link as LinkIcon, Layers, FolderUp, Database, BookOpen, ZapOff, Telescope, CornerDownRight, Check, AlignLeft, AlignJustify, Box, Server, Info, SlidersHorizontal, Trash2, Pencil, Flame, Wand2 } from 'lucide-react';
 import BorderGlow from '../../../components/ui/BorderGlow';
 import { Backlight } from '../../../components/ui/Backlight';
 import { useEngineStore } from '../../../store/engine/useEngineStore';
@@ -9,6 +9,7 @@ import { client } from '../../../api/client';
 import { modelsApi } from '../../../api/engine/models/models.api';
 import { permissionApi } from '../../../api/engine/permission/permission.api';
 import { systemApi } from '../../../api/engine/system/system.api';
+import { optimizationApi } from '../../../api';
 import { toast } from '../../../components/ui/toast';
 import { audioApi } from '../../../api/engine/audio/audio.api';
 import { InlinePromptInput, InlinePromptInputHandle } from '../../../components/ui/InlinePromptInput';
@@ -183,6 +184,14 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     const [isMcpMenuOpen, setIsMcpMenuOpen] = useState(false);
     const [isExpanded, setIsExpanded] = useState(false);
     const [wrapThreshold, setWrapThreshold] = useState<number>(Number.MAX_SAFE_INTEGER);
+    const [isPromptBarEffortOpen, setIsPromptBarEffortOpen] = useState(false);
+    const effortRef = useRef<HTMLDivElement>(null);
+    const sparkCanvasRef = useRef<HTMLCanvasElement>(null);
+    const typingEnergyRef = useRef({ energy: 0, strokes: 0 });
+    const sparkBurstUntilRef = useRef<number>(0);
+    const triggerSparkBurst = (durationMs = 2000) => {
+        sparkBurstUntilRef.current = performance.now() + durationMs;
+    };
 
     // Inline Prompt Input Ref (Text + Embedded Context Chips)
     const inlineInputRef = useRef<InlinePromptInputHandle>(null);
@@ -452,10 +461,16 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         if (savedThink === 'auto' || savedThink === 'on' || savedThink === 'off') setThinkMode(savedThink);
     }, [booster?.reasoning_effort, booster?.think_mode, booster?.reasoning_budget_message]);
 
-    // Choosing an effort uses it now and saves it as the default
+    // Choosing an effort updates local state and saves silently to engine optimization booster (no toast spam)
     const chooseEffort = (value: string | number) => {
         setEffort(value);
-        if (updateBooster) updateBooster('reasoning_effort', value);
+        triggerSparkBurst(2000);
+        useEngineStore.setState(state => ({
+            booster: state.booster ? { ...state.booster, reasoning_effort: value } : null
+        }));
+        optimizationApi.updateBooster({ reasoning_effort: value }).catch(err => {
+            console.warn('[ChatInput] Silent effort sync failed:', err);
+        });
     };
 
     const applyCustomEffort = () => {
@@ -624,6 +639,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             return;
         }
 
+        triggerSparkBurst(2200);
         handleSendMessage(promptText, options);
         setInputValue('');
         setStagedAttachments([]);
@@ -783,14 +799,17 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             if (modelRef.current && !modelRef.current.contains(target)) {
                 setIsModelOpen(false);
             }
+            if (effortRef.current && !effortRef.current.contains(target)) {
+                setIsPromptBarEffortOpen(false);
+            }
         };
-        if (isAttachOpen || isModelOpen) {
+        if (isAttachOpen || isModelOpen || isPromptBarEffortOpen) {
             document.addEventListener('mousedown', handleClickOutside);
         }
         return () => {
             document.removeEventListener('mousedown', handleClickOutside);
         };
-    }, [isAttachOpen, isModelOpen]);
+    }, [isAttachOpen, isModelOpen, isPromptBarEffortOpen]);
 
     // Auto-expand exactly when the scrollbar triggers (scrollHeight > clientHeight)
     useEffect(() => {
@@ -1316,12 +1335,424 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         </div>
     );
 
+    const effortNorm = String(effort).toLowerCase();
+    const isMaxEffort = effortNorm === 'max';
+
+    // Dynamic visual styling & particle calibration per effort level (Low -> Medium -> High -> Max)
+    const effortConfig = useMemo<{
+        label: string;
+        Icon: any;
+        iconColor: string;
+        levelColor: string;
+        starOpacity: number;
+        particleLimit: number;
+        particleSpeed: number;
+    }>(() => {
+        switch (effortNorm) {
+            case 'low':
+                return {
+                    label: 'Low',
+                    Icon: Zap,
+                    iconColor: 'text-[var(--text-muted)]',
+                    levelColor: 'color-mix(in srgb, var(--text-muted) 85%, transparent)',
+                    starOpacity: 0.45,
+                    particleLimit: 6,
+                    particleSpeed: 0.7
+                };
+            case 'high':
+                return {
+                    label: 'High',
+                    Icon: Sparkles,
+                    iconColor: 'text-[var(--accent-color)]',
+                    levelColor: 'color-mix(in srgb, var(--accent-color) 85%, white 15%)',
+                    starOpacity: 0.95,
+                    particleLimit: 22,
+                    particleSpeed: 1.3
+                };
+            case 'max':
+                return {
+                    label: 'Max',
+                    Icon: Flame,
+                    iconColor: 'text-[var(--accent-color)]',
+                    levelColor: 'var(--accent-color)',
+                    starOpacity: 1.0,
+                    particleLimit: 32,
+                    particleSpeed: 1.6
+                };
+            case 'auto':
+                return {
+                    label: 'Auto',
+                    Icon: Wand2,
+                    iconColor: 'text-[var(--accent-color)]',
+                    levelColor: 'var(--accent-color)',
+                    starOpacity: 0.65,
+                    particleLimit: 10,
+                    particleSpeed: 0.85
+                };
+            case 'medium':
+            default:
+                return {
+                    label: 'Medium',
+                    Icon: Brain,
+                    iconColor: 'text-[var(--text-primary)]',
+                    levelColor: 'color-mix(in srgb, var(--accent-color) 55%, var(--text-primary) 45%)',
+                    starOpacity: 0.75,
+                    particleLimit: 14,
+                    particleSpeed: 1.0
+                };
+        }
+    }, [effortNorm]);
+
+    const getEffortColor = (eff: string) => {
+        const norm = eff.toLowerCase();
+        if (norm === 'low') return 'color-mix(in srgb, var(--text-muted) 85%, transparent)';
+        if (norm === 'medium') return 'color-mix(in srgb, var(--accent-color) 55%, var(--text-primary) 45%)';
+        if (norm === 'high') return 'color-mix(in srgb, var(--accent-color) 85%, white 15%)';
+        return 'var(--accent-color)';
+    };
+
+    useEffect(() => {
+        const canvas = sparkCanvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        let raf = 0;
+        let last = performance.now();
+        let w = 0;
+        let h = 0;
+        let due = 0;
+        let speed = 1;
+        let pulse = 0;
+
+        type Spark = {
+            x: number;
+            y: number;
+            r: number;
+            vy: number;
+            sway: number;
+            phase: number;
+            life: number;
+            span: number;
+        };
+        const parts: Spark[] = [];
+
+        const resize = () => {
+            const rect = canvas.getBoundingClientRect();
+            const dpr = Math.min(2, window.devicePixelRatio || 1);
+            w = rect.width;
+            h = rect.height;
+            canvas.width = Math.round(w * dpr);
+            canvas.height = Math.round(h * dpr);
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        };
+
+        const spawn = (burst: boolean) => {
+            parts.push({
+                x: Math.random() * w,
+                y: burst ? h * (0.2 + Math.random() * 0.8) : h + 3,
+                r: 0.8 + Math.random() * 1.2,
+                vy: -(6 + Math.random() * 8) * effortConfig.particleSpeed,
+                sway: (Math.random() - 0.5) * 10,
+                phase: Math.random() * Math.PI * 2,
+                life: burst ? Math.random() * 1.2 : 0,
+                span: 2.2 + Math.random() * 2.2
+            });
+        };
+
+        const initialCount = effortNorm === 'low' ? 3 : effortNorm === 'medium' ? 8 : effortNorm === 'high' ? 16 : 24;
+
+        const tick = (now: number) => {
+            const dt = Math.min(0.05, (now - last) / 1000);
+            last = now;
+
+            const timeLeft = sparkBurstUntilRef.current - now;
+
+            // When idle (burst finished), clear canvas and stop rendering until triggered again
+            if (timeLeft <= 0) {
+                if (parts.length > 0) {
+                    parts.length = 0;
+                    ctx.clearRect(0, 0, w, h);
+                }
+                raf = requestAnimationFrame(tick);
+                return;
+            }
+
+            // If burst was triggered and parts are empty, spawn initial burst
+            if (parts.length === 0) {
+                for (let i = 0; i < initialCount; i += 1) spawn(true);
+            }
+
+            // Smooth fade-out in the last 700ms of the burst duration
+            const fadeProgress = Math.min(1, Math.max(0, timeLeft / 700));
+
+            const typed = typingEnergyRef.current;
+            typed.energy *= Math.exp(-dt / 0.8);
+            pulse *= Math.exp(-dt / 0.16);
+            if (typed.strokes > 0) {
+                typed.strokes = 0;
+                pulse = 1;
+            }
+            const energy = typed.energy;
+            speed += (effortConfig.particleSpeed + energy * 5 - speed) * (1 - Math.exp(-dt / 0.15));
+            due += dt;
+            const interval = effortNorm === 'low' ? 0.35 : effortNorm === 'medium' ? 0.22 : 0.14;
+            while (due > interval && timeLeft > 300) {
+                due -= interval;
+                if (parts.length < effortConfig.particleLimit) spawn(false);
+            }
+            ctx.clearRect(0, 0, w, h);
+            const sparkColor = getComputedStyle(document.documentElement).getPropertyValue('--accent-color').trim() || '#b39dff';
+            ctx.fillStyle = sparkColor;
+            ctx.shadowColor = sparkColor;
+            ctx.shadowBlur = 4 + energy * 8 + pulse * 5;
+
+            for (let i = parts.length - 1; i >= 0; i -= 1) {
+                const p = parts[i];
+                p.life += dt;
+                if (p.life > p.span) {
+                    parts.splice(i, 1);
+                    continue;
+                }
+                const k = p.life / p.span;
+                const twinkle = 0.7 + 0.3 * Math.sin((now / 160) * (1 + energy) + p.phase);
+                p.y += p.vy * dt * speed;
+                if (p.y < -4) {
+                    p.y = h + 3;
+                    p.x = Math.random() * w;
+                }
+                const edge = Math.min(1, Math.max(0, p.y / 14), Math.max(0, (h - p.y) / 14));
+                ctx.globalAlpha = Math.min(1, Math.sin(k * Math.PI) * (0.8 + energy * 0.25) * twinkle * effortConfig.starOpacity * fadeProgress) * edge;
+                ctx.beginPath();
+                ctx.arc(
+                    p.x + Math.sin((now / 900) * (1 + energy * 0.8) + p.phase) * p.sway,
+                    p.y,
+                    p.r * twinkle * (1 + energy * 0.35),
+                    0,
+                    Math.PI * 2
+                );
+                ctx.fill();
+            }
+            raf = requestAnimationFrame(tick);
+        };
+
+        resize();
+        const ro = new ResizeObserver(resize);
+        ro.observe(canvas);
+        raf = requestAnimationFrame(tick);
+        return () => {
+            cancelAnimationFrame(raf);
+            ro.disconnect();
+            ctx.clearRect(0, 0, w, h);
+        };
+    }, [effortConfig, effortNorm]);
+
+    const PROMPT_EFFORTS = ['Low', 'Medium', 'High', 'Max'] as const;
+    const activeEffortIdx = PROMPT_EFFORTS.findIndex(e => e.toLowerCase() === String(effort).toLowerCase());
+    const sliderIdx = activeEffortIdx >= 0 ? activeEffortIdx : 1;
+    const displayEffortLabel = typeof effort === 'number' ? `${effort} tok` : String(effort);
+    const ActiveEffortIcon = effortConfig.Icon;
+
+    // Flush end-to-end travel calculation (P17)
+    // Track height: 28px, Thumb: 22px circle, Inset: 3px margin
+    const thumbLeft = (i: number, total: number) => `calc(3px + (100% - 28px) * ${i / Math.max(1, total - 1)})`;
+    const dotLeft = (i: number, total: number) => `calc(14px + (100% - 28px) * ${i / Math.max(1, total - 1)})`;
+
+    const handleEffortPointer = (e: React.PointerEvent<HTMLDivElement>) => {
+        const rect = e.currentTarget.getBoundingClientRect();
+        const innerX = e.clientX - rect.left - 14;
+        const availableWidth = Math.max(1, rect.width - 28);
+        const k = Math.max(0, Math.min(1, innerX / availableWidth));
+        const clamped = Math.round(k * (PROMPT_EFFORTS.length - 1));
+        chooseEffort(PROMPT_EFFORTS[clamped].toLowerCase());
+    };
+
+    const handleEffortKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+        const step = e.key === 'ArrowRight' || e.key === 'ArrowUp' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowDown' ? -1 : 0;
+        if (step) {
+            e.preventDefault();
+            const next = Math.max(0, Math.min(PROMPT_EFFORTS.length - 1, sliderIdx + step));
+            chooseEffort(PROMPT_EFFORTS[next].toLowerCase());
+        } else if (e.key === 'Escape') {
+            setIsPromptBarEffortOpen(false);
+        }
+    };
+
+    const renderEffortControl = () => (
+        <div className="relative" ref={effortRef}>
+            <button
+                type="button"
+                onClick={() => {
+                    setIsPromptBarEffortOpen(!isPromptBarEffortOpen);
+                    setIsModelOpen(false);
+                    setIsAttachOpen(false);
+                }}
+                style={{
+                    color: effortConfig.levelColor
+                }}
+                className={`flex items-center gap-1 sm:gap-1.5 px-2 py-1.5 rounded-lg transition-colors text-[0.7rem] sm:text-xs font-medium border border-transparent cursor-pointer select-none hover:bg-[var(--bg-tertiary)] ${
+                    isPromptBarEffortOpen ? 'bg-[var(--bg-tertiary)]' : ''
+                } ${isMaxEffort ? 'font-semibold' : ''}`}
+                title={`Reasoning Effort: ${displayEffortLabel}`}
+                aria-label="Reasoning Effort"
+                aria-expanded={isPromptBarEffortOpen}
+            >
+                <ActiveEffortIcon
+                    className="w-3.5 h-3.5 flex-shrink-0 transition-colors duration-200 text-current"
+                />
+                <span className="capitalize">{displayEffortLabel}</span>
+            </button>
+
+            {isPromptBarEffortOpen && (
+                <div
+                    className="absolute bottom-full left-0 mb-2 w-64 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl shadow-2xl p-3 z-50 flex flex-col select-none animate-in fade-in slide-in-from-bottom-2 duration-150"
+                    role="dialog"
+                    aria-label="Reasoning Effort Control"
+                >
+                    {/* Header: 'Effort' label + Level + Info + Auto (P21, P26) */}
+                    <div className="flex items-center gap-1.5 text-xs">
+                        <span className="text-[var(--text-muted)]">Effort</span>
+                        <span
+                            className="font-semibold capitalize"
+                            style={{ color: effortConfig.levelColor }}
+                        >
+                            {displayEffortLabel}
+                        </span>
+                        <span
+                            className="inline-flex text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-help"
+                            title="Higher effort thinks longer before answering"
+                        >
+                            <Info className="w-3.5 h-3.5 opacity-70" />
+                        </span>
+                        <button
+                            type="button"
+                            onClick={() => chooseEffort(effort === 'auto' ? 'medium' : 'auto')}
+                            className={`ml-auto px-2 py-0.5 text-[10px] font-medium rounded-full transition-colors cursor-pointer border ${
+                                effort === 'auto'
+                                    ? 'bg-[var(--accent-color)]/20 text-[var(--accent-color)] border-[var(--accent-color)]/40 font-semibold'
+                                    : 'text-[var(--text-muted)] border-[var(--border-color)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]'
+                            }`}
+                        >
+                            Auto
+                        </button>
+                    </div>
+
+                    {/* Subtitle Faster <---> Smarter */}
+                    <div className="mt-2.5 flex justify-between text-[11px] leading-4 text-[var(--text-muted)]">
+                        <span>Faster</span>
+                        <span>Smarter</span>
+                    </div>
+
+                    {/* Theme-Bound Dynamic Gradient Slider Track (P22) */}
+                    <div
+                        className="relative mt-1.5 h-[28px] cursor-pointer touch-none rounded-full outline-none select-none overflow-hidden shadow-[0_0_15px_rgba(var(--accent-color-rgb,120,119,198),0.35),inset_0_1px_2px_rgba(255,255,255,0.15)]"
+                        style={{
+                            background: 'linear-gradient(90deg, color-mix(in srgb, var(--text-muted) 20%, transparent) 0%, color-mix(in srgb, var(--accent-color) 45%, transparent) 45%, var(--accent-color) 100%)'
+                        }}
+                        role="slider"
+                        tabIndex={0}
+                        aria-label="Effort Slider"
+                        aria-valuemin={0}
+                        aria-valuemax={PROMPT_EFFORTS.length - 1}
+                        aria-valuenow={sliderIdx}
+                        aria-valuetext={PROMPT_EFFORTS[sliderIdx]}
+                        onPointerDown={e => {
+                            if (e.button !== 0) return;
+                            try {
+                                e.currentTarget.setPointerCapture(e.pointerId);
+                            } catch { }
+                            e.currentTarget.focus({ preventScroll: true });
+                            handleEffortPointer(e);
+                        }}
+                        onPointerMove={e => {
+                            if (e.buttons & 1) handleEffortPointer(e);
+                        }}
+                        onKeyDown={handleEffortKeyDown}
+                    >
+                        {/* Embedded Celestial Micro-Stars Layer */}
+                        <div className="absolute inset-0 pointer-events-none">
+                            {[
+                                { left: '10%', top: '35%', size: 2, op: 0.85 },
+                                { left: '22%', top: '65%', size: 1.5, op: 0.7 },
+                                { left: '38%', top: '28%', size: 2.5, op: 0.95 },
+                                { left: '52%', top: '70%', size: 1.5, op: 0.75 },
+                                { left: '68%', top: '32%', size: 2, op: 0.9 },
+                                { left: '82%', top: '62%', size: 1.5, op: 0.7 },
+                                { left: '92%', top: '38%', size: 2, op: 0.85 }
+                            ].map((star, idx) => (
+                                <i
+                                    key={idx}
+                                    className="absolute rounded-full bg-white"
+                                    style={{
+                                        left: star.left,
+                                        top: star.top,
+                                        width: `${star.size}px`,
+                                        height: `${star.size}px`,
+                                        opacity: star.op,
+                                        boxShadow: `0 0 4px rgba(255, 255, 255, ${star.op})`
+                                    }}
+                                />
+                            ))}
+                        </div>
+
+                        {/* Discrete Step Dots with Glow (P18) */}
+                        {PROMPT_EFFORTS.map((label, i) => (
+                            <i
+                                key={label}
+                                className={`absolute top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full pointer-events-none transition-all duration-200 ${
+                                    sliderIdx >= i
+                                        ? 'w-2 h-2 bg-white shadow-[0_0_8px_rgba(255,255,255,0.95)] opacity-100 ring-1 ring-white/50'
+                                        : 'w-1.5 h-1.5 bg-white/40 opacity-70'
+                                }`}
+                                style={{ left: dotLeft(i, PROMPT_EFFORTS.length) }}
+                            />
+                        ))}
+
+                        {/* End-to-End Circular White Thumb (P17) */}
+                        <span
+                            className="absolute top-1/2 -translate-y-1/2 w-[22px] h-[22px] rounded-full bg-white shadow-[0_2px_10px_rgba(0,0,0,0.5),0_0_12px_rgba(255,255,255,0.8)] transition-all duration-150 pointer-events-none ring-2 ring-white/80 active:scale-95"
+                            style={{
+                                left: thumbLeft(sliderIdx, PROMPT_EFFORTS.length)
+                            }}
+                        />
+                    </div>
+
+                    {/* Quick Step Labels with gradient-synchronized colors (P26) */}
+                    <div className="mt-2 flex justify-between px-1 text-[10px] font-mono">
+                        {PROMPT_EFFORTS.map((label, i) => {
+                            const isCurrent = sliderIdx === i && effort !== 'auto';
+                            return (
+                                <button
+                                    key={label}
+                                    type="button"
+                                    onClick={() => chooseEffort(label.toLowerCase())}
+                                    style={isCurrent ? { color: getEffortColor(label) } : undefined}
+                                    className={`transition-colors cursor-pointer ${
+                                        isCurrent
+                                            ? 'font-bold'
+                                            : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                                    }`}
+                                >
+                                    {label}
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+
     const renderModelSelector = () => (
         <div className="relative" ref={modelRef}>
             <button
                 type="button"
-                onClick={() => setIsModelOpen(!isModelOpen)}
-                className={`flex items-center gap-1 sm:gap-1.5 px-2 py-1.5 rounded-lg transition-colors text-[0.7rem] sm:text-xs font-medium shrink min-w-0 max-w-[130px] sm:max-w-[160px] md:max-w-[200px] border border-transparent cursor-pointer ${isModelOpen ? 'bg-[var(--bg-secondary)] text-[var(--text-primary)]' : 'hover:bg-[var(--bg-secondary)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}
+                onClick={() => {
+                    setIsModelOpen(!isModelOpen);
+                    setIsPromptBarEffortOpen(false);
+                    setIsAttachOpen(false);
+                }}
+                className={`flex items-center gap-1 sm:gap-1.5 px-2 py-1.5 rounded-lg transition-colors text-[0.7rem] sm:text-xs font-medium shrink min-w-0 max-w-[130px] sm:max-w-[160px] md:max-w-[200px] border border-transparent cursor-pointer ${isModelOpen ? 'bg-[var(--bg-tertiary)] text-[var(--text-primary)]' : 'hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}
                 title={currentModel.fullName}
             >
                 <span className="truncate min-w-0 block">{currentModel.shortName}</span>
@@ -1329,7 +1760,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             </button>
 
             {isModelOpen && (
-                <div className="absolute bottom-full right-0 mb-2 w-64 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl shadow-2xl overflow-hidden p-1.5 z-50 flex flex-col gap-1 max-h-64 overflow-y-auto custom-scrollbar">
+                <div className="absolute bottom-full left-0 mb-2 w-64 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl shadow-2xl overflow-hidden p-1.5 z-50 flex flex-col gap-1 max-h-64 overflow-y-auto custom-scrollbar">
                     <div className="px-2 py-1 text-[10px] uppercase tracking-wider font-semibold text-[var(--text-muted)] select-none border-b border-[var(--border-color)]/40 pb-1.5 mb-0.5">
                         Select Model
                     </div>
@@ -1376,6 +1807,14 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
     const renderInputContent = () => (
         <>
+            <div className="pointer-events-none absolute inset-0 -z-10 rounded-[inherit] overflow-hidden">
+                <canvas
+                    ref={sparkCanvasRef}
+                    className="h-full w-full"
+                    aria-hidden="true"
+                />
+            </div>
+
             <input
                 type="file"
                 ref={fileInputRef}
@@ -1403,7 +1842,11 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 <InlinePromptInput
                     ref={inlineInputRef}
                     placeholder={isEngineOnline ? "Ask AI..." : "Cluaiz Engine is offline..."}
-                    onTextChange={(val) => setInputValue(val)}
+                    onTextChange={(val) => {
+                        setInputValue(val);
+                        typingEnergyRef.current.energy = Math.min(1.6, typingEnergyRef.current.energy + 0.25);
+                        typingEnergyRef.current.strokes = Math.min(4, typingEnergyRef.current.strokes + 1);
+                    }}
                     onSubmit={handlePromptSubmit}
                     onDropFiles={handleStageFiles}
                     onPasteLargeText={handlePasteLargeText}
@@ -1415,25 +1858,34 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             </div>
 
             {/* ---------------- ROW 2: CLEAN BOTTOM TOOLBAR ---------------- */}
-            <div className="flex items-center justify-between pt-1 border-t border-[var(--border-color)]/20">
-                {/* Left: [+] Attach button */}
-                <div className="relative">
-                    {isAttachOpen && attachmentMenu}
-                    <button
-                        ref={attachButtonRef}
-                        type="button"
-                        onClick={() => setIsAttachOpen(!isAttachOpen)}
-                        className={`transition-colors p-1.5 pl-0 rounded-full cursor-pointer ${isAttachOpen ? 'text-[var(--accent-color)] bg-[var(--bg-secondary)]' : 'text-[var(--text-muted)] hover:bg-[var(--bg-secondary)] hover:text-[var(--accent-color)]'}`}
-                        title="Add context, files, or skills"
-                    >
-                        <Plus className={`w-5 h-5 transition-transform duration-300 ${isAttachOpen ? 'rotate-45' : 'rotate-0'}`} />
-                    </button>
-                </div>
+            {/* Unified container styling without inner divider border */}
+            <div className="flex items-center justify-between pt-1">
+                {/* Left Cluster: [+] Attach Button -> Model Selector -> Effort Pill Control */}
+                <div className="flex items-center gap-1 sm:gap-1.5 min-w-0">
+                    <div className="relative">
+                        {isAttachOpen && attachmentMenu}
+                        <button
+                            ref={attachButtonRef}
+                            type="button"
+                            onClick={() => {
+                                setIsAttachOpen(!isAttachOpen);
+                                setIsModelOpen(false);
+                                setIsPromptBarEffortOpen(false);
+                            }}
+                            className={`transition-colors p-1.5 pl-0 rounded-full cursor-pointer ${isAttachOpen ? 'text-[var(--accent-color)] bg-[var(--bg-tertiary)]' : 'text-[var(--text-muted)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--accent-color)]'}`}
+                            title="Add context, files, or skills"
+                        >
+                            <Plus className={`w-5 h-5 transition-transform duration-300 ${isAttachOpen ? 'rotate-45' : 'rotate-0'}`} />
+                        </button>
+                    </div>
 
-                {/* Right: Model Selector + Voice Mic + Send Button */}
-                <div className="flex items-center gap-1.5 flex-shrink-0">
                     {renderModelSelector()}
 
+                    {renderEffortControl()}
+                </div>
+
+                {/* Right Cluster: Voice Mic + Send / Stop Button */}
+                <div className="flex items-center gap-1.5 flex-shrink-0">
                     <VoiceInputControl
                         ref={voiceInputRef}
                         isAnswering={isStreaming}
@@ -1451,7 +1903,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                         onVoiceFrequencyChange={(freq) => setVoiceFrequency(freq)}
                     />
 
-                    <div className={`transition-all duration-100 ease-out overflow-hidden flex items-center ${(isStreaming || inputValue.trim() || !inlineInputRef.current?.isEmpty() || stagedAttachments.length > 0) ? 'w-7 opacity-100 scale-100' : 'w-0 opacity-0 scale-0'}`}>
+                    <div className="w-7 h-7 flex items-center justify-center flex-shrink-0">
                         {isStreaming ? (
                             <button
                                 type="button"
@@ -1465,9 +1917,13 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                             <button
                                 type="button"
                                 onClick={handleSendWithAttachments}
-                                disabled={!isEngineOnline}
-                                className={`w-7 h-7 flex-shrink-0 rounded-full flex items-center justify-center bg-[var(--accent-color)] text-[var(--accent-contrast)] hover:opacity-90 transition-transform active:scale-95 ${!isEngineOnline ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
-                                title="Send message"
+                                disabled={!isEngineOnline || !(inputValue.trim() || !inlineInputRef.current?.isEmpty() || stagedAttachments.length > 0)}
+                                className={`w-7 h-7 flex-shrink-0 rounded-full flex items-center justify-center transition-all duration-150 active:scale-95 ${
+                                    (inputValue.trim() || !inlineInputRef.current?.isEmpty() || stagedAttachments.length > 0) && isEngineOnline
+                                        ? 'bg-[var(--accent-color)] text-[var(--accent-contrast)] hover:opacity-90 cursor-pointer shadow-sm'
+                                        : 'bg-[var(--bg-secondary)] text-[var(--text-muted)] opacity-35 border border-[var(--border-color)]/30 cursor-not-allowed'
+                                }`}
+                                title={(inputValue.trim() || !inlineInputRef.current?.isEmpty() || stagedAttachments.length > 0) ? "Send message" : "Type a message to send"}
                             >
                                 <Send className="w-3 h-3 -ml-0.5" />
                             </button>
@@ -1744,7 +2200,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                     className="w-full min-w-0 max-w-full z-10"
                     edgeSensitivity={0}
                     glowColor="var(--accent-color-rgb)"
-                    backgroundColor="var(--bg-primary)"
+                    backgroundColor="var(--bg-secondary)"
                     borderRadius={20}
                     glowRadius={80}
                     glowIntensity={1}
@@ -1758,9 +2214,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                         onDragOver={handleDragOver}
                         onDragLeave={handleDragLeave}
                         onDrop={handleDrop}
-                        className={`relative z-10 flex flex-col w-full max-w-full min-w-0 gap-1.5 bg-[var(--bg-primary)] rounded-[20px] border-[0.5px] p-2.5 sm:p-3 max-[300px]:p-1.5 transition-all duration-200 ${isDraggingOver
+                        className={`relative z-10 flex flex-col w-full max-w-full min-w-0 gap-1.5 bg-[var(--bg-secondary)] rounded-[20px] border p-2.5 sm:p-3 max-[300px]:p-1.5 transition-all duration-200 ${isDraggingOver
                             ? 'border-[var(--accent-color)] ring-1 ring-[var(--accent-color)]/30 bg-[var(--accent-color)]/5'
-                            : 'border-[var(--border-color)]/20 focus-within:border-[var(--accent-color)]/25 focus-within:shadow-[0_0_0_0.5px_rgba(var(--accent-color-rgb),0.15)]'
+                            : 'border-[var(--border-color)]/60 hover:border-[var(--border-color)] focus-within:border-[var(--accent-color)]/40 focus-within:shadow-[0_0_0_1px_rgba(var(--accent-color-rgb),0.15)]'
                             }`}
                         style={{
                             borderStyle: 'var(--border-style)',
@@ -1774,7 +2230,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                     className="w-full min-w-0 max-w-full z-10"
                     edgeSensitivity={0}
                     glowColor="var(--accent-color-rgb)"
-                    backgroundColor="var(--bg-primary)"
+                    backgroundColor="var(--bg-secondary)"
                     borderRadius={20}
                     glowRadius={60}
                     glowIntensity={1}
@@ -1788,9 +2244,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                         onDragOver={handleDragOver}
                         onDragLeave={handleDragLeave}
                         onDrop={handleDrop}
-                        className={`relative z-10 flex flex-col w-full max-w-full min-w-0 gap-1.5 bg-[var(--bg-primary)] rounded-[20px] border-[0.5px] p-2.5 sm:p-3 max-[300px]:p-1.5 transition-all duration-200 ${isDraggingOver
+                        className={`relative z-10 flex flex-col w-full max-w-full min-w-0 gap-1.5 bg-[var(--bg-secondary)] rounded-[20px] border p-2.5 sm:p-3 max-[300px]:p-1.5 transition-all duration-200 ${isDraggingOver
                             ? 'border-[var(--accent-color)] ring-1 ring-[var(--accent-color)]/30 bg-[var(--accent-color)]/5'
-                            : 'border-[var(--border-color)]/20 focus-within:border-[var(--accent-color)]/25 focus-within:shadow-[0_0_0_0.5px_rgba(var(--accent-color-rgb),0.15)]'
+                            : 'border-[var(--border-color)]/60 hover:border-[var(--border-color)] focus-within:border-[var(--accent-color)]/40 focus-within:shadow-[0_0_0_1px_rgba(var(--accent-color-rgb),0.15)]'
                             }`}
                         style={{
                             borderStyle: 'var(--border-style)',
