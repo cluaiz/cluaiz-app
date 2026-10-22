@@ -5,29 +5,21 @@ export interface BadgeProps extends React.HTMLAttributes<HTMLDivElement> {
     children?: React.ReactNode;
 }
 
+const badgeVariantClasses: Record<NonNullable<BadgeProps['variant']>, string> = {
+    default: 'ui-badge-primary',
+    secondary: 'ui-badge-secondary',
+    destructive: 'ui-badge-destructive',
+    outline: 'ui-badge-outline',
+    cyber: 'ui-badge-cyber',
+    pixel: 'ui-badge-pixel'
+};
+
 export function Badge({ className = '', variant = 'default', children, ...props }: BadgeProps) {
-    const baseClass = "inline-flex items-center rounded-full border px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wider select-none";
-
-    const variants = {
-        default: "border-transparent bg-[var(--accent-color)] text-[var(--bg-primary)] font-black",
-        secondary: "border-transparent bg-[var(--bg-tertiary)] text-[var(--text-secondary)]",
-        destructive: "border-transparent bg-red-600/20 text-red-500 border border-red-500/25",
-        outline: "border-[var(--border-color)] text-[var(--text-primary)]",
-        cyber: "border-[var(--border-color)] bg-[var(--bg-secondary)] text-[var(--accent-color)] font-mono",
-        pixel: "border-double border-4 border-[var(--border-color)] bg-[var(--bg-secondary)] text-[var(--text-primary)] font-mono"
-    };
-
-    const classes = `${baseClass} ${variants[variant]} ${className}`;
-    const isPixelOrCyber = variant === 'pixel' || variant === 'cyber';
+    const variantClass = badgeVariantClasses[variant] || 'ui-badge-primary';
 
     return (
         <div
-            className={classes}
-            style={{
-                borderRadius: isPixelOrCyber ? '0px' : undefined,
-                borderStyle: variant === 'pixel' ? 'double' : 'var(--border-style)',
-                borderColor: 'var(--border-color)'
-            }}
+            className={`ui-badge ${variantClass} ${className}`}
             {...props}
         >
             {children}

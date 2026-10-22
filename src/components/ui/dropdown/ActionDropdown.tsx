@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useIconHover } from '../../animate-ui/icons';
 
 export interface ActionDropdownProps {
     isOpen: boolean;
@@ -108,11 +109,11 @@ export function ActionDropdown({
                     transition={{ duration: 0.12, ease: 'easeOut' }}
                     style={floating ? menuStyle : undefined}
                     onClick={(e) => e.stopPropagation()}
-                    className={`${
+                    className={`ui-dropdown ${
                         floating
-                            ? 'shadow-2xl'
-                            : `absolute mt-1.5 ${align === 'right' ? 'right-0' : 'left-0'} z-50 shadow-2xl`
-                    } bg-[var(--bg-secondary)]/95 backdrop-blur-xl border border-[var(--border-color)] rounded-2xl p-1.5 flex flex-col gap-0.5 ${className}`}
+                            ? ''
+                            : `absolute mt-1.5 ${align === 'right' ? 'right-0' : 'left-0'} z-50`
+                    } ${className}`}
                 >
                     {children}
                 </motion.div>
@@ -139,20 +140,27 @@ export function ActionDropdownItem({
     onClick,
     ...props
 }: ActionDropdownItemProps) {
+    const { ref: iconRef, triggerProps } = useIconHover();
+
+    const renderedIcon = React.isValidElement(icon)
+        ? React.cloneElement(icon as React.ReactElement<any>, { ref: iconRef })
+        : icon;
+
     return (
         <button
             type="button"
             onClick={onClick}
+            {...triggerProps}
             className={`w-full text-left px-3 py-1.5 text-xs rounded-xl font-medium transition-all duration-150 flex items-center gap-2.5 cursor-pointer border border-transparent select-none ${
                 danger
                     ? 'text-red-400 hover:text-red-300 hover:bg-red-500/10 hover:border-red-500/20'
                     : active
-                    ? 'bg-[var(--accent-color)]/15 text-[var(--accent-color)] font-bold border-[var(--accent-color)]/25'
+                    ? 'bg-[var(--accent-color)]/15 text-[var(--accent-color)] border-[var(--accent-color)]/25'
                     : 'text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]'
             } ${className}`}
             {...props}
         >
-            {icon && <span className="shrink-0 flex items-center justify-center">{icon}</span>}
+            {renderedIcon && <span className="shrink-0 flex items-center justify-center">{renderedIcon}</span>}
             <span className="truncate flex-1">{children}</span>
         </button>
     );

@@ -1,6 +1,7 @@
 import React from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../Dialog';
-import { AlertTriangle } from 'lucide-react';
+import { Dialog, DialogContent } from '../Dialog';
+import { Button } from '../Button';
+import { AlertTriangle, Info } from 'lucide-react';
 
 export interface ConfirmationModalProps {
     open: boolean;
@@ -25,44 +26,43 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
 }) => {
     return (
         <Dialog open={open} onOpenChange={(val) => !val && onCancel()}>
-            <DialogContent className="p-6 max-w-md space-y-4 bg-[var(--bg-secondary)] border-[var(--border-color)]">
-                <DialogHeader>
-                    <div className="flex items-center gap-3">
-                        {isDestructive && (
-                            <div className="w-10 h-10 rounded-xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-400 shrink-0">
-                                <AlertTriangle className="w-5 h-5" />
-                            </div>
-                        )}
-                        <div>
-                            <DialogTitle className="text-sm font-bold text-[var(--text-primary)]">{title}</DialogTitle>
-                        </div>
+            <DialogContent className="p-6 max-w-md bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-[var(--radius-modal)] shadow-2xl overflow-hidden">
+                <div className="flex items-start gap-4">
+                    <div className={`w-11 h-11 rounded-[var(--radius-btn)] flex items-center justify-center shrink-0 ${
+                        isDestructive 
+                            ? 'bg-rose-500/15 border border-rose-500/30 text-rose-500' 
+                            : 'bg-[var(--accent-color)]/15 border border-[var(--accent-color)]/30 text-[var(--accent-color)]'
+                    }`}>
+                        {isDestructive ? <AlertTriangle size={20} /> : <Info size={20} />}
                     </div>
-                </DialogHeader>
+                    <div className="flex-1 min-w-0 pt-0.5">
+                        <h3 className="text-sm font-bold text-[var(--text-primary)] leading-tight">
+                            {title}
+                        </h3>
+                        <p className="text-xs text-[var(--text-secondary)] leading-relaxed mt-2 font-medium">
+                            {message}
+                        </p>
+                    </div>
+                </div>
 
-                <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
-                    {message}
-                </p>
-
-                <DialogFooter className="pt-2 flex justify-end gap-3">
-                    <button
+                <div className="mt-6 flex items-center justify-end gap-3 pt-4 border-t border-[var(--border-color)]/60">
+                    <Button
                         type="button"
+                        variant="secondary"
+                        size="sm"
                         onClick={onCancel}
-                        className="px-4 py-2 rounded-xl text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-all cursor-pointer"
                     >
                         {cancelText}
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                         type="button"
+                        variant={isDestructive ? 'destructive' : 'default'}
+                        size="sm"
                         onClick={onConfirm}
-                        className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer shadow-sm ${
-                            isDestructive
-                                ? 'bg-rose-500 hover:bg-rose-600 text-white'
-                                : 'bg-[var(--accent-color)] hover:opacity-90 text-[var(--accent-contrast,#ffffff)]'
-                        }`}
                     >
                         {confirmText}
-                    </button>
-                </DialogFooter>
+                    </Button>
+                </div>
             </DialogContent>
         </Dialog>
     );

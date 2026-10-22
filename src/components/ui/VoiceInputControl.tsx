@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, forwardRef, useImperativeHandle } from 'react';
 import { Mic, MicOff, ChevronDown } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { VoicePill } from '../VoicePill/VoicePill';
 import {
     AudioControlSettingsModal,
     getStoredMicSettings,
@@ -187,71 +188,33 @@ export const VoiceInputControl = forwardRef<VoiceInputHandle, VoiceInputControlP
 
     return (
         <div className={`relative flex items-center ${className}`}>
-            <AudioControlSettingsModal
-                isOpen={isSettingsOpen}
-                onClose={() => setIsSettingsOpen(false)}
-                initialTab="mic"
-                onMicSettingsChange={handleSettingsChange}
-            />
-
-            <div
-                onContextMenu={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setIsSettingsOpen(true);
+            {/* Record Mode: VoicePill Interactive Component (Single Dedicated Pill Control) */}
+            <VoicePill
+                size={32}
+                accentColor="var(--accent-color)"
+                iconColor="var(--text-muted)"
+                background="var(--bg-tertiary)"
+                shape="pill"
+                mode="auto"
+                waveform={true}
+                showTime={true}
+                slideToCancel={true}
+                active={isActive}
+                audioLevel={liveFrequency}
+                reactive="mic"
+                disabled={disabled}
+                onStart={() => {
+                    if (!dictation.active) void dictation.start();
                 }}
-                className={`flex items-center gap-[2px] h-[2rem] sm:h-[2.25rem] px-2 rounded-full border border-transparent transition-all duration-150 ${disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'
-                    } ${isActive
-                        ? 'bg-[var(--bg-secondary)]'
-                        : 'text-[var(--text-muted)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
-                    }`}
-                style={capsuleStyle}
-                title="Click to speak · Right-click for microphone mode"
-            >
-                <button
-                    type="button"
-                    onClick={toggleVoiceState}
-                    disabled={disabled}
-                    className="flex items-center justify-center p-0.5 rounded-full transition-colors cursor-pointer disabled:cursor-not-allowed"
-                    style={iconGlow}
-                    title={
-                        isActive
-                            ? (mode === 'live_interaction' ? 'End voice mode' : 'Stop recording')
-                            : (mode === 'live_interaction' ? 'Start voice mode' : 'Start recording')
+                onStop={({ reason }) => {
+                    if (reason === 'cancel') {
+                        dictation.cancel();
+                    } else {
+                        stopMic();
                     }
-                >
-                    {mode === 'live_interaction' ? (
-                        <div className="flex items-center gap-[1.5px] h-4.5 w-4.5 justify-center">
-                            {[[4, 10, 4], [7, 12, 10], [9, 14, 16], [6, 11, 8], [3, 8, 4]].map(([base, gain, idle], i) => (
-                                <motion.span
-                                    key={i}
-                                    className="w-[1.8px] bg-current rounded-full"
-                                    animate={{ height: isActive ? `${base + liveFrequency * gain}px` : `${idle}px` }}
-                                    transition={{ duration: 0.05 }}
-                                />
-                            ))}
-                        </div>
-                    ) : isActive ? (
-                        <Mic className="w-4 sm:w-4.5 h-4 sm:h-4.5" />
-                    ) : (
-                        <MicOff className="w-4 sm:w-4.5 h-4 sm:h-4.5 text-[var(--text-muted)]" />
-                    )}
-                </button>
-
-                <button
-                    type="button"
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        setIsSettingsOpen(true);
-                    }}
-                    disabled={disabled}
-                    className="flex items-center justify-center p-0.5 transition-colors cursor-pointer text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-                    style={iconGlow}
-                    title="Microphone mode"
-                >
-                    <ChevronDown className="w-3 h-3 transition-transform duration-150" />
-                </button>
-            </div>
+                }}
+                className="transition-all"
+            />
         </div>
     );
 });

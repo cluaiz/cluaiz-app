@@ -2,23 +2,42 @@ import React from 'react';
 
 export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
     error?: string;
+    leftIcon?: React.ReactNode;
+    rightElement?: React.ReactNode;
+    sizeVariant?: 'sm' | 'default' | 'lg';
+    wrapperClassName?: string;
 }
 
+const sizeClasses: Record<NonNullable<InputProps['sizeVariant']>, string> = {
+    sm: 'h-8 text-xs py-1',
+    default: 'h-9 text-xs py-1.5',
+    lg: 'h-10 text-sm py-2'
+};
+
 export const Input = React.forwardRef<HTMLInputElement, InputProps>(
-    ({ className = '', error, ...props }, ref) => {
+    ({ className = '', wrapperClassName = '', error, leftIcon, rightElement, sizeVariant = 'default', ...props }, ref) => {
         return (
-            <div className="w-full relative">
+            <div className={`w-full relative flex items-center ${wrapperClassName}`}>
+                {leftIcon && (
+                    <div className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--text-muted)] flex items-center justify-center shrink-0">
+                        {leftIcon}
+                    </div>
+                )}
                 <input
                     ref={ref}
-                    className={`flex h-9 w-full rounded-md border border-[var(--border-color)] bg-[var(--bg-secondary)] px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-[var(--text-muted)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-color)] disabled:cursor-not-allowed disabled:opacity-50 ${
-                        error ? 'border-red-500 focus-visible:ring-red-500' : ''
-                    } ${className}`}
+                    className={`ui-input ${sizeClasses[sizeVariant]} ${leftIcon ? 'pl-8' : ''} ${rightElement ? 'pr-8' : ''} ${error ? 'ui-input-error' : ''} ${className}`}
                     {...props}
                 />
-                {error && <span className="absolute -bottom-5 left-0 text-[10px] text-red-500">{error}</span>}
+                {rightElement && (
+                    <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center justify-center shrink-0">
+                        {rightElement}
+                    </div>
+                )}
+                {error && <span className="absolute -bottom-5 left-0 text-[10px] text-red-500 font-medium">{error}</span>}
             </div>
         );
     }
 );
 
 Input.displayName = "Input";
+

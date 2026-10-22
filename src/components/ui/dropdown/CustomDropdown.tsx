@@ -2,11 +2,13 @@ import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronDown, Check, Loader2, Search, X } from 'lucide-react';
+import { Input } from '../Input';
 
 export interface DropdownOption {
     value: string;
     label: string;
     description?: string;
+    fontFamily?: string;
 }
 
 export interface CustomDropdownProps {
@@ -21,6 +23,8 @@ export interface CustomDropdownProps {
     customInputPlaceholder?: string;
     /** Open the list above the page (portal) so a scrolling or clipped parent cannot cut it */
     floating?: boolean;
+    /** Render each option with its corresponding font family for typography preview */
+    previewFont?: boolean;
 }
 
 /** Marks a floating list so popovers treat clicks in it as inside themselves */
@@ -36,7 +40,8 @@ export function CustomDropdown({
     loading = false,
     allowCustomInput = false,
     customInputPlaceholder = 'Type custom...',
-    floating = false
+    floating = false,
+    previewFont = false
 }: CustomDropdownProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [customInputVal, setCustomInputVal] = useState('');
@@ -154,7 +159,10 @@ export function CustomDropdown({
                     isOpen ? 'border-[var(--accent-color)] ring-1 ring-[var(--accent-color)]/30' : ''
                 } ${disabled || loading ? 'opacity-60 cursor-not-allowed' : ''}`}
             >
-                <span className="truncate">
+                <span 
+                    className="truncate"
+                    style={(previewFont || selectedOption?.fontFamily) && selectedOption ? { fontFamily: selectedOption.fontFamily || selectedOption.value } : undefined}
+                >
                     {selectedOption ? selectedOption.label : (value !== undefined && value !== '' ? String(value) : placeholder)}
                 </span>
                 {loading ? (
@@ -183,35 +191,33 @@ export function CustomDropdown({
                         exit={{ opacity: 0, y: -4, scale: 0.98 }}
                         transition={{ duration: 0.12, ease: 'easeOut' }}
                         style={floating ? menuStyle : undefined}
-                        className={`${floating ? 'z-[1000] max-w-xs' : 'absolute right-0 top-full mt-1.5 z-[300] min-w-[240px] max-w-md'} w-max origin-top-right bg-[var(--bg-secondary)]/95 backdrop-blur-xl border border-[var(--border-color)] rounded-2xl shadow-2xl p-1.5 overflow-hidden flex flex-col gap-1`}
+                        className={`${floating ? 'z-[1000] max-w-xs' : 'absolute right-0 top-full mt-1.5 z-[300] min-w-[240px] max-w-md'} w-max origin-top-right bg-[var(--bg-secondary)]/95 backdrop-blur-xl border border-[var(--border-color)] rounded-[var(--radius-card)] shadow-2xl p-1.5 overflow-hidden flex flex-col gap-1`}
                     >
                         {normalizedOptions.length >= 10 && (
                             <div className="p-1 pb-1.5 border-b border-[var(--border-color)]/60">
-                                <div className="relative flex items-center">
-                                    <Search size={12} className="absolute left-2.5 text-[var(--text-muted)] pointer-events-none" />
-                                    <input
-                                        ref={searchInputRef}
-                                        type="text"
-                                        value={searchQuery}
-                                        onChange={(e) => setSearchQuery(e.target.value)}
-                                        placeholder={`Search ${normalizedOptions.length} options...`}
-                                        className="w-full pl-7 pr-6 py-1 text-xs rounded-lg bg-[var(--bg-primary)] border border-[var(--border-color)] text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-[var(--accent-color)]"
-                                        onClick={(e) => e.stopPropagation()}
-                                    />
-                                    {searchQuery && (
+                                <Input
+                                    ref={searchInputRef}
+                                    type="text"
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    placeholder={`Search ${normalizedOptions.length} options...`}
+                                    sizeVariant="sm"
+                                    leftIcon={<Search size={12} />}
+                                    rightElement={searchQuery ? (
                                         <button
                                             type="button"
                                             onClick={(e) => {
                                                 e.stopPropagation();
                                                 setSearchQuery('');
                                             }}
-                                            className="absolute right-2 text-[var(--text-muted)] hover:text-[var(--text-primary)] p-0.5 cursor-pointer"
+                                            className="text-[var(--text-muted)] hover:text-[var(--text-primary)] p-0.5 cursor-pointer"
                                             title="Clear search"
                                         >
                                             <X size={11} />
                                         </button>
-                                    )}
-                                </div>
+                                    ) : undefined}
+                                    onClick={(e) => e.stopPropagation()}
+                                />
                             </div>
                         )}
 
@@ -231,7 +237,12 @@ export function CustomDropdown({
                                             }`}
                                         >
                                             <div className="flex flex-col min-w-0">
-                                                <span className="truncate">{opt.label}</span>
+                                                <span 
+                                                    className="truncate"
+                                                    style={previewFont || opt.fontFamily ? { fontFamily: opt.fontFamily || opt.value } : undefined}
+                                                >
+                                                    {opt.label}
+                                                </span>
                                                 {opt.description && (
                                                     <span className="text-[10px] text-[var(--text-muted)] font-normal truncate mt-0.5">
                                                         {opt.description}

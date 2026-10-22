@@ -10,14 +10,7 @@ export const Card = React.forwardRef<HTMLDivElement, CardProps>(
         return (
             <div
                 ref={ref}
-                className={`bg-[var(--bg-secondary)]/70 backdrop-blur-sm border-[var(--border-color)] p-6 transition-all duration-300 select-none flex flex-col ${
-                    hover ? 'hover:-translate-y-0.5 hover:shadow-[0_0_12px_var(--accent-glow)]' : ''
-                } ${className}`}
-                style={{
-                    borderRadius: 'var(--radius-base)',
-                    borderStyle: 'var(--border-style)',
-                    boxShadow: 'var(--glow-effect)'
-                }}
+                className={`ui-card ${hover ? 'ui-card-hover' : ''} ${className}`}
                 {...props}
             >
                 {children}
@@ -31,7 +24,7 @@ export const CardHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<
     ({ className = '', ...props }, ref) => (
         <div
             ref={ref}
-            className={`flex flex-col space-y-1.5 p-0 mb-3 ${className}`}
+            className={`ui-card-header ${className}`}
             {...props}
         />
     )
@@ -42,7 +35,7 @@ export const CardTitle = React.forwardRef<HTMLParagraphElement, React.HTMLAttrib
     ({ className = '', ...props }, ref) => (
         <h3
             ref={ref}
-            className={`text-sm font-extrabold tracking-wide text-[var(--text-primary)] ${className}`}
+            className={`ui-card-title ${className}`}
             {...props}
         />
     )
@@ -53,7 +46,7 @@ export const CardDescription = React.forwardRef<HTMLParagraphElement, React.HTML
     ({ className = '', ...props }, ref) => (
         <p
             ref={ref}
-            className={`text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider ${className}`}
+            className={`ui-card-description ${className}`}
             {...props}
         />
     )
@@ -64,7 +57,7 @@ export const CardContent = React.forwardRef<HTMLDivElement, React.HTMLAttributes
     ({ className = '', ...props }, ref) => (
         <div
             ref={ref}
-            className={`p-0 flex-1 ${className}`}
+            className={`ui-card-content ${className}`}
             {...props}
         />
     )
@@ -75,8 +68,7 @@ export const CardFooter = React.forwardRef<HTMLDivElement, React.HTMLAttributes<
     ({ className = '', ...props }, ref) => (
         <div
             ref={ref}
-            className={`flex items-center pt-3 mt-3 border-t border-[var(--border-color)] p-0 ${className}`}
-            style={{ borderStyle: 'var(--border-style)' }}
+            className={`ui-card-footer ${className}`}
             {...props}
         />
     )

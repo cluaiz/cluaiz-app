@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Search, Clock, Smile, User, Cat, Coffee, Plane, Activity, Lightbulb, Hash, Flag, X } from 'lucide-react';
 import { EmojiMeta, type EmojiMetadata } from '../../../assets/EmojiMeta';
 import { LottieEmoji } from './LottieEmoji';
+import { Input } from '../Input';
 
 interface EmojiPickerProps {
     onSelect: (emoji: string) => void;
@@ -89,24 +90,23 @@ export const EmojiPicker: React.FC<EmojiPickerProps> = ({ onSelect, noAnimation 
         >
             {/* Header with Search and Categories - shrink-0 prevents cut-off */}
             <div className="p-3 border-b border-black/5 dark:border-white/5 bg-black/5 dark:bg-white/5 space-y-3 shrink-0">
-                <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 dark:text-zinc-400" />
-                    <input
-                        type="text"
-                        placeholder="Search emojis..."
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        className="w-full bg-zinc-100 dark:bg-[#0f1519] border border-black/10 dark:border-white/10 rounded-full py-2 pl-9 pr-4 text-sm text-zinc-900 dark:text-white placeholder:text-zinc-500 focus:outline-none focus:border-blue-500/50 transition-colors"
-                    />
-                    {search && (
+                <Input
+                    placeholder="Search emojis..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    sizeVariant="sm"
+                    leftIcon={<Search className="w-4 h-4 text-[var(--text-muted)]" />}
+                    rightElement={search ? (
                         <button
+                            type="button"
                             onClick={() => setSearch('')}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-900 dark:hover:text-white"
+                            className="text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
+                            title="Clear search"
                         >
                             <X className="w-4 h-4" />
                         </button>
-                    )}
-                </div>
+                    ) : undefined}
+                />
 
                 {/* Categories */}
                 <div className="flex gap-1 overflow-x-auto pb-1 no-scrollbar scroll-smooth">

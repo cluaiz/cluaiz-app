@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { useThemeStore } from '../store/ui/useThemeStore';
+import { useThemeStore, applyRadiusToDom } from '../store/ui/useThemeStore';
 import { THEMES } from '../config/themes';
 
 const GOOGLE_FONTS = [
@@ -15,6 +15,8 @@ const GOOGLE_FONTS = [
     { name: 'Poppins', url: 'https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap' },
     { name: 'Open Sans', url: 'https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;500;600;700&display=swap' },
     { name: 'Inconsolata', url: 'https://fonts.googleapis.com/css2?family=Inconsolata:wght@300;400;500;700&display=swap' },
+    { name: 'JetBrains Mono', url: 'https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&display=swap' },
+    { name: 'Fira Code', url: 'https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;500;700&display=swap' },
     { name: 'Press Start 2P', url: 'https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap' },
     { name: 'VT323', url: 'https://fonts.googleapis.com/css2?family=VT323&display=swap' },
     { name: 'Silkscreen', url: 'https://fonts.googleapis.com/css2?family=Silkscreen&display=swap' }
@@ -44,7 +46,8 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
         lightAccent,
         localFontSize,
         cursorType,
-        bgGlowOpacity
+        bgGlowOpacity,
+        borderRadius
     } = useThemeStore();
 
     // Load all Google fonts on mount
@@ -81,7 +84,7 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
         }
 
         // Apply theme properties as CSS Custom Properties (Variables)
-        const isDarkTheme = theme !== 'light';
+        const isDarkTheme = theme !== 'light' && theme !== 'classic';
         const customAccent = isDarkTheme ? darkAccent : lightAccent;
 
         const r = parseInt(customAccent.slice(1, 3), 16) || 0;
@@ -107,9 +110,9 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
             }
         });
 
-        // Set global text scale font multiplier
-        root.style.setProperty('--text-scale', textScale.toString());
-        root.style.fontSize = `${textScale * 100}%`; // updates rem values dynamically!
+        // Set global text scale to clean standard
+        root.style.setProperty('--text-scale', '1.0');
+        root.style.fontSize = '100%'; // Clean standard optical typography
 
         // Apply font family override
         let fontVal = activeTheme.properties['--font-family'];
@@ -133,7 +136,26 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
         root.style.setProperty('--scrollbar-bg', activeTheme.properties['--bg-secondary']);
         root.style.setProperty('--scrollbar-thumb', activeTheme.properties['--border-color']);
 
-    }, [theme, textScale, fontFamily, darkAccent, lightAccent, localFontSize, cursorType, bgGlowOpacity]);
+        // Dynamically compute and inject theme-bound border radii
+        const baseRadiusStr = activeTheme.properties['--radius-base'] || '8px';
+        const baseRadiusPx = parseInt(baseRadiusStr, 10);
+        const isSharpTheme = isNaN(baseRadiusPx) || baseRadiusPx === 0;
+
+        if (isSharpTheme) {
+            root.style.setProperty('--radius-btn', '0px');
+            root.style.setProperty('--radius-badge', '0px');
+            root.style.setProperty('--radius-card', '0px');
+            root.style.setProperty('--radius-modal', '0px');
+            root.style.setProperty('--radius-pill', '0px');
+        } else {
+            root.style.setProperty('--radius-btn', `${baseRadiusPx}px`);
+            root.style.setProperty('--radius-badge', `${Math.max(4, Math.round(baseRadiusPx * 0.75))}px`);
+            root.style.setProperty('--radius-card', `${Math.round(baseRadiusPx * 1.5)}px`);
+            root.style.setProperty('--radius-modal', `${baseRadiusPx * 2}px`);
+            root.style.setProperty('--radius-pill', '9999px');
+        }
+
+    }, [theme, textScale, fontFamily, darkAccent, lightAccent, localFontSize, cursorType, bgGlowOpacity, borderRadius]);
 
     return (
         <div className="h-full w-full bg-[var(--bg-primary)] text-[var(--text-primary)] transition-colors duration-300 font-[family-name:var(--font-family)]">

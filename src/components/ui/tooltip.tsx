@@ -137,7 +137,7 @@ export function Tooltip({ children, title, subtitle, disabled = false, position 
                                 zIndex: 99999,
                                 fontFamily: 'var(--font-family)',
                             }}
-                            className="bg-[var(--bg-tertiary)] z-10 shadow-2xl rounded-lg pointer-events-none border border-[var(--border-color)]/80 backdrop-blur-xl py-1 px-2.5 transition-none font-[family-name:var(--font-family)]"
+                            className="ui-tooltip z-10 transition-none"
                         >
                             <div className="text-[var(--text-primary)] font-semibold text-[10px] font-[family-name:var(--font-family)] break-all leading-tight">
                                 {title}
@@ -148,23 +148,59 @@ export function Tooltip({ children, title, subtitle, disabled = false, position 
                                 </div> 
                             )}
 
-                            {/* Dynamic Tracking Arrow */}
+                            {/* Seamless Dynamic Tracking Arrow */}
                             {coords.actualPosition === 'top' && (
-                                <div
+                                <svg
+                                    width="10"
+                                    height="5"
+                                    viewBox="0 0 10 5"
                                     style={{ left: coords.arrowX }}
-                                    className="absolute -z-10 bottom-[-4px] -translate-x-1/2 w-2.5 h-2.5 bg-[var(--bg-tertiary)] border-b border-r border-[var(--border-color)]/80 rotate-45"
-                                />
+                                    className="absolute -bottom-[5px] -translate-x-1/2 z-20 pointer-events-none overflow-visible"
+                                >
+                                    <path
+                                        d="M0 0 L5 5 L10 0"
+                                        fill="var(--bg-tertiary)"
+                                        stroke="var(--border-color)"
+                                        strokeWidth="1"
+                                    />
+                                    {/* Seamlessly masks the tooltip's bottom border under the arrow base */}
+                                    <line x1="0.5" y1="0" x2="9.5" y2="0" stroke="var(--bg-tertiary)" strokeWidth="1.5" />
+                                </svg>
                             )}
                             {coords.actualPosition === 'bottom' && (
-                                <div
+                                <svg
+                                    width="10"
+                                    height="5"
+                                    viewBox="0 0 10 5"
                                     style={{ left: coords.arrowX }}
-                                    className="absolute -z-10 top-[-4px] -translate-x-1/2 w-2.5 h-2.5 bg-[var(--bg-tertiary)] border-t border-l border-[var(--border-color)]/80 rotate-45"
-                                />
+                                    className="absolute -top-[5px] -translate-x-1/2 z-20 pointer-events-none overflow-visible"
+                                >
+                                    <path
+                                        d="M0 5 L5 0 L10 5"
+                                        fill="var(--bg-tertiary)"
+                                        stroke="var(--border-color)"
+                                        strokeWidth="1"
+                                    />
+                                    {/* Seamlessly masks the tooltip's top border under the arrow base */}
+                                    <line x1="0.5" y1="5" x2="9.5" y2="5" stroke="var(--bg-tertiary)" strokeWidth="1.5" />
+                                </svg>
                             )}
                             {coords.actualPosition === 'right' && (
-                                <div
-                                    className="absolute -z-10 left-[-4px] top-1/2 -translate-y-1/2 w-2.5 h-2.5 bg-[var(--bg-tertiary)] border-b border-l border-[var(--border-color)]/80 rotate-45"
-                                />
+                                <svg
+                                    width="5"
+                                    height="10"
+                                    viewBox="0 0 5 10"
+                                    className="absolute -left-[5px] top-1/2 -translate-y-1/2 z-20 pointer-events-none overflow-visible"
+                                >
+                                    <path
+                                        d="M5 0 L0 5 L5 10"
+                                        fill="var(--bg-tertiary)"
+                                        stroke="var(--border-color)"
+                                        strokeWidth="1"
+                                    />
+                                    {/* Seamlessly masks the tooltip's left border under the arrow base */}
+                                    <line x1="5" y1="0.5" x2="5" y2="9.5" stroke="var(--bg-tertiary)" strokeWidth="1.5" />
+                                </svg>
                             )}
                         </motion.div>
                     )}

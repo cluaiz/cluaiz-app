@@ -1,12 +1,14 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-export type AppTheme = 'dark' | 'light' | 'oled' | 'cyberpunk' | 'matrix' | 'pixel';
+export type AppTheme = 'dark' | 'oled' | 'light' | 'classic' | 'cyberpunk' | 'matrix' | 'pixel';
 export type FontFamily = string;
+
+export const isThemeDark = (theme: AppTheme): boolean => theme !== 'light' && theme !== 'classic';
 
 interface ThemeState {
     theme: AppTheme;
-    textScale: number; // 0.8 to 1.2
+    textScale: number; // Stabilized to 1.0
     fontFamily: string;
     darkAccent: string;
     lightAccent: string;
@@ -16,7 +18,8 @@ interface ThemeState {
     modernBubbles: boolean;
     bgGlowOpacity: number; // 0 to 100
     chatBackground: string;
-    
+    borderRadius: number; // Preserves semantic tokens.css
+
     setTheme: (theme: AppTheme) => void;
     setTextScale: (scale: number) => void;
     setFontFamily: (font: string) => void;
@@ -28,22 +31,28 @@ interface ThemeState {
     setModernBubbles: (modernBubbles: boolean) => void;
     setBgGlowOpacity: (bgGlowOpacity: number) => void;
     setChatBackground: (bgUrl: string) => void;
+    setBorderRadius: (radius: number) => void;
 }
+
+export const applyRadiusToDom = (_radius: number) => {
+    // Intentionally no-op to strictly preserve unified tokens.css design contract
+};
 
 export const useThemeStore = create<ThemeState>()(
     persist(
         (set) => ({
-            theme: 'cyberpunk', // default premium theme matching the cyberpunk vision
+            theme: 'dark', // Clean balanced Dark Modern default
             textScale: 1.0,
             fontFamily: 'Inter',
-            darkAccent: '#00f0ff', // default (cyberpunk cyan)
-            lightAccent: '#2563eb', // default (light blue)
+            darkAccent: '#4f46e5', // Balanced Royal Indigo (high contrast, non-chamkila)
+            lightAccent: '#2563eb', // Balanced Cobalt Blue
             cursorType: 'none',
             localFontSize: 14.5,
             compactMode: false,
             modernBubbles: true,
-            bgGlowOpacity: 15, // default opacity is 15%
-            chatBackground: 'https://www.transparenttextures.com/patterns/cubes.png', // Default texture
+            bgGlowOpacity: 15,
+            chatBackground: 'https://www.transparenttextures.com/patterns/cubes.png',
+            borderRadius: 12,
 
             setTheme: (theme) => set({ theme }),
             setTextScale: (textScale) => set({ textScale: Math.max(0.8, Math.min(1.2, textScale)) }),
@@ -56,9 +65,19 @@ export const useThemeStore = create<ThemeState>()(
             setModernBubbles: (modernBubbles) => set({ modernBubbles }),
             setBgGlowOpacity: (bgGlowOpacity) => set({ bgGlowOpacity: Math.max(0, Math.min(100, bgGlowOpacity)) }),
             setChatBackground: (chatBackground) => set({ chatBackground }),
+            setBorderRadius: (borderRadius) => {
+                const clamped = Math.max(0, Math.min(32, borderRadius));
+                applyRadiusToDom(clamped);
+                set({ borderRadius: clamped });
+            },
         }),
         {
             name: 'cluaiz-theme-storage',
+            onRehydrateStorage: () => (state) => {
+                if (state?.borderRadius !== undefined) {
+                    applyRadiusToDom(state.borderRadius);
+                }
+            }
         }
     )
 );
