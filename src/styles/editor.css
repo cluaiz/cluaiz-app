@@ -1,0 +1,18 @@
+/* ==========================================================================
+   CLUAIZ CODE EDITOR INTEGRATION
+   Monaco Editor theme integration and gutter/line highlight overrides
+   ========================================================================== */
+
+/* Match active line highlight with active theme accent, remove harsh red borders */
+.monaco-editor .current-line,
+.monaco-editor .current-line-both {
+  border: none !important;
+  outline: none !important;
+  background-color: color-mix(in srgb, var(--accent-color) 7%, transparent) !important;
+}
+
+.monaco-editor .margin-view-overlays .current-line {
+  border: none !important;
+  outline: none !important;
+  background-color: transparent !important;
+}

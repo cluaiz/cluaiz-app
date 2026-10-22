@@ -1,0 +1,25 @@
+/* ==========================================================================
+   CLUAIZ DESIGN TOKENS CONTRACT
+   Semantic Radius Tokens & Tailwind Inline Theme Extensions
+   ========================================================================== */
+
+:root {
+  /* Direct semantic component-level tokens (Zero abstract confusion) */
+  --radius-modal: 16px;   /* Modal, Dialog, Popup, Floating Window Shells */
+  --radius-card: 12px;    /* Cards, Panels, Sidebars, Containers */
+  --radius-btn: 8px;      /* Buttons, Inputs, Icon Buttons, Controls */
+  --radius-badge: 6px;    /* Badges, Tags, Tooltips, Chips */
+  --radius-pill: 9999px;  /* Pills, Toggle capsules */
+}
+
+@theme inline {
+  --font-sans: var(--font-family, Inter, sans-serif);
+
+  /* Tailwind Utility Mappings: seamlessly inherits semantic component radii */
+  --radius-sm: var(--radius-badge);
+  --radius-md: var(--radius-btn);
+  --radius-lg: var(--radius-card);
+  --radius-xl: var(--radius-card);
+  --radius-2xl: var(--radius-modal);
+  --radius-full: var(--radius-pill);
+}
