@@ -1,4 +1,4 @@
-import { Settings, LayoutDashboard, Wrench, Code2, Boxes, MessageSquare, FolderGit2 } from 'lucide-react';
+import { Icons } from '../animate-ui/icons';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLayoutStore } from '../../store/ui/useLayoutStore';
 import { useProjectStore } from '../../store/workspace/useProjectStore';
@@ -16,9 +16,6 @@ export function BubbleLauncher({ isOpen, coords, onClose, onOpenSettings }: Bubb
         onClose();
         if (action === 'settings') {
             onOpenSettings?.('general');
-        } else if (action === 'dashboard') {
-            useLayoutStore.getState().setActiveView('dashboard');
-            document.dispatchEvent(new CustomEvent('open-dashboard'));
         } else if (action === 'new_chat') {
             useLayoutStore.getState().setActiveView('chat');
             document.dispatchEvent(new CustomEvent('start-new-chat'));
@@ -74,16 +71,15 @@ export function BubbleLauncher({ isOpen, coords, onClose, onOpenSettings }: Bubb
                         className={`relative z-10 w-56 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl shadow-2xl p-1.5 overflow-hidden flex flex-col gap-0.5 ${coords ? 'absolute' : ''}`}
                         style={coords ? { left: getLeftPos(), top: coords.y } : undefined}
                     >
-                        <MenuItem icon={MessageSquare} label="New Chat" onClick={() => handleSelect('new_chat')} />
-                        <MenuItem icon={FolderGit2} label="Open Workspace" onClick={() => handleSelect('workspace')} />
-                        <MenuItem icon={LayoutDashboard} label="Dashboard" onClick={() => handleSelect('dashboard')} />
-                        <MenuItem icon={Wrench} label="Tools" onClick={() => handleSelect('tools')} />
-                        <MenuItem icon={Code2} label="APIs" onClick={() => handleSelect('apis')} />
-                        <MenuItem icon={Boxes} label="Toolkit" onClick={() => handleSelect('toolkit')} />
+                        <MenuItem icon={Icons.MessageSquare} label="New Chat" onClick={() => handleSelect('new_chat')} />
+                        <MenuItem icon={Icons.FolderGit2} label="Open Workspace" onClick={() => handleSelect('workspace')} />
+                        <MenuItem icon={Icons.Wrench} label="Tools" onClick={() => handleSelect('tools')} />
+                        <MenuItem icon={Icons.Code2} label="APIs" onClick={() => handleSelect('apis')} />
+                        <MenuItem icon={Icons.Boxes} label="Toolkit" onClick={() => handleSelect('toolkit')} />
                         
                         <div className="h-[1px] bg-[var(--border-color)] mx-2 my-1" />
                         
-                        <MenuItem icon={Settings} label="Settings" onClick={() => handleSelect('settings')} />
+                        <MenuItem icon={Icons.Settings} label="Settings" onClick={() => handleSelect('settings')} />
                     </motion.div>
                 </div>
             )}
@@ -91,14 +87,14 @@ export function BubbleLauncher({ isOpen, coords, onClose, onOpenSettings }: Bubb
     );
 }
 
-function MenuItem({ icon: Icon, label, onClick }: any) {
+function MenuItem({ icon: Icon, label, onClick }: { icon: React.ComponentType<any>, label: string, onClick: () => void }) {
     return (
         <button 
             onClick={onClick}
-            className="flex items-center gap-3 w-full px-3 py-2.5 text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] active:bg-[var(--border-color)] rounded-lg transition-colors text-left focus:outline-none"
+            className="group flex items-center gap-3 w-full px-3 py-2.5 text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] active:bg-[var(--border-color)] rounded-lg transition-colors text-left focus:outline-none cursor-pointer"
         >
-            <Icon size={16} className="text-[var(--text-muted)] group-hover:text-[var(--text-primary)] transition-colors" />
-            {label}
+            <Icon size={16} className="text-[var(--text-muted)] group-hover:text-[var(--text-primary)] transition-colors shrink-0" />
+            <span>{label}</span>
         </button>
     );
 }

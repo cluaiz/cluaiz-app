@@ -42,8 +42,8 @@ interface LayoutState {
     setDateRange: (range: DateRange | undefined) => void;
     activeChatData: ActiveChatData | null;
     setActiveChatData: (data: ActiveChatData | null) => void;
-    activeView: 'chat' | 'notebook' | 'settings' | 'dashboard' | 'tools' | 'apis' | 'toolkit' | 'library';
-    setActiveView: (view: 'chat' | 'notebook' | 'settings' | 'dashboard' | 'tools' | 'apis' | 'toolkit' | 'library') => void;
+    activeView: 'chat' | 'notebook' | 'settings' | 'tools' | 'apis' | 'toolkit' | 'library' | 'components';
+    setActiveView: (view: 'chat' | 'notebook' | 'settings' | 'tools' | 'apis' | 'toolkit' | 'library' | 'components') => void;
     previewModalAsset: any | null;
     setPreviewModalAsset: (asset: any | null) => void;
 }

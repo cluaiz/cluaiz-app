@@ -5,39 +5,126 @@ import { useThemeStore } from '../../store/ui/useThemeStore';
 import { useChatStore } from '../../store/chat/useChatStore';
 import { isTauri } from '../../core/tauri-api';
 import { Tooltip } from '../ui/tooltip';
-import {
-    Plus,
-    MoreVertical,
-    Pin,
-    CheckCheck,
-    ChevronLeft,
-    ChevronRight,
-    Heart,
-    BellOff,
-    X,
-    Archive,
-    Trash2,
-    MessageSquarePlus,
-    FolderPlus,
-    NotebookPen,
-    MessageCircleWarning,
-    Code2,
-    FolderGit2,
-    FolderArchive,
-    LayoutDashboard,
-    Wrench,
-    Boxes,
-    Settings
-} from 'lucide-react';
+import { Icons, useIconHover } from '../animate-ui/icons';
 import { useProjectStore } from '../../store/workspace/useProjectStore';
 import { pushViewRoute, pushChatRoute } from '../../core/router';
 import { ApiSidebar } from '../../features/api/components/ApiSidebar';
-import { Tag } from '../ui/Tag';
+import { Tabs } from '../ui/Tabs';
 import { ChatRibbon } from '../ui/ChatRibbon';
+import { SwipeableChatCard } from './SwipeableChatCard';
 import { ChatContextMenu } from '../ui/context-menu/ChatContextMenu';
 import { LabelModal } from '../ui/LabelModal';
 import { EditChatModal } from '../ui/EditChatModal';
-import { Search as AnimatedSearch } from '../animate-ui/icons/search';
+
+interface DockIconButtonProps {
+    tooltip: string;
+    icon: React.ComponentType<any>;
+    isActive?: boolean;
+    onClick: (e: React.MouseEvent<HTMLButtonElement>) => void;
+    onMouseEnter?: (e: React.MouseEvent<HTMLButtonElement>) => void;
+    onMouseLeave?: (e: React.MouseEvent<HTMLButtonElement>) => void;
+    className?: string;
+}
+
+const DockIconButton: React.FC<DockIconButtonProps> = ({
+    tooltip,
+    icon: IconComponent,
+    isActive = false,
+    onClick,
+    onMouseEnter,
+    onMouseLeave,
+    className = '',
+}) => {
+    const { ref: iconRef, triggerProps } = useIconHover();
+    return (
+        <Tooltip title={tooltip} position="right">
+            <button
+                type="button"
+                onClick={onClick}
+                onMouseEnter={(e) => {
+                    triggerProps.onMouseEnter?.(e);
+                    onMouseEnter?.(e);
+                }}
+                onMouseLeave={(e) => {
+                    triggerProps.onMouseLeave?.(e);
+                    onMouseLeave?.(e);
+                }}
+                className={`p-2 rounded-xl transition-colors active:scale-95 cursor-pointer ${
+                    isActive
+                        ? 'text-[var(--accent-color)] bg-transparent'
+                        : 'hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                } ${className}`}
+            >
+                <IconComponent ref={iconRef} className="w-6 h-6" />
+            </button>
+        </Tooltip>
+    );
+};
+
+const ExpandSidebarButton: React.FC<{
+    sidebarPosition: 'left' | 'right';
+    onClick: () => void;
+}> = ({ sidebarPosition, onClick }) => {
+    const { ref: iconRef, triggerProps } = useIconHover();
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            onMouseEnter={triggerProps.onMouseEnter}
+            onMouseLeave={triggerProps.onMouseLeave}
+            className="w-10 h-10 rounded-xl hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-all duration-200 cursor-pointer flex items-center justify-center animate-scale-in"
+        >
+            {sidebarPosition === 'left' ? (
+                <Icons.ChevronRight ref={iconRef} className="w-6 h-6" />
+            ) : (
+                <Icons.ChevronLeft ref={iconRef} className="w-6 h-6" />
+            )}
+        </button>
+    );
+};
+
+const MenuButton: React.FC<{
+    onClick: (e: React.MouseEvent) => void;
+}> = ({ onClick }) => {
+    const { ref: iconRef, triggerProps } = useIconHover();
+    return (
+        <Tooltip title="Menu" position="bottom">
+            <button
+                type="button"
+                onClick={onClick}
+                onMouseEnter={triggerProps.onMouseEnter}
+                onMouseLeave={triggerProps.onMouseLeave}
+                className="w-7 h-7 rounded-lg hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer flex items-center justify-center shrink-0"
+            >
+                <Icons.MoreVertical ref={iconRef} className="w-4 h-4" />
+            </button>
+        </Tooltip>
+    );
+};
+
+const CloseSidebarButton: React.FC<{
+    sidebarPosition: 'left' | 'right';
+    onClick: () => void;
+}> = ({ sidebarPosition, onClick }) => {
+    const { ref: iconRef, triggerProps } = useIconHover();
+    return (
+        <Tooltip title="Close Sidebar" position="bottom">
+            <button
+                type="button"
+                onClick={onClick}
+                onMouseEnter={triggerProps.onMouseEnter}
+                onMouseLeave={triggerProps.onMouseLeave}
+                className="w-7 h-7 rounded-lg hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer flex items-center justify-center shrink-0"
+            >
+                {sidebarPosition === 'left' ? (
+                    <Icons.ChevronLeft ref={iconRef} className="w-4 h-4" />
+                ) : (
+                    <Icons.ChevronRight ref={iconRef} className="w-4 h-4" />
+                )}
+            </button>
+        </Tooltip>
+    );
+};
 
 interface SidebarContentProps {
     onOpenLauncher: (e?: React.MouseEvent) => void;
@@ -109,25 +196,25 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
     // 💬 Dynamic interactive chats state matching screenshot visual layouts
     const { sessions, activeSessionId, switchSession, updateSession, deleteSession } = useChatStore();
     const streamingSessionId = useChatStore(s => s.streamingSessionId);
-    
+
     const chats = useMemo(() => {
         return Object.values(sessions).filter(s => !s.isIncognito).map(session => {
-            const lastMsg = session.messages && session.messages.length > 0 
-                ? session.messages[session.messages.length - 1] 
+            const lastMsg = session.messages && session.messages.length > 0
+                ? session.messages[session.messages.length - 1]
                 : null;
-            const lastUserMsg = session.messages 
+            const lastUserMsg = session.messages
                 ? [...session.messages].reverse().find(m => m.sender === 'user')
                 : null;
 
             const msgDate = lastMsg?.date || (lastMsg as any)?.timestamp || session.createdAt || Date.now();
-            
+
             // Format time string from timestamp
             let timeStr = '';
             if (msgDate) {
-               const d = new Date(msgDate);
-               if (!isNaN(d.getTime())) {
-                   timeStr = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-               }
+                const d = new Date(msgDate);
+                if (!isNaN(d.getTime())) {
+                    timeStr = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+                }
             }
 
             // Determine preview message and sent status so preview is never empty
@@ -194,7 +281,7 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
         } as MockChat));
 
         const nextChats = updater(prevChats);
-        
+
         // Sync any mutations back to Zustand
         nextChats.forEach(nextChat => {
             const prevChat = prevChats.find(p => p.id === nextChat.id);
@@ -583,7 +670,7 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                     className="flex items-center gap-2 px-3 py-2 bg-[var(--bg-primary)] themed-border rounded-lg focus-within:border-[var(--accent-color)] transition-all duration-200 relative"
                     style={{ borderStyle: 'var(--border-style)' }}
                 >
-                    <AnimatedSearch className="w-4 h-4 text-[var(--text-muted)] flex-shrink-0" size={16} />
+                    <Icons.Search className="w-4 h-4 text-[var(--text-muted)] flex-shrink-0" size={16} />
                     <input
                         type="text"
                         placeholder={activeFilter !== 'All' ? `Filtered by ${activeFilter}...` : "Search chats..."}
@@ -599,37 +686,25 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                             className="p-0.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer shrink-0"
                             title="Clear search"
                         >
-                            <X className="w-3.5 h-3.5" />
+                            <Icons.X className="w-3.5 h-3.5" />
                         </button>
                     )}
                 </div>
             </div>
 
             {/* Horizontal Filter Tabs: All, Favourites, Old, Archive + User custom labels */}
-            <div className={`flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1 mb-1 ${inFlyout ? 'px-3' : 'px-4'}`}>
-                {filterTabs.map((tab) => {
-                    const isActive = activeFilter.toLowerCase() === tab.toLowerCase();
-                    return (
-                        <button
-                            key={tab}
-                            onClick={() => {
-                                // Clicking active tab toggles it off -> resets to 'All'
-                                if (isActive) {
-                                    setActiveFilter('All');
-                                } else {
-                                    setActiveFilter(tab);
-                                }
-                            }}
-                            className={`px-3 py-1 text-[11px] rounded-full shrink-0 transition-all cursor-pointer whitespace-nowrap ${isActive
-                                ? 'bg-[var(--accent-color)] text-[var(--accent-contrast)] font-semibold shadow-sm'
-                                : 'bg-[var(--bg-tertiary)]/70 text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] font-medium'
-                                }`}
-                        >
-                            {tab}
-                        </button>
-                    );
-                })}
-            </div>
+            <Tabs
+                items={filterTabs}
+                value={activeFilter}
+                onChange={(tab) => {
+                    if (activeFilter.toLowerCase() === tab.toLowerCase()) {
+                        setActiveFilter('All');
+                    } else {
+                        setActiveFilter(tab);
+                    }
+                }}
+                className={`mb-1 ${inFlyout ? 'px-3' : 'px-4'}`}
+            />
 
 
             {/* Chat list viewport */}
@@ -638,7 +713,7 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                     <div key={group.title} className="space-y-0.5">
                         {/* Section Header */}
                         <div className="px-2.5 pt-2 pb-1 text-[11px] font-semibold text-[var(--text-muted)] tracking-wide select-none flex items-center gap-1.5">
-                            {group.title === 'Pinned' && <Pin className="w-3 h-3 text-[var(--accent-color)]" />}
+                            {group.title === 'Pinned' && <Icons.Pin className="w-3 h-3 text-[var(--accent-color)]" />}
                             <span>{group.title}</span>
                         </div>
 
@@ -646,88 +721,37 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                         {group.chats.map((chat) => {
                             const isSelected = selectMode ? selectedIds.has(chat.id) : (activeSessionId === chat.id);
                             return (
-                                <div
+                                <SwipeableChatCard
                                     key={chat.id}
-                                    onContextMenu={(e) => !selectMode && handleContextMenu(e, chat.id)}
-                                    onClick={() => {
-                                        if (selectMode) {
-                                            toggleSelectChat(chat.id);
-                                        } else {
-                                            useLayoutStore.getState().setActiveView('chat');
-                                            pushViewRoute('chat');
-                                            switchSession(chat.id);
-                                            pushChatRoute(chat.id);
-                                            setActiveChatData({
-                                                id: chat.id,
-                                                name: chat.name,
-                                                avatar: chat.avatar,
-                                                status: chat.status,
-                                                totalMessages: chat.message ? 1 : 0
-                                            });
-                                            if (inFlyout) {
-                                                setIsFlyoutOpen(false);
-                                            }
+                                    chat={chat}
+                                    isSelected={isSelected}
+                                    selectMode={selectMode}
+                                    isStreaming={streamingSessionId === chat.id}
+                                    selectedIds={selectedIds}
+                                    onSelectChat={() => {
+                                        useLayoutStore.getState().setActiveView('chat');
+                                        pushViewRoute('chat');
+                                        switchSession(chat.id);
+                                        pushChatRoute(chat.id);
+                                        setActiveChatData({
+                                            id: chat.id,
+                                            name: chat.name,
+                                            avatar: chat.avatar,
+                                            status: chat.status,
+                                            totalMessages: chat.message ? 1 : 0
+                                        });
+                                        if (inFlyout) {
+                                            setIsFlyoutOpen(false);
                                         }
                                     }}
-                                    className={`flex items-center gap-2 px-2.5 py-2 rounded-xl transition-all duration-150 cursor-pointer group relative overflow-hidden select-none ${isSelected
-                                        ? 'bg-[var(--accent-color)]/[0.04] text-[var(--text-primary)] font-medium border-[0.5px] border-[var(--accent-color)]/15'
-                                        : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]/70 border-[0.5px] border-transparent'
-                                        } ${chat.archived ? 'opacity-[0.6]' : ''}`}
-                                >
-                                    {/* Ribbon Tag overlay sticker */}
-                                    {chat.tags && chat.tags.length > 0 && (
-                                        <ChatRibbon tags={chat.tags} />
-                                    )}
-
-                                    {/* Checkbox in select mode */}
-                                    {selectMode && (
-                                        <div className={`w-4 h-4 rounded-md flex items-center justify-center border transition-all shrink-0 ${selectedIds.has(chat.id)
-                                            ? 'bg-[var(--accent-color)] border-[var(--accent-color)] shadow-sm'
-                                            : 'border-[var(--text-muted)]/35 hover:border-[var(--text-secondary)] bg-[var(--bg-tertiary)]/80'
-                                            }`}>
-                                            {selectedIds.has(chat.id) && (
-                                                <CheckCheck className="w-3 h-3 text-[var(--accent-contrast)]" />
-                                            )}
-                                        </div>
-                                    )}
-
-                                    {/* Chat Title only */}
-                                    <span className="text-xs truncate flex-1 leading-relaxed font-medium">
-                                        {chat.name || 'New Chat'}
-                                    </span>
-                                    {streamingSessionId === chat.id && (
-                                        <span className="inline-flex items-center gap-1 shrink-0 px-1 py-0.5" title="Generating response...">
-                                            <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent-color)] animate-bounce" style={{ animationDelay: '0ms' }} />
-                                            <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent-color)] animate-bounce" style={{ animationDelay: '150ms' }} />
-                                            <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent-color)] animate-bounce" style={{ animationDelay: '300ms' }} />
-                                        </span>
-                                    )}
-
-                                    {/* Right side indicators & three-dots menu */}
-                                    <div className="flex items-center gap-1 shrink-0">
-                                        {chat.pinned && (
-                                            <Pin className="w-2.5 h-2.5 text-[var(--accent-color)] fill-[var(--accent-color)] rotate-45 shrink-0" />
-                                        )}
-                                        {!selectMode && (
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    const rect = e.currentTarget.getBoundingClientRect();
-                                                    setContextMenu({
-                                                        x: rect.left,
-                                                        y: rect.bottom + 4,
-                                                        chatId: chat.id
-                                                    });
-                                                }}
-                                                className={`p-1 rounded hover:bg-[var(--bg-primary)]/80 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-opacity duration-150 cursor-pointer ${isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                                                    }`}
-                                                title="More options"
-                                            >
-                                                <MoreVertical className="w-3.5 h-3.5" />
-                                            </button>
-                                        )}
-                                    </div>
-                                </div>
+                                    onToggleSelect={() => toggleSelectChat(chat.id)}
+                                    onContextMenu={(e) => handleContextMenu(e, chat.id)}
+                                    onDeleteChat={(chatId) => deleteSession(chatId)}
+                                    onToggleArchive={(chatId) => {
+                                        updateSession(chatId, c => ({ ...c, archived: !c.archived }));
+                                    }}
+                                    onTogglePin={(chatId) => togglePinChat(chatId)}
+                                />
                             );
                         })}
                     </div>
@@ -735,7 +759,7 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
 
                 {filteredChats.length === 0 && (
                     <div className={`py-8 flex flex-col items-center justify-center text-[var(--text-muted)] ${inFlyout ? 'px-2' : 'px-4'}`}>
-                        <MessageCircleWarning className="w-8 h-8 opacity-20 mb-3" />
+                        <Icons.MessageCircleWarning className="w-8 h-8 opacity-20 mb-3" />
                         <span className="text-center text-[11px] font-medium uppercase tracking-wider opacity-60">
                             No active chats found
                         </span>
@@ -761,7 +785,7 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                                 onClick={exitSelectMode}
                                 className="p-1 rounded hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
                             >
-                                <X className="w-3.5 h-3.5" />
+                                <Icons.X className="w-3.5 h-3.5" />
                             </button>
                         </div>
                     </div>
@@ -775,7 +799,7 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                             }}
                             className="flex items-center justify-center gap-2 py-2.5 bg-[var(--bg-tertiary)] hover:bg-[var(--bg-tertiary)]/80 text-[var(--text-primary)] text-[11px] font-black uppercase tracking-wider rounded-lg transition-colors cursor-pointer"
                         >
-                            <Archive className="w-3.5 h-3.5" />
+                            <Icons.Archive className="w-3.5 h-3.5" />
                             ARCHIVE
                         </button>
                         <button
@@ -785,7 +809,7 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                             }}
                             className="flex items-center justify-center gap-2 py-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 text-[11px] font-black uppercase tracking-wider rounded-lg transition-colors cursor-pointer"
                         >
-                            <Trash2 className="w-3.5 h-3.5" />
+                            <Icons.Trash2 className="w-3.5 h-3.5" />
                             DELETE
                         </button>
                     </div>
@@ -813,14 +837,12 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                             <div className="w-10 h-10 flex items-center justify-center select-none flex-shrink-0">
                                 <Tooltip disabled={!sidebarCollapsed} title="Expand Sidebar" position="right">
                                     {sidebarCollapsed && isLogoHovered ? (
-                                        <button
+                                        <ExpandSidebarButton
+                                            sidebarPosition={sidebarPosition}
                                             onClick={() => setSidebarCollapsed(false)}
-                                            className="w-10 h-10 rounded-xl hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-all duration-200 cursor-pointer flex items-center justify-center animate-scale-in"
-                                        >
-                                            {sidebarPosition === 'left' ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
-                                        </button>
+                                        />
                                     ) : (
-                                        <img src="/logo.ico" alt="cluaiz Logo" className={`w-10 h-10 object-contain drop-shadow-sm transition-all duration-300 ${theme === 'light' ? 'brightness-0' : 'invert dark:invert-0'}`} />
+                                        <img src="/logo.ico" alt="cluaiz Logo" className={`w-10 h-10 object-contain drop-shadow-sm transition-all duration-300 ${theme === 'light' || theme === 'classic' ? 'brightness-0' : 'invert dark:invert-0'}`} />
                                     )}
                                 </Tooltip>
                             </div>
@@ -828,28 +850,17 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                         </div>
                         {!sidebarCollapsed && (
                             <div className="flex items-center gap-1">
-                                <Tooltip title="Menu" position="bottom">
-                                    <button
-                                        onClick={(e) => onOpenLauncher(e)}
-                                        className="p-1.5 rounded hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
-                                    >
-                                        <MoreVertical className="w-4 h-4" />
-                                    </button>
-                                </Tooltip>
-                                <Tooltip title="Close Sidebar" position="bottom">
-                                    <button
-                                        onClick={() => {
-                                            if (sidebarPeeked) {
-                                                setSidebarPeeked(false);
-                                            } else {
-                                                setSidebarCollapsed(true);
-                                            }
-                                        }}
-                                        className="p-1.5 rounded hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
-                                    >
-                                        {sidebarPosition === 'left' ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-                                    </button>
-                                </Tooltip>
+                                <MenuButton onClick={(e) => onOpenLauncher(e)} />
+                                <CloseSidebarButton
+                                    sidebarPosition={sidebarPosition}
+                                    onClick={() => {
+                                        if (sidebarPeeked) {
+                                            setSidebarPeeked(false);
+                                        } else {
+                                            setSidebarCollapsed(true);
+                                        }
+                                    }}
+                                />
                             </div>
                         )}
                     </div>
@@ -861,18 +872,15 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                         {/* Top Action Icons */}
                         <div className="flex flex-col items-center gap-2 w-full">
                             {/* 1. New Chat Button */}
-                            <Tooltip title="New Chat" position="right">
-                                <button 
-                                    onClick={() => {
-                                        useLayoutStore.getState().setActiveView('chat');
-                                        document.dispatchEvent(new CustomEvent('start-new-chat'));
-                                        setIsFlyoutOpen(false);
-                                    }}
-                                    className="p-2 rounded-xl hover:bg-[var(--bg-tertiary)] text-[var(--text-primary)] transition-colors active:scale-95 cursor-pointer"
-                                >
-                                    <Plus className="w-5 h-5" />
-                                </button>
-                            </Tooltip>
+                            <DockIconButton
+                                tooltip="New Chat"
+                                icon={Icons.Plus}
+                                onClick={() => {
+                                    useLayoutStore.getState().setActiveView('chat');
+                                    document.dispatchEvent(new CustomEvent('start-new-chat'));
+                                    setIsFlyoutOpen(false);
+                                }}
+                            />
 
                             {/* 2. Search & Chats Flyout Trigger Button */}
                             <div
@@ -880,162 +888,114 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                                 onMouseLeave={handleFlyoutLeave}
                                 className="relative flex items-center justify-center"
                             >
-                                <Tooltip title={isFlyoutOpen ? "" : (activeView === 'apis' ? "Search Endpoints" : "Search & Chats")} position="right">
-                                    <button
-                                        onClick={() => setIsFlyoutOpen(prev => !prev)}
-                                        className={`p-2 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer ${
-                                            isFlyoutOpen
-                                                ? 'bg-[var(--accent-color)] text-[var(--accent-contrast)] shadow-md'
-                                                : 'hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-                                        }`}
-                                    >
-                                        <AnimatedSearch className="w-5 h-5" size={20} />
-                                    </button>
-                                </Tooltip>
+                                <DockIconButton
+                                    tooltip={isFlyoutOpen ? "" : (activeView === 'apis' ? "Search Endpoints" : "Search & Chats")}
+                                    icon={Icons.Search}
+                                    isActive={isFlyoutOpen}
+                                    onClick={() => setIsFlyoutOpen(prev => !prev)}
+                                />
                             </div>
 
                             {/* Divider */}
                             <div className="w-6 h-[1px] bg-[var(--border-color)] my-0.5 opacity-60" />
 
                             {/* 3. Open Workspace */}
-                            <Tooltip title="Open Workspace" position="right">
-                                <button
-                                    onClick={() => {
-                                        useLayoutStore.getState().setActiveView('chat');
-                                        useProjectStore.getState().openWorkspace();
-                                        useLayoutStore.getState().setSplitPaneWidth(50);
-                                        setIsFlyoutOpen(false);
-                                    }}
-                                    className="p-2 rounded-xl hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors active:scale-95 cursor-pointer"
-                                >
-                                    <FolderGit2 className="w-5 h-5" />
-                                </button>
-                            </Tooltip>
+                            <DockIconButton
+                                tooltip="Open Workspace"
+                                icon={Icons.FolderGit2}
+                                onClick={() => {
+                                    useLayoutStore.getState().setActiveView('chat');
+                                    useProjectStore.getState().openWorkspace();
+                                    useLayoutStore.getState().setSplitPaneWidth(50);
+                                    setIsFlyoutOpen(false);
+                                }}
+                            />
 
                             {/* 4. Notebook (Projects & Knowledge Hub) */}
-                            <Tooltip title="Notebook" position="right">
-                                <button
-                                    onClick={() => {
-                                        useLayoutStore.getState().setActiveView('notebook');
-                                        pushViewRoute('notebook');
-                                        setIsFlyoutOpen(false);
-                                    }}
-                                    className={`p-2 rounded-xl transition-colors active:scale-95 cursor-pointer ${
-                                        activeView === 'notebook'
-                                            ? 'bg-[var(--accent-color)]/10 text-[var(--accent-color)]'
-                                            : 'hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-                                    }`}
-                                >
-                                    <NotebookPen className="w-5 h-5" />
-                                </button>
-                            </Tooltip>
-
-                            {/* 5. Dashboard */}
-                            <Tooltip title="Dashboard" position="right">
-                                <button
-                                    onClick={() => {
-                                        useLayoutStore.getState().setActiveView('dashboard');
-                                        document.dispatchEvent(new CustomEvent('open-dashboard'));
-                                        setIsFlyoutOpen(false);
-                                    }}
-                                    className={`p-2 rounded-xl transition-colors active:scale-95 cursor-pointer ${
-                                        activeView === 'dashboard'
-                                            ? 'bg-[var(--accent-color)]/10 text-[var(--accent-color)]'
-                                            : 'hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-                                    }`}
-                                >
-                                    <LayoutDashboard className="w-5 h-5" />
-                                </button>
-                            </Tooltip>
+                            <DockIconButton
+                                tooltip="Notebook"
+                                icon={Icons.NotebookPen}
+                                isActive={activeView === 'notebook'}
+                                onClick={() => {
+                                    useLayoutStore.getState().setActiveView('notebook');
+                                    pushViewRoute('notebook');
+                                    setIsFlyoutOpen(false);
+                                }}
+                            />
 
                             {/* Library (Media & Files Hub) */}
-                            <Tooltip title="Library" position="right">
-                                <button
-                                    onClick={() => {
-                                        useLayoutStore.getState().setActiveView('library');
-                                        pushViewRoute('library');
-                                        setIsFlyoutOpen(false);
-                                    }}
-                                    className={`p-2 rounded-xl transition-colors active:scale-95 cursor-pointer ${
-                                        activeView === 'library'
-                                            ? 'bg-[var(--accent-color)]/10 text-[var(--accent-color)]'
-                                            : 'hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-                                    }`}
-                                >
-                                    <FolderArchive className="w-5 h-5" />
-                                </button>
-                            </Tooltip>
+                            <DockIconButton
+                                tooltip="Library"
+                                icon={Icons.FolderArchive}
+                                isActive={activeView === 'library'}
+                                onClick={() => {
+                                    useLayoutStore.getState().setActiveView('library');
+                                    pushViewRoute('library');
+                                    setIsFlyoutOpen(false);
+                                }}
+                            />
 
                             {/* 5. Tools */}
-                            <Tooltip title="Tools" position="right">
-                                <button
-                                    onClick={() => {
-                                        useLayoutStore.getState().setActiveView('tools');
-                                        pushViewRoute('tools');
-                                        document.dispatchEvent(new CustomEvent('open-tools'));
-                                        setIsFlyoutOpen(false);
-                                    }}
-                                    className={`p-2 rounded-xl transition-colors active:scale-95 cursor-pointer ${
-                                        activeView === 'tools'
-                                            ? 'bg-[var(--accent-color)]/10 text-[var(--accent-color)]'
-                                            : 'hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-                                    }`}
-                                >
-                                    <Wrench className="w-5 h-5" />
-                                </button>
-                            </Tooltip>
+                            <DockIconButton
+                                tooltip="Tools"
+                                icon={Icons.Wrench}
+                                isActive={activeView === 'tools'}
+                                onClick={() => {
+                                    useLayoutStore.getState().setActiveView('tools');
+                                    pushViewRoute('tools');
+                                    document.dispatchEvent(new CustomEvent('open-tools'));
+                                    setIsFlyoutOpen(false);
+                                }}
+                            />
 
                             {/* 6. APIs */}
-                            <Tooltip title="APIs" position="right">
-                                <button
-                                    onClick={() => {
-                                        useLayoutStore.getState().setActiveView('apis');
-                                        document.dispatchEvent(new CustomEvent('open-apis'));
-                                        setIsFlyoutOpen(false);
-                                    }}
-                                    className={`p-2 rounded-xl transition-colors active:scale-95 cursor-pointer ${
-                                        activeView === 'apis'
-                                            ? 'bg-[var(--accent-color)]/10 text-[var(--accent-color)]'
-                                            : 'hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-                                    }`}
-                                >
-                                    <Code2 className="w-5 h-5" />
-                                </button>
-                            </Tooltip>
+                            <DockIconButton
+                                tooltip="APIs"
+                                icon={Icons.Code2}
+                                isActive={activeView === 'apis'}
+                                onClick={() => {
+                                    useLayoutStore.getState().setActiveView('apis');
+                                    document.dispatchEvent(new CustomEvent('open-apis'));
+                                    setIsFlyoutOpen(false);
+                                }}
+                            />
 
                             {/* 7. Toolkit */}
-                            <Tooltip title="Toolkit" position="right">
-                                <button
-                                    onClick={() => {
-                                        useLayoutStore.getState().setActiveView('toolkit');
-                                        document.dispatchEvent(new CustomEvent('open-toolkit'));
-                                        setIsFlyoutOpen(false);
-                                    }}
-                                    className={`p-2 rounded-xl transition-colors active:scale-95 cursor-pointer ${
-                                        activeView === 'toolkit'
-                                            ? 'bg-[var(--accent-color)]/10 text-[var(--accent-color)]'
-                                            : 'hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-                                    }`}
-                                >
-                                    <Boxes className="w-5 h-5" />
-                                </button>
-                            </Tooltip>
+                            <DockIconButton
+                                tooltip="Toolkit"
+                                icon={Icons.Boxes}
+                                isActive={activeView === 'toolkit'}
+                                onClick={() => {
+                                    useLayoutStore.getState().setActiveView('toolkit');
+                                    document.dispatchEvent(new CustomEvent('open-toolkit'));
+                                    setIsFlyoutOpen(false);
+                                }}
+                            />
+
+                            {/* 8. UI Components Showroom */}
+                            <DockIconButton
+                                tooltip="UI Components Showroom"
+                                icon={Icons.Layers}
+                                isActive={activeView === 'components'}
+                                onClick={() => {
+                                    useLayoutStore.getState().setActiveView('components');
+                                    pushViewRoute('components');
+                                    setIsFlyoutOpen(false);
+                                }}
+                            />
                         </div>
 
                         {/* Bottom Pinned Icon: Settings */}
                         <div className="flex flex-col items-center gap-2 w-full pb-1">
                             <div className="w-6 h-[1px] bg-[var(--border-color)] my-0.5 opacity-60" />
-                            <Tooltip title="Settings" position="right">
-                                <button
-                                    onClick={() => {
-                                        document.dispatchEvent(new CustomEvent('open-settings', { detail: { tab: 'general' } }));
-                                        setIsFlyoutOpen(false);
-                                    }}
-                                    className="p-2 rounded-xl hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors active:scale-95 cursor-pointer"
-                                >
-                                    <Settings className="w-5 h-5" />
-                                </button>
-                            </Tooltip>
+                            <DockIconButton
+                                tooltip="Settings"
+                                icon={Icons.Settings}
+                                onClick={() => {
+                                    document.dispatchEvent(new CustomEvent('open-settings', { detail: { tab: 'general' } }));
+                                    setIsFlyoutOpen(false);
+                                }}
+                            />
                         </div>
                     </div>
                 ) : (
@@ -1055,7 +1015,7 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                                         }}
                                         className="p-1.5 rounded hover:bg-[var(--bg-tertiary)] text-[var(--text-primary)] transition-colors active:scale-95 cursor-pointer"
                                     >
-                                        <Plus className="w-4 h-4" />
+                                        <Icons.Plus className="w-4 h-4" />
                                     </button>
                                 </Tooltip>
                             )}
@@ -1066,7 +1026,7 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                                             onClick={(e) => onOpenLauncher(e)}
                                             className="p-1.5 rounded hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
                                         >
-                                            <MoreVertical className="w-4 h-4" />
+                                            <Icons.MoreVertical className="w-4 h-4" />
                                         </button>
                                     </Tooltip>
                                     <Tooltip title="Close Sidebar" position="bottom">
@@ -1080,7 +1040,7 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                                             }}
                                             className="p-1.5 rounded hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
                                         >
-                                            {sidebarPosition === 'left' ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                                            {sidebarPosition === 'left' ? <Icons.ChevronLeft className="w-4 h-4" /> : <Icons.ChevronRight className="w-4 h-4" />}
                                         </button>
                                     </Tooltip>
                                 </>
@@ -1214,7 +1174,7 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                                                 }}
                                                 className="p-1.5 rounded-lg hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
                                             >
-                                                <Plus className="w-4 h-4" />
+                                                <Icons.Plus className="w-4 h-4" />
                                             </button>
                                         </Tooltip>
                                     )}
@@ -1223,7 +1183,7 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                                             onClick={() => setIsFlyoutOpen(false)}
                                             className="p-1.5 rounded-lg hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
                                         >
-                                            <X className="w-4 h-4" />
+                                            <Icons.X className="w-4 h-4" />
                                         </button>
                                     </Tooltip>
                                 </div>
