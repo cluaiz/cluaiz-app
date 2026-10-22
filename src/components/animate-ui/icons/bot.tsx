@@ -1,6 +1,4 @@
-'use client';
-
-
+import * as React from 'react';
 import { motion, type Variants } from 'framer-motion';
 
 import {
@@ -159,9 +157,10 @@ function IconComponent({ size, ...props }: BotProps) {
   );
 }
 
-function Bot(props: BotProps) {
-  return <IconWrapper icon={IconComponent} {...props} />;
-}
+const Bot = React.forwardRef<any, BotProps>((props, ref) => {
+  return <IconWrapper ref={ref} icon={IconComponent} {...props} />;
+});
+Bot.displayName = 'Bot';
 
 export {
   animations,

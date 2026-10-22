@@ -1,6 +1,4 @@
-'use client';
-
-
+import * as React from 'react';
 import { motion, type Variants } from 'framer-motion';
 
 import {
@@ -118,9 +116,10 @@ function IconComponent({ size, ...props }: BotOffProps) {
   );
 }
 
-function BotOff(props: BotOffProps) {
-  return <IconWrapper icon={IconComponent} {...props} />;
-}
+const BotOff = React.forwardRef<any, BotOffProps>((props, ref) => {
+  return <IconWrapper ref={ref} icon={IconComponent} {...props} />;
+});
+BotOff.displayName = 'BotOff';
 
 export {
   animations,

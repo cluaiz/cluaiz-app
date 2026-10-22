@@ -79,13 +79,42 @@ type AnimateIconProps<T = string> = WithAsChild<
     }
 >;
 
-type IconProps<T> = DefaultIconProps<T> &
+const ICON_SIZE_MAP = {
+  xs: 14,
+  sm: 16,
+  md: 20,
+  lg: 24,
+  xl: 28,
+  '2xl': 32,
+} as const;
+
+type IconSizeProp = number | keyof typeof ICON_SIZE_MAP;
+
+function resolveIconSize(size?: IconSizeProp, className?: any): number {
+  if (typeof size === 'number') return size;
+  if (size && size in ICON_SIZE_MAP) return ICON_SIZE_MAP[size as keyof typeof ICON_SIZE_MAP];
+
+  if (typeof className === 'string') {
+    if (className.includes('w-8') || className.includes('h-8')) return 32;
+    if (className.includes('w-7') || className.includes('h-7')) return 28;
+    if (className.includes('w-6') || className.includes('h-6')) return 24;
+    if (className.includes('w-5') || className.includes('h-5')) return 20;
+    if (className.includes('w-4.5') || className.includes('h-4.5')) return 18;
+    if (className.includes('w-4') || className.includes('h-4')) return 16;
+    if (className.includes('w-3.5') || className.includes('h-3.5')) return 14;
+    if (className.includes('w-3') || className.includes('h-3')) return 12;
+  }
+
+  return ICON_SIZE_MAP.md;
+}
+
+type IconProps<T = string> = DefaultIconProps<T> &
   Omit<SVGMotionProps<SVGSVGElement>, 'animate'> & {
-    size?: number;
+    size?: IconSizeProp;
   };
 
-type IconWrapperProps<T> = IconProps<T> & {
-  icon: React.ComponentType<IconProps<T>>;
+type IconWrapperProps<T = string> = IconProps<T> & {
+  icon: React.ComponentType<any>;
 };
 
 const AnimateIconContext = React.createContext<AnimateIconContextValue | null>(
@@ -123,7 +152,7 @@ function composeEventHandlers<E extends React.SyntheticEvent<unknown>>(
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyProps = Record<string, any>;
 
-function AnimateIcon({
+const AnimateIcon = React.forwardRef<any, AnimateIconProps>(function AnimateIcon({
   asChild = false,
   animate = false,
   animateOnHover = false,
@@ -140,7 +169,7 @@ function AnimateIcon({
   delay = 0,
   children,
   ...props
-}: AnimateIconProps) {
+}: AnimateIconProps, ref) {
   const controls = useAnimation();
 
   const [localAnimate, setLocalAnimate] = React.useState<boolean>(() => {
@@ -199,6 +228,19 @@ function AnimateIcon({
     }
     setLocalAnimate(false);
   }, [bumpGeneration]);
+
+  React.useImperativeHandle(
+    ref,
+    () => ({
+      startAnimation: (trigger: TriggerProp = true) => {
+        startAnimation(trigger);
+      },
+      stopAnimation: () => {
+        stopAnimation();
+      },
+    }),
+    [startAnimation, stopAnimation],
+  );
 
   React.useEffect(() => {
     activeRef.current = localAnimate;
@@ -443,30 +485,34 @@ function AnimateIcon({
       {content}
     </AnimateIconContext.Provider>
   );
-}
+});
 
 const pathClassName =
   "[&_[stroke-dasharray='1px_1px']]:![stroke-dasharray:1px_0px]";
 
-function IconWrapper<T extends string>({
-  size = 28,
-  animation: animationProp,
-  animate,
-  animateOnHover,
-  animateOnTap,
-  animateOnView,
-  animateOnViewMargin,
-  animateOnViewOnce,
-  icon: IconComponent,
-  loop,
-  loopDelay,
-  persistOnAnimateEnd,
-  initialOnAnimateEnd,
-  delay,
-  completeOnStop,
-  className,
-  ...props
-}: IconWrapperProps<T>) {
+const IconWrapper = React.forwardRef<any, IconWrapperProps<any>>(function IconWrapper(
+  {
+    animate,
+    animateOnHover = true,
+    animateOnTap,
+    animateOnView,
+    animateOnViewMargin,
+    animateOnViewOnce,
+    animation: animationProp,
+    icon: IconComponent,
+    loop,
+    loopDelay,
+    persistOnAnimateEnd,
+    initialOnAnimateEnd,
+    delay,
+    completeOnStop,
+    className,
+    size,
+    ...props
+  }: IconWrapperProps<any>,
+  ref: any
+) {
+  const resolvedSize = resolveIconSize(size, className);
   const context = React.useContext(AnimateIconContext);
 
   if (context) {
@@ -522,7 +568,7 @@ function IconWrapper<T extends string>({
           asChild
         >
           <IconComponent
-            size={size}
+            size={resolvedSize}
             className={cn(
               className,
               ((animationProp ?? parentAnimation) === 'path' ||
@@ -554,7 +600,7 @@ function IconWrapper<T extends string>({
         }}
       >
         <IconComponent
-          size={size}
+          size={resolvedSize}
           className={cn(
             className,
             (animationToUse === 'path' || animationToUse === 'path-loop') &&
@@ -566,17 +612,20 @@ function IconWrapper<T extends string>({
     );
   }
 
+  const shouldAnimateOnHover = animateOnHover ?? true;
+
   if (
     animate !== undefined ||
-    animateOnHover !== undefined ||
+    shouldAnimateOnHover ||
     animateOnTap !== undefined ||
     animateOnView !== undefined ||
     animationProp !== undefined
   ) {
     return (
       <AnimateIcon
+        ref={ref}
         animate={animate}
-        animateOnHover={animateOnHover}
+        animateOnHover={shouldAnimateOnHover}
         animateOnTap={animateOnTap}
         animateOnView={animateOnView}
         animateOnViewMargin={animateOnViewMargin}
@@ -589,7 +638,7 @@ function IconWrapper<T extends string>({
         asChild
       >
         <IconComponent
-          size={size}
+          size={resolvedSize}
           className={cn(
             className,
             (animationProp === 'path' || animationProp === 'path-loop') &&
@@ -603,7 +652,7 @@ function IconWrapper<T extends string>({
 
   return (
     <IconComponent
-      size={size}
+      size={resolvedSize}
       className={cn(
         className,
         (animationProp === 'path' || animationProp === 'path-loop') &&
@@ -612,7 +661,7 @@ function IconWrapper<T extends string>({
       {...props}
     />
   );
-}
+});
 
 function getVariants<
   V extends { default: any; [key: string]: any }
@@ -647,6 +696,9 @@ export {
   IconWrapper,
   useAnimateIconContext,
   getVariants,
+  ICON_SIZE_MAP,
+  resolveIconSize,
+  type IconSizeProp,
   type IconProps,
   type IconWrapperProps,
   type AnimateIconProps,

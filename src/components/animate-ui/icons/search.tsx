@@ -1,6 +1,4 @@
-'use client';
-
-
+import * as React from 'react';
 import { motion, type Variants } from 'framer-motion';
 
 import {
@@ -82,9 +80,10 @@ function IconComponent({ size, ...props }: SearchProps) {
   );
 }
 
-function Search(props: SearchProps) {
-  return <IconWrapper icon={IconComponent} {...props} />;
-}
+const Search = React.forwardRef<any, SearchProps>((props, ref) => {
+  return <IconWrapper ref={ref} icon={IconComponent} {...props} />;
+});
+Search.displayName = 'Search';
 
 export {
   animations,

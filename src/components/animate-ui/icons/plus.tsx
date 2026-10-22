@@ -1,5 +1,4 @@
-'use client';
-
+import * as React from 'react';
 import { motion, type Variants } from 'framer-motion';
 
 import {
@@ -54,7 +53,7 @@ function IconComponent({ size, ...props }: PlusProps) {
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth={2.5}
+      strokeWidth={2}
       strokeLinecap="round"
       strokeLinejoin="round"
       variants={variants.group}
@@ -80,8 +79,9 @@ function IconComponent({ size, ...props }: PlusProps) {
   );
 }
 
-function Plus(props: PlusProps) {
-  return <IconWrapper icon={IconComponent} {...props} />;
-}
+const Plus = React.forwardRef<any, PlusProps>((props, ref) => {
+  return <IconWrapper ref={ref} icon={IconComponent} {...props} />;
+});
+Plus.displayName = 'Plus';
 
 export { animations, Plus, Plus as PlusIcon, type PlusProps, type PlusProps as PlusIconProps };

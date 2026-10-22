@@ -19,6 +19,9 @@
     "build:ios": "npm run tauri ios build -w app"
   },
   "dependencies": {
+    "@animateicons/react": "^0.12.1",
+    "@hugeicons/core-free-icons": "^4.3.5",
+    "@hugeicons/react": "^1.1.10",
     "@monaco-editor/react": "^4.7.0",
     "@tiptap/core": "^2.27.2",
     "@tiptap/extension-character-count": "^2.27.3",
@@ -47,6 +50,7 @@
     "react-icons": "^5.6.0",
     "react-markdown": "^10.1.0",
     "react-material-icon-theme": "^1.2.0",
+    "react-useanimations": "^3.1.1",
     "remark-gfm": "^4.0.1",
     "three": "^0.184.0",
     "three-spritetext": "^1.10.0",

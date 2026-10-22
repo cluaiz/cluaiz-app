@@ -1,6 +1,4 @@
-'use client';
-
-
+import * as React from 'react';
 import { motion, type Variants } from 'framer-motion';
 
 import {
@@ -235,9 +233,10 @@ function IconComponent({ size, ...props }: SlidersHorizontalProps) {
   );
 }
 
-function SlidersHorizontal(props: SlidersHorizontalProps) {
-  return <IconWrapper icon={IconComponent} {...props} />;
-}
+const SlidersHorizontal = React.forwardRef<any, SlidersHorizontalProps>((props, ref) => {
+  return <IconWrapper ref={ref} icon={IconComponent} {...props} />;
+});
+SlidersHorizontal.displayName = 'SlidersHorizontal';
 
 export {
   animations,

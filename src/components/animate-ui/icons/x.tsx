@@ -1,6 +1,4 @@
-'use client';
-
-
+import * as React from 'react';
 import { motion, type Variants } from 'framer-motion';
 
 import {
@@ -114,8 +112,9 @@ function IconComponent({ size, ...props }: XProps) {
   );
 }
 
-function X(props: XProps) {
-  return <IconWrapper icon={IconComponent} {...props} />;
-}
+const X = React.forwardRef<any, XProps>((props, ref) => {
+  return <IconWrapper ref={ref} icon={IconComponent} {...props} />;
+});
+X.displayName = 'X';
 
 export { animations, X, X as XIcon, type XProps, type XProps as XIconProps };
