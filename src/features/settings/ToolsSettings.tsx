@@ -9,6 +9,8 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { ToolComponent, ToolInspectorModal } from './ToolInspectorModal';
 import { CustomDropdown, DropdownOption } from '../../components/ui/dropdown/CustomDropdown';
+import { Input } from '../../components/ui/Input';
+import { Button } from '../../components/ui/Button';
 
 const PAGE_SIZE = 20;
 
@@ -273,36 +275,38 @@ export function ToolsSettings() {
                 {/* Right: Search Input + Refresh Button */}
                 <div className="flex items-center gap-2 flex-1 lg:max-w-md justify-end">
                     {/* Search Input */}
-                    <div className="relative flex-1">
-                        <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)] pointer-events-none" />
-                        <input
+                    <div className="flex-1">
+                        <Input
                             type="text"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             placeholder="Search tools, skills, or triggers..."
-                            className="w-full bg-[var(--bg-secondary)]/90 border border-[var(--border-color)]/70 rounded-xl pl-9 pr-9 py-1.5 text-xs text-[var(--text-primary)] outline-none focus:border-[var(--accent-color)] transition-colors shadow-sm placeholder:text-[var(--text-muted)]"
+                            leftIcon={<Search size={14} />}
+                            rightElement={searchQuery ? (
+                                <button
+                                    type="button"
+                                    onClick={() => setSearchQuery('')}
+                                    className="text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
+                                    title="Clear search"
+                                >
+                                    <X size={13} />
+                                </button>
+                            ) : undefined}
                         />
-                        {searchQuery && (
-                            <button
-                                type="button"
-                                onClick={() => setSearchQuery('')}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
-                            >
-                                <X size={13} />
-                            </button>
-                        )}
                     </div>
 
                     {/* Refresh Button */}
-                    <button
+                    <Button
                         type="button"
+                        variant="secondary"
+                        size="sm"
                         onClick={loadTools}
                         title="Reload tools and skills"
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-[var(--bg-secondary)]/90 hover:bg-[var(--bg-tertiary)] border border-[var(--border-color)]/70 rounded-xl text-xs font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all cursor-pointer shadow-sm shrink-0"
+                        className="shrink-0"
                     >
                         <RefreshCw size={13} className={isLoading ? 'animate-spin' : ''} />
                         <span className="hidden sm:inline">Refresh</span>
-                    </button>
+                    </Button>
                 </div>
             </div>
 

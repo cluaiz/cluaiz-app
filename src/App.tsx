@@ -7,12 +7,13 @@ import { BubbleLauncher } from './components/layout/BubbleLauncher';
 import { SettingsOverlay } from './features/settings/SettingsOverlay';
 import { AuthTokenModal } from './features/settings/components/AuthTokenModal';
 import { Cpu, Database, Maximize2 } from 'lucide-react';
-import { useThemeStore } from './store/ui/useThemeStore';
+import { useThemeStore, isThemeDark } from './store/ui/useThemeStore';
 import { useLayoutStore } from './store/ui/useLayoutStore';
 import { NotebookHub } from './features/notebook/NotebookHub';
 import { ApiWorkspace } from './features/api/ApiWorkspace';
 import { ToolsWorkspace } from './features/tools';
 import { LibraryHub, AssetPreviewModal } from './features/library';
+import { ComponentShowcase } from './components/ComponentShowcase';
 import { openAttachmentInWorkspace } from './features/chat/utils/workspaceAttachmentOpener';
 import { ElasticSlider } from './components/ui/cursor/ElasticSlider';
 import ClickSpark from './components/ui/ClickSpark';
@@ -32,9 +33,9 @@ function MainAppContent() {
         isOpen: initialRoute.isSettingsOpen,
         tab: initialRoute.settingsTab
     });
-    const { textScale, setTextScale, theme, darkAccent, lightAccent, cursorType } = useThemeStore();
+    const { theme, darkAccent, lightAccent, cursorType } = useThemeStore();
     const { activeView, previewModalAsset, setPreviewModalAsset } = useLayoutStore();
-    const activeAccent = theme !== 'light' ? darkAccent : lightAccent;
+    const activeAccent = isThemeDark(theme) ? darkAccent : lightAccent;
 
     const handleOpenSettings = (tab?: string) => {
         const targetTab = (tab as SettingsTabId) || 'general';
@@ -169,7 +170,9 @@ function MainAppContent() {
                     />
                 }
                 mainContent={
-                    activeView === 'notebook' ? (
+                    activeView === 'components' ? (
+                        <ComponentShowcase />
+                    ) : activeView === 'notebook' ? (
                         <NotebookHub />
                     ) : activeView === 'apis' ? (
                         <ApiWorkspace />

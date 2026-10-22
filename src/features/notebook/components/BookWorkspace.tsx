@@ -15,7 +15,6 @@ import {
     Layers,
     Bot,
     ExternalLink,
-    Tag,
     ChevronRight,
     Edit3
 } from 'lucide-react';
@@ -27,6 +26,7 @@ import {
     NotebookSourceType
 } from '../../../store/notebook/useNotebookStore';
 import { Button } from '../../../components/ui/Button';
+import { Tabs } from '../../../components/ui/Tabs';
 import { Tooltip } from '../../../components/ui/tooltip';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../../../components/ui/Dialog';
 import { Input } from '../../../components/ui/Input';
@@ -189,11 +189,11 @@ export const BookWorkspace: React.FC<BookWorkspaceProps> = ({ book }) => {
                     <div className="flex items-center gap-2 mb-0.5">
                         <Button
                             size="sm"
+                            variant="default"
                             onClick={() => {
                                 setIsCreatingSubPage(true);
                                 setActiveTab('contents');
                             }}
-                            className="rounded-xl text-xs font-bold bg-white text-neutral-900 hover:bg-neutral-100 shadow-md active:scale-95"
                         >
                             <Plus className="w-3.5 h-3.5 mr-1" />
                             New Page
@@ -205,7 +205,6 @@ export const BookWorkspace: React.FC<BookWorkspaceProps> = ({ book }) => {
                                 setIsCreatingSubBook(true);
                                 setActiveTab('contents');
                             }}
-                            className="rounded-xl text-xs font-bold border-[var(--border-color)] bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] active:scale-95"
                         >
                             <BookOpen className="w-3.5 h-3.5 mr-1" />
                             New Sub-Book
@@ -247,58 +246,16 @@ export const BookWorkspace: React.FC<BookWorkspaceProps> = ({ book }) => {
                 </div>
 
                 {/* Sub-Tabs: Contents, Sources, Chats */}
-                <div className="flex items-center gap-2 border-b border-[var(--border-color)] pb-3 mb-6">
-                    <button
-                        onClick={() => setActiveTab('contents')}
-                        className={cn(
-                            'flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer',
-                            activeTab === 'contents'
-                                ? 'bg-[var(--accent-color)]/10 text-[var(--accent-color)] border border-[var(--accent-color)]/20 shadow-sm'
-                                : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-secondary)]'
-                        )}
-                    >
-                        <Layers className="w-3.5 h-3.5" />
-                        <span>Contents</span>
-                        <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-[var(--bg-tertiary)] text-[var(--text-secondary)] font-bold">
-                            {children.length}
-                        </span>
-                    </button>
-
-                    <button
-                        onClick={() => setActiveTab('sources')}
-                        className={cn(
-                            'flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer',
-                            activeTab === 'sources'
-                                ? 'bg-[var(--accent-color)]/10 text-[var(--accent-color)] border border-[var(--accent-color)]/20 shadow-sm'
-                                : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-secondary)]'
-                        )}
-                    >
-                        <FolderKanban className="w-3.5 h-3.5" />
-                        <span>Sources</span>
-                        {book.sources?.length > 0 && (
-                            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-[var(--bg-tertiary)] text-[var(--text-secondary)] font-bold">
-                                {book.sources.length}
-                            </span>
-                        )}
-                    </button>
-
-                    <button
-                        onClick={() => setActiveTab('chats')}
-                        className={cn(
-                            'flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer',
-                            activeTab === 'chats'
-                                ? 'bg-[var(--accent-color)]/10 text-[var(--accent-color)] border border-[var(--accent-color)]/20 shadow-sm'
-                                : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-secondary)]'
-                        )}
-                    >
-                        <MessageSquare className="w-3.5 h-3.5" />
-                        <span>Chats</span>
-                        {book.chatSessionIds?.length > 0 && (
-                            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-[var(--bg-tertiary)] text-[var(--text-secondary)] font-bold">
-                                {book.chatSessionIds.length}
-                            </span>
-                        )}
-                    </button>
+                <div className="border-b border-[var(--border-color)] pb-3 mb-6">
+                    <Tabs<'contents' | 'sources' | 'chats'>
+                        items={[
+                            { id: 'contents', label: 'Contents', icon: Layers, count: children.length },
+                            { id: 'sources', label: 'Sources', icon: FolderKanban, count: book.sources?.length },
+                            { id: 'chats', label: 'Chats', icon: MessageSquare, count: book.chatSessionIds?.length },
+                        ]}
+                        value={activeTab}
+                        onChange={setActiveTab}
+                    />
                 </div>
 
                 {/* TAB 1: CONTENTS (SUB-BOOKS & PAGES) */}
@@ -427,8 +384,8 @@ export const BookWorkspace: React.FC<BookWorkspaceProps> = ({ book }) => {
                                 <div className="flex items-center justify-center gap-3">
                                     <Button
                                         size="sm"
+                                        variant="default"
                                         onClick={() => setIsCreatingSubPage(true)}
-                                        className="rounded-xl text-xs font-semibold"
                                     >
                                         <Plus className="w-3.5 h-3.5 mr-1" />
                                         Create First Page
@@ -437,7 +394,6 @@ export const BookWorkspace: React.FC<BookWorkspaceProps> = ({ book }) => {
                                         size="sm"
                                         variant="outline"
                                         onClick={() => setIsCreatingSubBook(true)}
-                                        className="rounded-xl text-xs font-semibold"
                                     >
                                         <BookOpen className="w-3.5 h-3.5 mr-1" />
                                         Create Sub-Book

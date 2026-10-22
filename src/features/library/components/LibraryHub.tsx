@@ -1,23 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import {
-    ArrowLeft,
-    FolderArchive,
-    Search,
-    X,
-    LayoutGrid,
-    List,
-    ExternalLink,
-    MessageSquare,
-    Trash2,
-    Download,
-    ArrowUpRight,
-    ArrowUpDown,
-    ChevronDown,
-    Layers,
-    ArrowLeftRight,
-    Eye,
-    MoreVertical
-} from 'lucide-react';
+import { Icons, useIconHover } from '../../../components/animate-ui/icons';
 import { FileIcon } from 'react-material-icon-theme';
 import { useLayoutStore } from '../../../store/ui/useLayoutStore';
 import { useChatStore } from '../../../store/chat/useChatStore';
@@ -31,6 +13,7 @@ import { ActionDropdown, ActionDropdownItem } from '../../../components/ui/dropd
 import { ConfirmationModal } from '../../../components/ui/modal/ConfirmationModal';
 import { Tooltip } from '../../../components/ui/tooltip';
 import { toast } from '../../../components/ui/toast';
+import { Input } from '../../../components/ui/Input';
 
 function formatBytes(bytes?: number | null): string {
     if (!bytes || bytes <= 0) return '0 B';
@@ -50,6 +33,292 @@ function formatDate(timestamp: number): string {
     }
     return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
 }
+
+// 💎 Interactive Header Branding with Parent Hover Animation
+const LibraryHeaderBranding: React.FC<{ count: number }> = ({ count }) => {
+    const { ref: iconRef, triggerProps } = useIconHover();
+    return (
+        <div {...triggerProps} className="flex items-center gap-2.5 shrink-0 group cursor-pointer">
+            <div className="w-9 h-9 rounded-xl bg-[var(--accent-color)]/10 border border-[var(--accent-color)]/25 flex items-center justify-center text-[var(--accent-color)] shadow-xs shrink-0 group-hover:scale-105 transition-transform">
+                <Icons.FolderArchive ref={iconRef} className="w-5 h-5 text-[var(--accent-color)]" />
+            </div>
+            <div className="flex items-center gap-2 min-w-0">
+                <h1 className="text-sm sm:text-base font-extrabold text-[var(--text-primary)] tracking-tight whitespace-nowrap">
+                    Library
+                </h1>
+                <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-[var(--accent-color)]/15 text-[var(--accent-color)] border border-[var(--accent-color)]/30 uppercase tracking-wider shrink-0 hidden xs:inline-block">
+                    {count} {count === 1 ? 'Asset' : 'Assets'}
+                </span>
+            </div>
+        </div>
+    );
+};
+
+// 💎 Interactive Category Tab with Parent Hover Animation
+const CategoryTabButton: React.FC<{
+    id: LibraryCategory;
+    label: string;
+    count: number;
+    icon: React.ComponentType<any>;
+    isActive: boolean;
+    onClick: () => void;
+}> = ({ label, count, icon: IconComponent, isActive, onClick }) => {
+    const { ref: iconRef, triggerProps } = useIconHover();
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            {...triggerProps}
+            className={`px-3 sm:px-4 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-2 cursor-pointer ${
+                isActive
+                    ? 'bg-[var(--accent-color)] text-[var(--accent-contrast,#ffffff)] shadow-sm'
+                    : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]'
+            }`}
+        >
+            <IconComponent ref={iconRef} className="w-3.5 h-3.5" />
+            <span>{label}</span>
+            <span
+                className={`text-[9.5px] font-mono px-1.5 py-0.2 rounded-full font-bold ${
+                    isActive
+                        ? 'bg-black/25 text-[var(--accent-contrast,#ffffff)]'
+                        : 'bg-[var(--bg-tertiary)] text-[var(--text-muted)] border border-[var(--border-color)]/60'
+                }`}
+            >
+                {count}
+            </span>
+        </button>
+    );
+};
+
+// 💎 Clean, Single Reusable Asset Action Dropdown (Card + Table Shared)
+interface AssetActionMenuProps {
+    asset: LibraryAsset;
+    isOpen: boolean;
+    onToggle: () => void;
+    onClose: () => void;
+    onPreview: () => void;
+    onOpenWorkspace: () => void;
+    onDownload: () => void;
+    onJumpToChat: (sessionId: string) => void;
+    onDelete: () => void;
+    variant?: 'overlay' | 'default';
+}
+
+const AssetActionMenu: React.FC<AssetActionMenuProps> = ({
+    asset,
+    isOpen,
+    onToggle,
+    onClose,
+    onPreview,
+    onOpenWorkspace,
+    onDownload,
+    onJumpToChat,
+    onDelete,
+    variant = 'overlay',
+}) => {
+    const triggerRef = useRef<HTMLButtonElement>(null);
+    const usages = asset.usages || [];
+    const hasMultipleUsages = usages.length > 1;
+    const hasSingleUsage = usages.length === 1;
+    const primaryUsage = usages[0];
+
+    const triggerButtonClass =
+        variant === 'overlay'
+            ? 'w-7 h-7 rounded-full bg-black/40 hover:bg-black/60 flex items-center justify-center text-white/90 hover:text-white backdrop-blur-md border border-white/10 transition-colors cursor-pointer shadow-xs'
+            : 'w-7 h-7 rounded-full hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] flex items-center justify-center transition-colors cursor-pointer';
+
+    return (
+        <div className="relative inline-block text-left" onClick={(e) => e.stopPropagation()}>
+            <button
+                ref={triggerRef}
+                type="button"
+                onClick={(e) => {
+                    e.stopPropagation();
+                    onToggle();
+                }}
+                className={triggerButtonClass}
+                title="More options"
+            >
+                <Icons.MoreVertical className="w-3.5 h-3.5" />
+            </button>
+
+            <ActionDropdown
+                isOpen={isOpen}
+                onClose={onClose}
+                triggerRef={triggerRef}
+            >
+                <ActionDropdownItem
+                    icon={<Icons.Eye className="w-3.5 h-3.5" />}
+                    onClick={onPreview}
+                >
+                    Preview
+                </ActionDropdownItem>
+
+                <ActionDropdownItem
+                    icon={<Icons.ExternalLink className="w-3.5 h-3.5" />}
+                    onClick={onOpenWorkspace}
+                >
+                    Open in Workspace
+                </ActionDropdownItem>
+
+                {asset.previewUrl && (
+                    <ActionDropdownItem
+                        icon={<Icons.Download className="w-3.5 h-3.5" />}
+                        onClick={onDownload}
+                    >
+                        Download
+                    </ActionDropdownItem>
+                )}
+
+                {hasSingleUsage && primaryUsage ? (
+                    <ActionDropdownItem
+                        icon={<Icons.MessageSquare className="w-3.5 h-3.5" />}
+                        onClick={() => onJumpToChat(primaryUsage.sessionId)}
+                    >
+                        View in Chat ({primaryUsage.sessionTitle})
+                    </ActionDropdownItem>
+                ) : hasMultipleUsages ? (
+                    <>
+                        <div className="px-2.5 py-1 text-[10px] font-mono text-[var(--text-muted)] uppercase border-t border-[var(--border-color)]/50 mt-1">
+                            Referenced Chats ({usages.length})
+                        </div>
+                        {usages.map((u, uIdx) => (
+                            <ActionDropdownItem
+                                key={`${u.sessionId}_${uIdx}`}
+                                icon={<Icons.MessageSquare className="w-3.5 h-3.5" />}
+                                onClick={() => onJumpToChat(u.sessionId)}
+                            >
+                                {u.sessionTitle}
+                            </ActionDropdownItem>
+                        ))}
+                    </>
+                ) : null}
+
+                <div className="border-t border-[var(--border-color)]/50 my-1" />
+
+                <ActionDropdownItem
+                    danger
+                    icon={<Icons.Trash2 className="w-3.5 h-3.5 text-red-500" />}
+                    onClick={onDelete}
+                >
+                    Delete
+                </ActionDropdownItem>
+            </ActionDropdown>
+        </div>
+    );
+};
+
+// 💎 Interactive Asset Card with Parent Hover Animation
+interface AssetCardProps {
+    asset: LibraryAsset;
+    isActionDropdownOpen: boolean;
+    onToggleActionDropdown: () => void;
+    onCloseActionDropdown: () => void;
+    onPreview: () => void;
+    onOpenWorkspace: () => void;
+    onDownload: () => void;
+    onJumpToChat: (sessionId: string) => void;
+    onDelete: () => void;
+}
+
+const AssetCard: React.FC<AssetCardProps> = ({
+    asset,
+    isActionDropdownOpen,
+    onToggleActionDropdown,
+    onCloseActionDropdown,
+    onPreview,
+    onOpenWorkspace,
+    onDownload,
+    onJumpToChat,
+    onDelete,
+}) => {
+    const isMedia = asset.category === 'media' && Boolean(asset.previewUrl);
+
+    return (
+        <div
+            className={`group rounded-2xl border border-[var(--border-color)] bg-[var(--bg-secondary)] hover:border-[var(--accent-color)]/60 hover:shadow-xl transition-all duration-200 flex flex-col justify-between relative ${
+                isActionDropdownOpen ? 'z-50' : 'z-0'
+            }`}
+        >
+            {/* Top Right Standard 3-dots Menu */}
+            <div className="absolute top-2 right-2 z-30">
+                <AssetActionMenu
+                    asset={asset}
+                    isOpen={isActionDropdownOpen}
+                    onToggle={onToggleActionDropdown}
+                    onClose={onCloseActionDropdown}
+                    onPreview={onPreview}
+                    onOpenWorkspace={onOpenWorkspace}
+                    onDownload={onDownload}
+                    onJumpToChat={onJumpToChat}
+                    onDelete={onDelete}
+                />
+            </div>
+
+            {/* 1. Edge-to-Edge Thumbnail Preview: Click opens centered Modal preview */}
+            <div
+                className="relative w-full h-40 sm:h-44 rounded-t-2xl overflow-hidden bg-[var(--bg-tertiary)] flex items-center justify-center cursor-pointer group/thumb"
+                onClick={onPreview}
+                title="Click to preview"
+            >
+                {isMedia ? (
+                    <img
+                        src={asset.previewUrl}
+                        alt={asset.name}
+                        className="w-full h-full object-cover group-hover/thumb:scale-105 transition-transform duration-300"
+                        onError={(e) => {
+                            (e.currentTarget as HTMLElement).style.display = 'none';
+                        }}
+                    />
+                ) : (
+                    <div className="flex flex-col items-center justify-center gap-2 p-3 text-center">
+                        <div className="drop-shadow-md group-hover:scale-110 transition-transform duration-200">
+                            <FileIcon
+                                fileName={asset.name}
+                                fileExtension={asset.extension || 'file'}
+                                size={48}
+                            />
+                        </div>
+                        <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                            {asset.extension || 'FILE'}
+                        </span>
+                    </div>
+                )}
+
+                {/* Top Glass Extension Tag */}
+                <div className="absolute top-2 left-2 z-10 pointer-events-none">
+                    <span className="text-[9px] font-mono font-bold uppercase tracking-wider text-white backdrop-blur-md bg-black/60 px-1.5 py-0.5 rounded border border-white/15 shadow-xs">
+                        {asset.extension || (isMedia ? 'IMG' : 'DOC')}
+                    </span>
+                </div>
+
+                {/* Bottom Glass Size Tag */}
+                <div className="absolute bottom-2 right-2 z-10 pointer-events-none">
+                    <span className="text-[9px] font-mono text-white/90 backdrop-blur-md bg-black/60 px-1.5 py-0.5 rounded border border-white/15 shadow-xs">
+                        {formatBytes(asset.size)}
+                    </span>
+                </div>
+            </div>
+
+            {/* 2. Compact Clean Metadata Container */}
+            <div className="p-3 flex flex-col gap-1.5 bg-[var(--bg-secondary)] rounded-b-2xl">
+                <div
+                    className="text-xs font-bold text-[var(--text-primary)] truncate hover:text-[var(--accent-color)] transition-colors cursor-pointer"
+                    onClick={onPreview}
+                    title={asset.name}
+                >
+                    {asset.name}
+                </div>
+                <div className="flex items-center justify-between text-[10px] text-[var(--text-muted)] font-mono">
+                    <span>{formatDate(asset.latestTimestamp)}</span>
+                    <span className="uppercase text-[9px] px-1.5 py-0.5 rounded bg-[var(--bg-tertiary)] text-[var(--text-secondary)] font-medium border border-[var(--border-color)]/50">
+                        {asset.category}
+                    </span>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 export const LibraryHub: React.FC = () => {
     const {
@@ -207,39 +476,26 @@ export const LibraryHub: React.FC = () => {
                 {/* Top Workspace Header Bar */}
                 <header className="h-16 border-b border-[var(--border-color)]/80 bg-[var(--bg-secondary)]/80 backdrop-blur-md px-3 sm:px-6 flex items-center justify-between gap-2 flex-shrink-0 z-20 min-w-0">
                     {/* Left: Library Branding (No Back Button) */}
-                    <div className="flex items-center gap-2.5 shrink-0">
-                        <div className="w-9 h-9 rounded-xl bg-[var(--accent-color)]/10 border border-[var(--accent-color)]/25 flex items-center justify-center text-[var(--accent-color)] shadow-xs shrink-0">
-                            <FolderArchive className="w-5 h-5" />
-                        </div>
-                        <div className="flex items-center gap-2 min-w-0">
-                            <h1 className="text-sm sm:text-base font-extrabold text-[var(--text-primary)] tracking-tight whitespace-nowrap">
-                                Library
-                            </h1>
-                            <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-[var(--accent-color)]/15 text-[var(--accent-color)] border border-[var(--accent-color)]/30 uppercase tracking-wider shrink-0 hidden xs:inline-block">
-                                {counts.all} {counts.all === 1 ? 'Asset' : 'Assets'}
-                            </span>
-                        </div>
-                    </div>
+                    <LibraryHeaderBranding count={counts.all} />
 
                     {/* Center: Large Prominent Search Bar */}
-                    <div className="relative flex-1 max-w-sm sm:max-w-md mx-2 sm:mx-4 min-w-[90px]">
-                        <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] pointer-events-none" />
-                        <input
-                            type="text"
+                    <div className="flex-1 max-w-sm sm:max-w-md mx-2 sm:mx-4 min-w-[90px]">
+                        <Input
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             placeholder="Search media, code, documents..."
-                            className="w-full h-9 pl-9 pr-7 bg-[var(--bg-tertiary)]/70 hover:bg-[var(--bg-tertiary)] focus:bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl text-xs text-[var(--text-primary)] placeholder-[var(--text-muted)] outline-none focus:border-[var(--accent-color)] transition-all font-sans"
+                            leftIcon={<Icons.Search className="w-3.5 h-3.5" />}
+                            rightElement={searchQuery ? (
+                                <button
+                                    type="button"
+                                    onClick={() => setSearchQuery('')}
+                                    className="p-0.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
+                                    title="Clear search"
+                                >
+                                    <Icons.X className="w-3.5 h-3.5" />
+                                </button>
+                            ) : undefined}
                         />
-                        {searchQuery && (
-                            <button
-                                type="button"
-                                onClick={() => setSearchQuery('')}
-                                className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
-                            >
-                                <X className="w-3.5 h-3.5" />
-                            </button>
-                        )}
                     </div>
 
                     {/* Right Controls: Direct controls on wide space, 3-dots on narrow/split space */}
@@ -247,31 +503,31 @@ export const LibraryHub: React.FC = () => {
                         {!isSplitOpen ? (
                             <>
                                 {/* View Mode Toggle */}
-                                <div className="hidden sm:flex items-center p-0.5 rounded-xl border border-[var(--border-color)] bg-[var(--bg-tertiary)]/50">
+                                <div className="hidden sm:flex items-center p-0.5 rounded-[var(--radius-btn)] border border-[var(--border-color)] bg-[var(--bg-tertiary)]/50">
                                     <Tooltip title="Grid View" position="bottom">
                                         <button
                                             type="button"
                                             onClick={() => setViewMode('grid')}
-                                            className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+                                            className={`p-1.5 rounded-[var(--radius-btn)] transition-all cursor-pointer ${
                                                 viewMode === 'grid'
                                                     ? 'bg-[var(--accent-color)] text-[var(--accent-contrast,#ffffff)] shadow-xs font-bold'
                                                     : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
                                             }`}
                                         >
-                                            <LayoutGrid className="w-3.5 h-3.5" />
+                                            <Icons.LayoutGrid className="w-4 h-4" size={16} />
                                         </button>
                                     </Tooltip>
                                     <Tooltip title="List View" position="bottom">
                                         <button
                                             type="button"
                                             onClick={() => setViewMode('list')}
-                                            className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+                                            className={`p-1.5 rounded-[var(--radius-btn)] transition-all cursor-pointer ${
                                                 viewMode === 'list'
                                                     ? 'bg-[var(--accent-color)] text-[var(--accent-contrast,#ffffff)] shadow-xs font-bold'
                                                     : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
                                             }`}
                                         >
-                                            <List className="w-3.5 h-3.5" />
+                                            <Icons.List className="w-4 h-4" size={16} />
                                         </button>
                                     </Tooltip>
                                 </div>
@@ -284,10 +540,10 @@ export const LibraryHub: React.FC = () => {
                                         className="h-9 px-3 rounded-xl border border-[var(--border-color)] bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] text-xs text-[var(--text-primary)] flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
                                         title={`Sort: ${sortLabels[sortOption]}`}
                                     >
-                                        <ArrowUpDown className="w-3.5 h-3.5 text-[var(--accent-color)] shrink-0" />
+                                        <Icons.ArrowUpDown className="w-3.5 h-3.5 text-[var(--accent-color)] shrink-0" />
                                         <span className="text-[var(--text-muted)] hidden md:inline">Sort:</span>
                                         <span className="font-semibold">{sortLabels[sortOption]}</span>
-                                        <ChevronDown className="w-3.5 h-3.5 text-[var(--text-muted)] shrink-0" />
+                                        <Icons.ChevronDown className="w-3.5 h-3.5 text-[var(--text-muted)] shrink-0" />
                                     </button>
 
                                     <ActionDropdown
@@ -328,7 +584,7 @@ export const LibraryHub: React.FC = () => {
                                     onClick={() => setIsHeaderMenuOpen((prev) => !prev)}
                                     className="h-9 w-9 rounded-xl border border-[var(--border-color)] bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] text-[var(--text-primary)] flex items-center justify-center transition-colors cursor-pointer shadow-xs"
                                 >
-                                    <MoreVertical className="w-4 h-4 text-[var(--text-muted)]" />
+                                    <Icons.MoreVertical className="w-4 h-4 text-[var(--text-muted)]" />
                                 </button>
                             </Tooltip>
 
@@ -336,14 +592,13 @@ export const LibraryHub: React.FC = () => {
                                 isOpen={isHeaderMenuOpen}
                                 onClose={() => setIsHeaderMenuOpen(false)}
                                 align="right"
-                                className="w-48 z-50 shadow-2xl"
                             >
                                 <div className="px-2.5 py-1 text-[10px] font-mono text-[var(--text-muted)] uppercase border-b border-[var(--border-color)]/50">
                                     View Layout
                                 </div>
                                 <ActionDropdownItem
                                     active={viewMode === 'grid'}
-                                    icon={<LayoutGrid className="w-3.5 h-3.5" />}
+                                    icon={<Icons.LayoutGrid className="w-4 h-4" size={16} />}
                                     onClick={() => {
                                         setViewMode('grid');
                                         setIsHeaderMenuOpen(false);
@@ -353,7 +608,7 @@ export const LibraryHub: React.FC = () => {
                                 </ActionDropdownItem>
                                 <ActionDropdownItem
                                     active={viewMode === 'list'}
-                                    icon={<List className="w-3.5 h-3.5" />}
+                                    icon={<Icons.List className="w-4 h-4" size={16} />}
                                     onClick={() => {
                                         setViewMode('list');
                                         setIsHeaderMenuOpen(false);
@@ -376,7 +631,7 @@ export const LibraryHub: React.FC = () => {
                                     <ActionDropdownItem
                                         key={opt.id}
                                         active={sortOption === opt.id}
-                                        icon={<ArrowUpDown className="w-3 h-3 text-[var(--accent-color)]" />}
+                                        icon={<Icons.ArrowUpDown className="w-3 h-3 text-[var(--accent-color)]" />}
                                         onClick={() => {
                                             setSortOption(opt.id);
                                             setIsHeaderMenuOpen(false);
@@ -395,34 +650,21 @@ export const LibraryHub: React.FC = () => {
                     <div className="flex items-center p-1 rounded-xl border border-[var(--border-color)] bg-[var(--bg-secondary)] shadow-xs">
                         {(
                             [
-                                { id: 'all', label: 'All', count: counts.all },
-                                { id: 'media', label: 'Media', count: counts.media },
-                                { id: 'files', label: 'Files', count: counts.files }
+                                { id: 'all', label: 'All', count: counts.all, icon: Icons.Layers },
+                                { id: 'media', label: 'Media', count: counts.media, icon: Icons.Image },
+                                { id: 'files', label: 'Files', count: counts.files, icon: Icons.FileText }
                             ] as const
-                        ).map((tab) => {
-                            const isActive = activeCategory === tab.id;
-                            return (
-                                <button
-                                    key={tab.id}
-                                    type="button"
-                                    onClick={() => setActiveCategory(tab.id as LibraryCategory)}
-                                    className={`px-3 sm:px-4 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-2 cursor-pointer ${isActive
-                                        ? 'bg-[var(--accent-color)] text-[var(--accent-contrast,#ffffff)] shadow-sm font-bold'
-                                        : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]'
-                                        }`}
-                                >
-                                    <span>{tab.label}</span>
-                                    <span
-                                        className={`text-[9.5px] font-mono px-1.5 py-0.2 rounded-full font-bold ${isActive
-                                            ? 'bg-black/25 text-[var(--accent-contrast,#ffffff)]'
-                                            : 'bg-[var(--bg-tertiary)] text-[var(--text-muted)] border border-[var(--border-color)]/60'
-                                            }`}
-                                    >
-                                        {tab.count}
-                                    </span>
-                                </button>
-                            );
-                        })}
+                        ).map((tab) => (
+                            <CategoryTabButton
+                                key={tab.id}
+                                id={tab.id as LibraryCategory}
+                                label={tab.label}
+                                count={tab.count}
+                                icon={tab.icon}
+                                isActive={activeCategory === tab.id}
+                                onClick={() => setActiveCategory(tab.id as LibraryCategory)}
+                            />
+                        ))}
                     </div>
 
                     <div className="text-xs text-[var(--text-muted)] font-mono shrink-0 hidden sm:block">
@@ -434,8 +676,8 @@ export const LibraryHub: React.FC = () => {
                 <div className="flex-1 overflow-y-auto p-6">
                     {assets.length === 0 ? (
                         <div className="flex flex-col items-center justify-center h-full min-h-[380px] text-center p-8">
-                            <div className="w-16 h-16 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-color)] flex items-center justify-center text-[var(--text-muted)] mb-4 shadow-sm">
-                                <FolderArchive className="w-8 h-8 opacity-60" />
+                            <div className="w-16 h-16 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-color)] flex items-center justify-center text-[var(--accent-color)] mb-4 shadow-sm">
+                                <Icons.FolderArchive className="w-8 h-8 opacity-80" />
                             </div>
                             <h2 className="text-base font-extrabold text-[var(--text-primary)] mb-1">
                                 {searchQuery ? 'No matching assets found' : 'Your Library is empty'}
@@ -469,183 +711,37 @@ export const LibraryHub: React.FC = () => {
                             className="grid gap-4"
                             style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))' }}
                         >
-                            {assets.map((asset) => {
-                                const isMedia = asset.category === 'media' && Boolean(asset.previewUrl);
-                                const usages = asset.usages || [];
-                                const hasMultipleUsages = usages.length > 1;
-                                const hasSingleUsage = usages.length === 1;
-                                const primaryUsage = usages[0];
-                                const isChatDropdownOpen = openChatDropdownAssetId === asset.id;
-                                const isActionDropdownOpen = openActionDropdownAssetId === asset.id;
-
-                                return (
-                                    <div
-                                        key={asset.id}
-                                        className={`group rounded-2xl border border-[var(--border-color)] bg-[var(--bg-secondary)] hover:border-[var(--accent-color)]/60 hover:shadow-xl transition-all duration-200 flex flex-col justify-between relative ${
-                                            isActionDropdownOpen ? 'z-50' : 'z-0'
-                                        }`}
-                                    >
-                                        {/* Top Glass 3-dots Action Menu (Placed outside overflow-hidden thumbnail to avoid clipping) */}
-                                        <div className="absolute top-2 right-2 z-30">
-                                            <button
-                                                type="button"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    setOpenActionDropdownAssetId(isActionDropdownOpen ? null : asset.id);
-                                                }}
-                                                className="p-1 rounded-lg backdrop-blur-md bg-black/60 hover:bg-black/85 text-white/90 border border-white/15 shadow-xs transition-colors cursor-pointer"
-                                                title="More options"
-                                            >
-                                                <MoreVertical className="w-3.5 h-3.5" />
-                                            </button>
-
-                                            <ActionDropdown
-                                                isOpen={isActionDropdownOpen}
-                                                onClose={() => setOpenActionDropdownAssetId(null)}
-                                                align="right"
-                                                className="w-48 z-50 shadow-2xl"
-                                            >
-                                                <ActionDropdownItem
-                                                    icon={<Eye className="w-3.5 h-3.5 text-[var(--accent-color)]" />}
-                                                    onClick={() => {
-                                                        setPreviewModalAsset(asset);
-                                                        setOpenActionDropdownAssetId(null);
-                                                    }}
-                                                >
-                                                    Preview
-                                                </ActionDropdownItem>
-
-                                                <ActionDropdownItem
-                                                    icon={<ExternalLink className="w-3.5 h-3.5 text-[var(--text-muted)]" />}
-                                                    onClick={() => {
-                                                        handleOpenInWorkspace(asset);
-                                                        setOpenActionDropdownAssetId(null);
-                                                    }}
-                                                >
-                                                    Open in Workspace
-                                                </ActionDropdownItem>
-
-                                                {asset.previewUrl && (
-                                                    <ActionDropdownItem
-                                                        icon={<Download className="w-3.5 h-3.5 text-[var(--text-muted)]" />}
-                                                        onClick={() => {
-                                                            handleDownload(asset);
-                                                            setOpenActionDropdownAssetId(null);
-                                                        }}
-                                                    >
-                                                        Download
-                                                    </ActionDropdownItem>
-                                                )}
-
-                                                {hasSingleUsage && primaryUsage ? (
-                                                    <ActionDropdownItem
-                                                        icon={<MessageSquare className="w-3.5 h-3.5 text-[var(--accent-color)]" />}
-                                                        onClick={() => {
-                                                            handleJumpToChat(primaryUsage.sessionId);
-                                                            setOpenActionDropdownAssetId(null);
-                                                        }}
-                                                    >
-                                                        <span className="truncate">View in Chat ({primaryUsage.sessionTitle})</span>
-                                                    </ActionDropdownItem>
-                                                ) : hasMultipleUsages ? (
-                                                    <>
-                                                        <div className="px-2.5 py-1 text-[10px] font-mono text-[var(--text-muted)] uppercase border-t border-[var(--border-color)]/50 mt-1">
-                                                            Referenced Chats ({usages.length})
-                                                        </div>
-                                                        {usages.map((u, uIdx) => (
-                                                            <ActionDropdownItem
-                                                                key={`${u.sessionId}_${uIdx}`}
-                                                                icon={<MessageSquare className="w-3.5 h-3.5 text-[var(--accent-color)]" />}
-                                                                onClick={() => {
-                                                                    handleJumpToChat(u.sessionId);
-                                                                    setOpenActionDropdownAssetId(null);
-                                                                }}
-                                                            >
-                                                                <span className="truncate">{u.sessionTitle}</span>
-                                                            </ActionDropdownItem>
-                                                        ))}
-                                                    </>
-                                                ) : null}
-
-                                                <div className="border-t border-[var(--border-color)]/50 my-1" />
-
-                                                <ActionDropdownItem
-                                                    danger
-                                                    icon={<Trash2 className="w-3.5 h-3.5 text-red-400" />}
-                                                    onClick={() => {
-                                                        setAssetToDelete(asset);
-                                                        setOpenActionDropdownAssetId(null);
-                                                    }}
-                                                >
-                                                    Delete
-                                                </ActionDropdownItem>
-                                            </ActionDropdown>
-                                        </div>
-
-                                        {/* 1. Edge-to-Edge Thumbnail Preview: Click opens centered Modal preview */}
-                                        <div
-                                            className="relative w-full h-40 sm:h-44 rounded-t-2xl overflow-hidden bg-[var(--bg-tertiary)] flex items-center justify-center cursor-pointer group/thumb"
-                                            onClick={() => setPreviewModalAsset(asset)}
-                                            title="Click to preview"
-                                        >
-                                            {isMedia ? (
-                                                <img
-                                                    src={asset.previewUrl}
-                                                    alt={asset.name}
-                                                    className="w-full h-full object-cover group-hover/thumb:scale-105 transition-transform duration-300"
-                                                    onError={(e) => {
-                                                        (e.currentTarget as HTMLElement).style.display = 'none';
-                                                    }}
-                                                />
-                                            ) : (
-                                                <div className="flex flex-col items-center justify-center gap-2 p-3 text-center">
-                                                    <div className="drop-shadow-md group-hover/thumb:scale-110 transition-transform duration-200">
-                                                        <FileIcon
-                                                            fileName={asset.name}
-                                                            fileExtension={asset.extension || 'file'}
-                                                            size={44}
-                                                        />
-                                                    </div>
-                                                    <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--text-muted)] px-2 py-0.5 rounded-md bg-[var(--bg-primary)] border border-[var(--border-color)]">
-                                                        {asset.extension || 'FILE'}
-                                                    </span>
-                                                </div>
-                                            )}
-
-                                            {/* Top Glass Extension Tag */}
-                                            <div className="absolute top-2 left-2 z-10 pointer-events-none">
-                                                <span className="text-[9px] font-mono font-bold uppercase tracking-wider text-white backdrop-blur-md bg-black/60 px-1.5 py-0.5 rounded border border-white/15 shadow-xs">
-                                                    {asset.extension || (isMedia ? 'IMG' : 'DOC')}
-                                                </span>
-                                            </div>
-
-                                            {/* Bottom Glass Size Tag */}
-                                            <div className="absolute bottom-2 right-2 z-10 pointer-events-none">
-                                                <span className="text-[9px] font-mono text-white/90 backdrop-blur-md bg-black/60 px-1.5 py-0.5 rounded border border-white/15 shadow-xs">
-                                                    {formatBytes(asset.size)}
-                                                </span>
-                                            </div>
-                                        </div>
-
-                                        {/* 2. Compact Clean Metadata Container (Duplicate chat/workspace/delete removed) */}
-                                        <div className="p-3 flex flex-col gap-1.5 bg-[var(--bg-secondary)] rounded-b-2xl">
-                                            <div
-                                                className="text-xs font-bold text-[var(--text-primary)] truncate hover:text-[var(--accent-color)] transition-colors cursor-pointer"
-                                                onClick={() => setPreviewModalAsset(asset)}
-                                                title={asset.name}
-                                            >
-                                                {asset.name}
-                                            </div>
-                                            <div className="flex items-center justify-between text-[10px] text-[var(--text-muted)] font-mono">
-                                                <span>{formatDate(asset.latestTimestamp)}</span>
-                                                <span className="uppercase text-[9px] px-1.5 py-0.5 rounded bg-[var(--bg-tertiary)] text-[var(--text-secondary)] font-medium border border-[var(--border-color)]/50">
-                                                    {asset.category}
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                );
-                            })}
+                            {assets.map((asset) => (
+                                <AssetCard
+                                    key={asset.id}
+                                    asset={asset}
+                                    isActionDropdownOpen={openActionDropdownAssetId === asset.id}
+                                    onToggleActionDropdown={() =>
+                                        setOpenActionDropdownAssetId(openActionDropdownAssetId === asset.id ? null : asset.id)
+                                    }
+                                    onCloseActionDropdown={() => setOpenActionDropdownAssetId(null)}
+                                    onPreview={() => {
+                                        setPreviewModalAsset(asset);
+                                        setOpenActionDropdownAssetId(null);
+                                    }}
+                                    onOpenWorkspace={() => {
+                                        handleOpenInWorkspace(asset);
+                                        setOpenActionDropdownAssetId(null);
+                                    }}
+                                    onDownload={() => {
+                                        handleDownload(asset);
+                                        setOpenActionDropdownAssetId(null);
+                                    }}
+                                    onJumpToChat={(sessionId) => {
+                                        handleJumpToChat(sessionId);
+                                        setOpenActionDropdownAssetId(null);
+                                    }}
+                                    onDelete={() => {
+                                        setAssetToDelete(asset);
+                                        setOpenActionDropdownAssetId(null);
+                                    }}
+                                />
+                            ))}
                         </div>
                     ) : (
                         /* Modern List View */
@@ -740,22 +836,21 @@ export const LibraryHub: React.FC = () => {
                                                                     }
                                                                     className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-[var(--bg-tertiary)] hover:bg-[var(--accent-color)]/10 text-[var(--accent-color)] text-xs font-medium cursor-pointer"
                                                                 >
-                                                                    <Layers className="w-3.5 h-3.5 shrink-0" />
+                                                                    <Icons.Layers className="w-3.5 h-3.5 shrink-0" />
                                                                     <span>{usages.length} chats</span>
-                                                                    <ChevronDown className="w-3 h-3 opacity-60" />
+                                                                    <Icons.ChevronDown className="w-3 h-3 opacity-60" />
                                                                 </button>
 
                                                                 <ActionDropdown
                                                                     isOpen={isChatDropdownOpen}
                                                                     onClose={() => setOpenChatDropdownAssetId(null)}
                                                                     align="left"
-                                                                    className="w-56 z-50 shadow-2xl bg-[var(--bg-secondary)]"
                                                                 >
                                                                     {usages.map((u, uIdx) => (
                                                                         <ActionDropdownItem
                                                                             key={`${u.sessionId}_${uIdx}`}
                                                                             icon={
-                                                                                <MessageSquare className="w-3.5 h-3.5 text-[var(--accent-color)]" />
+                                                                                <Icons.MessageSquare className="w-3.5 h-3.5" />
                                                                             }
                                                                             onClick={() => handleJumpToChat(u.sessionId)}
                                                                         >
@@ -771,14 +866,14 @@ export const LibraryHub: React.FC = () => {
                                                                 className="flex items-center gap-1.5 text-xs text-[var(--text-primary)] hover:text-[var(--accent-color)] transition-colors cursor-pointer truncate max-w-[200px]"
                                                                 title={`Switch to ${primaryUsage.sessionTitle}`}
                                                             >
-                                                                <MessageSquare className="w-3.5 h-3.5 text-[var(--accent-color)] shrink-0" />
+                                                                <Icons.MessageSquare className="w-3.5 h-3.5 text-[var(--accent-color)] shrink-0" />
                                                                 <span className="truncate">
                                                                     {primaryUsage.sessionTitle}
                                                                 </span>
                                                             </button>
                                                         ) : (
                                                             <div className="flex items-center gap-1 text-[11px] text-[var(--text-muted)] opacity-60">
-                                                                <MessageSquare className="w-3 h-3 shrink-0 opacity-40" />
+                                                                <Icons.MessageSquare className="w-3 h-3 shrink-0 opacity-40" />
                                                                 <span>No chat</span>
                                                             </div>
                                                         )}
@@ -792,99 +887,33 @@ export const LibraryHub: React.FC = () => {
 
                                                 {/* 6. Action 3-dots Menu */}
                                                 <td className="py-3 px-4 text-right">
-                                                    <div className="relative inline-block text-left">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => setOpenActionDropdownAssetId(isActionDropdownOpen ? null : asset.id)}
-                                                            className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-colors cursor-pointer"
-                                                            title="More options"
-                                                        >
-                                                            <MoreVertical className="w-4 h-4" />
-                                                        </button>
-
-                                                        <ActionDropdown
-                                                            isOpen={isActionDropdownOpen}
-                                                            onClose={() => setOpenActionDropdownAssetId(null)}
-                                                            align="right"
-                                                            className="w-48 z-50 shadow-2xl"
-                                                        >
-                                                            <ActionDropdownItem
-                                                                icon={<Eye className="w-3.5 h-3.5 text-[var(--accent-color)]" />}
-                                                                onClick={() => {
-                                                                    setPreviewModalAsset(asset);
-                                                                    setOpenActionDropdownAssetId(null);
-                                                                }}
-                                                            >
-                                                                Preview
-                                                            </ActionDropdownItem>
-
-                                                            <ActionDropdownItem
-                                                                icon={<ExternalLink className="w-3.5 h-3.5 text-[var(--text-muted)]" />}
-                                                                onClick={() => {
-                                                                    handleOpenInWorkspace(asset);
-                                                                    setOpenActionDropdownAssetId(null);
-                                                                }}
-                                                            >
-                                                                Open in Workspace
-                                                            </ActionDropdownItem>
-
-                                                            {asset.previewUrl && (
-                                                                <ActionDropdownItem
-                                                                    icon={<Download className="w-3.5 h-3.5 text-[var(--text-muted)]" />}
-                                                                    onClick={() => {
-                                                                        handleDownload(asset);
-                                                                        setOpenActionDropdownAssetId(null);
-                                                                    }}
-                                                                >
-                                                                    Download
-                                                                </ActionDropdownItem>
-                                                            )}
-
-                                                            {/* View in Chat option */}
-                                                            {hasSingleUsage && primaryUsage ? (
-                                                                <ActionDropdownItem
-                                                                    icon={<MessageSquare className="w-3.5 h-3.5 text-[var(--accent-color)]" />}
-                                                                    onClick={() => {
-                                                                        handleJumpToChat(primaryUsage.sessionId);
-                                                                        setOpenActionDropdownAssetId(null);
-                                                                    }}
-                                                                >
-                                                                    <span className="truncate">View in Chat ({primaryUsage.sessionTitle})</span>
-                                                                </ActionDropdownItem>
-                                                            ) : hasMultipleUsages ? (
-                                                                <>
-                                                                    <div className="px-2.5 py-1 text-[10px] font-mono text-[var(--text-muted)] uppercase border-t border-[var(--border-color)]/50 mt-1">
-                                                                        Referenced Chats ({usages.length})
-                                                                    </div>
-                                                                    {usages.map((u, uIdx) => (
-                                                                        <ActionDropdownItem
-                                                                            key={`${u.sessionId}_${uIdx}`}
-                                                                            icon={<MessageSquare className="w-3.5 h-3.5 text-[var(--accent-color)]" />}
-                                                                            onClick={() => {
-                                                                                handleJumpToChat(u.sessionId);
-                                                                                setOpenActionDropdownAssetId(null);
-                                                                            }}
-                                                                        >
-                                                                            <span className="truncate">{u.sessionTitle}</span>
-                                                                        </ActionDropdownItem>
-                                                                    ))}
-                                                                </>
-                                                            ) : null}
-
-                                                            <div className="border-t border-[var(--border-color)]/50 my-1" />
-
-                                                            <ActionDropdownItem
-                                                                danger
-                                                                icon={<Trash2 className="w-3.5 h-3.5 text-red-400" />}
-                                                                onClick={() => {
-                                                                    setAssetToDelete(asset);
-                                                                    setOpenActionDropdownAssetId(null);
-                                                                }}
-                                                            >
-                                                                Delete
-                                                            </ActionDropdownItem>
-                                                        </ActionDropdown>
-                                                    </div>
+                                                    <AssetActionMenu
+                                                        variant="default"
+                                                        asset={asset}
+                                                        isOpen={isActionDropdownOpen}
+                                                        onToggle={() => setOpenActionDropdownAssetId(isActionDropdownOpen ? null : asset.id)}
+                                                        onClose={() => setOpenActionDropdownAssetId(null)}
+                                                        onPreview={() => {
+                                                            setPreviewModalAsset(asset);
+                                                            setOpenActionDropdownAssetId(null);
+                                                        }}
+                                                        onOpenWorkspace={() => {
+                                                            handleOpenInWorkspace(asset);
+                                                            setOpenActionDropdownAssetId(null);
+                                                        }}
+                                                        onDownload={() => {
+                                                            handleDownload(asset);
+                                                            setOpenActionDropdownAssetId(null);
+                                                        }}
+                                                        onJumpToChat={(sessionId) => {
+                                                            handleJumpToChat(sessionId);
+                                                            setOpenActionDropdownAssetId(null);
+                                                        }}
+                                                        onDelete={() => {
+                                                            setAssetToDelete(asset);
+                                                            setOpenActionDropdownAssetId(null);
+                                                        }}
+                                                    />
                                                 </td>
                                             </tr>
                                         );
@@ -905,11 +934,12 @@ export const LibraryHub: React.FC = () => {
                             setIsDragging(true);
                         }}
                         centerAction={{
-                            icon: <ArrowLeftRight className="w-3.5 h-3.5" />,
+                            icon: <Icons.ArrowLeftRight className="w-3.5 h-3.5" />,
                             tooltip: splitReversed ? "Swap Layout (Library on Left)" : "Swap Layout (Library on Right)",
                             onClick: () => toggleSplitReversed()
                         }}
                     />
+
 
                     <div
                         style={{ width: `${100 - splitPaneWidth}%` }}

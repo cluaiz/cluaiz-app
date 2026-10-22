@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useApiStore } from '../../../store/api/useApiStore';
 import { ApiEndpoint, HttpMethod } from '../types';
 import { Search, ChevronDown, ChevronRight, X, Layers } from 'lucide-react';
+import { Input } from '../../../components/ui/Input';
 
 export const ApiSidebar: React.FC = () => {
     const {
@@ -62,25 +63,23 @@ export const ApiSidebar: React.FC = () => {
         <div className="flex flex-col h-full w-full bg-transparent select-none">
             {/* Search Bar */}
             <div className="px-4 py-2 border-b border-[var(--border-color)]" style={{ borderStyle: 'var(--border-style)' }}>
-                <div className="relative flex items-center">
-                    <Search className="w-3.5 h-3.5 absolute left-2.5 text-[var(--text-muted)] pointer-events-none" />
-                    <input
-                        type="text"
-                        placeholder="Search endpoints..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full pl-8 pr-7 py-1.5 text-xs rounded-lg bg-[var(--bg-primary)] border border-[var(--border-color)] text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-[var(--accent-color)] transition-colors"
-                    />
-                    {searchQuery && (
+                <Input
+                    placeholder="Search endpoints..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    sizeVariant="sm"
+                    leftIcon={<Search className="w-3.5 h-3.5" />}
+                    rightElement={searchQuery ? (
                         <button
                             type="button"
                             onClick={() => setSearchQuery('')}
-                            className="absolute right-2 text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
+                            className="text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
+                            title="Clear search"
                         >
                             <X className="w-3.5 h-3.5" />
                         </button>
-                    )}
-                </div>
+                    ) : undefined}
+                />
             </div>
 
             {/* Endpoints List */}

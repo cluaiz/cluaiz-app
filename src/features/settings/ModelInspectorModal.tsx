@@ -4,6 +4,8 @@ import { X, Download, RefreshCw, Copy, Check, Search, Zap, FileCode, MessageSqua
 import { InstalledModelDetail } from '../../store/engine/useEngineStore';
 import { useConnectionStore } from '../../store/engine/useConnectionStore';
 import { modelsApi, componentsApi } from '../../api';
+import { Input } from '../../components/ui/Input';
+import { Button } from '../../components/ui/Button';
 
 interface ModelInspectorModalProps {
     isOpen: boolean;
@@ -313,36 +315,39 @@ export function ModelInspectorModal({ isOpen, model, onClose }: ModelInspectorMo
                         {/* Right Actions: Reload, Copy, Export */}
                         <div className="flex items-center gap-2 shrink-0 flex-nowrap">
                             {activeTab === 'raw_header' && (
-                                <button
+                                <Button
                                     type="button"
+                                    variant="secondary"
+                                    size="sm"
                                     onClick={fetchRawHeader}
                                     disabled={isLoading}
-                                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[var(--bg-tertiary)] text-[var(--text-primary)] border border-[var(--border-color)] text-xs font-medium hover:bg-[var(--border-color)] cursor-pointer whitespace-nowrap"
                                     title="Reload Header"
                                 >
                                     <RefreshCw size={12} className={isLoading ? 'animate-spin' : ''} />
                                     <span>Reload</span>
-                                </button>
+                                </Button>
                             )}
 
-                            <button
+                            <Button
                                 type="button"
+                                variant="secondary"
+                                size="sm"
                                 onClick={handleCopy}
-                                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-xs text-[var(--text-primary)] hover:bg-[var(--border-color)] cursor-pointer whitespace-nowrap"
                                 title="Copy JSON"
                             >
                                 {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
                                 <span>{copied ? 'Copied' : 'Copy'}</span>
-                            </button>
+                            </Button>
 
-                            <button
+                            <Button
                                 type="button"
+                                variant="default"
+                                size="sm"
                                 onClick={handleExport}
-                                className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[var(--accent-color)]/15 text-[var(--accent-color)] border border-[var(--accent-color)]/30 text-xs font-semibold hover:bg-[var(--accent-color)]/25 cursor-pointer whitespace-nowrap"
                             >
                                 <Download size={12} />
                                 <span>Export</span>
-                            </button>
+                            </Button>
                         </div>
                     </div>
 
@@ -354,7 +359,7 @@ export function ModelInspectorModal({ isOpen, model, onClose }: ModelInspectorMo
                                 {activeTab === 'raw_header' && (
                                     <>
                                         Zero-load Binary Parse — Raw{' '}
-                                        <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold border bg-[var(--bg-tertiary)] text-[var(--text-primary)] border-[var(--border-color)]">
+                                        <span className="px-1.5 py-0.5 rounded-[var(--radius-badge)] text-[10px] font-mono font-bold border bg-[var(--bg-tertiary)] text-[var(--text-primary)] border-[var(--border-color)]">
                                             {model.format_type?.toUpperCase()}
                                         </span>{' '}
                                         header read directly from local storage
@@ -366,20 +371,24 @@ export function ModelInspectorModal({ isOpen, model, onClose }: ModelInspectorMo
                             </span>
                         </div>
 
-                        <div className="flex items-center gap-2 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-lg px-2 py-1 w-64">
-                            <Search size={12} className="text-[var(--text-muted)]" />
-                            <input
-                                type="text"
+                        <div className="w-64">
+                            <Input
                                 placeholder="Search in view..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                className="bg-transparent border-none outline-none text-xs text-[var(--text-primary)] font-mono w-full"
+                                sizeVariant="sm"
+                                leftIcon={<Search size={12} />}
+                                rightElement={searchQuery ? (
+                                    <button
+                                        type="button"
+                                        onClick={() => setSearchQuery('')}
+                                        className="text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
+                                        title="Clear search"
+                                    >
+                                        <X size={12} />
+                                    </button>
+                                ) : undefined}
                             />
-                            {searchQuery && (
-                                <button type="button" onClick={() => setSearchQuery('')} className="text-[var(--text-muted)] hover:text-[var(--text-primary)]">
-                                    <X size={12} />
-                                </button>
-                            )}
                         </div>
                     </div>
 

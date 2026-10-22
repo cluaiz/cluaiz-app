@@ -16,6 +16,7 @@ import { FileTreeNode, ProjectFile } from '../types';
 import { FileTreeContextMenu, FileTreeContextTarget } from './FileTreeContextMenu';
 import { resolveDiskPath } from '../../../utils/mediaResolver';
 import { useProjectStore } from '../../../store/workspace/useProjectStore';
+import { Input } from '../../../components/ui/Input';
 
 interface WorkspaceFileTreeProps {
     files: Record<string, ProjectFile>;
@@ -672,38 +673,40 @@ export const WorkspaceFileTree: React.FC<WorkspaceFileTreeProps> = ({
             {/* Global Workspace Search Bar */}
             {isSearchOpen && (
                 <div className="p-2 border-b border-[var(--border-color)]/60 bg-[var(--bg-secondary)] flex flex-col gap-1.5 flex-shrink-0">
-                    <div className="flex items-center gap-1 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded px-2 py-1 focus-within:border-[var(--accent-color)] transition-colors">
-                        <Search className="w-3 h-3 text-[var(--text-muted)] flex-shrink-0" />
-                        <input
-                            type="text"
-                            autoFocus
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            placeholder="Search across files..."
-                            className="bg-transparent text-xs text-[var(--text-primary)] outline-none w-full font-mono placeholder:text-[var(--text-muted)]"
-                        />
-                        {searchQuery && (
-                            <button
-                                type="button"
-                                onClick={() => setSearchQuery('')}
-                                className="p-0.5 text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-                            >
-                                <X className="w-2.5 h-2.5" />
-                            </button>
-                        )}
-                        <button
-                            type="button"
-                            onClick={() => setIsCaseSensitive(prev => !prev)}
-                            title="Match Case"
-                            className={`p-0.5 rounded text-[10px] font-bold ${
-                                isCaseSensitive 
-                                    ? 'text-[var(--accent-color)] bg-[var(--accent-color)]/10' 
-                                    : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-                            }`}
-                        >
-                            <CaseSensitive className="w-3.5 h-3.5" />
-                        </button>
-                    </div>
+                    <Input
+                        autoFocus
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder="Search across files..."
+                        sizeVariant="sm"
+                        leftIcon={<Search className="w-3 h-3 text-[var(--text-muted)] shrink-0" />}
+                        rightElement={
+                            <div className="flex items-center gap-1">
+                                {searchQuery && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setSearchQuery('')}
+                                        className="p-0.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
+                                        title="Clear search"
+                                    >
+                                        <X className="w-2.5 h-2.5" />
+                                    </button>
+                                )}
+                                <button
+                                    type="button"
+                                    onClick={() => setIsCaseSensitive(prev => !prev)}
+                                    title="Match Case"
+                                    className={`p-0.5 rounded-[var(--radius-btn)] text-[10px] font-bold ${
+                                        isCaseSensitive 
+                                            ? 'text-[var(--accent-color)] bg-[var(--accent-color)]/10' 
+                                            : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                                    }`}
+                                >
+                                    <CaseSensitive className="w-3.5 h-3.5" />
+                                </button>
+                            </div>
+                        }
+                    />
 
                     {searchQuery.trim() && (
                         <div className="text-[10px] text-[var(--text-muted)] font-mono px-0.5">

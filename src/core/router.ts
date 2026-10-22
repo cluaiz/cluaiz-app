@@ -33,7 +33,7 @@ export const VALID_SETTINGS_TABS: SettingsTabId[] = [
     'help'
 ];
 
-export type MainViewId = 'chat' | 'notebook' | 'settings' | 'dashboard' | 'tools' | 'apis' | 'toolkit' | 'library';
+export type MainViewId = 'chat' | 'notebook' | 'settings' | 'tools' | 'apis' | 'toolkit' | 'library' | 'components';
 
 export interface RouteState {
     view: MainViewId;
@@ -112,8 +112,6 @@ export function parseCurrentRoute(): RouteState {
     let view: MainViewId = 'chat';
     if (pathname.includes('/notebook') || hash.includes('/notebook')) {
         view = 'notebook';
-    } else if (pathname.includes('/dashboard') || hash.includes('/dashboard')) {
-        view = 'dashboard';
     } else if (pathname.includes('/tools')) {
         view = 'tools';
     } else if (pathname.includes('/apis')) {

@@ -13,7 +13,7 @@ function cn(...classes: (string | boolean | undefined | null)[]) {
 export const SettingSection = ({ title, children }: { title: string, children: React.ReactNode }) => (
     <div className="space-y-3">
         <h3 className="text-[10px] font-black text-[var(--text-muted)] uppercase tracking-[0.3em] ml-4">{title}</h3>
-        <div className="bg-[var(--bg-secondary)]/60 border border-[var(--border-color)] rounded-2xl">
+        <div className="bg-[var(--bg-secondary)]/60 border border-[var(--border-color)] rounded-2xl overflow-hidden">
             {children}
         </div>
     </div>
@@ -39,6 +39,7 @@ interface SettingItemProps {
     onClick?: () => void;
     allowCustomInput?: boolean;
     customInputPlaceholder?: string;
+    previewFont?: boolean;
 }
 
 export const SettingItem = ({
@@ -58,7 +59,8 @@ export const SettingItem = ({
     onChange,
     children,
     allowCustomInput,
-    customInputPlaceholder
+    customInputPlaceholder,
+    previewFont = false
 }: SettingItemProps) => {
     const isBlocked = disabled || loading;
     const handleClick = (e: React.MouseEvent) => {
@@ -77,7 +79,7 @@ export const SettingItem = ({
         <div
             onClick={handleClick}
             className={cn(
-                "flex items-center justify-between p-6 hover:bg-[var(--text-primary)]/5 transition-all group border-b border-[var(--border-color)] last:border-none relative",
+                "flex items-center justify-between p-6 hover:bg-[var(--text-primary)]/5 transition-all group border-b border-[var(--border-color)] last:border-none relative first:rounded-t-2xl last:rounded-b-2xl",
                 (toggle || onClick || action) && !isBlocked ? "cursor-pointer" : "cursor-default",
                 isBlocked && "opacity-75 cursor-not-allowed"
             )}
@@ -123,6 +125,8 @@ export const SettingItem = ({
                             className="w-full"
                             loading={loading}
                             disabled={disabled}
+                            floating={true}
+                            previewFont={previewFont}
                         />
                     </div>
                 ) : action ? (
@@ -141,18 +145,44 @@ export const SettingItem = ({
     );
 };
 
-export const ThemeCard = ({ label, emoji = "👾", active = false, onClick }: { label: string, emoji?: string, active?: boolean, onClick?: () => void }) => (
+export const ThemeCard = ({
+    label,
+    icon,
+    emoji,
+    active = false,
+    onClick
+}: {
+    label: string;
+    icon?: React.ReactNode;
+    emoji?: string;
+    active?: boolean;
+    onClick?: () => void;
+}) => (
     <div 
         onClick={onClick}
         className={cn(
-            "flex-1 p-6 bg-[var(--bg-secondary)]/40 border rounded-3xl cursor-pointer transition-all flex flex-col items-center gap-4 group",
-            active ? "border-[var(--accent-color)] bg-[var(--accent-color)]/5" : "border-[var(--border-color)] hover:border-[var(--accent-color)]/30"
+            "flex-1 p-5 bg-[var(--bg-secondary)]/50 border rounded-xl cursor-pointer transition-all flex flex-col items-center gap-3 group relative overflow-hidden select-none",
+            active
+                ? "border-[var(--accent-color)] bg-[var(--accent-color)]/10 shadow-sm"
+                : "border-[var(--border-color)] hover:border-[var(--accent-color)]/40 hover:bg-[var(--bg-secondary)]/70"
         )}
     >
-        <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center bg-black/10 dark:bg-black/40", active ? "text-[var(--accent-color)]" : "text-[var(--text-muted)] group-hover:text-[var(--text-secondary)]")}>
-            <span className="text-lg">{emoji}</span>
+        <div className={cn(
+            "w-10 h-10 rounded-lg flex items-center justify-center transition-colors",
+            active
+                ? "bg-[var(--accent-color)]/15 text-[var(--accent-color)]"
+                : "bg-[var(--bg-tertiary)] text-[var(--text-muted)] group-hover:text-[var(--text-primary)]"
+        )}>
+            {icon ? icon : <span className="text-base">{emoji || "🎨"}</span>}
         </div>
-        <span className={cn("text-[9px] font-black uppercase tracking-widest text-center", active ? "text-[var(--accent-color)]" : "text-[var(--text-muted)] group-hover:text-[var(--text-secondary)]")}>{label}</span>
+        <span className={cn(
+            "text-[10px] font-bold uppercase tracking-wider text-center transition-colors truncate w-full",
+            active
+                ? "text-[var(--accent-color)]"
+                : "text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]"
+        )}>
+            {label}
+        </span>
     </div>
 );
 
