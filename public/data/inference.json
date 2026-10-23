@@ -186,6 +186,13 @@
           "default": true
         },
         {
+          "name": "kv_reuse",
+          "type": "string",
+          "req": false,
+          "desc": "KV matching: 'prefix' keeps only the common prefix; 'chunk' also moves shared chunks (llama-server --cache-reuse). Default: chunk only when the Engine dropped old turns to fit.",
+          "default": null
+        },
+        {
           "name": "grammar",
           "type": "string",
           "req": false,
