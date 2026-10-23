@@ -73,7 +73,7 @@
     {
       "method": "DELETE",
       "path": "/v1/skills/remove",
-      "desc": "Removes a WASM skill natively from the Engine.",
+      "desc": "Uninstalls a skill. Returns 400 for an invalid name, 404 when it is not installed, 500 when removal fails.",
       "docs_url": "/docs/reference/api.md",
       "params": [
         {
@@ -127,7 +127,7 @@
     {
       "method": "DELETE",
       "path": "/v1/skills/cache",
-      "desc": "Wipes the skill cache clean.",
+      "desc": "Removes files from every installed skill's .cache folder. Installed skills are kept.",
       "docs_url": "/docs/reference/api.md",
       "params": [],
       "request_payload": "{}",

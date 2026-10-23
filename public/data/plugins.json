@@ -73,7 +73,7 @@
     {
       "method": "DELETE",
       "path": "/v1/plugins/remove",
-      "desc": "Removes a native plugin from the Engine.",
+      "desc": "Uninstalls a plugin. Returns 400 for an invalid name, 404 when it is not installed, 500 when removal fails.",
       "docs_url": "/docs/reference/api.md",
       "params": [
         {
@@ -142,7 +142,7 @@
     {
       "method": "DELETE",
       "path": "/v1/plugins/cache",
-      "desc": "Clears plugin caches.",
+      "desc": "Removes files from the .cache folder of one plugin (plugin_name) or of all (\"all\"). Installed plugins are kept. 404 when a named plugin is not installed.",
       "docs_url": "/docs/reference/api.md",
       "params": [
         {

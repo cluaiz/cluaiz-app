@@ -760,6 +760,70 @@
           "code": "import os\nimport requests\nresponse = requests.get(\"http://127.0.0.1:8000/v1/audio/voices\",\n    headers={\"Authorization\": \"Bearer \" + os.environ[\"CLUAIZ_TOKEN\"]},\n    params={\"model\": os.environ[\"CLUAIZ_MODEL\"]})\nresponse.raise_for_status()\nprint(response.json())"
         }
       ]
+    },
+    {
+      "method": "POST",
+      "path": "/v1/audio/execute",
+      "desc": "Shared speech task endpoint. A text input_source synthesizes speech (same engine path as /v1/audio/speech); an audio input_source is transcribed (same path as /v1/audio/transcriptions). task is optional and inferred from input_source.type; a task that does not match the input type returns 400.",
+      "docs_url": "/docs/api/inference/audio_speech.md",
+      "params": [
+        {
+          "name": "task",
+          "type": "string",
+          "req": false,
+          "desc": "text_to_speech or speech_to_text. Omit or auto to infer from input_source.type.",
+          "default": "text_to_speech"
+        },
+        {
+          "name": "model",
+          "type": "string",
+          "req": false,
+          "desc": "Installed TTS package for text input, or STT package for audio input. Defaults to the active slot or first eligible package.",
+          "default": "<installed-tts-model-id>"
+        },
+        {
+          "name": "input_source",
+          "type": "object",
+          "req": true,
+          "desc": "{ \"type\": \"text\", \"data\": \"...\" } for speech synthesis, or an audio type with a data URI / authorized local path / allowed URL for transcription.",
+          "default": null
+        },
+        {
+          "name": "parameters",
+          "type": "object",
+          "req": false,
+          "desc": "Task options such as speed, voice_id, language, languages, timestamps. Unsupported options for the selected task return 400.",
+          "default": null
+        },
+        {
+          "name": "stream",
+          "type": "boolean",
+          "req": false,
+          "desc": "Server-Sent Events output, as on the task-specific endpoint.",
+          "default": false
+        },
+        {
+          "name": "keep_alive",
+          "type": "integer",
+          "req": false,
+          "desc": "Retention in minutes after completion: positive values expire, 0 unloads, -1 retains.",
+          "default": 0
+        }
+      ],
+      "request_payload": "{\n  \"task\": \"text_to_speech\",\n  \"model\": \"<installed-tts-model-id>\",\n  \"input_source\": {\n    \"type\": \"text\",\n    \"data\": \"Hello! This is one complete narration.\"\n  },\n  \"parameters\": {\n    \"speed\": 1\n  },\n  \"stream\": false,\n  \"keep_alive\": 0\n}",
+      "response": "{\n  \"status\": \"success\",\n  \"task\": \"text_to_speech\",\n  \"model\": \"piper-en-us-ryan-medium\",\n  \"output\": {\n    \"audio_data\": \"data:audio/wav;base64,UklGRsYLAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQILAAA...\"\n  }\n}",
+      "examples": [
+        {
+          "language": "curl",
+          "title": "cURL (POSIX shell)",
+          "code": "curl --fail-with-body http://127.0.0.1:8000/v1/audio/execute \\n  -H \"Authorization: Bearer $CLUAIZ_TOKEN\" \\n  -H \"Content-Type: application/json\" \\n  --data-binary @request.json\n\n# Save the Body Payload as request.json first.\n# Replace the sample model ID with a real installed ID."
+        },
+        {
+          "language": "python",
+          "title": "Python (requests)",
+          "code": "import json\nimport os\nimport requests\n\npayload = json.loads(r'''{\n  \"task\": \"text_to_speech\",\n  \"model\": \"<installed-tts-model-id>\",\n  \"input_source\": {\n    \"type\": \"text\",\n    \"data\": \"Hello! This is one complete narration.\"\n  },\n  \"parameters\": {\n    \"speed\": 1\n  },\n  \"stream\": false,\n  \"keep_alive\": 0\n}''')\nres = requests.post(\n    'http://127.0.0.1:8000/v1/audio/execute',\n    headers={'Authorization': f\"Bearer {os.environ['CLUAIZ_TOKEN']}\"},\n    json=payload,\n    timeout=600,\n)\nres.raise_for_status()\nprint(res.json()['task'])"
+        }
+      ]
     }
   ]
 }

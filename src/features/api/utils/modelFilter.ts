@@ -78,6 +78,14 @@ export const getFilteredModelsForEndpoint = (
     if (p.includes('/audio/speech') || p.includes('/audio/voices') || p.includes('/tts')) {
         return installedModels.filter(isTtsModel);
     }
+    if (p.includes('/audio/execute')) {
+        // Text input synthesizes speech; audio input is transcribed.
+        let isText = true;
+        try {
+            isText = String(JSON.parse(body || '{}').input_source?.type ?? 'text').toLowerCase() === 'text';
+        } catch { /* Incomplete JSON. */ }
+        return installedModels.filter(isText ? isTtsModel : isSttModel);
+    }
     if (p.includes('/embedding')) {
         let hasParts = false;
         try {

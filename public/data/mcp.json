@@ -73,7 +73,7 @@
     {
       "method": "DELETE",
       "path": "/v1/mcp/remove",
-      "desc": "Removes an MCP server bridge natively.",
+      "desc": "Uninstalls an MCP server. Returns 400 for an invalid name, 404 when it is not installed, 500 when removal fails.",
       "docs_url": "/docs/reference/api.md",
       "params": [
         {
@@ -127,7 +127,7 @@
     {
       "method": "DELETE",
       "path": "/v1/mcp/cache",
-      "desc": "Clears MCP server caches.",
+      "desc": "Removes files from the .cache folder of one MCP server (mcp_name) or of all (\"all\"). Installed servers are kept. 404 when a named server is not installed.",
       "docs_url": "/docs/reference/api.md",
       "params": [
         {
