@@ -28,6 +28,33 @@
       ]
     },
     {
+      "method": "POST",
+      "path": "/v1/tools/discover",
+      "desc": "Dry run of tool suggestions: which installed, switched-on tools the Engine would suggest for a message, at which level (card or title) and why. Nothing is loaded or started.",
+      "docs_url": "/docs/api/inference/chat_completions.md",
+      "params": [
+        {
+          "name": "query",
+          "type": "string",
+          "req": true,
+          "desc": "The user message to match.",
+          "default": null
+        },
+        {
+          "name": "previous",
+          "type": "string",
+          "req": false,
+          "desc": "The user's previous message, used when the query is a short follow-up such as \"phir se\".",
+          "default": null
+        }
+      ],
+      "request_payload": "{\n  \"query\": \"notes.txt padho aur secret word batao\"\n}",
+      "response": "{\n  \"query\": \"notes.txt padho aur secret word batao\",\n  \"actionable\": true,\n  \"installed\": 10,\n  \"candidates\": [\n    {\n      \"id\": \"filesystem\",\n      \"level\": \"card\",\n      \"score\": 8.38,\n      \"matched\": [\n        \"read\",\n        \"file\"\n      ],\n      \"category\": \"mcp\",\n      \"summary\": \"Official Model Context Protocol secure file system bridge\",\n      \"load_cost_tokens\": 900\n    }\n  ]\n}",
+      "examples": {
+        "curl": "curl -X POST http://localhost:8000/v1/tools/discover \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\"query\": \"notes.txt padho\"}'"
+      }
+    },
+    {
       "method": "GET",
       "path": "/v1/chat/{session_id}/tools",
       "desc": "Returns all currently active tool bindings and their remaining turn limits for a specific chat session.",
