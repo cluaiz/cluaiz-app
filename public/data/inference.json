@@ -175,8 +175,15 @@
           "name": "tool_choice",
           "type": "string",
           "req": false,
-          "desc": "Tool invocation policy: 'auto', 'none', 'required', or specific tool name.",
+          "desc": "'none' gives the model no tools for this request; any other value lets the model decide.",
           "default": null
+        },
+        {
+          "name": "tool_search",
+          "type": "boolean",
+          "req": false,
+          "desc": "Offer installed, switched-on tools outside the prompt through the tool_search tool (loaded on demand). false leaves them out.",
+          "default": true
         },
         {
           "name": "grammar",
