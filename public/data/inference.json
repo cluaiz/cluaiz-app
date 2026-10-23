@@ -196,7 +196,7 @@
           "name": "context_policy",
           "type": "object",
           "req": false,
-          "desc": "Planner fields for this request only (recent_turns_min, evidence_cap_pct, suggestions_cap_pct, margin_pct, compact_at_pct); unknown or invalid ones are ignored.",
+          "desc": "Planner fields for this request only (recent_turns_min, evidence_cap_pct, suggestions_cap_pct, margin_pct, compact_at_pct, compact_to_pct); unknown or invalid ones are ignored.",
           "default": null
         },
         {
@@ -348,7 +348,7 @@
       "docs_url": "/docs/api/inference/context_runtime.md",
       "params": [],
       "request_payload": "",
-      "response": "{\n  \"settings\": {\n    \"recent_turns_min\": 2,\n    \"evidence_cap_pct\": 15,\n    \"suggestions_cap_pct\": 5,\n    \"margin_pct\": 2,\n    \"compact_at_pct\": 85\n  }\n}",
+      "response": "{\n  \"settings\": {\n    \"recent_turns_min\": 2,\n    \"evidence_cap_pct\": 15,\n    \"suggestions_cap_pct\": 5,\n    \"margin_pct\": 2,\n    \"compact_at_pct\": 85,\n    \"compact_to_pct\": 60\n  }\n}",
       "examples": [
         {
           "language": "curl",
@@ -397,10 +397,17 @@
           "req": false,
           "desc": "Compact the chat when its history uses this share of the room.",
           "default": 85
+        },
+        {
+          "name": "compact_to_pct",
+          "type": "integer",
+          "req": false,
+          "desc": "A compaction frees enough to bring the history down to this share of the room.",
+          "default": 60
         }
       ],
       "request_payload": "{\n  \"compact_at_pct\": 80\n}",
-      "response": "{\n  \"settings\": {\n    \"recent_turns_min\": 2,\n    \"evidence_cap_pct\": 15,\n    \"suggestions_cap_pct\": 5,\n    \"margin_pct\": 2,\n    \"compact_at_pct\": 80\n  }\n}",
+      "response": "{\n  \"settings\": {\n    \"recent_turns_min\": 2,\n    \"evidence_cap_pct\": 15,\n    \"suggestions_cap_pct\": 5,\n    \"margin_pct\": 2,\n    \"compact_at_pct\": 80,\n    \"compact_to_pct\": 60\n  }\n}",
       "examples": [
         {
           "language": "curl",
