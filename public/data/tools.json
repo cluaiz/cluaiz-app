@@ -57,9 +57,13 @@
       ],
       "request_payload": "{\n  \"query\": \"notes.txt padho aur secret word batao\"\n}",
       "response": "{\n  \"query\": \"notes.txt padho aur secret word batao\",\n  \"actionable\": true,\n  \"installed\": 10,\n  \"candidates\": [\n    {\n      \"id\": \"filesystem\",\n      \"level\": \"card\",\n      \"score\": 8.38,\n      \"matched\": [\n        \"read\",\n        \"file\"\n      ],\n      \"category\": \"mcp\",\n      \"summary\": \"Official Model Context Protocol secure file system bridge\",\n      \"load_cost_tokens\": 900\n    }\n  ]\n}",
-      "examples": {
-        "curl": "curl -X POST http://localhost:8000/v1/tools/discover \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\"query\": \"notes.txt padho\"}'"
-      }
+      "examples": [
+        {
+          "language": "curl",
+          "title": "cURL",
+          "code": "curl -X POST http://localhost:8000/v1/tools/discover \\\n  -H 'Authorization: Bearer <token>' \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"query\": \"notes.txt padho\"}'"
+        }
+      ]
     },
     {
       "method": "GET",

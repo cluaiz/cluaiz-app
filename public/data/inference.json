@@ -193,6 +193,13 @@
           "default": "recent"
         },
         {
+          "name": "context_policy",
+          "type": "object",
+          "req": false,
+          "desc": "Planner fields for this request only (recent_turns_min, evidence_cap_pct, suggestions_cap_pct, margin_pct, compact_at_pct); unknown or invalid ones are ignored.",
+          "default": null
+        },
+        {
           "name": "kv_reuse",
           "type": "string",
           "req": false,
@@ -331,6 +338,130 @@
           "language": "curl",
           "title": "cURL",
           "code": "curl http://localhost:8000/v1/chat/context_telemetry?model=default&session_id=default"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/v1/context/settings",
+      "desc": "The context planner's default policy.",
+      "docs_url": "/docs/api/inference/context_runtime.md",
+      "params": [],
+      "request_payload": "",
+      "response": "{\n  \"settings\": {\n    \"recent_turns_min\": 2,\n    \"evidence_cap_pct\": 15,\n    \"suggestions_cap_pct\": 5,\n    \"margin_pct\": 2,\n    \"compact_at_pct\": 85\n  }\n}",
+      "examples": [
+        {
+          "language": "curl",
+          "title": "cURL",
+          "code": "curl -X GET http://localhost:8000/v1/context/settings \\\n  -H 'Authorization: Bearer <token>'"
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/v1/context/settings",
+      "desc": "Changes fields of the planner's default policy. Unknown fields or invalid values give 400; settings.json is backed up before the first write of this section.",
+      "docs_url": "/docs/api/inference/context_runtime.md",
+      "params": [
+        {
+          "name": "recent_turns_min",
+          "type": "integer",
+          "req": false,
+          "desc": "Newest whole turns always kept and never compacted (at most 50).",
+          "default": 2
+        },
+        {
+          "name": "evidence_cap_pct",
+          "type": "integer",
+          "req": false,
+          "desc": "Most of the room recalled evidence may use.",
+          "default": 15
+        },
+        {
+          "name": "suggestions_cap_pct",
+          "type": "integer",
+          "req": false,
+          "desc": "Most of the room tool suggestions may use.",
+          "default": 5
+        },
+        {
+          "name": "margin_pct",
+          "type": "integer",
+          "req": false,
+          "desc": "Share of the context kept free for template tokens.",
+          "default": 2
+        },
+        {
+          "name": "compact_at_pct",
+          "type": "integer",
+          "req": false,
+          "desc": "Compact the chat when its history uses this share of the room.",
+          "default": 85
+        }
+      ],
+      "request_payload": "{\n  \"compact_at_pct\": 80\n}",
+      "response": "{\n  \"settings\": {\n    \"recent_turns_min\": 2,\n    \"evidence_cap_pct\": 15,\n    \"suggestions_cap_pct\": 5,\n    \"margin_pct\": 2,\n    \"compact_at_pct\": 80\n  }\n}",
+      "examples": [
+        {
+          "language": "curl",
+          "title": "cURL",
+          "code": "curl -X POST http://localhost:8000/v1/context/settings \\\n  -H 'Authorization: Bearer <token>' \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"compact_at_pct\": 80}'"
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/v1/chat/{session_id}/context/preview",
+      "desc": "The plan and tool choices a chat request would get, without generating, saving a compaction or changing the chat's tools.",
+      "docs_url": "/docs/api/inference/context_runtime.md",
+      "params": [
+        {
+          "name": "messages",
+          "type": "array",
+          "req": true,
+          "desc": "The chat request's messages (any chat request field may be sent).",
+          "default": null
+        }
+      ],
+      "request_payload": "{\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"What is 2+2?\"\n    }\n  ],\n  \"context_policy\": {\n    \"recent_turns_min\": 3\n  }\n}",
+      "response": "{\n  \"plan\": {\n    \"history_mode\": \"recent\",\n    \"n_ctx\": 6144,\n    \"available_tokens\": 5970,\n    \"used_tokens\": 0,\n    \"needs_compaction\": false\n  },\n  \"tools\": {\n    \"suggested\": []\n  }\n}",
+      "examples": [
+        {
+          "language": "curl",
+          "title": "cURL",
+          "code": "curl -X POST http://localhost:8000/v1/chat/my-chat/context/preview \\\n  -H 'Authorization: Bearer <token>' \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"messages\": [{\"role\": \"user\", \"content\": \"What is 2+2?\"}]}'"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/v1/chat/{session_id}/context/report",
+      "desc": "Ids of the chat's kept context reports (newest 20, in memory), newest last.",
+      "docs_url": "/docs/api/inference/context_runtime.md",
+      "params": [],
+      "request_payload": "",
+      "response": "{\n  \"chat_id\": \"my-chat\",\n  \"reports\": [\n    \"chatcmpl-2605d594014b4dd0affb9c4527c0912a\"\n  ]\n}",
+      "examples": [
+        {
+          "language": "curl",
+          "title": "cURL",
+          "code": "curl -X GET http://localhost:8000/v1/chat/my-chat/context/report \\\n  -H 'Authorization: Bearer <token>'"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/v1/chat/{session_id}/context/report/{request_id}",
+      "desc": "One kept context report (tools and plan) of the chat; 404 when it is not kept.",
+      "docs_url": "/docs/api/inference/context_runtime.md",
+      "params": [],
+      "request_payload": "",
+      "response": "{\n  \"chat_id\": \"my-chat\",\n  \"request_id\": \"chatcmpl-2605d594014b4dd0affb9c4527c0912a\",\n  \"context_report\": {\n    \"tools\": {},\n    \"plan\": {}\n  }\n}",
+      "examples": [
+        {
+          "language": "curl",
+          "title": "cURL",
+          "code": "curl -X GET http://localhost:8000/v1/chat/my-chat/context/report/chatcmpl-2605d594014b4dd0affb9c4527c0912a \\\n  -H 'Authorization: Bearer <token>'"
         }
       ]
     },
