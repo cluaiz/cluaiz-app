@@ -46,6 +46,13 @@
           "req": false,
           "desc": "The user's previous message, used when the query is a short follow-up such as \"phir se\".",
           "default": null
+        },
+        {
+          "name": "explain",
+          "type": "boolean",
+          "req": false,
+          "desc": "Also return `evidence` for every tool with any match: score, matched words, good, named, decisive.",
+          "default": false
         }
       ],
       "request_payload": "{\n  \"query\": \"notes.txt padho aur secret word batao\"\n}",
