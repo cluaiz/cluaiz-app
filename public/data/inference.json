@@ -182,7 +182,7 @@
           "name": "tool_search",
           "type": "boolean",
           "req": false,
-          "desc": "Offer installed, switched-on tools outside the prompt through the tool_search tool (loaded on demand). false leaves them out.",
+          "desc": "Suggest installed, switched-on tools that fit the message (short cards; the model loads one with load_tool). false leaves suggestions out.",
           "default": true
         },
         {
