@@ -216,7 +216,7 @@
     {
       "method": "POST",
       "path": "/models/load",
-      "desc": "Loads a downloaded model into VRAM/RAM for active inference.",
+      "desc": "Loads a downloaded model into VRAM/RAM for active inference. Returns 404 when the model is not installed and 500 when loading fails.",
       "docs_url": "/docs/api/models/load_model.md",
       "params": [
         { "name": "model_id", "type": "string", "req": true, "desc": "The local ID of the model.", "default": "llama-3-8b" },
@@ -281,7 +281,7 @@
     {
       "method": "DELETE",
       "path": "/v1/models/{model_id}",
-      "desc": "Deletes a model permanently from the local vault.",
+      "desc": "Deletes a model permanently from the local vault. Returns 404 when the model is not installed and 500 when it cannot be removed.",
       "docs_url": "/docs/api/models/list_models.md",
       "params": [
         { "name": "model_id", "type": "string", "req": true, "desc": "The ID of the model.", "default": "llama-3-8b" }

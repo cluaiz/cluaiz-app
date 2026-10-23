@@ -31,14 +31,14 @@ export const useToolsStore = create<UnifiedToolsState>((set) => ({
       const [skillsRes, pluginsRes, mcpRes, toolsRes] = await Promise.all([
         skillsApi.listSkills().catch(() => ({ skills: [] })),
         pluginsApi.listPlugins().catch(() => ({ plugins: [] })),
-        mcpApi.listMcp().catch(() => ({ mcp: [] })),
+        mcpApi.listMcp().catch(() => ({ mcp_servers: [] })),
         sessionToolsApi.getAllTools().catch(() => ({ tools: [] })),
       ]);
 
       set({
         skillsCount: (skillsRes.skills || []).length,
         pluginsCount: (pluginsRes.plugins || []).length,
-        mcpCount: (mcpRes.mcp || []).length,
+        mcpCount: (mcpRes.mcp_servers || []).length,
         sessionToolsCount: (toolsRes.tools || []).length,
         status: 'success',
       });

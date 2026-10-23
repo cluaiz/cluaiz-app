@@ -15,7 +15,7 @@ export interface McpServerItem {
 
 export interface McpListResponse {
   status: string;
-  mcp: string[] | McpServerItem[];
+  mcp_servers: string[] | McpServerItem[];
   [key: string]: unknown;
 }
 

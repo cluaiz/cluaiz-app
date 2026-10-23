@@ -24,7 +24,7 @@ export const useMcpStore = create<McpState>((set, get) => ({
     set({ status: 'pending', error: null });
     try {
       const res = await mcpApi.listMcp();
-      set({ mcpServers: res.mcp || [], status: 'success' });
+      set({ mcpServers: res.mcp_servers || [], status: 'success' });
     } catch (err) {
       set({ status: 'error', error: errorMessage(err) });
     }

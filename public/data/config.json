@@ -150,7 +150,7 @@
     {
       "method": "POST",
       "path": "/api/components/file",
-      "desc": "Updates or writes file contents for an installed component.",
+      "desc": "Updates or writes file contents for an installed component. Returns 400 for a missing field or invalid component_id, 404 when the component file does not exist, 500 when writing fails.",
       "docs_url": "/docs/reference/api.md",
       "params": [
         {
