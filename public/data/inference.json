@@ -186,6 +186,13 @@
           "default": true
         },
         {
+          "name": "history_mode",
+          "type": "string",
+          "req": false,
+          "desc": "'recent' (default): whole history; compaction first, then the oldest turns are dropped when it does not fit. 'none': only the system prompt and the current message.",
+          "default": "recent"
+        },
+        {
           "name": "kv_reuse",
           "type": "string",
           "req": false,
