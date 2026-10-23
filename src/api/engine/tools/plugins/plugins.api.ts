@@ -21,9 +21,12 @@ export const pluginsApi = {
    * POST /v1/plugins/install
    */
   installPlugin: async (pluginName: string): Promise<PluginActionResponse> => {
-    return client.post<PluginActionResponse>(PLUGINS_ENDPOINTS.INSTALL, {
-      plugin_name: pluginName,
-    });
+    return client.post<PluginActionResponse>(
+      PLUGINS_ENDPOINTS.INSTALL,
+      { plugin_name: pluginName },
+      // The engine answers after the download finishes, so no fixed timeout.
+      { timeoutMs: 0 }
+    );
   },
 
   /**

@@ -21,9 +21,12 @@ export const skillsApi = {
    * POST /v1/skills/install
    */
   installSkill: async (skillName: string): Promise<SkillActionResponse> => {
-    return client.post<SkillActionResponse>(SKILLS_ENDPOINTS.INSTALL, {
-      skill_name: skillName,
-    });
+    return client.post<SkillActionResponse>(
+      SKILLS_ENDPOINTS.INSTALL,
+      { skill_name: skillName },
+      // The engine answers after the download finishes, so no fixed timeout.
+      { timeoutMs: 0 }
+    );
   },
 
   /**

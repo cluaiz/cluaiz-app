@@ -34,7 +34,7 @@
     {
       "method": "POST",
       "path": "/v1/mcp/install",
-      "desc": "Registers and queues an MCP server installation natively.",
+      "desc": "Downloads and installs a MCP server from the Cluaiz Tools registry. Responds after the install finishes: 200 on success, 400 for an empty name, 500 with the installer's reason on failure.",
       "docs_url": "/docs/reference/api.md",
       "params": [
         {
@@ -46,7 +46,7 @@
         }
       ],
       "request_payload": "{\n  \"mcp_name\": \"sqlite_mcp\"\n}",
-      "response": "{\n  \"status\": \"success\",\n  \"message\": \"MCP server 'sqlite_mcp' installation queued.\"\n}",
+      "response": "{\n  \"status\": \"success\",\n  \"message\": \"mcp 'sqlite_mcp' installed.\"\n}",
       "examples": [
         {
           "language": "curl",

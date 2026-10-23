@@ -34,7 +34,7 @@
     {
       "method": "POST",
       "path": "/v1/plugins/install",
-      "desc": "Installs a native plugin into the Engine.",
+      "desc": "Downloads and installs a plugin from the Cluaiz Tools registry. Responds after the install finishes: 200 on success, 400 for an empty name, 500 with the installer's reason on failure.",
       "docs_url": "/docs/reference/api.md",
       "params": [
         {
@@ -46,7 +46,7 @@
         }
       ],
       "request_payload": "{\n  \"plugin_name\": \"web-scraper\"\n}",
-      "response": "{\n  \"status\": \"success\",\n  \"message\": \"Plugin 'web-scraper' installation queued natively in Engine.\"\n}",
+      "response": "{\n  \"status\": \"success\",\n  \"message\": \"plugin 'web-scraper' installed.\"\n}",
       "examples": [
         {
           "language": "curl",

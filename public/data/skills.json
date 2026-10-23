@@ -34,7 +34,7 @@
     {
       "method": "POST",
       "path": "/v1/skills/install",
-      "desc": "Installs a new WASM skill natively into the Engine.",
+      "desc": "Downloads and installs a skill from the Cluaiz Tools registry. Responds after the install finishes: 200 on success, 400 for an empty name, 500 with the installer's reason on failure.",
       "docs_url": "/docs/reference/api.md",
       "params": [
         {
@@ -46,7 +46,7 @@
         }
       ],
       "request_payload": "{\n  \"skill_name\": \"code-review\"\n}",
-      "response": "{\n  \"status\": \"success\",\n  \"message\": \"WASM skill 'code-review' installation queued natively in Engine.\"\n}",
+      "response": "{\n  \"status\": \"success\",\n  \"message\": \"skill 'code-review' installed.\"\n}",
       "examples": [
         {
           "language": "curl",

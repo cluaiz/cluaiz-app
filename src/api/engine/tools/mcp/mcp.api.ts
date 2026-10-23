@@ -21,9 +21,12 @@ export const mcpApi = {
    * POST /v1/mcp/install
    */
   installMcp: async (mcpName: string): Promise<McpActionResponse> => {
-    return client.post<McpActionResponse>(MCP_ENDPOINTS.INSTALL, {
-      mcp_name: mcpName,
-    });
+    return client.post<McpActionResponse>(
+      MCP_ENDPOINTS.INSTALL,
+      { mcp_name: mcpName },
+      // The engine answers after the download finishes, so no fixed timeout.
+      { timeoutMs: 0 }
+    );
   },
 
   /**
