@@ -186,6 +186,13 @@
           "default": true
         },
         {
+          "name": "history",
+          "type": "string",
+          "req": false,
+          "desc": "'client' (default): the request carries the whole conversation. 'engine': send only new messages; the Engine adds the chat's logged transcript (needs session_id).",
+          "default": "client"
+        },
+        {
           "name": "history_mode",
           "type": "string",
           "req": false,
