@@ -455,6 +455,13 @@
           "req": false,
           "desc": "Searching other chats: ask (approval), allow, deny.",
           "default": "ask"
+        },
+        {
+          "name": "tool_format",
+          "type": "string",
+          "req": false,
+          "desc": "inline (schemas in the system prompt, <tool_call> blocks) or native (the model's own template and call format, llama.cpp grammar and parser).",
+          "default": "inline"
         }
       ],
       "request_payload": "{\n  \"compact_at_pct\": 80\n}",
