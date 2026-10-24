@@ -462,6 +462,20 @@
           "req": false,
           "desc": "inline (schemas in the system prompt, <tool_call> blocks) or native (the model's own template and call format, llama.cpp grammar and parser).",
           "default": "native"
+        },
+        {
+          "name": "auto_load",
+          "type": "string",
+          "req": false,
+          "desc": "on: the one clear suggested tool is loaded before the model answers (one model step fewer); off: the model loads tools.",
+          "default": "off"
+        },
+        {
+          "name": "mcp_prewarm",
+          "type": "string",
+          "req": false,
+          "desc": "on: the MCP server of the first suggested card starts in the background before it is loaded; off: servers start when loaded.",
+          "default": "off"
         }
       ],
       "request_payload": "{\n  \"compact_at_pct\": 80\n}",
