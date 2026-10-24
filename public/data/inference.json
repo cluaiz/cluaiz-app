@@ -621,6 +621,44 @@
       ]
     },
     {
+      "method": "POST",
+      "path": "/v1/chat/import/app",
+      "desc": "Imports the App's saved chats into the Engine's chat event logs (the App's files are only read). chat_id or all, optional dry_run.",
+      "docs_url": "/docs/api/inference/chat_history.md",
+      "params": [
+        {
+          "name": "chat_id",
+          "type": "string",
+          "req": false,
+          "desc": "One App chat (folder name).",
+          "default": null
+        },
+        {
+          "name": "all",
+          "type": "boolean",
+          "req": false,
+          "desc": "Import every App chat.",
+          "default": false
+        },
+        {
+          "name": "dry_run",
+          "type": "boolean",
+          "req": false,
+          "desc": "Count only, write nothing.",
+          "default": false
+        }
+      ],
+      "request_payload": "{\n  \"all\": true,\n  \"dry_run\": true\n}",
+      "response": "{\n  \"roots\": [\n    \"C:\\\\Users\\\\me\\\\.cluaiz\\\\data\\\\chats\"\n  ],\n  \"chats\": [\n    {\n      \"chat_id\": \"chat_20261020_195120_uz2o\",\n      \"messages\": 4,\n      \"tool_calls\": 1,\n      \"events\": 6,\n      \"status\": \"dry run\"\n    }\n  ]\n}",
+      "examples": [
+        {
+          "language": "curl",
+          "title": "cURL",
+          "code": "curl -X POST http://localhost:8000/v1/chat/import/app \\\n  -H 'Authorization: Bearer <token>' \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"all\": true, \"dry_run\": true}'"
+        }
+      ]
+    },
+    {
       "method": "GET",
       "path": "/v1/chat/memory",
       "desc": "Chat memory status: settings, disk used and every saved chat (its KV cache on disk), most recently used first.",
