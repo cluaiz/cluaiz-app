@@ -683,6 +683,46 @@
     },
     {
       "method": "GET",
+      "path": "/v1/chat/{session_id}/grants",
+      "desc": "Tools the user allowed for this chat without asking, with minutes left (memory only).",
+      "docs_url": "/docs/api/inference/chat_history.md",
+      "params": [],
+      "request_payload": "",
+      "response": "{\n  \"chat_id\": \"my-chat\",\n  \"grants\": [\n    {\n      \"tool\": \"execute_code\",\n      \"minutes_left\": 30\n    }\n  ]\n}",
+      "examples": [
+        {
+          "language": "curl",
+          "title": "cURL",
+          "code": "curl http://localhost:8000/v1/chat/my-chat/grants \\\n  -H 'Authorization: Bearer <token>'"
+        }
+      ]
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/chat/{session_id}/grants",
+      "desc": "Asks again for this chat's tools (all, or ?tool=).",
+      "docs_url": "/docs/api/inference/chat_history.md",
+      "params": [
+        {
+          "name": "tool",
+          "type": "string",
+          "req": false,
+          "desc": "Only this tool's grant.",
+          "default": null
+        }
+      ],
+      "request_payload": "",
+      "response": "{\n  \"chat_id\": \"my-chat\",\n  \"removed\": 1\n}",
+      "examples": [
+        {
+          "language": "curl",
+          "title": "cURL",
+          "code": "curl -X DELETE http://localhost:8000/v1/chat/my-chat/grants \\\n  -H 'Authorization: Bearer <token>'"
+        }
+      ]
+    },
+    {
+      "method": "GET",
       "path": "/v1/chat/memory",
       "desc": "Chat memory status: settings, disk used and every saved chat (its KV cache on disk), most recently used first.",
       "docs_url": "/docs/api/inference/chat_memory.md",

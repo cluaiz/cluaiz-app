@@ -121,7 +121,6 @@
         }
       ]
     },
-
     {
       "method": "GET",
       "path": "/v1/system/live",
@@ -343,6 +342,20 @@
           "req": false,
           "desc": "Optional annotation for approval audit log.",
           "default": "Approved by user in Desktop App"
+        },
+        {
+          "name": "remember",
+          "type": "string",
+          "req": false,
+          "desc": "'chat': also allow this tool in this chat without asking again (memory only).",
+          "default": null
+        },
+        {
+          "name": "minutes",
+          "type": "integer",
+          "req": false,
+          "desc": "How long the grant lasts (at most 1440).",
+          "default": 60
         }
       ],
       "request_payload": "{\n  \"request_id\": \"7fa419ba-a5a4-441f-8e2b-ffad67a1496a\",\n  \"feedback\": \"Approved by user in Desktop App\"\n}",
