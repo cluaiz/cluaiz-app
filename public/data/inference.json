@@ -481,6 +481,147 @@
     },
     {
       "method": "GET",
+      "path": "/v1/chat/{session_id}/events",
+      "desc": "The chat's event log, oldest first (from_seq, limit).",
+      "docs_url": "/docs/api/inference/chat_history.md",
+      "params": [
+        {
+          "name": "from_seq",
+          "type": "integer",
+          "req": false,
+          "desc": "First seq to return.",
+          "default": 1
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "req": false,
+          "desc": "Most events to return (at most 5000).",
+          "default": 500
+        }
+      ],
+      "request_payload": "",
+      "response": "{\n  \"chat_id\": \"mem1\",\n  \"total\": 20,\n  \"skipped_lines\": 0,\n  \"next_from_seq\": 4,\n  \"events\": [\n    {\n      \"v\": 1,\n      \"seq\": 1,\n      \"kind\": \"message\",\n      \"role\": \"user\",\n      \"text\": \"\\u2026\",\n      \"pos\": 0\n    }\n  ]\n}",
+      "examples": [
+        {
+          "language": "curl",
+          "title": "cURL",
+          "code": "curl -X GET 'http://localhost:8000/v1/chat/my-chat/events?limit=50' \\n  -H 'Authorization: Bearer <token>'"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/v1/chat/{session_id}/index",
+      "desc": "The chat's cards: keywords, entities, tools, signals, importance (no message text).",
+      "docs_url": "/docs/api/inference/chat_history.md",
+      "params": [],
+      "request_payload": "",
+      "response": "{\n  \"chat_id\": \"mem1\",\n  \"cards\": [\n    {\n      \"pos\": 0,\n      \"role\": \"user\",\n      \"keywords\": [\n        \"deploy\",\n        \"port\"\n      ],\n      \"importance\": 0.3\n    }\n  ]\n}",
+      "examples": [
+        {
+          "language": "curl",
+          "title": "cURL",
+          "code": "curl -X GET 'http://localhost:8000/v1/chat/my-chat/index' \\n  -H 'Authorization: Bearer <token>'"
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/v1/recall/search",
+      "desc": "Messages of a chat that fit a query; time words limit the window.",
+      "docs_url": "/docs/api/inference/chat_history.md",
+      "params": [
+        {
+          "name": "chat_id",
+          "type": "string",
+          "req": true,
+          "desc": "The chat (session_id).",
+          "default": null
+        },
+        {
+          "name": "query",
+          "type": "string",
+          "req": true,
+          "desc": "What to look for.",
+          "default": null
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "req": false,
+          "desc": "Most results (at most 50).",
+          "default": 5
+        }
+      ],
+      "request_payload": "{\n  \"chat_id\": \"my-chat\",\n  \"query\": \"deploy server port\"\n}",
+      "response": "{\n  \"chat_id\": \"my-chat\",\n  \"query\": \"deploy server port\",\n  \"results\": [\n    {\n      \"ref\": \"m:0\",\n      \"score\": 2.84,\n      \"why\": [\n        \"deploy\",\n        \"server\",\n        \"port\"\n      ]\n    }\n  ]\n}",
+      "examples": [
+        {
+          "language": "curl",
+          "title": "cURL",
+          "code": "curl -X POST 'http://localhost:8000/v1/recall/search' \\n  -H 'Authorization: Bearer <token>' \\n  -H 'Content-Type: application/json' \\n  -d '{\"chat_id\": \"my-chat\", \"query\": \"deploy server port\"}'"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/v1/recall/item/{ref}",
+      "desc": "The exact message behind a reference (m:<position>); needs chat_id.",
+      "docs_url": "/docs/api/inference/chat_history.md",
+      "params": [
+        {
+          "name": "chat_id",
+          "type": "string",
+          "req": true,
+          "desc": "The chat (session_id).",
+          "default": null
+        }
+      ],
+      "request_payload": "",
+      "response": "{\n  \"chat_id\": \"my-chat\",\n  \"ref\": \"m:0\",\n  \"text\": \"Mera deploy server ka port 8011 hai\\u2026\",\n  \"card\": {}\n}",
+      "examples": [
+        {
+          "language": "curl",
+          "title": "cURL",
+          "code": "curl -X GET 'http://localhost:8000/v1/recall/item/m:0?chat_id=my-chat' \\n  -H 'Authorization: Bearer <token>'"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/v1/chat/{session_id}/export",
+      "desc": "The chat's events and cards as one JSON document.",
+      "docs_url": "/docs/api/inference/chat_history.md",
+      "params": [],
+      "request_payload": "",
+      "response": "{\n  \"format\": \"cluaiz-chat-export\",\n  \"version\": 1,\n  \"chat_id\": \"my-chat\",\n  \"events\": [],\n  \"cards\": []\n}",
+      "examples": [
+        {
+          "language": "curl",
+          "title": "cURL",
+          "code": "curl -X GET 'http://localhost:8000/v1/chat/my-chat/export' \\n  -H 'Authorization: Bearer <token>'"
+        }
+      ]
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/chat/{session_id}/history",
+      "desc": "Removes the chat's event log, ledger, saved KV, kept reports and Chat Map.",
+      "docs_url": "/docs/api/inference/chat_history.md",
+      "params": [],
+      "request_payload": "",
+      "response": "{\n  \"chat_id\": \"my-chat\",\n  \"events\": {\n    \"files\": 1,\n    \"bytes\": 6811\n  },\n  \"ledger\": true,\n  \"saved_kv\": true,\n  \"folder_removed\": true\n}",
+      "examples": [
+        {
+          "language": "curl",
+          "title": "cURL",
+          "code": "curl -X DELETE 'http://localhost:8000/v1/chat/my-chat/history' \\n  -H 'Authorization: Bearer <token>'"
+        }
+      ]
+    },
+    {
+      "method": "GET",
       "path": "/v1/chat/memory",
       "desc": "Chat memory status: settings, disk used and every saved chat (its KV cache on disk), most recently used first.",
       "docs_url": "/docs/api/inference/chat_memory.md",
