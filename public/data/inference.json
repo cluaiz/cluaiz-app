@@ -441,6 +441,13 @@
           "req": false,
           "desc": "remember: ask (proposed), auto (confirmed), off.",
           "default": "ask"
+        },
+        {
+          "name": "cross_chat",
+          "type": "string",
+          "req": false,
+          "desc": "Searching other chats: ask (approval), allow, deny.",
+          "default": "ask"
         }
       ],
       "request_payload": "{\n  \"compact_at_pct\": 80\n}",
@@ -582,6 +589,13 @@
           "req": false,
           "desc": "Most results (at most 50).",
           "default": 5
+        },
+        {
+          "name": "scope",
+          "type": "string",
+          "req": false,
+          "desc": "chat (default), or workspace / all to search the other chats (403 with cross_chat: deny).",
+          "default": "chat"
         }
       ],
       "request_payload": "{\n  \"chat_id\": \"my-chat\",\n  \"query\": \"deploy server port\"\n}",
