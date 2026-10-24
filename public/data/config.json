@@ -37,7 +37,7 @@
           "default": "web-scraper"
         }
       ],
-      "response": "{\n  \"status\": \"success\",\n  \"schema\": {},\n  \"values\": {\n    \"enabled\": true,\n    \"security_mode\": \"sandboxed\",\n    \"execution_mode\": \"auto\"\n  }\n}",
+      "response": "{\n  \"status\": \"success\",\n  \"schema\": {},\n  \"values\": {\n    \"enabled\": true,\n    \"security_mode\": \"inherit\",\n    \"execution_mode\": \"auto\",\n    \"trust_annotations\": false\n  }\n}",
       "examples": [
         {
           "language": "curl",
@@ -49,7 +49,7 @@
     {
       "method": "POST",
       "path": "/api/components/settings",
-      "desc": "Updates configuration settings (enabled status, security mode) for a component in ToolsRegistry.",
+      "desc": "Updates a component's settings in ToolsRegistry: enabled, security_mode, execution_mode, and for MCP servers trust_annotations (their read-only functions run without asking).",
       "docs_url": "/docs/reference/api.md",
       "params": [
         {
@@ -63,7 +63,7 @@
           "name": "settings",
           "type": "object",
           "req": true,
-          "desc": "Key-value map of settings to apply.",
+          "desc": "Key-value map of settings to apply: enabled, security_mode, execution_mode, trust_annotations (MCP).",
           "default": {
             "enabled": true,
             "security_mode": "sandboxed"
