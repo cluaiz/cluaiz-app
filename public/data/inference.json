@@ -434,6 +434,13 @@
           "req": false,
           "desc": "Idle-time cards by the model: auto (GPU), always, rules_only, off.",
           "default": "auto"
+        },
+        {
+          "name": "notes",
+          "type": "string",
+          "req": false,
+          "desc": "remember: ask (proposed), auto (confirmed), off.",
+          "default": "ask"
         }
       ],
       "request_payload": "{\n  \"compact_at_pct\": 80\n}",
@@ -718,6 +725,145 @@
           "language": "curl",
           "title": "cURL",
           "code": "curl -X DELETE http://localhost:8000/v1/chat/my-chat/grants \\\n  -H 'Authorization: Bearer <token>'"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/v1/notes",
+      "desc": "Durable notes (filters: scope, status, chat_id).",
+      "docs_url": "/docs/api/inference/notes.md",
+      "params": [
+        {
+          "name": "scope",
+          "type": "string",
+          "req": false,
+          "desc": "chat, workspace or global.",
+          "default": null
+        },
+        {
+          "name": "status",
+          "type": "string",
+          "req": false,
+          "desc": "proposed, confirmed, active, superseded, invalidated.",
+          "default": null
+        },
+        {
+          "name": "chat_id",
+          "type": "string",
+          "req": false,
+          "desc": "Only notes that apply to this chat.",
+          "default": null
+        }
+      ],
+      "request_payload": "",
+      "response": "{\n  \"workspace\": \"D:\\\\projects\\\\site\",\n  \"notes\": [\n    {\n      \"id\": \"n:2\",\n      \"scope\": \"workspace\",\n      \"text\": \"Deploy server orion ka port ab 9090 hai.\",\n      \"status\": \"confirmed\",\n      \"pinned\": true,\n      \"supersedes\": \"n:1\",\n      \"by\": \"user\"\n    }\n  ]\n}",
+      "examples": [
+        {
+          "language": "curl",
+          "title": "cURL",
+          "code": "curl -X GET 'http://localhost:8000/v1/notes?status=proposed' \\\n  -H 'Authorization: Bearer <token>'"
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/v1/notes",
+      "desc": "A note written by the user (confirmed at once); supersedes a live note on the same subject.",
+      "docs_url": "/docs/api/inference/notes.md",
+      "params": [
+        {
+          "name": "text",
+          "type": "string",
+          "req": true,
+          "desc": "1 to 2000 characters.",
+          "default": null
+        },
+        {
+          "name": "scope",
+          "type": "string",
+          "req": false,
+          "desc": "chat, workspace or global.",
+          "default": "workspace"
+        },
+        {
+          "name": "chat_id",
+          "type": "string",
+          "req": false,
+          "desc": "The chat, for scope chat.",
+          "default": null
+        },
+        {
+          "name": "pinned",
+          "type": "boolean",
+          "req": false,
+          "desc": "Into the system prompt of new chats.",
+          "default": false
+        }
+      ],
+      "request_payload": "{\n  \"text\": \"Deploy server orion ka port ab 9090 hai.\",\n  \"pinned\": true\n}",
+      "response": "{\n  \"note\": {\n    \"id\": \"n:2\",\n    \"scope\": \"workspace\",\n    \"text\": \"Deploy server orion ka port ab 9090 hai.\",\n    \"status\": \"confirmed\",\n    \"pinned\": true,\n    \"supersedes\": \"n:1\",\n    \"by\": \"user\"\n  },\n  \"superseded\": {\n    \"id\": \"n:1\",\n    \"status\": \"superseded\"\n  }\n}",
+      "examples": [
+        {
+          "language": "curl",
+          "title": "cURL",
+          "code": "curl -X POST 'http://localhost:8000/v1/notes' \\\n  -H 'Authorization: Bearer <token>' \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"text\": \"Deploy server orion ka port ab 9090 hai.\", \"pinned\": true}'"
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/v1/notes/{id}/confirm",
+      "desc": "A proposed note becomes confirmed.",
+      "docs_url": "/docs/api/inference/notes.md",
+      "params": [],
+      "request_payload": "",
+      "response": "{\n  \"note\": {\n    \"id\": \"n:4\",\n    \"scope\": \"workspace\",\n    \"text\": \"Deploy server orion ka port ab 9090 hai.\",\n    \"status\": \"confirmed\",\n    \"pinned\": true,\n    \"supersedes\": \"n:1\",\n    \"by\": \"model\"\n  },\n  \"superseded\": null\n}",
+      "examples": [
+        {
+          "language": "curl",
+          "title": "cURL",
+          "code": "curl -X POST 'http://localhost:8000/v1/notes/n:4/confirm' \\\n  -H 'Authorization: Bearer <token>'"
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/v1/notes/{id}/invalidate",
+      "desc": "The note no longer holds (kept, with the time).",
+      "docs_url": "/docs/api/inference/notes.md",
+      "params": [],
+      "request_payload": "",
+      "response": "{\n  \"note\": {\n    \"id\": \"n:2\",\n    \"scope\": \"workspace\",\n    \"text\": \"Deploy server orion ka port ab 9090 hai.\",\n    \"status\": \"invalidated\",\n    \"pinned\": true,\n    \"supersedes\": \"n:1\",\n    \"by\": \"user\"\n  },\n  \"superseded\": null\n}",
+      "examples": [
+        {
+          "language": "curl",
+          "title": "cURL",
+          "code": "curl -X POST 'http://localhost:8000/v1/notes/n:2/invalidate' \\\n  -H 'Authorization: Bearer <token>'"
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/v1/notes/{id}/pin",
+      "desc": "Pin or unpin a note.",
+      "docs_url": "/docs/api/inference/notes.md",
+      "params": [
+        {
+          "name": "pinned",
+          "type": "boolean",
+          "req": true,
+          "desc": "true: into the system prompt of new chats.",
+          "default": null
+        }
+      ],
+      "request_payload": "{\n  \"pinned\": true\n}",
+      "response": "{\n  \"note\": {\n    \"id\": \"n:2\",\n    \"scope\": \"workspace\",\n    \"text\": \"Deploy server orion ka port ab 9090 hai.\",\n    \"status\": \"confirmed\",\n    \"pinned\": true,\n    \"supersedes\": \"n:1\",\n    \"by\": \"user\"\n  },\n  \"superseded\": null\n}",
+      "examples": [
+        {
+          "language": "curl",
+          "title": "cURL",
+          "code": "curl -X POST 'http://localhost:8000/v1/notes/n:2/pin' \\\n  -H 'Authorization: Bearer <token>' \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"pinned\": true}'"
         }
       ]
     },
