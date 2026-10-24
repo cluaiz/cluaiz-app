@@ -411,6 +411,13 @@
           "req": false,
           "desc": "A compaction frees enough to bring the history down to this share of the room.",
           "default": 60
+        },
+        {
+          "name": "indexer",
+          "type": "string",
+          "req": false,
+          "desc": "Idle-time cards by the model: auto (GPU), always, rules_only, off.",
+          "default": "auto"
         }
       ],
       "request_payload": "{\n  \"compact_at_pct\": 80\n}",
