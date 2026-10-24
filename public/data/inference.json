@@ -350,6 +350,22 @@
     },
     {
       "method": "GET",
+      "path": "/v1/context/jobs",
+      "desc": "The idle-time scheduler (model-written cards): queue, counts and recent results.",
+      "docs_url": "/docs/api/inference/context_runtime.md",
+      "params": [],
+      "request_payload": "",
+      "response": "{\n  \"indexer\": \"auto\",\n  \"requests_in_flight\": 0,\n  \"running\": false,\n  \"queue\": [\n    {\n      \"chat_id\": \"resume1\",\n      \"answer_pos\": 3,\n      \"kind\": \"cold\"\n    }\n  ],\n  \"counts\": {\n    \"done\": 12,\n    \"failed\": 0,\n    \"stopped\": 0,\n    \"skipped\": 0\n  },\n  \"recent\": [\n    {\n      \"chat\": \"resume2\",\n      \"answer_pos\": 5,\n      \"cold\": false,\n      \"outcome\": \"done\",\n      \"ms\": 8017\n    }\n  ]\n}",
+      "examples": [
+        {
+          "language": "curl",
+          "title": "cURL",
+          "code": "curl http://localhost:8000/v1/context/jobs \\\n  -H 'Authorization: Bearer <token>'"
+        }
+      ]
+    },
+    {
+      "method": "GET",
       "path": "/v1/context/settings",
       "desc": "The context planner's default policy.",
       "docs_url": "/docs/api/inference/context_runtime.md",
