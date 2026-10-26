@@ -1,6 +1,6 @@
 /**
  * Cluaiz Engine WASM Skills Types
- * Matches crate::handlers::skills
+ * App response projections for CEP tools methods, not wire envelopes.
  */
 
 export interface SkillItem {

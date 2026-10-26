@@ -1,6 +1,6 @@
 /**
  * Cluaiz Engine Model Context Protocol (MCP) Types
- * Matches crate::handlers::mcp
+ * App response projections for CEP tools methods, not wire envelopes.
  */
 
 export interface McpServerItem {

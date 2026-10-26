@@ -22,16 +22,16 @@ export type ComponentCatalog = Record<ToolKind, string[]> & {
 };
 const object = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === 'object' && !Array.isArray(value);
-const kindOf = (value: unknown): value is ToolKind => value === 'skill' || value === 'plugin' || value === 'mcp';
+export const isToolKind = (value: unknown): value is ToolKind => value === 'skill' || value === 'plugin' || value === 'mcp';
 
 /** One wire owner for installed skill/plugin/MCP discovery; lifecycle stays separate. */
 export async function listTools(kind?: string, signal?: AbortSignal): Promise<ToolCatalogEntry[]> {
-  if (kind !== undefined && !kindOf(kind)) {
+  if (kind !== undefined && !isToolKind(kind)) {
     throw new ApiError('A tool kind must be skill, plugin or mcp', 400, 'INVALID_TOOL_KIND', 'tools.list');
   }
   const value = await callCep<unknown>('tools.list', kind ? { kind } : {}, { signal });
   if (!Array.isArray(value) || value.some(entry => !object(entry) || typeof entry.id !== 'string' || !entry.id
-    || typeof entry.name !== 'string' || typeof entry.description !== 'string' || !kindOf(entry.category) || (kind && entry.category !== kind)
+    || typeof entry.name !== 'string' || typeof entry.description !== 'string' || !isToolKind(entry.category) || (kind && entry.category !== kind)
     || typeof entry.enabled !== 'boolean' || !Array.isArray(entry.functions)
     || (entry.icon_svg != null && typeof entry.icon_svg !== 'string')
     || (entry.security_mode !== undefined && typeof entry.security_mode !== 'string')

@@ -1,5 +1,4 @@
-import { client } from '../../../client';
-import { MCP_ENDPOINTS } from './mcp.endpoints';
+import { listToolCache, clearToolCache } from '../cache';
 import { listTools } from '../catalog';
 import { installTool, removeTool } from '../lifecycle';
 import type {
@@ -34,19 +33,17 @@ export const mcpApi = {
 
   /**
    * Lists MCP cache report.
-   * GET /v1/mcp/cache
+   * CEP tools.cache for installed MCP packages.
    */
   listCache: async (): Promise<McpCacheReportResponse> => {
-    return client.get<McpCacheReportResponse>(MCP_ENDPOINTS.CACHE);
+    return listToolCache('mcp');
   },
 
   /**
    * Clears MCP cache.
-   * DELETE /v1/mcp/cache
+   * CEP tools.clear_cache; omitted name means all MCP caches, not a package named "all".
    */
   clearCache: async (mcpName?: string): Promise<McpClearCacheResponse> => {
-    return client.delete<McpClearCacheResponse>(MCP_ENDPOINTS.CACHE, {
-      body: { mcp_name: mcpName || 'all' },
-    });
+    return clearToolCache('mcp', mcpName);
   },
 };

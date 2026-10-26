@@ -1,6 +1,6 @@
 /**
  * Cluaiz Engine Plugins Types
- * Matches crate::handlers::plugins
+ * App response projections for CEP tools methods, not wire envelopes.
  */
 
 export interface PluginItem {

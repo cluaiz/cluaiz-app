@@ -1,5 +1,4 @@
-import { client } from '../../../client';
-import { PLUGINS_ENDPOINTS } from './plugins.endpoints';
+import { listToolCache, clearToolCache } from '../cache';
 import { listTools } from '../catalog';
 import { installTool, removeTool } from '../lifecycle';
 import type {
@@ -34,17 +33,17 @@ export const pluginsApi = {
 
   /**
    * Lists plugin cache report.
-   * GET /v1/plugins/cache
+   * CEP tools.cache for installed plugins.
    */
   listCache: async (): Promise<PluginCacheReportResponse> => {
-    return client.get<PluginCacheReportResponse>(PLUGINS_ENDPOINTS.CACHE);
+    return listToolCache('plugin');
   },
 
   /**
    * Clears plugin cache.
-   * DELETE /v1/plugins/cache
+   * CEP tools.clear_cache for installed plugins.
    */
   clearCache: async (): Promise<PluginClearCacheResponse> => {
-    return client.delete<PluginClearCacheResponse>(PLUGINS_ENDPOINTS.CACHE);
+    return clearToolCache('plugin');
   },
 };

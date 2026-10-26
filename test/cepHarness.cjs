@@ -37,4 +37,18 @@ function filesystemHarness(handler){
     const h=harness(handler);
     return {...h,...load('src/api/engine/fs/fs.api.ts',{'../../client/cep':h,'../../client/errors':h.errors})};
 }
-module.exports={load,harness,filesystemHarness};
+function toolHarness(handler){
+    const h=harness(handler);const shared={'../../client/cep':h,'../../client/errors':h.errors};
+    const catalog=load('src/api/engine/tools/catalog.ts',shared);
+    const tasks=load('src/api/client/cepTask.ts',{'./cep':h,'./errors':h.errors});
+    const lifecycle=load('src/api/engine/tools/lifecycle.ts',{...shared,'../../client/cepTask':tasks,'./catalog':catalog});
+    const cache=load('src/api/engine/tools/cache.ts',{...shared,'./catalog':catalog,'./lifecycle':lifecycle});
+    const settings=load('src/api/engine/tools/settings.ts',{...shared,'./lifecycle':lifecycle});
+    const base={'../../../client':{client:h.client},'../../../client/errors':h.errors,
+        '../catalog':catalog,'../lifecycle':lifecycle,'../cache':cache,'../settings':settings};
+    const components=load('src/api/engine/tools/components/components.api.ts',{...base,'./components.endpoints':{COMPONENTS_ENDPOINTS:{}}});
+    const api={...h,...tasks,...catalog,...lifecycle,...cache,...settings,...components};
+    for(const kind of ['skills','plugins','mcp'])Object.assign(api,load(`src/api/engine/tools/${kind}/${kind}.api.ts`,base));
+    return api;
+}
+module.exports={load,harness,filesystemHarness,toolHarness};

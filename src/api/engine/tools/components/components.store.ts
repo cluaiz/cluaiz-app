@@ -9,7 +9,7 @@ export interface ComponentsState {
   error: string | null;
 
   fetchComponents: (componentType?: string) => Promise<void>;
-  updateSettings: (componentId: string, settings: Record<string, unknown>) => Promise<boolean>;
+  updateSettings: (componentId: string, settings: Record<string, unknown>, componentType: string) => Promise<boolean>;
   updateFile: (payload: UpdateComponentFilePayload) => Promise<boolean>;
   executeDynamic: (component: string, fn: string, args?: Record<string, unknown>) => Promise<unknown>;
   reset: () => void;
@@ -30,9 +30,9 @@ export const useComponentsStore = create<ComponentsState>((set) => ({
     }
   },
 
-  updateSettings: async (componentId: string, settings: Record<string, unknown>) => {
+  updateSettings: async (componentId: string, settings: Record<string, unknown>, componentType: string) => {
     try {
-      await componentsApi.updateSettings({ component_id: componentId, settings });
+      await componentsApi.updateSettings({ component_id: componentId, component_type: componentType, settings });
       return true;
     } catch (err) {
       set({ error: errorMessage(err) });

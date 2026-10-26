@@ -1,8 +1,10 @@
 import { client } from '../../../client';
 import { COMPONENTS_ENDPOINTS } from './components.endpoints';
 import { componentCatalog } from '../catalog';
+import { getToolSettings, setToolSettings } from '../settings';
+import { listToolCache, clearToolCache } from '../cache';
+import { ApiError } from '../../../client/errors';
 import type {
-  ComponentSettingsResponse,
   ComponentFilesResponse,
   UpdateComponentFilePayload,
   DynamicExecuteResponse,
@@ -17,33 +19,15 @@ export const componentsApi = {
 
   /**
    * Fetches settings for a specific component.
-   * GET /api/components/settings
+   * CEP tools.get_settings for an explicit tool kind and package id.
    */
-  getSettings: async (componentType?: string, componentId?: string): Promise<ComponentSettingsResponse> => {
-    return client.get<ComponentSettingsResponse>(COMPONENTS_ENDPOINTS.SETTINGS, {
-      params: {
-        ...(componentType ? { component_type: componentType } : {}),
-        ...(componentId ? { component_id: componentId } : {}),
-      },
-    });
-  },
+  getSettings: getToolSettings,
 
   /**
    * Updates component settings in tools registry.
-   * POST /api/components/settings
+   * CEP tools.set_settings; the saved values remain available to callers.
    */
-  updateSettings: async (payload: {
-    component_id: string;
-    component_type?: string;
-    settings: Record<string, unknown>;
-    [key: string]: unknown;
-  }): Promise<{ status: string; message?: string }> => {
-    const res = await client.post<{ status: string; message?: string }>(COMPONENTS_ENDPOINTS.SETTINGS, payload);
-    if (res && res.status === 'error') {
-      throw new Error(res.message || 'Failed to update component settings');
-    }
-    return res;
-  },
+  updateSettings: setToolSettings,
 
   /**
    * Lists file paths inside a component directory.
@@ -86,7 +70,7 @@ export const componentsApi = {
 
   /**
    * Clears components cache.
-   * POST /api/components/cache
+   * CEP tools.clear_cache. Only explicit all-cache requests are supported.
    */
   clearCache: async (payload: {
     component_type: string;
@@ -94,12 +78,16 @@ export const componentsApi = {
     component_id?: string;
     all?: boolean;
   }): Promise<{ status: string; message?: string; [key: string]: any }> => {
-    return client.post(COMPONENTS_ENDPOINTS.CACHE, {
-      component_type: payload.component_type,
-      component_id: payload.component_id || payload.component_name || '',
-      all: payload.all ?? false,
-    });
+    if (payload.all !== true || (payload.component_id && payload.component_name && payload.component_id !== payload.component_name)) {
+      throw new ApiError('Choose one tool and all-cache cleanup; temp-only cleanup is unavailable', 400, 'INVALID_TOOL_CACHE_REQUEST', 'tools.clear_cache');
+    }
+    const name = payload.component_id ?? payload.component_name;
+    if (!name) throw new ApiError('A tool package id is required', 400, 'INVALID_TOOL_TARGET', 'tools.clear_cache');
+    return clearToolCache(payload.component_type, name);
   },
+
+  getCache: async (componentType: string, componentId: string) =>
+    (await listToolCache(componentType, componentId)).reports[0],
 
   /**
    * Executes a dynamic component function via CEL sandbox.

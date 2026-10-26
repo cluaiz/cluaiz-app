@@ -1,5 +1,4 @@
-import { client } from '../../../client';
-import { SKILLS_ENDPOINTS } from './skills.endpoints';
+import { listToolCache, clearToolCache } from '../cache';
 import { listTools } from '../catalog';
 import { installTool, removeTool } from '../lifecycle';
 import type {
@@ -34,17 +33,17 @@ export const skillsApi = {
 
   /**
    * Lists the WASM skills cache report.
-   * GET /v1/skills/cache
+   * CEP tools.cache for installed skills.
    */
   listCache: async (): Promise<SkillCacheReportResponse> => {
-    return client.get<SkillCacheReportResponse>(SKILLS_ENDPOINTS.CACHE);
+    return listToolCache('skill');
   },
 
   /**
    * Clears the WASM skills cache.
-   * DELETE /v1/skills/cache
+   * CEP tools.clear_cache for installed skills.
    */
   clearCache: async (): Promise<SkillClearCacheResponse> => {
-    return client.delete<SkillClearCacheResponse>(SKILLS_ENDPOINTS.CACHE);
+    return clearToolCache('skill');
   },
 };

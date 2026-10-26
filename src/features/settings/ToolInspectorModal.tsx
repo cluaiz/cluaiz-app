@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { componentsApi } from '../../api';
 import { toast } from '../../components/ui/toast';
@@ -176,11 +176,16 @@ export function ToolInspectorModal({ tool, onClose, onDeleteTool }: ToolInspecto
     const [realIconSvg, setRealIconSvg] = useState<string | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [isClearingCache, setIsClearingCache] = useState(false);
+    const cacheScope = useRef(0);
 
     const toolId = tool?.id;
     const toolCategory = tool?.category;
 
     useEffect(() => {
+        cacheScope.current++;
+        setCacheInfo({ temp_bytes: 0, all_bytes: 0 });
+        setIsClearingCache(false);
         if (!toolId || !toolCategory) {
             setFiles([]);
             setSelectedFile(null);
@@ -238,6 +243,7 @@ export function ToolInspectorModal({ tool, onClose, onDeleteTool }: ToolInspecto
 
         return () => {
             isSubscribed = false;
+            cacheScope.current++;
         };
     }, [toolId, toolCategory]);
 
@@ -276,29 +282,28 @@ export function ToolInspectorModal({ tool, onClose, onDeleteTool }: ToolInspecto
         setTimeout(() => setHasCopied(false), 2000);
     };
 
-    const handleClearCache = async (cacheType: 'temp' | 'all') => {
-        if (!tool) return;
+    const handleClearCache = async () => {
+        if (!tool || isClearingCache) return;
+        const scope = cacheScope.current;
+        setIsClearingCache(true);
         await toast.promise(
             async () => {
-                const data = await componentsApi.clearCache({
+                await componentsApi.clearCache({
                     component_type: tool.category,
                     component_id: tool.id,
-                    component_name: tool.id
+                    all: true,
                 });
-                if (data?.status === 'success' && data.freed_bytes !== undefined) {
-                    setCacheInfo(prev => ({
-                        ...prev,
-                        temp_bytes: cacheType === 'temp' ? 0 : Math.max(0, prev.temp_bytes - data.freed_bytes),
-                        all_bytes: Math.max(0, prev.all_bytes - data.freed_bytes)
-                    }));
-                }
+                const remaining = await componentsApi.getCache(tool.category, tool.id);
+                if (scope === cacheScope.current) setCacheInfo(remaining);
             },
             {
-                loading: `Clearing cache for ${tool.name}...`,
+                loading: `Clearing cache and refreshing usage for ${tool.name}...`,
                 success: `Cache cleared for ${tool.name}`,
                 error: (err: any) => `Cache clean failed: ${err?.message || 'Unknown error'}`
             }
-        ).catch(() => {});
+        ).catch(() => {}).finally(() => {
+            if (scope === cacheScope.current) setIsClearingCache(false);
+        });
     };
 
     const handleConfirmDelete = async () => {
@@ -440,13 +445,14 @@ export function ToolInspectorModal({ tool, onClose, onDeleteTool }: ToolInspecto
                         </div>
 
                         <div className="flex items-center gap-2.5">
-                            {cacheInfo.temp_bytes > 0 && (
+                            {cacheInfo.all_bytes > 0 && (
                                 <button
                                     type="button"
-                                    onClick={() => handleClearCache('temp')}
+                                    disabled={isClearingCache}
+                                    onClick={handleClearCache}
                                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/20 text-xs font-semibold transition-all cursor-pointer"
                                 >
-                                    <Trash2 size={13} /> Clear Temp ({formatBytes(cacheInfo.temp_bytes)})
+                                    <Trash2 size={13} /> Clear Cache ({formatBytes(cacheInfo.all_bytes)})
                                 </button>
                             )}
 

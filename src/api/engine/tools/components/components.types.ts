@@ -1,6 +1,6 @@
 /**
  * Cluaiz Engine Components Types
- * Matches crate::handlers::components & cel_handler::execute_dynamic
+ * Existing App facade projections. Settings/cache use CEP; file/execution migration is pending.
  */
 
 export interface ComponentSettingsResponse {

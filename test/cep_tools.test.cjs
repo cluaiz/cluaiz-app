@@ -1,21 +1,9 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
-const {harness,load}=require('./cepHarness.cjs');
+const {toolHarness,load}=require('./cepHarness.cjs');
 const result=(body,value)=>({jsonrpc:'2.0',id:body.id,result:value});
 const entries=()=>['skill','plugin','mcp'].map(category=>({id:category+'-id',name:category+' display',description:'Installed tool',
     category,enabled:true,version:'2.0',functions:[{name:'real_function',inputSchema:{type:'object'}}]}));
-function toolHarness(handler){
-    const h=harness(handler);const catalog=load('src/api/engine/tools/catalog.ts',{'../../client/cep':h,'../../client/errors':h.errors});
-    const tasks=load('src/api/client/cepTask.ts',{'./cep':h,'./errors':h.errors});
-    const lifecycle=load('src/api/engine/tools/lifecycle.ts',{'../../client/cep':h,'../../client/cepTask':tasks,'../../client/errors':h.errors});
-    const base={'../../../client':{client:h.client},'../catalog':catalog,'../lifecycle':lifecycle};
-    const components=load('src/api/engine/tools/components/components.api.ts',{...base,'./components.endpoints':{COMPONENTS_ENDPOINTS:{}}});
-    const api={...h,...tasks,...catalog,...lifecycle,...components};
-    for(const [kind,name,key]of [['skills','skills','SKILLS_ENDPOINTS'],['plugins','plugins','PLUGINS_ENDPOINTS'],['mcp','mcp','MCP_ENDPOINTS']]){
-        Object.assign(api,load(`src/api/engine/tools/${kind}/${name}.api.ts`,{...base,['./'+name+'.endpoints']:{[key]:{}}}));
-    }
-    return api;
-}
 
 test('components, skills, plugins and MCP discovery reuse one tools.list owner and retain actual metadata',async()=>{
     const all=entries();const h=toolHarness((url,body)=>{assert.equal(url,'/v1/cep');assert.equal(body.method,'tools.list');
