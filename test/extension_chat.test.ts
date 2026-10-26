@@ -1,6 +1,6 @@
 import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
-import { http } from '../src/api/client/http';
+import { client } from '../src/api/client/client';
 import { chatApi } from '../src/api/engine/chat/chat.api';
 import { useChatStore } from '../src/store/chat/useChatStore';
 import { chatStorageManager } from '../src/services/storage/ChatStorageManager';
@@ -43,10 +43,21 @@ function setup(t: TestContext) {
     const history = { pushState: (_state: unknown, _unused: string, url: string) => { urls.push(url); },
         replaceState: (_state: unknown, _unused: string, url: string) => { urls.push(url); } };
     Object.defineProperty(globalThis, 'window', { configurable: true, value: { location, history } });
-    t.mock.method(http, 'post', async (endpoint: string, body: unknown) => {
-        const input = body as { path: string; content?: string };
-        if (endpoint === '/v1/fs/write') { files.set(input.path, input.content!); return { status: 'success' } as never; }
-        if (endpoint === '/v1/fs/read') return { content: files.get(input.path) ?? '' } as never;
+    t.mock.method(client, 'post', async (endpoint: string, body: unknown) => {
+        const call = body as { id: number; method: string; params: { path: string; text?: string } };
+        assert.equal(endpoint, '/v1/cep');
+        const input = call.params;
+        const result = (value: unknown) => ({ jsonrpc: '2.0', id: call.id, result: value }) as never;
+        if (call.method === 'fs.write') {
+            files.set(input.path, input.text!);
+            return result({ path: '/fixture/' + input.path, bytes: Buffer.byteLength(input.text!) });
+        }
+        if (call.method === 'fs.read') {
+            const text = files.get(input.path);
+            return text === undefined
+                ? { jsonrpc: '2.0', id: call.id, error: { code: -32004, message: 'Not found', data: { type: 'file_not_found' } } } as never
+                : result({ path: '/fixture/' + input.path, size: Buffer.byteLength(text), binary: false, text });
+        }
         assert.fail(`Unexpected network operation: ${endpoint}`);
     });
     useChatStore.setState({ sessions: {}, activeSessionId: null, streamingSessionId: null, isHydrated: true });

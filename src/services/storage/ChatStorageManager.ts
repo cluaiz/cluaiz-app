@@ -8,7 +8,7 @@ import { ChatMessage } from '../../store/chat/useChatStore';
 /**
  * ChatStorageManager delegates storage operations dynamically based on runtime environment:
  * - On Desktop (Tauri): delegates to TauriFsChatStorageDriver (native filesystem).
- * - On Browser/Web: delegates to EngineFsChatStorageDriver (writes real files to C:\Users\Aryan\.cluaiz\data\ via /v1/fs/*).
+ * - On Browser/Web: delegates to EngineFsChatStorageDriver (workspace-relative data/chats via shared CEP filesystem adapter).
  * - Offline Fallback: delegates to IndexedDbChatStorageDriver if Engine is unreachable.
  */
 export class ChatStorageManager implements IChatStorageDriver {

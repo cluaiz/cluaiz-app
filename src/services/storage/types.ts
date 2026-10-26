@@ -40,7 +40,7 @@ export interface IChatStorageDriver {
     loadSessionsIndex(): Promise<SessionsIndex | null>;
 
     /**
-     * Atomically saves or updates the sessions catalog index.
+     * Saves or updates the sessions catalog index through the selected driver.
      */
     saveSessionsIndex(index: SessionsIndex): Promise<void>;
 
@@ -61,12 +61,12 @@ export interface IChatStorageDriver {
     loadSessionMessages(sessionId: string, limit?: number, offset?: number): Promise<ChatMessage[]>;
 
     /**
-     * Appends an atomic completed message turn to messages.jsonl.
+     * Persists a completed message turn in messages.jsonl.
      */
     appendMessage(sessionId: string, message: ChatMessage): Promise<void>;
 
     /**
-     * Atomically rewrites the session's messages.jsonl.
+     * Rewrites the session's messages.jsonl through the selected driver.
      * Used when messages are modified in-place (e.g. reactions, stars, highlights, deletes).
      */
     saveAllMessages(sessionId: string, messages: ChatMessage[]): Promise<void>;

@@ -11,6 +11,7 @@ import type { ExtensionCapability } from '../../../src/extensions/manifest';
 import { extensionServices } from '../../../src/extensions/services';
 import type { ExtensionServices } from '../../../src/extensions/sdk';
 import { http } from '../../../src/api/client/http';
+import { fsApi } from '../../../src/api/engine/fs/fs.api';
 import '../../../src/styles/index.css';
 
 // The real chat router updates history while creating/selecting a conversation.
@@ -123,7 +124,7 @@ async function run() {
     assert(useChatStore.getState().activeSessionId === main, 'main chat selection unchanged');
     assert(useChatStore.getState().sessions[main].messages.length === 0, 'main chat messages unchanged');
     await until(() => !useChatStore.getState().streamingSessionId, 'owned stream finalization');
-    const disk = await http.post<{ content: string }>('/v1/fs/read', { path: `data/chats/${ready.id}/messages.jsonl`, caller: 'user' });
+    const disk = await fsApi.readFile({ path: `data/chats/${ready.id}/messages.jsonl` });
     const rows = disk.content.trim().split('\n').map(line => JSON.parse(line));
     assert(rows[1]?.text === ready.answer, 'actual model answer saved through the existing JSONL driver');
     if (!previous) {

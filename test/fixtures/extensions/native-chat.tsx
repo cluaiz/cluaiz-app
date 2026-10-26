@@ -12,6 +12,7 @@ import { WorkspaceExtensionRegistry, type ExtensionViewProps } from '../../../sr
 import { ExtensionWorkspaceHost } from '../../../src/features/extensions/ExtensionWorkspaceHost';
 import { cluaizEngine } from '../../../src/core/engine';
 import { http } from '../../../src/api/client/http';
+import { fsApi } from '../../../src/api/engine/fs/fs.api';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import '../../../src/styles/index.css';
 
@@ -121,7 +122,7 @@ async function run() {
         state.expected = messages[1].text;
         assert(state.expected.trim() && messages[1].finishReason !== 'error', 'real model answer streamed into shared UI');
         assert(document.body.innerText.includes(state.expected.trim()), 'model answer rendered');
-        const disk = await http.post<{ content: string }>('/v1/fs/read', { path: `data/chats/${state.owned}/messages.jsonl`, caller: 'user' });
+        const disk = await fsApi.readFile({ path: `data/chats/${state.owned}/messages.jsonl` });
         const rows = disk.content.trim().split('\n').map(line => JSON.parse(line));
         assert(rows[1]?.text === state.expected, 'answer written through existing disk driver');
         localStorage.setItem(savedKey, JSON.stringify(state));
