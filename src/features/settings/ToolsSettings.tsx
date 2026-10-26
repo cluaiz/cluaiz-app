@@ -36,32 +36,7 @@ export function ToolsSettings() {
         setIsLoading(true);
         try {
             const data = await componentsApi.listComponents();
-            let loaded: ToolComponent[] = [];
-
-            if (data?.rich) {
-                for (const [_, items] of Object.entries(data.rich)) {
-                    if (Array.isArray(items)) {
-                        loaded.push(...(items as ToolComponent[]));
-                    }
-                }
-            } else if (data) {
-                for (const cat of ['skill', 'plugin', 'mcp']) {
-                    if (Array.isArray(data[cat])) {
-                        for (const id of data[cat]) {
-                            loaded.push({
-                                id,
-                                name: id,
-                                category: cat,
-                                version: '1.0.0',
-                                description: `Installed ${cat} component.`,
-                                enabled: true,
-                                execution_mode: 'auto'
-                            });
-                        }
-                    }
-                }
-            }
-
+            const loaded = Object.values(data.rich).flat();
             setTools(loaded);
         } catch (err) {
             console.error('[ToolsSettings] Failed to fetch tools from backend:', err);

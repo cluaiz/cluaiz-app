@@ -1,5 +1,6 @@
 import { client } from '../../../client';
 import { COMPONENTS_ENDPOINTS } from './components.endpoints';
+import { componentCatalog } from '../catalog';
 import type {
   ComponentSettingsResponse,
   ComponentFilesResponse,
@@ -10,13 +11,9 @@ import type {
 export const componentsApi = {
   /**
    * Lists components filtered by type.
-   * GET /api/components/list
+   * Uses the shared installed-tool CEP catalog and retains this App facade.
    */
-  listComponents: async (componentType?: string): Promise<Record<string, unknown>> => {
-    return client.get<Record<string, unknown>>(COMPONENTS_ENDPOINTS.LIST, {
-      params: componentType ? { component_type: componentType } : undefined,
-    });
-  },
+  listComponents: componentCatalog,
 
   /**
    * Fetches settings for a specific component.

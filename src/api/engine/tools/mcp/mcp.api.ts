@@ -1,5 +1,6 @@
 import { client } from '../../../client';
 import { MCP_ENDPOINTS } from './mcp.endpoints';
+import { listTools } from '../catalog';
 import type {
   McpListResponse,
   McpActionResponse,
@@ -10,10 +11,10 @@ import type {
 export const mcpApi = {
   /**
    * Lists all registered MCP servers.
-   * GET /v1/mcp/list
+   * CEP tools.list, filtered to the installed MCP packages.
    */
   listMcp: async (): Promise<McpListResponse> => {
-    return client.get<McpListResponse>(MCP_ENDPOINTS.LIST);
+    return { status: 'success', mcp_servers: await listTools('mcp') };
   },
 
   /**

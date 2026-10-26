@@ -1,5 +1,6 @@
 import { client } from '../../../client';
 import { SKILLS_ENDPOINTS } from './skills.endpoints';
+import { listTools } from '../catalog';
 import type {
   SkillListResponse,
   SkillActionResponse,
@@ -10,10 +11,10 @@ import type {
 export const skillsApi = {
   /**
    * Lists all installed WASM skills and agents.
-   * GET /v1/skills/list
+   * CEP tools.list, filtered to the installed skill packages.
    */
   listSkills: async (): Promise<SkillListResponse> => {
-    return client.get<SkillListResponse>(SKILLS_ENDPOINTS.LIST);
+    return { status: 'success', skills: await listTools('skill') };
   },
 
   /**

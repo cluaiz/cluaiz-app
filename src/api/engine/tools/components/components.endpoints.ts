@@ -3,7 +3,6 @@
  * Matches routes.rs:76-83
  */
 export const COMPONENTS_ENDPOINTS = {
-  LIST: '/api/components/list',
   SETTINGS: '/api/components/settings',
   FILE: '/api/components/file',
   FILES: '/api/components/files',

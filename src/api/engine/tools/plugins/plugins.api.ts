@@ -1,5 +1,6 @@
 import { client } from '../../../client';
 import { PLUGINS_ENDPOINTS } from './plugins.endpoints';
+import { listTools } from '../catalog';
 import type {
   PluginListResponse,
   PluginActionResponse,
@@ -10,10 +11,10 @@ import type {
 export const pluginsApi = {
   /**
    * Lists all installed plugins.
-   * GET /v1/plugins/list
+   * CEP tools.list, filtered to the installed plugin packages.
    */
   listPlugins: async (): Promise<PluginListResponse> => {
-    return client.get<PluginListResponse>(PLUGINS_ENDPOINTS.LIST);
+    return { status: 'success', plugins: await listTools('plugin') };
   },
 
   /**

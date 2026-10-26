@@ -5,7 +5,8 @@ import { Backlight } from '../../../components/ui/Backlight';
 import { useEngineStore } from '../../../store/engine/useEngineStore';
 import { useConnectionStore } from '../../../store/engine/useConnectionStore';
 import { navigateTo } from '../../../core/router';
-import { client } from '../../../api/client';
+import { componentsApi } from '../../../api/engine/tools/components/components.api';
+import type { ToolKind } from '../../../api/engine/tools/catalog';
 import { useChatModels } from '../hooks/useChatModels';
 import { systemApi } from '../../../api/engine/system/system.api';
 import { optimizationApi } from '../../../api';
@@ -206,8 +207,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     const [pathChips, setPathChips] = useState<{ id: string; rawPath: string; isFolder: boolean; name: string; lineRange?: string }[]>([]);
     const [isDraggingOver, setIsDraggingOver] = useState(false);
 
-    // Real Dynamic Tools from Engine backend (/api/components/list)
-    const { getBaseUrl } = useConnectionStore();
+    // Installed tools come through the shared components API facade.
+    const toolConnection = useConnectionStore(state => `${state.protocol}:${state.getBaseUrl()}`);
 
     // [P35] Codex Pending Queue & Steer State
     const [pendingQueue, setPendingQueue] = useState<Array<{
@@ -281,40 +282,23 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     });
 
     useEffect(() => {
+        const controller = new AbortController();
+        setBackendTools({ skills: [], plugins: [], mcp: [] });
         const fetchTools = async () => {
             try {
-                const data = await client.get<any>('/api/components/list');
-                if (data) {
-                    const rich = data.rich || {};
-                    const parseItems = (cat: string) => {
-                        const richItems = rich[cat] || [];
-                        if (richItems.length > 0) {
-                            return richItems.map((item: any) => ({
-                                id: item.id || item.name,
-                                name: item.name || item.id,
-                                icon_svg: item.icon_svg
-                            }));
-                        }
-                        const raw = data[cat] || [];
-                        return raw.map((id: string) => ({
-                            id,
-                            name: id.split('-').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
-                            icon_svg: null
-                        }));
-                    };
-
-                    setBackendTools({
-                        skills: parseItems('skill'),
-                        plugins: parseItems('plugin'),
-                        mcp: parseItems('mcp')
-                    });
-                }
+                const data = await componentsApi.listComponents(undefined, controller.signal);
+                if (controller.signal.aborted) return;
+                const parseItems = (cat: ToolKind) => data.rich[cat].map(item => ({
+                    id: item.id, name: item.name, icon_svg: item.icon_svg ?? null,
+                }));
+                setBackendTools({ skills: parseItems('skill'), plugins: parseItems('plugin'), mcp: parseItems('mcp') });
             } catch (err) {
-                // Silently fallback if engine is still booting
+                if (!controller.signal.aborted) console.warn('[ChatInput] Tool catalog unavailable:', err);
             }
         };
         fetchTools();
-    }, [getBaseUrl]);
+        return () => controller.abort();
+    }, [toolConnection]);
 
     const isWebSearchInstalled = backendTools.plugins.some(p => p.id === 'web-search' || p.name.toLowerCase().includes('search')) || backendTools.skills.some(s => s.id === 'web-search');
     const isDeepResearchInstalled = backendTools.plugins.some(p => p.id === 'deep-research' || p.name.toLowerCase().includes('deep')) || backendTools.skills.some(s => s.id === 'deep-research');
