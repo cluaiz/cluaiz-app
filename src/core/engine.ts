@@ -190,17 +190,17 @@ export class cluaizEngine {
                 }
             };
 
-            this.activeAbortController = new AbortController();
+            const controller = new AbortController();
+            this.activeAbortController = controller;
+            this.activeStreamId = null;
 
             await chatApi.streamCompletion(payload, {
-                signal: this.activeAbortController.signal,
+                signal: controller.signal,
+                onStreamId: id => {
+                    if (this.activeAbortController === controller) this.activeStreamId = id;
+                },
                 onEvent: (parsed: any) => {
                     if (!parsed) return;
-                    if (parsed.id) {
-                        cluaizEngine.activeStreamId = parsed.id;
-                    } else if (parsed.stream_id) {
-                        cluaizEngine.activeStreamId = parsed.stream_id;
-                    }
                     if (parsed.processing) {
                         emitChunk({ processing: parsed.processing });
                         return;
@@ -333,13 +333,17 @@ export class cluaizEngine {
                     }
                 },
                 onDone: () => {
-                    cluaizEngine.activeAbortController = null;
-                    cluaizEngine.activeStreamId = null;
+                    if (cluaizEngine.activeAbortController === controller) {
+                        cluaizEngine.activeAbortController = null;
+                        cluaizEngine.activeStreamId = null;
+                    }
                     emitChunk('[DONE]');
                 },
                 onError: (error) => {
-                    cluaizEngine.activeAbortController = null;
-                    cluaizEngine.activeStreamId = null;
+                    if (cluaizEngine.activeAbortController === controller) {
+                        cluaizEngine.activeAbortController = null;
+                        cluaizEngine.activeStreamId = null;
+                    }
                     emitChunk({ error: { message: error.message, type: error.statusText } });
                 }
             });

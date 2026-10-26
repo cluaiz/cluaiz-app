@@ -1,61 +1,10 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useConnectionStore } from '../../../store/engine/useConnectionStore';
-
-export interface ComponentTelemetryItem {
-    id: string;
-    name: string;
-    status: string;
-    category?: string;
-    tokens?: number;
-    icon_svg?: string;
-    security_mode?: string;
-    memory_cap_mb?: number;
-    execution_latency_ms?: number;
-    logs?: string[];
-}
-
-export interface CategoryTelemetryGroup {
-    name?: string;
-    count?: number;
-    active_count?: number;
-    tokens?: number;
-    total_tokens?: number;
-    percent?: number;
-    items: ComponentTelemetryItem[];
-}
-
-export interface ContextBreakdown {
-    total_context_limit: number;
-    model_native_context: number;
-    total_active_tokens: number;
-    active_percentage: number;
-    
-    messages_tokens: number;
-    messages_percentage: number;
-    
-    system_prompt_tokens: number;
-    system_prompt_percentage: number;
-    
-    skills_tokens: number;
-    skills_percentage: number;
-    
-    plugins_tokens: number;
-    plugins_percentage: number;
-    
-    mcp_tools_tokens: number;
-    mcp_tools_percentage: number;
-    
-    free_space_tokens: number;
-    free_space_percentage: number;
-
-    active_tools?: string[];
-    active_tools_count?: number;
-    active_tools_tokens?: number;
-
-    skills?: CategoryTelemetryGroup;
-    plugins?: CategoryTelemetryGroup;
-    mcp_tools?: CategoryTelemetryGroup;
-}
+import { chatApi } from '../../../api/engine/chat/chat.api';
+import { componentsApi } from '../../../api/engine/tools/components/components.api';
+import type { ToolKind } from '../../../api/engine/tools/catalog';
+import type { ComponentTelemetryItem, CategoryTelemetryGroup, ContextBreakdown } from '../../../api/engine/chat/chat.types';
+export type { ComponentTelemetryItem, CategoryTelemetryGroup, ContextBreakdown } from '../../../api/engine/chat/chat.types';
 
 export interface LivePerformanceStats {
     tps: string;
@@ -107,6 +56,11 @@ export function formatDuration(ms?: number): string {
 }
 
 export function useChatTelemetry() {
+    const connection = useConnectionStore(state => `${state.protocol}:${state.getBaseUrl()}`);
+    const contextRead = useRef<AbortController | null>(null);
+    const contextVersion = useRef(0);
+    const snapshotVersion = useRef(0);
+    const contextScope = useRef('');
     const [breakdown, setBreakdownState] = useState<ContextBreakdown | null>(null);
     const [liveStats, setLiveStats] = useState<LivePerformanceStats>({
         tps: '0.00',
@@ -281,6 +235,7 @@ export function useChatTelemetry() {
     }, []);
 
     const setBreakdown = useCallback((updater: ContextBreakdown | ((prev: ContextBreakdown | null) => ContextBreakdown | null)) => {
+        if (typeof updater !== 'function') snapshotVersion.current++;
         setBreakdownState(prev => {
             const next = typeof updater === 'function' ? updater(prev) : updater;
             if (!next) return next;
@@ -290,23 +245,20 @@ export function useChatTelemetry() {
             const mergedPlugins = mergeCategory('plugins', next.plugins || prev?.plugins, catalogRef.current.plugin, activeTools);
             const mergedMcp = mergeCategory('mcp_tools', next.mcp_tools || prev?.mcp_tools, catalogRef.current.mcp, activeTools);
 
-            const totalLimit = next.total_context_limit || prev?.total_context_limit || 4096;
+            const totalLimit = next.total_context_limit ?? prev?.total_context_limit ?? 0;
             const pct = (t: number) => totalLimit > 0 ? Number(((t / totalLimit) * 100).toFixed(1)) : 0;
 
-            const skillsTok = Math.max(next.skills_tokens || 0, mergedSkills.tokens || 0);
-            const pluginsTok = Math.max(next.plugins_tokens || 0, mergedPlugins.tokens || 0);
-            const mcpTok = Math.max(next.mcp_tools_tokens || 0, mergedMcp.tokens || 0);
+            const skillsTok = next.skills_tokens ?? mergedSkills.tokens ?? 0;
+            const pluginsTok = next.plugins_tokens ?? mergedPlugins.tokens ?? 0;
+            const mcpTok = next.mcp_tools_tokens ?? mergedMcp.tokens ?? 0;
 
             const activeToolsTok = skillsTok + pluginsTok + mcpTok;
-            const sysPromptTok = (next.system_prompt_tokens && next.system_prompt_tokens > 0)
-                ? next.system_prompt_tokens
-                : (prev?.system_prompt_tokens || 32);
-            const msgTok = (next.messages_tokens && next.messages_tokens > 0)
-                ? next.messages_tokens
-                : (prev?.messages_tokens || 0);
+            const sysPromptTok = next.system_prompt_tokens ?? prev?.system_prompt_tokens ?? 0;
+            const msgTok = next.messages_tokens ?? prev?.messages_tokens ?? 0;
             const totalActive = Math.min(totalLimit, sysPromptTok + msgTok + activeToolsTok);
 
-            return {
+            // Explicit SSE snapshots retain their measured totals; functional updates derive local estimates.
+            const derived = typeof updater !== 'function' || next === prev ? next : {
                 ...next,
                 skills_tokens: skillsTok,
                 skills_percentage: pct(skillsTok),
@@ -318,9 +270,11 @@ export function useChatTelemetry() {
                 active_percentage: pct(totalActive),
                 free_space_tokens: Math.max(0, totalLimit - totalActive),
                 free_space_percentage: pct(Math.max(0, totalLimit - totalActive)),
-                skills: { ...mergedSkills, tokens: skillsTok, percent: pct(skillsTok) },
-                plugins: { ...mergedPlugins, tokens: pluginsTok, percent: pct(pluginsTok) },
-                mcp_tools: { ...mergedMcp, tokens: mcpTok, percent: pct(mcpTok) },
+            };
+            return { ...derived,
+                skills: { ...mergedSkills, tokens: derived.skills_tokens, percent: derived.skills_percentage },
+                plugins: { ...mergedPlugins, tokens: derived.plugins_tokens, percent: derived.plugins_percentage },
+                mcp_tools: { ...mergedMcp, tokens: derived.mcp_tools_tokens, percent: derived.mcp_tools_percentage },
             };
         });
     }, [mergeCategory]);
@@ -391,7 +345,7 @@ export function useChatTelemetry() {
                     .filter(i => i.status === 'active' || i.status === 'running' || i.status === 'completed')
                     .reduce((sum, it) => sum + (it.tokens || 0), 0);
 
-                const totalLimit = prev.total_context_limit || 4096;
+                const totalLimit = prev.total_context_limit ?? 0;
                 const pct = totalLimit > 0 ? Number(((categoryTokens / totalLimit) * 100).toFixed(1)) : 0;
 
                 return {
@@ -406,7 +360,7 @@ export function useChatTelemetry() {
             };
 
             const updatedGroup = updateCategory(grp);
-            const totalLimit = prev.total_context_limit || 4096;
+            const totalLimit = prev.total_context_limit ?? 0;
             const pct = (t: number) => totalLimit > 0 ? Number(((t / totalLimit) * 100).toFixed(1)) : 0;
 
             const skillsGroup = targetCategoryName === 'skills' ? updatedGroup : prev.skills;
@@ -418,7 +372,7 @@ export function useChatTelemetry() {
             const mcpTok = mcpGroup?.tokens || 0;
 
             const activeToolsTok = skillsTok + pluginsTok + mcpTok;
-            const sysPromptTok = prev.system_prompt_tokens || 32;
+            const sysPromptTok = prev.system_prompt_tokens ?? 0;
             const msgTok = prev.messages_tokens || 0;
             const totalActive = Math.min(totalLimit, sysPromptTok + msgTok + activeToolsTok);
 
@@ -452,7 +406,7 @@ export function useChatTelemetry() {
         setBreakdown(prev => {
             const totalLimit = prev?.total_context_limit || 0;
             const modelNative = prev?.model_native_context || 0;
-            const sysTokens = prev?.system_prompt_tokens && prev.system_prompt_tokens > 0 ? prev.system_prompt_tokens : 32;
+            const sysTokens = prev?.system_prompt_tokens ?? 0;
             const skillsTokens = prev?.skills_tokens || 0;
             const pluginsTokens = prev?.plugins_tokens || 0;
             const mcpTokens = prev?.mcp_tools_tokens || 0;
@@ -488,46 +442,28 @@ export function useChatTelemetry() {
         });
     }, []);
 
-    const fetchContextTelemetry = useCallback(async (model = 'default', sessionId = 'default', activeTools: string[] = []) => {
-        try {
-            const baseUrl = useConnectionStore.getState().getBaseUrl();
-            const toolsParam = encodeURIComponent(JSON.stringify(activeTools));
-            const url = `${baseUrl}/v1/chat/context_telemetry?model=${encodeURIComponent(model)}&session_id=${encodeURIComponent(sessionId)}&tools=${toolsParam}`;
-            const res = await fetch(url).catch(() => null);
-            if (res && res.ok) {
-                const data = await res.json();
-                const telemetry = data.context_telemetry?.context_breakdown || data.context_telemetry || data.telemetry?.context_breakdown || data.telemetry;
-                if (telemetry) {
-                    setBreakdown(prev => {
-                        const safeMessagesTokens = telemetry.messages_tokens > 0 
-                            ? telemetry.messages_tokens 
-                            : (prev?.messages_tokens || 0);
-                        const safeSysPrompt = (telemetry.system_prompt_tokens && telemetry.system_prompt_tokens > 0)
-                            ? telemetry.system_prompt_tokens
-                            : (prev?.system_prompt_tokens || 32);
-                        const safeTotalLimit = telemetry.total_context_limit || prev?.total_context_limit || 4096;
-                        const activeTools = (telemetry.skills_tokens || 0) + (telemetry.plugins_tokens || 0) + (telemetry.mcp_tools_tokens || 0);
-                        const newTotalActive = Math.min(safeTotalLimit, safeSysPrompt + safeMessagesTokens + activeTools);
-                        const pct = (t: number) => safeTotalLimit > 0 ? Number(((t / safeTotalLimit) * 100).toFixed(1)) : 0;
+    useEffect(() => () => { contextRead.current?.abort(); contextVersion.current++; }, [connection]);
 
-                        return {
-                            ...telemetry,
-                            messages_tokens: safeMessagesTokens,
-                            messages_percentage: pct(safeMessagesTokens),
-                            system_prompt_tokens: safeSysPrompt,
-                            system_prompt_percentage: pct(safeSysPrompt),
-                            total_active_tokens: newTotalActive,
-                            active_percentage: pct(newTotalActive),
-                            free_space_tokens: Math.max(0, safeTotalLimit - newTotalActive),
-                            free_space_percentage: pct(Math.max(0, safeTotalLimit - newTotalActive))
-                        };
-                    });
-                }
-            }
+    const fetchContextTelemetry = useCallback(async (model = 'default', sessionId = 'default') => {
+        contextRead.current?.abort();
+        const controller = new AbortController();
+        contextRead.current = controller;
+        const version = ++contextVersion.current;
+        const snapshot = snapshotVersion.current;
+        const scope = JSON.stringify([connection, model, sessionId]);
+        if (scope !== contextScope.current) { contextScope.current = scope; setBreakdownState(null); }
+        try {
+            const data = await chatApi.getContextTelemetry({ model, session_id: sessionId }, controller.signal);
+            if (controller.signal.aborted || version !== contextVersion.current || snapshot !== snapshotVersion.current) return;
+            // This query counts tools; local message estimates and later measured SSE snapshots have their own owner.
+            setBreakdown(prev => ({ ...data.telemetry.context_breakdown,
+                messages_tokens: prev?.messages_tokens ?? data.telemetry.context_breakdown.messages_tokens,
+                system_prompt_tokens: prev?.system_prompt_tokens ?? data.telemetry.context_breakdown.system_prompt_tokens,
+            }));
         } catch (e) {
-            console.warn('[Telemetry] Failed to refresh context telemetry:', e);
+            if (!controller.signal.aborted && version === contextVersion.current) console.warn('[Telemetry] Failed to refresh context telemetry:', e);
         }
-    }, []);
+    }, [connection, setBreakdown]);
 
     const startStreaming = useCallback(() => {
         streamStartTime.current = performance.now();
@@ -652,36 +588,25 @@ export function useChatTelemetry() {
 
     // Load registered tools/skills/plugins so popover can inspect categories
     useEffect(() => {
+        const controller = new AbortController();
+        catalogRef.current = { skill: [], plugin: [], mcp: [] };
         const fetchComponents = async () => {
             try {
-                const baseUrl = useConnectionStore.getState().getBaseUrl();
-                const res = await fetch(`${baseUrl}/api/components/list`).catch(() => null);
-                if (res && res.ok) {
-                    const data = await res.json();
-                    const rich = data.rich || {};
-                    const toItems = (cat: string): ComponentTelemetryItem[] => {
-                        return (rich[cat] || []).map((it: any) => ({
-                            id: it.id || it.name,
-                            name: it.name || it.id,
-                            status: it.enabled ? 'deferred' : 'disabled',
-                            tokens: it.tokens || 0,
-                            icon_svg: it.icon_svg,
-                            security_mode: it.security_mode
-                        }));
-                    };
-
-                    catalogRef.current = {
-                        skill: toItems('skill'),
-                        plugin: toItems('plugin'),
-                        mcp: toItems('mcp')
-                    };
-
-                    setBreakdown(prev => prev);
-                }
-            } catch {}
+                const data = await componentsApi.listComponents(undefined, controller.signal);
+                if (controller.signal.aborted) return;
+                const toItems = (cat: ToolKind): ComponentTelemetryItem[] => data.rich[cat].map(item => ({
+                    id: item.id, name: item.name, status: item.enabled ? 'deferred' : 'disabled',
+                    tokens: item.tokens ?? 0, icon_svg: item.icon_svg ?? undefined, security_mode: item.security_mode,
+                }));
+                catalogRef.current = { skill: toItems('skill'), plugin: toItems('plugin'), mcp: toItems('mcp') };
+                setBreakdown(prev => prev);
+            } catch (error) {
+                if (!controller.signal.aborted) console.warn('[Telemetry] Tool catalog unavailable:', error);
+            }
         };
         fetchComponents();
-    }, [mergeCategory]);
+        return () => controller.abort();
+    }, [connection, setBreakdown]);
 
     return {
         breakdown,

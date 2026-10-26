@@ -1,6 +1,5 @@
 /**
- * Pure Chat Types (Zero Tools Pollution)
- * Matches routes.rs:22-25
+ * Chat generation and current CEP control/context DTOs.
  */
 export type ChatRole = 'system' | 'user' | 'assistant' | 'tool';
 
@@ -86,24 +85,71 @@ export interface StreamControlRequest {
 }
 
 export interface StreamControlResponse {
-  status: 'cancelled' | 'skipped' | string;
+  status: 'cancelled' | 'skip_requested';
   stream_id: string;
-  message: string;
+  message?: string;
 }
 
 export interface ContextTelemetryQuery {
   model?: string;
   session_id?: string;
-  tools?: string;
 }
 
 export interface ContextTelemetryResponse {
   model: string;
-  session_id: string;
-  max_context: number;
-  current_usage: number;
-  remaining_tokens: number;
-  usage_percentage: number;
-  active_tools_count: number;
-  [key: string]: any;
+  chat_id: string;
+  telemetry: {
+    context_breakdown: ContextBreakdown;
+    active_session_id: string;
+    kv_cache_vram_bytes_allocated: number;
+  };
+}
+
+/** Shared API/UI context DTO; Engine-only extra fields are retained at runtime. */
+export interface ComponentTelemetryItem {
+  id: string;
+  name: string;
+  status: string;
+  category?: string;
+  tokens?: number;
+  icon_svg?: string;
+  security_mode?: string;
+  memory_cap_mb?: number;
+  execution_latency_ms?: number;
+  logs?: string[];
+}
+
+export interface CategoryTelemetryGroup {
+  name?: string;
+  count?: number;
+  active_count?: number;
+  tokens?: number;
+  total_tokens?: number;
+  percent?: number;
+  items: ComponentTelemetryItem[];
+}
+
+export interface ContextBreakdown {
+  total_context_limit: number;
+  model_native_context: number;
+  total_active_tokens: number;
+  active_percentage: number;
+  messages_tokens: number;
+  messages_percentage: number;
+  system_prompt_tokens: number;
+  system_prompt_percentage: number;
+  skills_tokens: number;
+  skills_percentage: number;
+  plugins_tokens: number;
+  plugins_percentage: number;
+  mcp_tools_tokens: number;
+  mcp_tools_percentage: number;
+  free_space_tokens: number;
+  free_space_percentage: number;
+  active_tools?: string[];
+  active_tools_count?: number;
+  active_tools_tokens?: number;
+  skills?: CategoryTelemetryGroup;
+  plugins?: CategoryTelemetryGroup;
+  mcp_tools?: CategoryTelemetryGroup;
 }

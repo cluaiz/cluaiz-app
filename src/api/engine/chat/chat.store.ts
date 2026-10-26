@@ -47,11 +47,12 @@ export const useChatStore = create<ChatState>((set, get) => {
       if (abortController) {
         abortController.abort();
       }
-      abortController = new AbortController();
+      const controller = new AbortController();
+      abortController = controller;
+      const ownsRequest = () => abortController === controller;
 
-      const streamId = `chatcmpl-${Date.now()}`;
       set({
-        activeStreamId: streamId,
+        activeStreamId: null,
         isStreaming: true,
         streamingContent: '',
         reasoningContent: '',
@@ -64,51 +65,55 @@ export const useChatStore = create<ChatState>((set, get) => {
 
       try {
         await chatApi.streamCompletion(req, {
-          signal: abortController.signal,
+          signal: controller.signal,
+          onStreamId: id => { if (ownsRequest()) set({ activeStreamId: id }); },
           onReasoning: (reasoning) => {
+            if (!ownsRequest()) return;
             accumulatedReasoning += reasoning;
             set({ reasoningContent: accumulatedReasoning });
             callbacks?.onReasoning?.(reasoning);
           },
           onToken: (token) => {
+            if (!ownsRequest()) return;
             accumulatedContent += token;
             set({ streamingContent: accumulatedContent });
             callbacks?.onToken?.(token);
           },
           onError: (err) => {
+            if (!ownsRequest()) return;
             const msg = errorMessage(err);
             set({ status: 'error', error: msg, isStreaming: false });
           },
         });
 
-        set({ isStreaming: false, status: 'success' });
+        if (ownsRequest()) set({ isStreaming: false, activeStreamId: null, status: 'success' });
         return accumulatedContent;
       } catch (err: unknown) {
         const isAbort = (err as Error)?.name === 'AbortError';
         const msg = isAbort ? 'Chat generation cancelled' : errorMessage(err);
-        set({ isStreaming: false, status: isAbort ? 'idle' : 'error', error: msg });
+        if (ownsRequest()) set({ isStreaming: false, activeStreamId: null, status: isAbort ? 'idle' : 'error', error: msg });
         throw err;
       } finally {
-        abortController = null;
+        if (ownsRequest()) abortController = null;
       }
     },
 
     cancelActiveStream: async () => {
       const { activeStreamId } = get();
-      if (abortController) {
-        abortController.abort();
-        abortController = null;
-      }
+      const controller = abortController;
+      abortController = null;
+      controller?.abort();
+      set({ isStreaming: false, activeStreamId: null, status: 'idle' });
 
       if (activeStreamId) {
         try {
           await chatApi.cancelStream({ stream_id: activeStreamId });
-        } catch {
-          // Ignore network cancel errors if connection already closed
+        } catch (err) {
+          const ended = (err as { data?: { type?: string } })?.data?.type === 'stream_not_found';
+          // Local abort is immediate; other failures must not claim Engine acknowledgement.
+          if (!ended && abortController === null) set({ error: errorMessage(err) });
         }
       }
-
-      set({ isStreaming: false, activeStreamId: null });
     },
 
     skipThinking: async () => {
@@ -117,7 +122,7 @@ export const useChatStore = create<ChatState>((set, get) => {
         try {
           await chatApi.skipReasoning({ stream_id: activeStreamId });
         } catch (err) {
-          set({ error: errorMessage(err) });
+          if (get().activeStreamId === activeStreamId) set({ error: errorMessage(err) });
         }
       }
     },
