@@ -12,6 +12,8 @@ export interface ActiveFileState {
 export interface FsState {
   workspace: string | null;
   items: DiskItemDto[];
+  listingTruncated: boolean;
+  listingSkipped: number;
   activeFile: ActiveFileState | null;
   status: Status;
   error: string | null;
@@ -34,6 +36,8 @@ export interface FsState {
 export const useFsStore = create<FsState>((set, get) => ({
   workspace: null,
   items: [],
+  listingTruncated: false,
+  listingSkipped: 0,
   activeFile: null,
   status: 'idle',
   error: null,
@@ -73,8 +77,8 @@ export const useFsStore = create<FsState>((set, get) => ({
     try {
       const res = await fsApi.pickFolder();
       if (res && res.status === 'success' && res.path) {
-        await get().setWorkspace(res.path);
-        set({ status: 'success', error: null });
+        set({ workspace: res.path });
+        await get().listDirectory('.', false);
         return res.path;
       }
       set({ status: 'idle' });
@@ -90,7 +94,7 @@ export const useFsStore = create<FsState>((set, get) => ({
     try {
       const res = await fsApi.listDir({ dir_path: dirPath, recursive });
       const items = res.items || [];
-      set({ items, status: 'success', error: null });
+      set({ items, listingTruncated: res.truncated, listingSkipped: res.skipped, status: 'success', error: null });
       return items;
     } catch (err) {
       const msg = errorMessage(err);
@@ -212,6 +216,8 @@ export const useFsStore = create<FsState>((set, get) => ({
     set({
       workspace: null,
       items: [],
+      listingTruncated: false,
+      listingSkipped: 0,
       activeFile: null,
       status: 'idle',
       error: null,

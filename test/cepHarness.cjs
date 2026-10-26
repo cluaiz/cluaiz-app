@@ -6,7 +6,7 @@ function load(file,imports){
     const source=fs.readFileSync(path.join(__dirname,'..',file),'utf8');
     const code=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,
         jsx:ts.JsxEmit.ReactJSX,esModuleInterop:true}}).outputText;
-    vm.runInNewContext(code,{exports,AbortController,Error,console,setTimeout,clearTimeout,require:name=>{
+    vm.runInNewContext(code,{exports,AbortController,Error,Blob,atob,btoa,console,setTimeout,clearTimeout,require:name=>{
         if(!(name in imports))throw Error('Unexpected import '+name);return imports[name];
     }});
     return exports;
@@ -33,4 +33,8 @@ function harness(handler){
     });
     return {...cep,...config,...systemData,...permission,...models,errors,requests,client};
 }
-module.exports={load,harness};
+function filesystemHarness(handler){
+    const h=harness(handler);
+    return {...h,...load('src/api/engine/fs/fs.api.ts',{'../../client/cep':h,'../../client/errors':h.errors})};
+}
+module.exports={load,harness,filesystemHarness};
