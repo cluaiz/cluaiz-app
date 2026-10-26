@@ -1,0 +1,17 @@
+{
+  "name": "@cluaiz/extension-devkit",
+  "version": "0.1.0-alpha.1",
+  "private": true,
+  "type": "module",
+  "files": ["src/*.mjs", "src/preview.d.ts", "dist", "README.md"],
+  "sideEffects": false,
+  "bin": { "cluaiz-extension": "./src/cli.mjs" },
+  "exports": { "./preview": { "types": "./src/preview.d.ts", "import": "./dist/preview.js" } },
+  "engines": { "node": "^20.19.0 || >=22.12.0" },
+  "dependencies": {
+    "@cluaiz/extension-sdk": "0.1.0-alpha.1",
+    "typescript": "~5.8.3",
+    "vite": "^7.3.6"
+  },
+  "peerDependencies": { "react": "^19.0.0", "react-dom": "^19.0.0" }
+}

@@ -1,0 +1,6 @@
+{
+  "identifier": "extension-guest-bridge",
+  "description": "Native-created extension WebViews can send only caller-bound bridge messages.",
+  "webviews": ["extension-*"],
+  "permissions": ["allow-extension-guest-message"]
+}

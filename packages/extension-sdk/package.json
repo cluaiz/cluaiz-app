@@ -1,0 +1,15 @@
+{
+  "name": "@cluaiz/extension-sdk",
+  "version": "0.1.0-alpha.1",
+  "private": true,
+  "type": "module",
+  "files": ["dist", "README.md"],
+  "sideEffects": ["**/*.css"],
+  "exports": {
+    ".": { "types": "./dist/types/packages/extension-sdk/src/index.d.ts", "import": "./dist/index.js" },
+    "./ui": { "types": "./dist/types/packages/extension-sdk/src/ui.d.ts", "import": "./dist/ui.js" },
+    "./guest": { "types": "./dist/types/packages/extension-sdk/src/guest.d.ts", "import": "./dist/guest.js" },
+    "./ui.css": "./dist/ui.css"
+  },
+  "peerDependencies": { "react": "^19.0.0", "react-dom": "^19.0.0" }
+}
