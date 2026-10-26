@@ -1,6 +1,6 @@
 /**
  * Cluaiz Engine Components Types
- * Existing App facade projections. Settings/cache/files use CEP; execution migration is pending.
+ * Existing App facade projections for CEP tool methods.
  */
 
 export interface ComponentSettingsResponse {
@@ -49,6 +49,7 @@ export interface UpdateComponentFilePayload {
 }
 
 export interface DynamicExecuteRequest {
+  component_type: string;
   component_name: string;
   function_name: string;
   arguments?: Record<string, unknown>;
@@ -56,9 +57,5 @@ export interface DynamicExecuteRequest {
 }
 
 export interface DynamicExecuteResponse {
-  status: string;
-  result?: unknown;
-  output?: string;
-  error?: string;
-  [key: string]: unknown;
+  result: unknown;
 }

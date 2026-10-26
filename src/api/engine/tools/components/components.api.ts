@@ -1,13 +1,9 @@
-import { client } from '../../../client';
-import { COMPONENTS_ENDPOINTS } from './components.endpoints';
 import { componentCatalog } from '../catalog';
 import { getToolSettings, setToolSettings } from '../settings';
 import { listToolCache, clearToolCache } from '../cache';
 import { ApiError } from '../../../client/errors';
 import { listToolFiles, readToolFile, writeToolFile } from '../files';
-import type {
-  DynamicExecuteResponse,
-} from './components.types';
+import { executeTool } from '../execution';
 
 export const componentsApi = {
   /**
@@ -68,15 +64,7 @@ export const componentsApi = {
     (await listToolCache(componentType, componentId)).reports[0],
 
   /**
-   * Executes a dynamic component function via CEL sandbox.
-   * POST /v1/execute/{component_name}/{function_name}
+   * CEP tools.call, with explicit tool kind and intact tool-owned results.
    */
-  executeDynamic: async (
-    componentName: string,
-    functionName: string,
-    args?: Record<string, unknown>
-  ): Promise<DynamicExecuteResponse> => {
-    const url = COMPONENTS_ENDPOINTS.EXECUTE_DYNAMIC(componentName, functionName);
-    return client.post<DynamicExecuteResponse>(url, args || {});
-  },
+  executeDynamic: executeTool,
 };

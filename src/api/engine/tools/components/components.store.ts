@@ -11,7 +11,7 @@ export interface ComponentsState {
   fetchComponents: (componentType?: string) => Promise<void>;
   updateSettings: (componentId: string, settings: Record<string, unknown>, componentType: string) => Promise<boolean>;
   updateFile: (payload: UpdateComponentFilePayload) => Promise<boolean>;
-  executeDynamic: (component: string, fn: string, args?: Record<string, unknown>) => Promise<unknown>;
+  executeDynamic: (component: string, fn: string, args: Record<string, unknown> | undefined, kind: string) => Promise<unknown>;
   reset: () => void;
 }
 
@@ -50,10 +50,10 @@ export const useComponentsStore = create<ComponentsState>((set) => ({
     }
   },
 
-  executeDynamic: async (component: string, fn: string, args?: Record<string, unknown>) => {
+  executeDynamic: async (component: string, fn: string, args: Record<string, unknown> | undefined, kind: string) => {
     try {
-      const res = await componentsApi.executeDynamic(component, fn, args);
-      return res.result ?? res;
+      const res = await componentsApi.executeDynamic(component, fn, args, kind);
+      return res.result;
     } catch (err) {
       const msg = errorMessage(err);
       set({ error: msg });
