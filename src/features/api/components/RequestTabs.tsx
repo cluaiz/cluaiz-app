@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useApiStore } from '../../../store/api/useApiStore';
-import { MarkdownRenderer } from '../../../components/ui/MarkdownRenderer';
+import { ApiDocumentation } from './ApiDocumentation';
 import { CodeEditor } from '../../../components/ui/CodeEditor';
 import { CustomDropdown } from '../../../components/ui/dropdown/CustomDropdown';
 import { FileText, Code2, Braces, Sliders, Check, Copy, Sparkles, RotateCcw } from 'lucide-react';
@@ -226,7 +226,7 @@ export const RequestTabs: React.FC = () => {
 
                                 {activeEndpoint.docs_content && (
                                     <div className="pt-2 border-t border-[var(--border-color)]">
-                                        <MarkdownRenderer content={activeEndpoint.docs_content} />
+                                        <ApiDocumentation content={activeEndpoint.docs_content} />
                                     </div>
                                 )}
                             </div>

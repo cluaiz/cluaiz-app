@@ -3,10 +3,11 @@ import { useApiStore } from '../../store/api/useApiStore';
 import { RequestHeader } from './components/RequestHeader';
 import { RequestTabs } from './components/RequestTabs';
 import { ResponsePanel } from './components/ResponsePanel';
+import { ApiArchitectureLanding } from './components/ApiArchitectureLanding';
 import { GripHorizontal, GripVertical } from 'lucide-react';
 
 export const ApiWorkspace: React.FC = () => {
-    const { loadApiData, apiData, selectEndpoint, layoutOrientation, activeTab } = useApiStore();
+    const { loadApiData, apiData, activeEndpoint, selectEndpoint, layoutOrientation, activeTab } = useApiStore();
     const [splitRatio, setSplitRatio] = useState<number>(() => {
         if (typeof localStorage === 'undefined') return 55;
         const saved = localStorage.getItem('cluaiz_api_split_ratio');
@@ -48,6 +49,8 @@ export const ApiWorkspace: React.FC = () => {
                         break;
                     }
                 }
+            } else {
+                selectEndpoint(null);
             }
         };
 
@@ -93,6 +96,15 @@ export const ApiWorkspace: React.FC = () => {
 
     const isRightLayout = layoutOrientation === 'right';
     const showResponsePanel = activeTab === 'params' || activeTab === 'headers';
+
+    // If no endpoint is selected, present the interactive System Architecture Landing Page
+    if (!activeEndpoint) {
+        return (
+            <div className="flex flex-col h-full w-full min-w-0 overflow-hidden bg-[var(--bg-primary)]">
+                <ApiArchitectureLanding />
+            </div>
+        );
+    }
 
     return (
         <div className="flex flex-col h-full w-full min-w-0 overflow-hidden bg-[var(--bg-primary)]">

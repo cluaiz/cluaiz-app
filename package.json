@@ -9,6 +9,9 @@
     "app"
   ],
   "scripts": {
+    "sync:api": "node scripts/sync-api-docs.mjs",
+    "check:api": "node scripts/sync-api-docs.mjs --check",
+    "test:api-docs": "node --test test/api_docs.test.mjs test/api_explorer.test.cjs",
     "dev:web": "npm run dev -w app",
     "build:web": "npm run build -w app",
     "dev:desktop": "npm run tauri dev -w app",
@@ -54,10 +57,12 @@
     "remark-gfm": "^4.0.1",
     "three": "^0.184.0",
     "three-spritetext": "^1.10.0",
-    "zustand": "^5.0.14"
+    "zustand": "^5.0.14",
+    "mermaid": "^12.2.0"
   },
   "devDependencies": {
     "@tailwindcss/typography": "^0.5.20",
-    "vite": "^8.3.1"
+    "vite": "^8.3.1",
+    "yaml": "^2.9.1"
   }
 }

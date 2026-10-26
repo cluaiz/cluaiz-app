@@ -1,9 +1,11 @@
 import type { ApiEndpoint, InstalledModel } from '../types';
+import { methodPath, parsedParams } from './requestPayload';
 
 /** The header and payload store must agree on whether this route accepts a model. */
 export const endpointUsesModel = (endpoint: ApiEndpoint | null): boolean => {
     if (!endpoint) return false;
-    const p = endpoint.path.toLowerCase();
+    const p = methodPath(endpoint.path);
+    if (endpoint.transport_path) return !!endpoint.params?.some(param => param.name === 'model');
     if (p.includes('/ingest')) return true;
     if (p.includes('/plan')) return true;
     if (['/chat/cancel', '/chat/skip-reasoning', '/chat/context_telemetry', '/system/',
@@ -43,7 +45,7 @@ export const isChatModel = (m: InstalledModel): boolean =>
 /** Match visual/audio chat inputs; file_url only requires document text extraction. */
 const chatMediaTasks = (body?: string): string[][] => {
     try {
-        const payload = JSON.parse(body || '{}');
+        const payload = parsedParams(body || '{}');
         const parts = payload.messages?.flatMap((message: { content?: unknown }) =>
             Array.isArray(message.content) ? message.content : []) || [];
         const tasks: string[][] = [];
@@ -64,7 +66,7 @@ export const getFilteredModelsForEndpoint = (
     body?: string
 ): InstalledModel[] => {
     if (!endpointPath) return installedModels;
-    const p = endpointPath.toLowerCase();
+    const p = methodPath(endpointPath);
     if (p.includes('/plan')) return installedModels;
     if (p.includes('/chat') || p.includes('/completion')) {
         const tasks = chatMediaTasks(body);
@@ -78,18 +80,18 @@ export const getFilteredModelsForEndpoint = (
     if (p.includes('/audio/speech') || p.includes('/audio/voices') || p.includes('/tts')) {
         return installedModels.filter(isTtsModel);
     }
-    if (p.includes('/audio/execute')) {
+    if (p.includes('/audio/run')) {
         // Text input synthesizes speech; audio input is transcribed.
         let isText = true;
         try {
-            isText = String(JSON.parse(body || '{}').input_source?.type ?? 'text').toLowerCase() === 'text';
+            isText = String(parsedParams(body || '{}').input_source?.type ?? 'text').toLowerCase() === 'text';
         } catch { /* Incomplete JSON. */ }
         return installedModels.filter(isText ? isTtsModel : isSttModel);
     }
     if (p.includes('/embedding')) {
         let hasParts = false;
         try {
-            const input = JSON.parse(body || '{}').input;
+            const input = parsedParams(body || '{}').input;
             hasParts = Array.isArray(input) && input.some(part => part !== null && typeof part === 'object');
         } catch { /* Incomplete JSON. */ }
         return installedModels.filter(m => isEmbeddingModel(m)
@@ -109,17 +111,17 @@ export const initialModelForPayload = (endpoint: ApiEndpoint, models: InstalledM
     previous: string, task?: 'text_embedding' | 'image_embedding' | 'vision'): string | undefined => {
     let requested = '';
     try {
-        const value = JSON.parse(body)?.model;
+        const value = parsedParams(body)?.model;
         if (value != null && typeof value !== 'string') return undefined;
         requested = value || '';
     } catch { /* GET/unfinished body. */ }
-    const ingest = endpoint.path.includes('/ingest');
+    const ingest = methodPath(endpoint.path).includes('/ingest');
     if (ingest && (!requested || requested === 'auto')) return '';
     const candidates = task === 'vision' ? models.filter(isVisionIngestModel)
         : task ? getFilteredModelsForEndpoint('/v1/embeddings', models,
             task === 'image_embedding' ? '{"input":[{"type":"image"}]}' : '{}')
         : getFilteredModelsForEndpoint(endpoint.path, models, body);
-    const allowsAuto = endpoint.path.includes('/chat') || endpoint.path.includes('/plan');
+    const allowsAuto = methodPath(endpoint.path).includes('/chat') || methodPath(endpoint.path).includes('/plan');
     const valid = (id: string) => (allowsAuto && id === 'auto') || candidates.some(m => m.id === id);
     if (requested && !requested.startsWith('<')) return requested;
     if (valid(previous)) return previous;

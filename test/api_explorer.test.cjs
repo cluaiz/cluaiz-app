@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
-const ts = require('../app/node_modules/typescript');
+const ts = require(require.resolve('typescript', { paths: [path.join(__dirname, '../app')] }));
 
 // Execute the real filtering/store modules; only HTTP, routing and storage are boundaries.
 function load(relative, imports, globals = {}) {
@@ -18,7 +18,8 @@ function load(relative, imports, globals = {}) {
     } });
     return exports;
 }
-const filter = load('src/features/api/utils/modelFilter.ts', {});
+const payloadHelpers = load('src/features/api/utils/requestPayload.ts', {});
+const filter = load('src/features/api/utils/modelFilter.ts', {'./requestPayload':payloadHelpers});
 const models = [
     { id: 'text', category: 'chat', format_type: 'gguf', supported_tasks: ['text-generation'] },
     { id: 'visual', category: 'ingest', format_type: 'gguf', supported_tasks: ['spatial-vision'] },
@@ -57,7 +58,7 @@ test('ingest offers optional models and object embeddings only list ONNX candida
         JSON.stringify({input:[{type:'image', source:'source'}]}))), ['image-vector']);
 });
 
-function storeHarness() {
+function storeHarness(fetch) {
     const values = new Map();
     const localStorage = {getItem:key=>values.get(key) ?? null,
         setItem:(key,value)=>values.set(key,value), removeItem:key=>values.delete(key)};
@@ -67,8 +68,10 @@ function storeHarness() {
         '../../api': {http:{getToken:()=>null}, modelsApi:{}},
         '../../api/engine/audio/audio.endpoints': {AUDIO_ENDPOINTS:{SPEECH:'/v1/audio/speech'}},
         '../../features/api/utils/modelFilter': filter,
+        '../../features/api/utils/requestPayload': payloadHelpers,
+        '../../features/api/services/catalogDiscovery': {discoverInstalledModels:async()=>models},
         '../../core/router': {pushApiRoute:()=>{}},
-    }, {localStorage});
+    }, {localStorage, fetch});
     useApiStore.setState({installedModels: models});
     return {store:useApiStore, values};
 }
@@ -156,8 +159,10 @@ test('real Explorer components render native model selection and the payload-typ
     const {renderToStaticMarkup} = require('react-dom/server');
     const common = {react:React, 'react/jsx-runtime':require('react/jsx-runtime'),
         'lucide-react':require('lucide-react')};
+    const input = load('src/components/ui/Input.tsx', common);
     const {CustomDropdown} = load('src/components/ui/dropdown/CustomDropdown.tsx', {
         ...common, 'react-dom':{createPortal:children=>children}, 'framer-motion':require('framer-motion'),
+        '../Input':input,
     }, {document:{body:{}}}); // Portal placement is a browser boundary, not this render assertion.
     const {store} = storeHarness();
     const endpoint = ep('/v1/ingest', {source:'document'});
@@ -170,16 +175,120 @@ test('real Explorer components render native model selection and the payload-typ
         ...common,...dropdown,...state,'../types':{},
         '../../../store/engine/useConnectionStore':{useConnectionStore:()=>({host:'127.0.0.1',port:8000})},
         '../services/apiTransport':{executeApiRequest:()=>{}},'../utils/modelFilter':filter,
-        '../../../api/engine/audio/audio.api':{audioApi:{}},
-        '../../../api/engine/audio/audio.endpoints':{AUDIO_ENDPOINTS:{SPEECH:'/v1/audio/speech'}},
+        '../services/catalogDiscovery':{discoverCatalog:async()=>({data:[]})},
+        '../utils/requestPayload':payloadHelpers,
     });
     assert.match(renderToStaticMarkup(React.createElement(RequestHeader)),/Native extraction \(no model\)/);
     const {RequestTabs} = load('src/features/api/components/RequestTabs.tsx', {
         ...common,...dropdown,...state,
-        '../../../components/ui/MarkdownRenderer':{MarkdownRenderer:()=>null},
+        './ApiDocumentation':{ApiDocumentation:()=>null},
         '../../../components/ui/CodeEditor':{CodeEditor:({value})=>React.createElement('textarea',{readOnly:true,value})},
     });
     const body = renderToStaticMarkup(React.createElement(RequestTabs));
     assert.match(body,/Payload example/);
     assert.match(body,/Choose input type/);
+});
+
+test('API documentation extracts real diagrams without swallowing code or incomplete fences', () => {
+    const {documentationParts} = load('src/features/api/components/ApiDocumentation.tsx', {
+        react:require('react'), 'react/jsx-runtime':require('react/jsx-runtime'),
+        '../../../components/ui/MarkdownRenderer':{}, '../../../store/ui/useThemeStore':{},
+    });
+    const before = '# Method\n\n```python\nprint("text")\n```\n';
+    const after = '\n## Result\nPreserved prose.\n';
+    const parts = documentationParts(before + '```mermaid\nflowchart TD\n A["Request"] --> B["Result"]\n```\n' + after);
+    assert.equal(parts.length,3);
+    assert.equal(parts[0].content,before);
+    assert.equal(parts[1].kind,'diagram');
+    assert.match(parts[1].content,/flowchart TD/);
+    assert.equal(parts[2].content,after);
+    const quoted = '````text\n```mermaid\nThis is code, not a diagram.\n```\n````\n';
+    assert.equal(documentationParts(quoted)[0].content,quoted);
+    const incomplete = '```mermaid\nflowchart TD\n A --> B';
+    assert.equal(documentationParts(incomplete)[0].content,incomplete);
+});
+
+test('CEP methods retain distinct saved payloads while using the same wire route', () => {
+    const {store, values} = storeHarness();
+    const read = {...ep('fs.read', {jsonrpc:'2.0',id:1,method:'fs.read',params:{path:'first.md'}}),transport_path:'/v1/cep'};
+    const write = {...ep('fs.write', {jsonrpc:'2.0',id:1,method:'fs.write',params:{path:'second.md',text:'text'}}),transport_path:'/v1/cep'};
+    store.getState().selectEndpoint(read);
+    assert.equal(store.getState().reqUrl,'http://127.0.0.1:8000/v1/cep');
+    const edited = JSON.stringify({jsonrpc:'2.0',id:1,method:'fs.read',params:{path:'changed.md'}});
+    store.getState().setReqBody(edited);
+    store.getState().selectEndpoint(write);
+    assert.equal(JSON.parse(store.getState().reqBody).method,'fs.write');
+    store.getState().selectEndpoint(read);
+    assert.equal(store.getState().reqBody,edited);
+    assert.equal(values.get('cluaiz_payload_POST_fs.read'),edited);
+});
+
+test('CEP ingest model and native controls edit params without changing the envelope', () => {
+    const {store} = storeHarness();
+    const endpoint = {...ep('ingest.run',{jsonrpc:'2.0',id:7,method:'ingest.run',params:{source:'document'}}),
+        transport_path:'/v1/cep',params:[{name:'model'}]};
+    store.getState().selectEndpoint(endpoint);
+    store.getState().setSelectedModel('native-vector');
+    const request = JSON.parse(store.getState().reqBody);
+    assert.equal(request.method,'ingest.run');
+    assert.equal(request.id,7);
+    assert.equal(request.model,undefined);
+    assert.equal(request.params.model,'native-vector');
+    assert.equal(request.params.output_controls.return_embeddings,true);
+    store.getState().setSelectedModel('');
+    assert.deepEqual(JSON.parse(store.getState().reqBody).params,{source:'document'});
+});
+
+test('CEP audio voice controls preserve method and filter TTS versus STT by input', () => {
+    const {store} = storeHarness();
+    const endpoint = {...ep('audio.run',{jsonrpc:'2.0',id:1,method:'audio.run',params:{input_source:{type:'text',data:'text'}}}),
+        transport_path:'/v1/cep',params:[{name:'model'}]};
+    store.getState().selectEndpoint(endpoint);
+    store.getState().setSelectedModel('speaker');
+    store.getState().setSelectedVoice('voice-1');
+    const request = JSON.parse(store.getState().reqBody);
+    assert.equal(request.params.model,'speaker');
+    assert.equal(request.params.parameters.voice_id,'voice-1');
+    assert.equal(request.parameters,undefined);
+    assert.deepEqual(ids(filter.getFilteredModelsForEndpoint('audio.run',models,store.getState().reqBody)),['speaker','preview']);
+    request.params.input_source.type='file';
+    assert.deepEqual(ids(filter.getFilteredModelsForEndpoint('audio.run',models,JSON.stringify(request))),['listener']);
+    store.getState().setSelectedModel('preview');
+    const switched = JSON.parse(store.getState().reqBody);
+    assert.equal(switched.params.parameters,undefined,'A speaker must not leak into the next model package');
+    assert.equal(switched.method,'audio.run');
+    assert.equal(store.getState().selectedVoice,'default');
+});
+
+test('Explorer loads the generated catalog once and both views project the same five categories', async () => {
+    const {buildCatalog} = await import('../scripts/sync-api-docs.mjs');
+    const catalog = await buildCatalog();
+    const fetched = [];
+    const {store} = storeHarness(async url => {
+        fetched.push(url);
+        return {ok:true,json:async()=>catalog};
+    });
+    await store.getState().loadApiData();
+    assert.deepEqual(fetched,['/data/api-catalog.json']);
+    const {catalogPillars} = load('src/features/api/utils/catalogGroups.ts', {'lucide-react':require('lucide-react')});
+    const original = JSON.stringify(store.getState().apiData);
+    const pillars = catalogPillars(store.getState().apiData);
+    assert.equal(pillars.length,5);
+    assert.equal(pillars.reduce((sum,pillar)=>sum+pillar.totalEndpoints,0),87);
+    const paths = pillars.flatMap(pillar=>pillar.subgroups.flatMap(group=>group.endpoints.map(ep=>ep.path)));
+    assert.equal(new Set(paths).size,87);
+    assert.ok(paths.includes('fs.read') && paths.includes('/v1/ingest') && paths.includes('/v1/models'));
+    const ai = pillars.find(pillar => pillar.category === 'ai-inference');
+    const groupPaths = title => Array.from(ai.subgroups.find(group => group.title === title).endpoints, endpoint => endpoint.path);
+    assert.equal(ai.subgroups.filter(group => group.title.toLowerCase() === 'chat').length, 1);
+    assert.deepEqual(new Set(groupPaths('Chat')), new Set(['/v1/chat/completions',
+        ...catalog.flatMap(group => group.endpoints).filter(endpoint => endpoint.path.startsWith('chat.')).map(endpoint => endpoint.path)]));
+    assert.deepEqual(groupPaths('TTS'), ['/v1/audio/speech','audio.run','audio.voices']);
+    assert.deepEqual(groupPaths('STT'), ['/v1/audio/transcriptions','audio.languages']);
+    assert.ok(!ai.subgroups.some(group => group.title.toLowerCase() === 'audio'));
+    assert.equal(JSON.stringify(store.getState().apiData), original, 'Grouping must not alter endpoints or payloads');
+    for (const pillar of pillars) {
+        const names = pillar.subgroups.map(group => group.title.toLowerCase());
+        assert.equal(new Set(names).size, names.length, `${pillar.title} repeats a domain card`);
+    }
 });

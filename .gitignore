@@ -43,3 +43,6 @@ src-tauri/target/
 # cluaiz engine state
 .cluaiz/
 app/src-tauri/.cluaiz/
+
+# Generated from Engine Markdown by scripts/sync-api-docs.mjs
+public/data/api-catalog.json

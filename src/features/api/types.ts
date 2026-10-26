@@ -18,6 +18,9 @@ export interface CodeSnippet {
 export interface ApiEndpoint {
     method: HttpMethod;
     path: string;
+    /** CEP selection uses a method name; this is its actual HTTP/native route. */
+    transport_path?: string;
+    execution?: 'sync' | 'task';
     desc: string;
     docs_url?: string;
     docs_content?: string;
@@ -32,6 +35,7 @@ export interface ApiEndpoint {
 
 export interface ApiGroup {
     group: string;
+    category?: string;
     endpoints: ApiEndpoint[];
 }
 

@@ -6,8 +6,8 @@ import { executeApiRequest } from '../services/apiTransport';
 import { CustomDropdown } from '../../../components/ui/dropdown/CustomDropdown';
 import { endpointUsesModel, getFilteredModelsForEndpoint, isEmbeddingModel } from '../utils/modelFilter';
 import { Play, RotateCcw, Loader2 } from 'lucide-react';
-import { audioApi } from '../../../api/engine/audio/audio.api';
-import { AUDIO_ENDPOINTS } from '../../../api/engine/audio/audio.endpoints';
+import { discoverCatalog } from '../services/catalogDiscovery';
+import { isSpeechRequest, methodPath } from '../utils/requestPayload';
 
 export const RequestHeader: React.FC = () => {
     const {
@@ -50,11 +50,12 @@ export const RequestHeader: React.FC = () => {
     };
 
     const isModelEndpoint = endpointUsesModel(activeEndpoint);
+    const isSpeechEndpoint = isSpeechRequest(activeEndpoint, reqBody);
 
     const protocolOptions = useMemo(
         () => [
             { value: 'http', label: `HTTP REST API (${host}:${port})` },
-            { value: 'c-pointer', label: 'Native C-Pointer (FFI)' }
+            { value: 'c-pointer', label: 'Native IPC (Desktop)' }
         ],
         [host, port]
     );
@@ -63,7 +64,7 @@ export const RequestHeader: React.FC = () => {
     const modelOptions = useMemo(() => {
         if (!activeEndpoint) return [];
         const filtered = getFilteredModelsForEndpoint(activeEndpoint.path, installedModels, reqBody);
-        const p = activeEndpoint.path.toLowerCase();
+        const p = methodPath(activeEndpoint.path);
 
         const allowsAuto = p.includes('/chat') || p.includes('/plan');
         const opts = filtered.map((m) => ({
@@ -86,15 +87,15 @@ export const RequestHeader: React.FC = () => {
     // Discovery reads the selected package; STT routes have languages, not speaker voices.
     useEffect(() => {
         useApiStore.setState({ availableVoices: [{ value: 'default', label: 'Default Voice' }] });
-        if (activeEndpoint?.path !== AUDIO_ENDPOINTS.SPEECH || !selectedModel) return;
+        if (!isSpeechEndpoint || !selectedModel) return;
         const controller = new AbortController();
-        audioApi.voiceCatalog(selectedModel, controller.signal).then(catalog => {
+        discoverCatalog<{data: {id: string; language?: string}[]}>('audio.voices', {model:selectedModel}, controller.signal).then(catalog => {
             if (!controller.signal.aborted) useApiStore.setState({ availableVoices: catalog.data.map(voice => ({
                 value: voice.id, label: `${voice.id}${voice.language ? ` (${voice.language})` : ''}`
             })) });
         }).catch(() => { /* Default stays usable; discovery errors do not replace the payload. */ });
         return () => controller.abort();
-    }, [activeEndpoint?.path, selectedModel]);
+    }, [activeEndpoint?.path, isSpeechEndpoint, selectedModel]);
 
     const voiceOptions = useMemo(
         () =>
@@ -181,7 +182,6 @@ export const RequestHeader: React.FC = () => {
         }
     };
 
-    const isSpeechEndpoint = activeEndpoint?.path === AUDIO_ENDPOINTS.SPEECH;
 
     return (
         <div className="flex flex-col gap-2 p-3 bg-[var(--bg-secondary)] border-b border-[var(--border-color)]">

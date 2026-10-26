@@ -1,7 +1,9 @@
 import { create } from 'zustand';
 import { ApiEndpoint, ApiGroup, ApiProtocol, ExecutionMetrics, HttpMethod, InstalledModel, VoiceOption } from '../../features/api/types';
 import { useConnectionStore } from '../engine/useConnectionStore';
-import { http, modelsApi } from '../../api';
+import { http } from '../../api';
+import { discoverInstalledModels } from '../../features/api/services/catalogDiscovery';
+import { requestParams, parsedParams, requestPath, methodPath } from '../../features/api/utils/requestPayload';
 import { AUDIO_ENDPOINTS } from '../../api/engine/audio/audio.endpoints';
 import { endpointUsesModel, initialModelForPayload, isEmbeddingModel } from '../../features/api/utils/modelFilter';
 import { pushApiRoute } from '../../core/router';
@@ -34,7 +36,7 @@ interface ApiStoreState {
 
     // Actions
     loadApiData: () => Promise<void>;
-    selectEndpoint: (ep: ApiEndpoint, forceDefaultPayload?: boolean) => void;
+    selectEndpoint: (ep: ApiEndpoint | null, forceDefaultPayload?: boolean) => void;
     setSearchQuery: (query: string) => void;
     setSelectedModel: (modelId: string) => void;
     setSelectedVoice: (voiceId: string) => void;
@@ -53,20 +55,6 @@ interface ApiStoreState {
     resetPayload: () => void;
     applyPayloadExample: (id: string) => void;
 }
-
-const DATA_FILES = [
-    'system.json',
-    'filesystem.json',
-    'inference.json',
-    'tools.json',
-    'execution.json',
-    'models.json',
-    'plugins.json',
-    'skills.json',
-    'mcp.json',
-    'config.json',
-    'tuning.json'
-];
 
 export async function fetchActiveBearerToken(): Promise<string | null> {
     const rawToken = http.getToken();
@@ -102,28 +90,17 @@ export const useApiStore = create<ApiStoreState>()((set, get) => ({
     loadApiData: async () => {
         set({ isLoadingData: true });
         try {
-            const results = await Promise.all(
-                DATA_FILES.map(async (file) => {
-                    try {
-                        const res = await fetch(`/data/${file}`);
-                        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                        return (await res.json()) as ApiGroup;
-                    } catch (err) {
-                        console.warn(`[useApiStore] Failed to load /data/${file}:`, err);
-                        return null;
-                    }
-                })
-            );
-
-            const validGroups = results.filter((g): g is ApiGroup => g !== null && Array.isArray(g.endpoints));
+            const response = await fetch('/data/api-catalog.json');
+            if (!response.ok) throw new Error(`API catalog HTTP ${response.status}`);
+            const validGroups: ApiGroup[] = await response.json();
+            if (!Array.isArray(validGroups) || validGroups.some(group => !Array.isArray(group.endpoints))) {
+                throw new Error('Invalid API catalog');
+            }
             set({ apiData: validGroups, isLoadingData: false });
 
-            // Fetch installed models dynamically via centralized modelsApi
+            // Registry metadata comes through CEP using the configured App transport.
             try {
-                const data = await modelsApi.getInstalled();
-                if (data && Array.isArray(data.models)) {
-                    set({ installedModels: data.models as any });
-                }
+                set({ installedModels: await discoverInstalledModels() });
             } catch (err) {
                 console.warn('[useApiStore] Could not fetch installed models from gateway:', err);
             }
@@ -183,16 +160,13 @@ export const useApiStore = create<ApiStoreState>()((set, get) => ({
                 } catch (_) { }
             }
 
-            // Fallback to first available endpoint
-            if (!targetEp && validGroups.length > 0 && validGroups[0].endpoints.length > 0) {
-                targetEp = validGroups[0].endpoints[0];
-            }
-
             if (targetEp) {
                 get().selectEndpoint(targetEp);
                 if (targetTab) {
                     get().setActiveTab(targetTab);
                 }
+            } else {
+                set({ activeEndpoint: null });
             }
 
             // Auto-fetch active token and sync into reqHeaders
@@ -213,13 +187,29 @@ export const useApiStore = create<ApiStoreState>()((set, get) => ({
         }
     },
 
-    selectEndpoint: (ep: ApiEndpoint, forceDefaultPayload = false) => {
+    selectEndpoint: (ep: ApiEndpoint | null, forceDefaultPayload = false) => {
+        if (!ep) {
+            set({
+                activeEndpoint: null,
+                activeCategory: null,
+                responseMetrics: null,
+                audioData: null,
+                audioPlayedLive: false
+            });
+            if (typeof localStorage !== 'undefined') {
+                try {
+                    localStorage.removeItem('cluaiz_api_last_endpoint');
+                } catch (_) { }
+            }
+            pushApiRoute('');
+            return;
+        }
+
         const { getBaseUrl } = useConnectionStore.getState();
         const baseUrl = getBaseUrl();
         const currentGroup = get().apiData.find((g) => g.endpoints.some((e) => e.path === ep.path));
 
-        const isRawCode = ep.path.includes('/cel/execute') || ep.path.includes('/execute/');
-        const targetProtocol: ApiProtocol = ep.path.includes('/execute/') ? 'c-pointer' : 'http';
+        const targetProtocol = get().reqProtocol;
 
         // Check for saved payload in localStorage unless forceDefault is requested
         const storageKey = `cluaiz_payload_${ep.method}_${ep.path}`;
@@ -234,9 +224,7 @@ export const useApiStore = create<ApiStoreState>()((set, get) => ({
         } else if (ep.request_payload && ep.request_payload.trim().length > 0) {
             defaultBody = ep.request_payload;
         } else if (ep.method === 'POST' || ep.method === 'PUT' || ep.method === 'DELETE') {
-            if (isRawCode) {
-                defaultBody = ep.params?.[0]?.default ?? '';
-            } else if (ep.params && ep.params.length > 0) {
+            if (ep.params && ep.params.length > 0) {
                 const obj: Record<string, any> = {};
                 ep.params.forEach((p) => {
                     if (p.default !== undefined) {
@@ -259,9 +247,7 @@ export const useApiStore = create<ApiStoreState>()((set, get) => ({
             }
         }
 
-        const targetUrl = targetProtocol === 'c-pointer'
-            ? 'cluaiz_engine_invoke(ptr)'
-            : `${baseUrl}${ep.path}`;
+        const targetUrl = `${baseUrl}${requestPath(ep)}`;
 
         set({
             activeEndpoint: ep,
@@ -270,7 +256,7 @@ export const useApiStore = create<ApiStoreState>()((set, get) => ({
             reqProtocol: targetProtocol,
             reqUrl: targetUrl,
             reqBody: defaultBody,
-            reqLanguage: isRawCode ? 'cel' : 'json',
+            reqLanguage: 'json',
             activeTab: 'params',
             responseBody: 'Hit "Send" to execute the request.',
             responseMetrics: null,
@@ -282,7 +268,7 @@ export const useApiStore = create<ApiStoreState>()((set, get) => ({
         // Prefer a valid saved/example model, then the current task-compatible selection.
         if (endpointUsesModel(ep)) {
             const selected = initialModelForPayload(ep, get().installedModels, defaultBody, get().selectedModel);
-            if (selected !== undefined && (selected || ep.path.includes('/ingest'))) {
+            if (selected !== undefined && (selected || methodPath(ep.path).includes('/ingest'))) {
                 set({ selectedModel: selected }); // Keep the saved/example voice when opening a route.
                 get().setSelectedModel(selected);
             }
@@ -383,12 +369,14 @@ export const useApiStore = create<ApiStoreState>()((set, get) => ({
         try {
             const current = get().reqBody;
             if (current.trim().startsWith('{')) {
-                const obj = JSON.parse(current);
-                if (ep?.path.includes('/ingest')) {
+                const payload = JSON.parse(current);
+                const obj = requestParams(ep, payload);
+                if (ep && methodPath(ep.path).includes('/ingest')) {
                     if (!selectedModel) {
                         delete obj.model;
                         delete obj.vision_settings;
                         if (obj.output_controls) delete obj.output_controls.return_embeddings;
+                        if (obj.output_controls && Object.keys(obj.output_controls).length === 0) delete obj.output_controls;
                     } else {
                         obj.model = selectedModel;
                         const model = get().installedModels.find(m => m.id === selectedModel);
@@ -398,11 +386,15 @@ export const useApiStore = create<ApiStoreState>()((set, get) => ({
                         } else if (obj.output_controls) delete obj.output_controls.return_embeddings;
                     }
                 } else obj.model = selectedModel;
-                if (changed && ep?.path === AUDIO_ENDPOINTS.SPEECH) {
+                if (changed && (ep?.path === AUDIO_ENDPOINTS.SPEECH || ep?.path === 'audio.run')) {
                     delete obj.voice; // Speaker IDs/references belong to the selected package.
+                    if (obj.parameters) {
+                        delete obj.parameters.voice_id;
+                        if (Object.keys(obj.parameters).length === 0) delete obj.parameters;
+                    }
                     set({ selectedVoice: 'default' });
                 }
-                get().setReqBody(JSON.stringify(obj, null, 2));
+                get().setReqBody(JSON.stringify(payload, null, 2));
             }
         } catch {
             // Ignore non-JSON payloads
@@ -413,7 +405,8 @@ export const useApiStore = create<ApiStoreState>()((set, get) => ({
         try {
             const current = get().reqBody;
             if (current.trim().startsWith('{')) {
-                const obj = JSON.parse(current);
+                const payload = JSON.parse(current);
+                const obj = requestParams(get().activeEndpoint, payload);
                 if (get().activeEndpoint?.path === AUDIO_ENDPOINTS.SPEECH) {
                     // Speech uses top-level voice; omission selects the package default.
                     if (selectedVoice === 'default') delete obj.voice;
@@ -428,7 +421,7 @@ export const useApiStore = create<ApiStoreState>()((set, get) => ({
                     else obj.parameters.voice_id = selectedVoice;
                     if (Object.keys(obj.parameters).length === 0) delete obj.parameters;
                 }
-                get().setReqBody(JSON.stringify(obj, null, 2));
+                get().setReqBody(JSON.stringify(payload, null, 2));
             }
         } catch {
             // Ignore non-JSON payloads
@@ -438,9 +431,7 @@ export const useApiStore = create<ApiStoreState>()((set, get) => ({
     setReqProtocol: (reqProtocol) => {
         const { getBaseUrl } = useConnectionStore.getState();
         const ep = get().activeEndpoint;
-        const targetUrl = reqProtocol === 'c-pointer'
-            ? 'cluaiz_engine_invoke(ptr)'
-            : `${getBaseUrl()}${ep ? ep.path : '/health'}`;
+        const targetUrl = `${getBaseUrl()}${ep ? requestPath(ep) : '/health'}`;
         set({ reqProtocol, reqUrl: targetUrl });
         if (ep?.method === 'GET' && endpointUsesModel(ep) && get().selectedModel) {
             get().setSelectedModel(get().selectedModel);
@@ -453,7 +444,7 @@ export const useApiStore = create<ApiStoreState>()((set, get) => ({
         const ep = get().activeEndpoint;
         if (endpointUsesModel(ep)) {
             try {
-                const payload = JSON.parse(reqBody);
+                const payload = parsedParams(reqBody);
                 if (typeof payload.model === 'string') set({ selectedModel: payload.model });
                 if (ep?.path === AUDIO_ENDPOINTS.SPEECH) set({ selectedVoice: payload.voice || 'default' });
             } catch { /* Preserve incomplete JSON while the user types. */ }
