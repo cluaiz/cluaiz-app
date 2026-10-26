@@ -49,7 +49,9 @@ function toolHarness(handler){
     const base={'../../../client':{client:h.client},'../../../client/errors':h.errors,
         '../catalog':catalog,'../lifecycle':lifecycle,'../cache':cache,'../settings':settings,'../files':files,'../execution':execution};
     const components=load('src/api/engine/tools/components/components.api.ts',base);
-    const api={...h,...tasks,...catalog,...lifecycle,...cache,...settings,...files,...execution,...components};
+    const session=load('src/api/engine/tools/session/session-tools.api.ts',{
+        '../../../client/cep':h,'../../../client/errors':h.errors,'../catalog':catalog});
+    const api={...h,...tasks,...catalog,...lifecycle,...cache,...settings,...files,...execution,...components,...session};
     for(const kind of ['skills','plugins','mcp'])Object.assign(api,load(`src/api/engine/tools/${kind}/${kind}.api.ts`,base));
     return api;
 }
