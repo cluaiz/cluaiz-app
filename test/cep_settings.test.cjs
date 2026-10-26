@@ -182,3 +182,20 @@ test('the existing Engine settings screen marks unsupported Brain Mode disabled'
     assert.ok(control);assert.equal(control.disabled,true);
     assert.match(control.description,/Unavailable/);
 });
+
+test('a failed debounced settings save restores the last acknowledged value',async()=>{
+    const onnx={n_gpu_layers:0,intra_op_num_threads:2};
+    const h=settingsHarness((url,body)=>{
+        if(body.method==='config.set')throw Error('Save refused');
+        return result(body,{[body.params.section]:body.params.section==='onnx'?onnx:{samplers:{}}});
+    });
+    const store=load('src/api/engine/inference/inference.store.ts',{
+        zustand:require('zustand'),'./inference.api':h,'../../client/errors':h.errors,
+        '../../../components/ui/toast':{toast},
+    }).useInferenceStore;
+    await store.getState().load();store.getState().updateOnnxField('intra_op_num_threads',3);
+    const deadline=Date.now()+2000;
+    while(store.getState().status!=='error'&&Date.now()<deadline)await new Promise(resolve=>setTimeout(resolve,10));
+    assert.equal(store.getState().status,'error');
+    assert.equal(store.getState().onnx.intra_op_num_threads,2);
+});
