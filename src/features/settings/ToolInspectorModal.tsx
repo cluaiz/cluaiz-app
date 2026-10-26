@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { componentsApi } from '../../api';
+import { errorMessage } from '../../api/client/errors';
 import { toast } from '../../components/ui/toast';
 import { MarkdownRenderer } from '../../components/ui/MarkdownRenderer';
 import { 
@@ -178,12 +179,19 @@ export function ToolInspectorModal({ tool, onClose, onDeleteTool }: ToolInspecto
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [isClearingCache, setIsClearingCache] = useState(false);
     const cacheScope = useRef(0);
+    const fileRead = useRef<AbortController | null>(null);
+    const [fileListingMessage, setFileListingMessage] = useState('');
 
     const toolId = tool?.id;
     const toolCategory = tool?.category;
 
     useEffect(() => {
         cacheScope.current++;
+        fileRead.current?.abort();
+        fileRead.current = null;
+        setFiles([]);
+        setFileListingMessage('');
+        setIsLoadingContent(false);
         setCacheInfo({ temp_bytes: 0, all_bytes: 0 });
         setIsClearingCache(false);
         if (!toolId || !toolCategory) {
@@ -201,26 +209,15 @@ export function ToolInspectorModal({ tool, onClose, onDeleteTool }: ToolInspecto
         setShowDeleteConfirm(false);
 
         let isSubscribed = true;
+        const controller = new AbortController();
 
-        componentsApi.getFiles(toolCategory, toolId)
-            .then(async data => {
+        componentsApi.getFiles(toolCategory, toolId, controller.signal)
+            .then(data => {
                 if (!isSubscribed) return;
                 if (data?.status === 'success' && Array.isArray(data.files)) {
                     setFiles(data.files);
                     if (data.cache) setCacheInfo(data.cache);
-
-                    // Check for real icon SVG if not already populated
-                    const iconFile = data.files.find((f: ComponentFile) => 
-                        !f.is_dir && (f.path.toLowerCase().includes('icon.svg') || f.name.toLowerCase() === 'icon.svg')
-                    );
-                    if (iconFile && !tool?.icon_svg) {
-                        try {
-                            const iconData = await componentsApi.getFile(toolCategory, toolId, iconFile.path);
-                            if (isSubscribed && iconData?.status === 'success' && iconData.content) {
-                                setRealIconSvg(iconData.content);
-                            }
-                        } catch {}
-                    }
+                    if (data.truncated || data.skipped) setFileListingMessage(`Partial listing; ${data.skipped} entries skipped.`);
 
                     const initialExpanded = new Set<string>();
                     data.files.forEach((f: ComponentFile) => {
@@ -234,9 +231,18 @@ export function ToolInspectorModal({ tool, onClose, onDeleteTool }: ToolInspecto
                     if (firstFile && isSubscribed) {
                         loadFileContent(firstFile);
                     }
+                    // Loading an icon must not delay the initial file and override a later user selection.
+                    const iconFile = data.files.find(f => !f.is_dir && f.name.toLowerCase() === 'icon.svg');
+                    if (iconFile && !tool?.icon_svg) {
+                        void componentsApi.getFile(toolCategory, toolId, iconFile.path, controller.signal)
+                            .then(iconData => { if (isSubscribed && iconData.content) setRealIconSvg(iconData.content); })
+                            .catch(() => {});
+                    }
                 }
             })
-            .catch(err => console.error('[ToolInspector] Failed to fetch tool files:', err))
+            .catch(err => {
+                if (isSubscribed) setFileListingMessage(`Could not load tool files: ${errorMessage(err)}`);
+            })
             .finally(() => {
                 if (isSubscribed) setIsLoadingFiles(false);
             });
@@ -244,12 +250,21 @@ export function ToolInspectorModal({ tool, onClose, onDeleteTool }: ToolInspecto
         return () => {
             isSubscribed = false;
             cacheScope.current++;
+            controller.abort();
+            fileRead.current?.abort();
+            fileRead.current = null;
         };
     }, [toolId, toolCategory]);
 
     const loadFileContent = async (file: ComponentFile) => {
         if (file.is_dir || !toolId || !toolCategory) return;
+        fileRead.current?.abort();
+        const controller = new AbortController();
+        fileRead.current = controller;
+        const scope = cacheScope.current;
+        const current = () => scope === cacheScope.current && fileRead.current === controller && !controller.signal.aborted;
         setSelectedFile(file);
+        setFileContent('');
         setIsLoadingContent(true);
 
         const isMd = file.name.toLowerCase().endsWith('.md');
@@ -257,12 +272,15 @@ export function ToolInspectorModal({ tool, onClose, onDeleteTool }: ToolInspecto
         setViewMode(isMd || isAsset ? 'preview' : 'raw');
 
         try {
-            const data = await componentsApi.getFile(toolCategory, toolId, file.path);
-            setFileContent(data?.status === 'success' ? (data.content ?? '') : `Error: ${data?.message || 'Could not load file'}`);
+            const data = await componentsApi.getFile(toolCategory, toolId, file.path, controller.signal);
+            if (current()) setFileContent(data.content);
         } catch (err) {
-            setFileContent(`Error: ${(err as Error).message}`);
+            if (current()) setFileContent(`Error: ${errorMessage(err)}`);
         } finally {
-            setIsLoadingContent(false);
+            if (current()) {
+                setIsLoadingContent(false);
+                fileRead.current = null;
+            }
         }
     };
 
@@ -525,11 +543,12 @@ export function ToolInspectorModal({ tool, onClose, onDeleteTool }: ToolInspecto
                                 <span className="text-[10px] text-[var(--text-muted)] font-mono">{files.filter(f => !f.is_dir).length} files</span>
                             </div>
                             <div className="flex-1 overflow-y-auto p-2 space-y-0.5 custom-scrollbar">
+                                {fileListingMessage && <p role="status" className="p-2 text-xs text-[var(--text-muted)]">{fileListingMessage}</p>}
                                 {isLoadingFiles ? (
                                     <div className="flex items-center justify-center p-8 text-[var(--text-muted)] gap-2 text-xs">
                                         <Loader2 size={15} className="animate-spin text-[var(--accent-color)]" /> Scanning directory...
                                     </div>
-                                ) : files.length === 0 ? (
+                                ) : files.length === 0 && !fileListingMessage ? (
                                     <div className="flex flex-col items-center justify-center p-8 text-[var(--text-muted)] gap-2">
                                         <Folder size={24} className="opacity-30" />
                                         <span className="text-xs">No files found.</span>

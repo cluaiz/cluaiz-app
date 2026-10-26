@@ -44,10 +44,11 @@ function toolHarness(handler){
     const lifecycle=load('src/api/engine/tools/lifecycle.ts',{...shared,'../../client/cepTask':tasks,'./catalog':catalog});
     const cache=load('src/api/engine/tools/cache.ts',{...shared,'./catalog':catalog,'./lifecycle':lifecycle});
     const settings=load('src/api/engine/tools/settings.ts',{...shared,'./lifecycle':lifecycle});
+    const files=load('src/api/engine/tools/files.ts',{...shared,'./lifecycle':lifecycle,'./cache':cache});
     const base={'../../../client':{client:h.client},'../../../client/errors':h.errors,
-        '../catalog':catalog,'../lifecycle':lifecycle,'../cache':cache,'../settings':settings};
+        '../catalog':catalog,'../lifecycle':lifecycle,'../cache':cache,'../settings':settings,'../files':files};
     const components=load('src/api/engine/tools/components/components.api.ts',{...base,'./components.endpoints':{COMPONENTS_ENDPOINTS:{}}});
-    const api={...h,...tasks,...catalog,...lifecycle,...cache,...settings,...components};
+    const api={...h,...tasks,...catalog,...lifecycle,...cache,...settings,...files,...components};
     for(const kind of ['skills','plugins','mcp'])Object.assign(api,load(`src/api/engine/tools/${kind}/${kind}.api.ts`,base));
     return api;
 }

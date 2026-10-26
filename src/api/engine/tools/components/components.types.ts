@@ -1,6 +1,6 @@
 /**
  * Cluaiz Engine Components Types
- * Existing App facade projections. Settings/cache use CEP; file/execution migration is pending.
+ * Existing App facade projections. Settings/cache/files use CEP; execution migration is pending.
  */
 
 export interface ComponentSettingsResponse {
@@ -28,6 +28,8 @@ export interface ComponentFilesResponse {
   status: string;
   files: ComponentFileItem[];
   cache?: ComponentCacheInfo;
+  truncated: boolean;
+  skipped: number;
   [key: string]: unknown;
 }
 

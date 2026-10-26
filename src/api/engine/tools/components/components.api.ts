@@ -4,9 +4,8 @@ import { componentCatalog } from '../catalog';
 import { getToolSettings, setToolSettings } from '../settings';
 import { listToolCache, clearToolCache } from '../cache';
 import { ApiError } from '../../../client/errors';
+import { listToolFiles, readToolFile, writeToolFile } from '../files';
 import type {
-  ComponentFilesResponse,
-  UpdateComponentFilePayload,
   DynamicExecuteResponse,
 } from './components.types';
 
@@ -31,42 +30,21 @@ export const componentsApi = {
 
   /**
    * Lists file paths inside a component directory.
-   * GET /api/components/files
+   * CEP tools.files, retaining partial listing and cache metadata.
    */
-  getFiles: async (componentType?: string, componentId?: string): Promise<ComponentFilesResponse> => {
-    return client.get<ComponentFilesResponse>(COMPONENTS_ENDPOINTS.FILES, {
-      params: {
-        ...(componentType ? { component_type: componentType } : {}),
-        ...(componentId ? { component_id: componentId } : {}),
-      },
-    });
-  },
+  getFiles: listToolFiles,
 
   /**
    * Reads a specific file inside a component.
-   * GET /api/components/file
+   * CEP tools.read_file; UTF-8 content, not a binary asset loader.
    */
-  getFile: async (
-    componentType: string,
-    componentId: string,
-    filePath: string
-  ): Promise<{ status: string; content?: string; message?: string; [key: string]: any }> => {
-    return client.get(COMPONENTS_ENDPOINTS.FILE, {
-      params: {
-        component_type: componentType,
-        component_id: componentId,
-        file_path: filePath,
-      },
-    });
-  },
+  getFile: readToolFile,
 
   /**
    * Updates/writes a component file.
-   * POST /api/components/file
+   * CEP tools.write_file; Engine chooses the package's main file.
    */
-  updateFile: async (payload: UpdateComponentFilePayload): Promise<{ status: string; message?: string }> => {
-    return client.post<{ status: string; message?: string }>(COMPONENTS_ENDPOINTS.FILE, payload);
-  },
+  updateFile: writeToolFile,
 
   /**
    * Clears components cache.

@@ -3,13 +3,20 @@ import { ApiError } from '../../client/errors';
 import { isToolKind } from './catalog';
 import { toolTarget } from './lifecycle';
 
-interface CacheReport {
-  kind: string; name: string; temp_bytes: number; all_bytes: number;
+export interface ToolCacheInfo {
+  temp_bytes: number; all_bytes: number;
   entries: Array<{path: string; size: number}>;
+  [key: string]: unknown;
 }
+interface CacheReport extends ToolCacheInfo { kind: string; name: string }
 const object = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === 'object' && !Array.isArray(value);
 const count = (value: unknown): value is number => Number.isSafeInteger(value) && Number(value) >= 0;
+export function isToolCacheInfo(value: unknown): value is ToolCacheInfo {
+  return object(value) && count(value.temp_bytes) && count(value.all_bytes) && value.temp_bytes <= value.all_bytes
+    && Array.isArray(value.entries) && value.entries.every(entry => object(entry)
+      && typeof entry.path === 'string' && count(entry.size));
+}
 function cacheTarget(kind: string, name?: string) {
   if (name !== undefined) return toolTarget(kind, name);
   if (!isToolKind(kind)) throw new ApiError('Unknown tool kind', 400, 'INVALID_TOOL_TARGET', 'tools.cache');
@@ -21,9 +28,7 @@ export async function listToolCache(kind: string, name?: string) {
   const value = await callCep<unknown>('tools.cache', target);
   if (!Array.isArray(value) || value.some(report => !object(report) || report.kind !== kind
     || typeof report.name !== 'string' || !report.name || (name !== undefined && report.name !== name)
-    || !count(report.temp_bytes) || !count(report.all_bytes) || report.temp_bytes > report.all_bytes
-    || !Array.isArray(report.entries) || report.entries.some(entry => !object(entry)
-      || typeof entry.path !== 'string' || !count(entry.size)))
+    || !isToolCacheInfo(report))
     || (name !== undefined && value.length !== 1)) {
     throw new ApiError('Engine returned an invalid tool cache report', 200, 'INVALID_TOOL_CACHE', 'tools.cache');
   }
