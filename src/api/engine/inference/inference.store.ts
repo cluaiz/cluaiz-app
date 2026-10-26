@@ -33,6 +33,9 @@ interface InferenceState {
 
 let ggufSaveTimer: ReturnType<typeof setTimeout> | null = null;
 let onnxSaveTimer: ReturnType<typeof setTimeout> | null = null;
+// Draft state changes before the debounce fires; rollback needs the last server acknowledgement.
+let savedGguf: GgufConfig | null = null;
+let savedOnnx: OnnxConfig | null = null;
 
 export const useInferenceStore = create<InferenceState>((set, get) => ({
   gguf: null,
@@ -48,6 +51,8 @@ export const useInferenceStore = create<InferenceState>((set, get) => ({
         inferenceApi.getGguf(),
         inferenceApi.getOnnx(),
       ]);
+      savedGguf = gguf;
+      savedOnnx = onnx;
       set({ gguf, onnx, status: 'success' });
     } catch (err) {
       set({ status: 'error', error: errorMessage(err) });
@@ -55,7 +60,7 @@ export const useInferenceStore = create<InferenceState>((set, get) => ({
   },
 
   saveGguf: async (next: GgufConfig) => {
-    const prev = get().gguf;
+    const prev = savedGguf || get().gguf;
     set({ gguf: next, isSaving: true, error: null });
     try {
       const saved = await toast.promise(
@@ -66,15 +71,16 @@ export const useInferenceStore = create<InferenceState>((set, get) => ({
           error: 'Failed to save inference configuration'
         }
       );
+      savedGguf = saved.gguf;
       if (get().gguf === next) set({ gguf: saved.gguf, isSaving: false, status: 'success' });
     } catch (err) {
       // Rollback to previous state on failure
-      if (get().gguf === next) set({ gguf: prev, isSaving: false, status: 'error', error: errorMessage(err) });
+      if (get().gguf === next) set({ gguf: savedGguf || prev, isSaving: false, status: 'error', error: errorMessage(err) });
     }
   },
 
   saveOnnx: async (next: OnnxConfig) => {
-    const prev = get().onnx;
+    const prev = savedOnnx || get().onnx;
     set({ onnx: next, isSaving: true, error: null });
     try {
       const saved = await toast.promise(
@@ -85,10 +91,11 @@ export const useInferenceStore = create<InferenceState>((set, get) => ({
           error: 'Failed to save ONNX configuration'
         }
       );
+      savedOnnx = saved.onnx;
       if (get().onnx === next) set({ onnx: saved.onnx, isSaving: false, status: 'success' });
     } catch (err) {
       // Rollback to previous state on failure
-      if (get().onnx === next) set({ onnx: prev, isSaving: false, status: 'error', error: errorMessage(err) });
+      if (get().onnx === next) set({ onnx: savedOnnx || prev, isSaving: false, status: 'error', error: errorMessage(err) });
     }
   },
 
