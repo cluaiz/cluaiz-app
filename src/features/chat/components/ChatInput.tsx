@@ -6,8 +6,7 @@ import { useEngineStore } from '../../../store/engine/useEngineStore';
 import { useConnectionStore } from '../../../store/engine/useConnectionStore';
 import { navigateTo } from '../../../core/router';
 import { client } from '../../../api/client';
-import { modelsApi } from '../../../api/engine/models/models.api';
-import { permissionApi } from '../../../api/engine/permission/permission.api';
+import { useChatModels } from '../hooks/useChatModels';
 import { systemApi } from '../../../api/engine/system/system.api';
 import { optimizationApi } from '../../../api';
 import { toast } from '../../../components/ui/toast';
@@ -448,7 +447,6 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     const updateBooster = useEngineStore(s => s.updateBooster);
     const permissions = useEngineStore(s => s.permissions);
     const installedModelsMap = useEngineStore(s => s.installedModelsMap);
-    const updatePermission = useEngineStore(s => s.updatePermission);
     const fetchStatus = useEngineStore(s => s.fetchStatus);
     const initEngineSettings = useEngineStore(s => s.initEngineSettings);
     const isEngineOnline = Boolean(permissions);
@@ -663,52 +661,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         }
     }, [fetchStatus, initEngineSettings]);
 
-    // Dynamic Model Processing (From Engine /v1/models/installed with permissions fallback)
-    const [installedModels, setInstalledModels] = useState<Array<{ id: string; fullName: string; shortName: string }>>([]);
-
-    useEffect(() => {
-        const fetchInstalledModels = async () => {
-            try {
-                const data = await modelsApi.getInstalled();
-                if (data) {
-                    const raw = (data as any).installed || (data as any).installed_models || (data as any).models || [];
-                    const list = Array.isArray(raw) ? raw : Object.values(raw);
-                    const chatModels = list.filter((m: any) => !m.category || m.category === 'chat');
-                    if (chatModels.length > 0) {
-                        setInstalledModels(chatModels.map((m: any) => {
-                            const formatted = formatModelName(m.id || m.name);
-                            return {
-                                id: m.id || m.name,
-                                fullName: formatted.fullName,
-                                shortName: formatted.shortName
-                            };
-                        }));
-                    }
-                }
-            } catch (e) {
-                // Silently fallback to permissions
-            }
-        };
-        fetchInstalledModels();
-    }, [getBaseUrl]);
-
-    const availableModels = permissions?.available_chat_models?.length
-        ? permissions.available_chat_models
-        : permissions?.available_models ?? [];
-
-    const activeModelId = permissions?.chat_models?.text || 'Unknown Model';
-    const displayModels = availableModels.length > 0 ? availableModels : [activeModelId];
-
-    const modelOptions = installedModels.length > 0
-        ? installedModels
-        : displayModels.map(id => {
-            const formatted = formatModelName(id);
-            return {
-                id,
-                fullName: formatted.fullName,
-                shortName: formatted.shortName
-            };
-        });
+    const chatModels = useChatModels();
+    const activeModelId = permissions?.chat_models?.text || '';
+    const modelOptions = chatModels.models.map(model => ({ id: model.id, ...formatModelName(model.id) }));
 
     // Calculate model text width based on real-time screen width and selected chips
     useEffect(() => {
@@ -733,7 +688,10 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         return () => window.removeEventListener('resize', calculateWidth);
     }, [selectedSkills.length]);
 
-    const currentModel = modelOptions.find(m => m.id === activeModelId) || modelOptions[0] || { id: 'default', fullName: 'Default Model', shortName: 'Default' };
+    const currentModel = modelOptions.find(m => m.id === activeModelId) || {
+        id: '', fullName: chatModels.error || 'Select a chat model',
+        shortName: chatModels.loading ? 'Loading models…' : chatModels.error ? 'Models unavailable' : 'Select model'
+    };
 
     const [isVisionSupported, setIsVisionSupported] = useState<boolean>(() => {
         return checkModelVisionSupport(currentModel?.id || activeModelId, installedModelsMap);
@@ -1764,32 +1722,27 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                     <div className="px-2 py-1 text-[10px] uppercase tracking-wider font-semibold text-[var(--text-muted)] select-none border-b border-[var(--border-color)]/40 pb-1.5 mb-0.5">
                         Select Model
                     </div>
+                    {chatModels.error && <button type="button" onClick={chatModels.retry}
+                        className="px-2 py-1 text-xs text-[var(--text-muted)]" title={chatModels.error}>
+                        Model list failed. Retry
+                    </button>}
+                    {!chatModels.loading && !chatModels.error && modelOptions.length === 0 &&
+                        <p className="px-2 py-1 text-xs text-[var(--text-muted)]">No chat models installed.</p>}
                     {modelOptions.map(model => {
                         const isSelected = currentModel.id === model.id;
                         return (
                             <button
                                 type="button"
                                 key={model.id}
+                                disabled={chatModels.selecting}
                                 onClick={async () => {
-                                    if (updatePermission) {
-                                        updatePermission('chat_models', { ...permissions?.chat_models, text: model.id });
-                                    }
                                     try {
-                                        const permData = await permissionApi.getPermission();
-                                        if (permData) {
-                                            const newPerm = permData.permission || permData;
-                                            if (!newPerm.active_slots) newPerm.active_slots = {};
-                                            if (!newPerm.active_slots.chat_slot) newPerm.active_slots.chat_slot = {};
-                                            newPerm.active_slots.chat_slot.model_id = model.id;
-                                            if (!newPerm.chat_models) newPerm.chat_models = {};
-                                            newPerm.chat_models.text = model.id;
-                                            await permissionApi.updatePermission(newPerm);
+                                        if (await chatModels.select(model.id)) {
+                                            setIsModelOpen(false);
                                         }
-                                        client.get(`/v1/chat/context_telemetry?model=${encodeURIComponent(model.id)}`).catch(() => null);
                                     } catch (e) {
-                                        console.error('Failed to sync model switch:', e);
+                                        toast.error(e instanceof Error ? e.message : 'Failed to select model');
                                     }
-                                    setIsModelOpen(false);
                                 }}
                                 className={`w-full flex items-center justify-between px-2.5 py-2 text-[0.7rem] sm:text-xs font-medium rounded-lg transition-colors cursor-pointer ${isSelected ? 'bg-[var(--bg-tertiary)] text-[var(--accent-color)] font-semibold' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]'}`}
                             >

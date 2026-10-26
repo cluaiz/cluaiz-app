@@ -1,4 +1,6 @@
 import { client } from '../../client';
+import { callCep } from '../../client/cep';
+import { ApiError } from '../../client/errors';
 import { PERMISSION_ENDPOINTS } from './permission.endpoints';
 import type {
   PermissionResponse,
@@ -10,19 +12,30 @@ import type {
   ApprovalActionResponse,
 } from './permission.types';
 
+/** Keep the existing App container; the wire result is {engine: PermissionSchema}. */
+function engineSettings(result: unknown): PermissionResponse {
+  const engine = (result as { engine?: PermissionSchema } | null)?.engine;
+  if (!engine || typeof engine !== 'object' || Array.isArray(engine)) {
+    throw new ApiError('Engine returned invalid engine settings', 200, 'INVALID_CONFIG_RESPONSE', 'config.get/set');
+  }
+  const chat = engine.active_slots?.chat_slot;
+  return { status: 'success', permission: { ...engine,
+    ...(chat && { chat_models: { ...engine.chat_models, text: chat.model_id ?? null } }) } };
+}
+
 export const permissionApi = {
   /**
-   * Fetches the current permissions, categorized available models, and host LAN IP.
+   * Reads saved Engine settings; installed inventory remains owned by modelsApi.
    */
-  getPermission: async (): Promise<PermissionResponse> => {
-    return client.get<PermissionResponse>(PERMISSION_ENDPOINTS.PERMISSION);
+  getPermission: async (signal?: AbortSignal): Promise<PermissionResponse> => {
+    return engineSettings(await callCep('config.get', { section: 'engine' }, { signal }));
   },
 
   /**
-   * Atomically merges and updates engine permissions (partial patch supported).
+   * Saves the patch through CEP; nested objects follow the Engine's merge rules.
    */
-  updatePermission: async (payload: Partial<PermissionSchema> | Record<string, any>): Promise<PermissionResponse> => {
-    return client.post<PermissionResponse>(PERMISSION_ENDPOINTS.PERMISSION, payload);
+  updatePermission: async (payload: Partial<PermissionSchema> | Record<string, any>, signal?: AbortSignal): Promise<PermissionResponse> => {
+    return engineSettings(await callCep('config.set', { section: 'engine', patch: payload }, { signal }));
   },
 
   /**

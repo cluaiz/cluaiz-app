@@ -1,10 +1,10 @@
 /**
  * Cluaiz Engine Models API Endpoints
- * Maps 1:1 to routes in cluaiz/inference-engine/api/src/routes.rs
+ * Remaining direct and not-yet-migrated operations. Installed inventory uses CEP
+ * models.list through models.api.ts, rather than a separate installed REST route.
  */
 export const MODELS_ENDPOINTS = {
   LIST_V1: '/v1/models',
-  INSTALLED: '/v1/models/installed',
   AVAILABLE: '/models/available',
   HARDWARE: '/hardware',
   LOAD: '/models/load',

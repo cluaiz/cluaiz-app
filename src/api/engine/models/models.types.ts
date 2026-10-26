@@ -1,6 +1,7 @@
 /**
  * Cluaiz Engine Models Type Definitions
- * Matched 1:1 to Rust schema in cluaiz/inference-engine/api/src/handlers/models.rs
+ * App-facing model containers. models.list returns an array on the CEP wire;
+ * the adapter retains installed/models/count for existing App consumers.
  */
 
 export interface ModelMetadata {
@@ -8,6 +9,8 @@ export interface ModelMetadata {
   parameters?: string;
   architecture?: string;
   quantization?: string;
+  tts_family?: string;
+  stt_family?: string;
   [key: string]: unknown;
 }
 
@@ -21,6 +24,8 @@ export interface ModelRegistryEntry {
   id: string;
   name?: string;
   category?: string;
+  format?: string;
+  format_type?: string;
   local_dir?: string;
   supported_tasks?: string[];
   metadata?: ModelMetadata;
@@ -29,7 +34,7 @@ export interface ModelRegistryEntry {
 }
 
 export interface InstalledModelsResponse {
-  status: string;
+  status?: string;
   count: number;
   installed: ModelRegistryEntry[];
   models?: ModelRegistryEntry[];

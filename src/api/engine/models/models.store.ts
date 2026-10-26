@@ -38,7 +38,7 @@ export const useModelsStore = create<ModelsState>((set, get) => ({
     set({ status: 'pending', error: null });
     try {
       const [installedRes, hwRes] = await Promise.all([
-        modelsApi.getInstalled().catch(() => null),
+        modelsApi.getInstalled(),
         modelsApi.getHardware().catch(() => null),
       ]);
 
