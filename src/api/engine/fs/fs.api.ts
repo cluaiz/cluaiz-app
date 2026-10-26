@@ -15,12 +15,14 @@ const invalid = (method: string) => new ApiError('Engine returned an invalid fil
   200, 'INVALID_FS_RESPONSE', method);
 
 /** Keep authority in the authenticated CEP caller, never in legacy request flags. */
-async function operation(method: string, input: object, params: object = input, timeoutMs?: number) {
+async function operation(method: string, input: object, params: object = input, timeoutMs?: number, signal?: AbortSignal) {
   if ('caller' in input || 'approval_id' in input) {
     throw new ApiError('Caller identity and approvals are managed by CEP, not filesystem payload flags',
       400, 'INVALID_FS_REQUEST', method);
   }
-  const result = await callCep<unknown>(method, params, timeoutMs === undefined ? undefined : { timeoutMs });
+  const options = timeoutMs === undefined && signal === undefined ? undefined :
+    {...(timeoutMs !== undefined && {timeoutMs}), ...(signal !== undefined && {signal})};
+  const result = await callCep<unknown>(method, params, options);
   if (!object(result)) throw invalid(method);
   return result;
 }
@@ -43,8 +45,8 @@ function workspace(method: string, result: Record<string, unknown>): WorkspaceRe
 
 /** Existing App DTOs; all wire parameters/results belong to the CEP contract. */
 export const fsApi = {
-  readFile: async (payload: ReadFileRequest): Promise<ReadFileResponse> => {
-    const result = await operation('fs.read', payload, { path: payload.path, binary: payload.is_binary ?? false });
+  readFile: async (payload: ReadFileRequest, signal?: AbortSignal): Promise<ReadFileResponse> => {
+    const result = await operation('fs.read', payload, { path: payload.path, binary: payload.is_binary ?? false }, undefined, signal);
     if (!path(result.path) || !count(result.size) || typeof result.binary !== 'boolean'
       || (payload.is_binary && !result.binary)) throw invalid('fs.read');
     const content = result.binary ? result.data_base64 : result.text;

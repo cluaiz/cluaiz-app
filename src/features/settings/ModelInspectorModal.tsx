@@ -3,7 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Download, RefreshCw, Copy, Check, Search, Zap, FileCode, MessageSquare, Dna, FileText } from 'lucide-react';
 import { InstalledModelDetail } from '../../store/engine/useEngineStore';
 import { useConnectionStore } from '../../store/engine/useConnectionStore';
-import { modelsApi, componentsApi } from '../../api';
+import { modelsApi } from '../../api';
+import { errorMessage } from '../../api/client/errors';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 
@@ -15,6 +16,8 @@ interface ModelInspectorModalProps {
 
 const LINE_HEIGHT = 22;
 const BUFFER = 30;
+type ReadTab = 'raw_header' | 'manifest' | 'dna';
+const isReadTab = (tab: string): tab is ReadTab => tab === 'raw_header' || tab === 'manifest' || tab === 'dna';
 
 function VirtualCodeViewer({ code, searchQuery }: { code: string; searchQuery: string }) {
     const containerRef = useRef<HTMLDivElement>(null);
@@ -79,36 +82,43 @@ function VirtualCodeViewer({ code, searchQuery }: { code: string; searchQuery: s
 
 export function ModelInspectorModal({ isOpen, model, onClose }: ModelInspectorModalProps) {
     const [activeTab, setActiveTab] = useState<string>('probe');
-    const [rawHeaderData, setRawHeaderData] = useState<string | null>(null);
-    const [manifestData, setManifestData] = useState<string | null>(null);
-    const [dnaData, setDnaData] = useState<string | null>(null);
+    const [readData, setReadData] = useState<Partial<Record<ReadTab, string>>>({});
+    const [readError, setReadError] = useState<string | null>(null);
+    const activeRead = useRef<AbortController | null>(null);
+    const scope = useRef(0);
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const [copied, setCopied] = useState<boolean>(false);
     const [searchQuery, setSearchQuery] = useState<string>('');
 
-    const { getBaseUrl } = useConnectionStore();
+    const { getBaseUrl, protocol } = useConnectionStore();
+    const connectionKey = protocol + ':' + getBaseUrl();
 
     useEffect(() => {
+        scope.current++;
+        activeRead.current?.abort();
+        activeRead.current = null;
+        setIsLoading(false);
+        setReadData({});
+        setReadError(null);
         if (isOpen && model) {
             setActiveTab('probe');
-            setRawHeaderData(null);
-            setManifestData(null);
-            setDnaData(null);
             setSearchQuery('');
         }
-    }, [isOpen, model]);
+        return () => { scope.current++; activeRead.current?.abort(); activeRead.current = null; };
+    }, [isOpen, model, connectionKey]);
 
     if (!isOpen || !model) return null;
 
     const primaryFile = model.files?.find((f) => f.is_primary)?.name || model.files?.[0]?.name || model.id;
     const hasChatTemplate = Boolean(model.metadata?.chat_template && model.metadata.chat_template.trim() !== '');
+    const canInspectHeader = model.format_type?.toLowerCase() === 'gguf';
 
-    // 1. Probed Header Data JSON
+    // Registry metadata is distinct from the optional raw GGUF probe.
     const probedData = {
         model_id: model.id,
         architecture: model.metadata?.architecture || 'unknown',
         supported_tasks: model.supported_tasks || [],
-        format: (model.format_type || 'gguf').toUpperCase(),
+        format: model.format_type?.toUpperCase() ?? null,
         quantization: model.metadata?.quantization || 'N/A',
         bit_precision: model.metadata?.bit_depth || 'N/A',
         parameters: model.metadata?.parameters || 'Unknown',
@@ -116,68 +126,56 @@ export function ModelInspectorModal({ isOpen, model, onClose }: ModelInspectorMo
         chat_template_available: hasChatTemplate,
         storage_path: model.local_dir || '',
         files: model.files || [],
-        probed_timestamp: new Date().toISOString()
+        source: 'installed_registry'
     };
 
-    // Fetch Inspect Raw Header
-    const fetchRawHeader = async () => {
+    const fetchTab = async (tab: ReadTab) => {
+        activeRead.current?.abort();
+        const controller = new AbortController(), started = scope.current;
+        activeRead.current = controller;
+        const current = () => started === scope.current && activeRead.current === controller && !controller.signal.aborted;
         setIsLoading(true);
+        setReadError(null);
         try {
-            const data = await modelsApi.inspectHeader(model.id);
-            setRawHeaderData(JSON.stringify(data, null, 2));
-        } catch (e: any) {
-            setRawHeaderData(`// Error fetching raw binary header: ${e.message}`);
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    // Fetch Extra Component File (manifest / dna)
-    const fetchExtraFile = async (filename: string, setter: (val: string) => void) => {
-        setIsLoading(true);
-        try {
-            const data = await componentsApi.getFile('model', model.id, filename);
-            if (data?.status === 'success' && data.content) {
-                try {
-                    const parsed = JSON.parse(data.content);
-                    setter(JSON.stringify(parsed, null, 2));
-                } catch {
-                    setter(data.content);
-                }
+            let value: string;
+            if (tab === 'raw_header') {
+                value = JSON.stringify(await modelsApi.inspectHeader(model.id, undefined, controller.signal), null, 2);
             } else {
-                setter(data?.message || '// File not found or empty.');
+                const data = await modelsApi.readMetadata(model.id, tab, controller.signal);
+                value = data.content;
+                try { value = JSON.stringify(JSON.parse(value), null, 2); } catch { /* Preserve actual text, including empty files. */ }
             }
-        } catch (e: any) {
-            setter(`// Error fetching ${filename}: ${e.message}`);
+            if (current()) setReadData(previous => ({...previous, [tab]: value}));
+        } catch (error) {
+            if (current()) setReadError(`// ${errorMessage(error)}`);
         } finally {
-            setIsLoading(false);
+            if (current()) { setIsLoading(false); activeRead.current = null; }
         }
     };
 
     const handleTabSwitch = (tab: string) => {
+        activeRead.current?.abort();
+        activeRead.current = null;
+        setIsLoading(false);
+        setReadError(null);
         setActiveTab(tab);
-        if (tab === 'raw_header' && !rawHeaderData) {
-            fetchRawHeader();
-        } else if (tab === 'manifest' && !manifestData) {
-            fetchExtraFile('model_manifest.json', setManifestData);
-        } else if (tab === 'dna' && !dnaData) {
-            fetchExtraFile('structural_dna.json', setDnaData);
-        }
+        if (isReadTab(tab) && readData[tab] === undefined) void fetchTab(tab);
     };
 
     // Current Code String based on active tab
     const getCurrentCode = () => {
+        if (isReadTab(activeTab) && readError) return readError;
         switch (activeTab) {
             case 'probe':
                 return JSON.stringify(probedData, null, 2);
             case 'raw_header':
-                return rawHeaderData || '// Click Reload to fetch raw binary header...';
+                return readData.raw_header ?? '// Click Reload to fetch raw GGUF header...';
             case 'template':
                 return model.metadata?.chat_template || '// No chat template specified for this model.';
             case 'manifest':
-                return manifestData || '// Loading model_manifest.json...';
+                return readData.manifest ?? '// Loading model manifest...';
             case 'dna':
-                return dnaData || '// Loading structural_dna.json...';
+                return readData.dna ?? '// Loading structural DNA...';
             default:
                 return '';
         }
@@ -254,12 +252,14 @@ export function ModelInspectorModal({ isOpen, model, onClose }: ModelInspectorMo
                                 }`}
                             >
                                 <Zap size={13} />
-                                <span>Binary Header Probe</span>
+                                <span>Installed Metadata</span>
                             </button>
 
                             <button
                                 type="button"
                                 onClick={() => handleTabSwitch('raw_header')}
+                                disabled={!canInspectHeader}
+                                title={canInspectHeader ? 'Inspect raw GGUF header' : 'Raw header inspection currently requires GGUF'}
                                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                                     activeTab === 'raw_header'
                                         ? 'bg-[var(--accent-color)]/15 text-[var(--accent-color)] border border-[var(--accent-color)]/30 shadow-sm'
@@ -314,14 +314,14 @@ export function ModelInspectorModal({ isOpen, model, onClose }: ModelInspectorMo
 
                         {/* Right Actions: Reload, Copy, Export */}
                         <div className="flex items-center gap-2 shrink-0 flex-nowrap">
-                            {activeTab === 'raw_header' && (
+                            {isReadTab(activeTab) && (
                                 <Button
                                     type="button"
                                     variant="secondary"
                                     size="sm"
-                                    onClick={fetchRawHeader}
+                                    onClick={() => { if (isReadTab(activeTab)) void fetchTab(activeTab); }}
                                     disabled={isLoading}
-                                    title="Reload Header"
+                                    title="Reload current data"
                                 >
                                     <RefreshCw size={12} className={isLoading ? 'animate-spin' : ''} />
                                     <span>Reload</span>
@@ -396,7 +396,7 @@ export function ModelInspectorModal({ isOpen, model, onClose }: ModelInspectorMo
                     {isLoading ? (
                         <div className="flex-1 flex flex-col items-center justify-center gap-3 text-[var(--accent-color)] bg-[var(--bg-primary)]">
                             <div className="w-7 h-7 border-2 border-[var(--accent-color)] border-t-transparent rounded-full animate-spin" />
-                            <span className="text-xs text-[var(--text-muted)] font-mono">Reading binary from disk...</span>
+                            <span className="text-xs text-[var(--text-muted)] font-mono">Reading model data...</span>
                         </div>
                     ) : (
                         <VirtualCodeViewer code={rawCode} searchQuery={searchQuery} />

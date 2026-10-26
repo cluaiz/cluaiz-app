@@ -4,7 +4,8 @@ import { ApiError } from '../../client/errors';
 import { permissionApi } from '../permission/permission.api';
 import { readHardwareSummary } from '../system/systemData';
 import { MODELS_ENDPOINTS } from './models.endpoints';
-import { downloadInstalledModel, inspectInstalledModel, loadInstalledModel, removeInstalledModel } from './actions';
+import { downloadInstalledModel, inspectInstalledModel, loadInstalledModel, removeInstalledModel, modelTarget } from './actions';
+import { fsApi } from '../fs/fs.api';
 import type {
   InstalledModelsResponse,
   OpenAiModelsResponse,
@@ -13,6 +14,9 @@ import type {
   TagsResponse,
   ModelRegistryEntry,
 } from './models.types';
+
+// Engine registry sidecar contract, shared by all callers rather than repeated in the Inspector.
+const METADATA_FILES = {manifest: 'model_manifest.json', dna: 'structural_dna.json'} as const;
 
 /**
  * Pure Stateless Models Vault API Service
@@ -78,6 +82,24 @@ export const modelsApi = {
    * Inspects the installed GGUF header through CEP models.inspect.
    */
   inspectHeader: inspectInstalledModel,
+
+  /** Read only known metadata sidecars, using the registry folder and existing authorized filesystem owner. */
+  readMetadata: async (modelId: string, kind: keyof typeof METADATA_FILES, signal?: AbortSignal) => {
+    modelTarget(modelId);
+    if (!Object.prototype.hasOwnProperty.call(METADATA_FILES, kind)) {
+      throw new ApiError('Choose manifest or dna metadata', 400, 'INVALID_MODEL_METADATA', 'models.list');
+    }
+    const entry = (await modelsApi.getInstalled(signal)).installed.find(model => model.id === modelId);
+    signal?.throwIfAborted();
+    if (!entry) throw new ApiError('The model is not installed', 404, 'MODEL_NOT_INSTALLED', 'models.list');
+    if (typeof entry.local_dir !== 'string' || !/^(?:[a-z]:[\\/]|\/|\\\\)/i.test(entry.local_dir)) {
+      throw new ApiError('The installed model has no absolute registry folder', 200, 'INVALID_MODEL_METADATA', 'models.list');
+    }
+    const separator = /[\\/]$/.test(entry.local_dir) ? '' : '/';
+    const file = await fsApi.readFile({path: entry.local_dir + separator + METADATA_FILES[kind]}, signal);
+    if (file.is_binary) throw new ApiError('Model metadata must be UTF-8 text', 200, 'INVALID_MODEL_METADATA', 'fs.read');
+    return file;
+  },
 
   /**
    * Loads a model into memory

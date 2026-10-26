@@ -26,19 +26,19 @@ function harness(handler){
     const actions=load('src/api/engine/models/actions.ts',{...base,'../../client/cepTask':tasks,'../../../utils/filePath':filePath});
     const config=load('src/api/engine/config/config.api.ts',base);
     const systemData=load('src/api/engine/system/systemData.ts',base);
+    const filesystem=load('src/api/engine/fs/fs.api.ts',base);
     const permission=load('src/api/engine/permission/permission.api.ts',{
         '../../client':{client},'../config/config.api':config,'../../client/errors':errors,
         './permission.endpoints':{PERMISSION_ENDPOINTS:{}},
     });
     const models=load('src/api/engine/models/models.api.ts',{
         '../../client':{client},...base,'../permission/permission.api':permission,
-        '../system/systemData':systemData,'./models.endpoints':{MODELS_ENDPOINTS:{}},'./actions':actions,
+        '../system/systemData':systemData,'./models.endpoints':{MODELS_ENDPOINTS:{}},'./actions':actions,'../fs/fs.api':filesystem,
     });
-    return {...cep,...tasks,...actions,...config,...systemData,...permission,...models,filePath,errors,requests,client};
+    return {...cep,...tasks,...actions,...config,...systemData,...permission,...filesystem,...models,filePath,errors,requests,client};
 }
 function filesystemHarness(handler){
-    const h=harness(handler);
-    return {...h,...load('src/api/engine/fs/fs.api.ts',{'../../client/cep':h,'../../client/errors':h.errors})};
+    return harness(handler);
 }
 function toolHarness(handler){
     const h=harness(handler);const shared={'../../client/cep':h,'../../client/errors':h.errors};

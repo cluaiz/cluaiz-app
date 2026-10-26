@@ -5,7 +5,8 @@
 - **Purpose:** connect existing App file/workspace consumers to CEP without duplicating the Engine's filesystem or authorization logic.
 - **Transport:** the existing authenticated `callCep` client; explicit HTTP or desktop native IPC is selected below this module.
 - **Platform boundary:** paths are interpreted by the Engine OS, not the browser OS. Canonicalization, symbolic links and allowed roots remain Engine responsibilities. Windows live acceptance is recorded in the integration proof; other-platform execution is separate.
-- **Consumers:** workspace bridge/editor, filesystem store and browser chat-history driver. Native desktop chat storage has a separate existing owner.
+- **Consumers:** workspace bridge/editor, filesystem store, browser chat-history driver and model metadata adapter. Native desktop chat storage has a separate existing owner.
+- **Read cancellation:** readFile(payload, signal?) forwards an optional AbortSignal through the same client/transport. Existing callers keep their payload and defaults. Cancellation stops observing a read; UI owners also reject stale results. Caller identity, approvals and roots remain server-owned.
 
 ## Architectural flow
 

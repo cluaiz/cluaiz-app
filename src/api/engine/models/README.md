@@ -17,6 +17,11 @@ flowchart LR
     UI --> D["download / pull: start one models.download task"]
     D --> T["Existing callCepTask: await actual result"]
     T --> C
+    UI --> I["Existing ModelInspector: current model / tab / connection"]
+    I --> R["readMetadata: fresh installed registry folder"]
+    R --> F["Existing fsApi.readFile: authorized UTF-8 sidecar"]
+    F --> C
+    I --> L
     UI --> S["Select installed chat model"]
     S --> G["config.get: engine"]
     G --> P["Preserve slots; replace selected chat slot"]
@@ -67,6 +72,27 @@ flowchart LR
 - Standard /v1/models and /api/tags compatibility reads remain direct and valid.
   getAvailable refuses before dispatch because current Engine exposes no model
   recommendation method; it does not invent a suggested roster.
+- `readMetadata(modelId, kind, signal?)` accepts only manifest/dna choices. It
+  refreshes the installed registry, finds the exact id and uses its absolute
+  local_dir, preserving Windows/UNC paths. Sidecar request filenames are mapped
+  here; the screen selects a metadata kind instead of constructing file paths. fsApi remains the one file reader;
+  authorization/canonicalization/roots stay in Engine. No caller-supplied folder,
+  tool-kind model request or guessed home path is used. Empty UTF-8 is valid;
+  missing model/folder, binary data and filesystem/approval failures stay errors.
+  This reuses authorized filesystem access; no new model-specific sandbox is added.
+- Model store actions return true only after real action completion, false with
+  an error on refusal. Successful delete filters only the acknowledged model;
+  older inventory/inspection replies cannot restore it. Download/pull refresh
+  inventory after the task ends. A refresh can fail after a real download; the
+  download completion remains true while the store exposes the refresh error.
+- Inspector retains the existing design. Its first tab says Installed Metadata
+  and identifies the registry source, without an invented probe timestamp or GGUF
+  fallback. Raw GGUF inspection is disabled for other formats. Known metadata
+  tabs use readMetadata. Empty content stays empty, failures stay visible and
+  Reload retries the currently selected read tab. No new editor/view is added.
+- Switching tab/model/connection or closing aborts the owned request; late
+  replies are ignored even at a boundary that fails to honor abort. Read caches
+  reset on model/connection/close and hold actual data, not failure messages.
 
 ## Scope and verification
 
@@ -77,8 +103,15 @@ hook and chat adapter with controlled HTTP responses; it is not model inference.
 
 Hardware now delegates to the shared [system owner](../system/README.md), and
 voice/language discovery has its separate [audio owner](../audio/README.md).
-Token/approval controls, model Inspector metadata/stale-request integration and
-store action feedback still have separate work. Remaining model endpoint constants
-are only supported compatibility reads. This does not add an Engine backend, model,
-downloader, native connector or new design system. Actual third-party model support,
-native loads and public model downloads are not certified by adapter tests.
+Remaining model endpoint constants are only supported compatibility reads.
+`node --test test/cep_model_actions.test.cjs test/cep_model_integration.test.cjs`
+checks task completion/canonical ids, malformed/mismatched results, scoped errors,
+metadata reads, store feedback and stale replies using the actual adapters at a
+controlled client boundary. Inspector browser checks cover actual component/tab
+behavior with controlled replies. Separate Engine acceptance uses tiny owned
+fixtures in a disposable home for header/metadata/removal and expected errors.
+
+Token/approval controls and task progress/cancel UI remain separate. This adds no
+Engine backend, model, downloader, native connector or design system. Fresh public
+model downloads, successful native inference loads, ONNX raw-header inspection and
+packaged desktop/other-platform acceptance are not certified by these checks.

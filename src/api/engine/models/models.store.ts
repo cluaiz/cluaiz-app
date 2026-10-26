@@ -20,13 +20,16 @@ interface ModelsState {
 
   load: () => Promise<void>;
   inspect: (modelId: string, filename?: string) => Promise<void>;
-  deleteModel: (modelId: string) => Promise<void>;
-  loadModel: (modelId: string) => Promise<void>;
-  pullModel: (modelId: string) => Promise<void>;
+  deleteModel: (modelId: string) => Promise<boolean>;
+  loadModel: (modelId: string) => Promise<boolean>;
+  pullModel: (modelId: string) => Promise<boolean>;
   downloadModel: (payload?: DownloadModelPayload) => Promise<boolean>;
 }
 
-export const useModelsStore = create<ModelsState>((set, get) => ({
+export const useModelsStore = create<ModelsState>((set, get) => {
+  let loadVersion = 0, inspectVersion = 0;
+  let inspectingModel: string | null = null;
+  return {
   installed: [],
   hardware: null,
   inspectedHeader: null,
@@ -35,6 +38,7 @@ export const useModelsStore = create<ModelsState>((set, get) => ({
   error: null,
 
   load: async () => {
+    const version = ++loadVersion;
     set({ status: 'pending', error: null });
     try {
       const [installedRes, hwRes] = await Promise.all([
@@ -42,30 +46,32 @@ export const useModelsStore = create<ModelsState>((set, get) => ({
         modelsApi.getHardware().catch(() => null),
       ]);
 
-      const list: ModelRegistryEntry[] =
-        installedRes?.installed || installedRes?.models || [];
+      if (version !== loadVersion) return;
 
       set({
-        installed: list,
+        installed: installedRes.installed,
         hardware: hwRes?.hardware || null,
         status: 'success',
       });
     } catch (err) {
-      set({ status: 'error', error: errorMessage(err) });
+      if (version === loadVersion) set({ status: 'error', error: errorMessage(err) });
     }
   },
 
   inspect: async (modelId: string, filename?: string) => {
-    set({ isInspecting: true, error: null });
+    const version = ++inspectVersion;
+    inspectingModel = modelId;
+    set({ isInspecting: true, inspectedHeader: null, error: null });
     try {
       const res = await modelsApi.inspectHeader(modelId, filename);
-      set({ inspectedHeader: res, isInspecting: false });
+      if (version === inspectVersion) { inspectingModel = null; set({ inspectedHeader: res, isInspecting: false }); }
     } catch (err) {
-      set({ isInspecting: false, error: errorMessage(err) });
+      if (version === inspectVersion) { inspectingModel = null; set({ isInspecting: false, error: errorMessage(err) }); }
     }
   },
 
   deleteModel: async (modelId: string) => {
+    set({error: null});
     try {
       await toast.promise(
         modelsApi.deleteModel(modelId),
@@ -76,37 +82,45 @@ export const useModelsStore = create<ModelsState>((set, get) => ({
         }
       );
       // Only delete from store after successful response from engine
+      loadVersion++;
+      const deletedInspection = inspectingModel === modelId;
+      if (deletedInspection) { inspectVersion++; inspectingModel = null; }
       set(state => ({
-        installed: state.installed.filter((m) => m.id !== modelId)
+        installed: state.installed.filter((m) => m.id !== modelId),
+        inspectedHeader: state.inspectedHeader?.model === modelId ? null : state.inspectedHeader,
+        isInspecting: deletedInspection ? false : state.isInspecting,
+        status: 'success',
       }));
-    } catch (err) {
-      set({ error: errorMessage(err) });
-    }
-  },
-
-  loadModel: async (modelId: string) => {
-    try {
-      await modelsApi.loadModel(modelId);
-    } catch (err) {
-      set({ error: errorMessage(err) });
-    }
-  },
-
-  pullModel: async (modelId: string) => {
-    try {
-      await modelsApi.pullModel(modelId);
-    } catch (err) {
-      set({ error: errorMessage(err) });
-    }
-  },
-
-  downloadModel: async (payload?: DownloadModelPayload) => {
-    try {
-      await modelsApi.downloadModel(payload);
       return true;
     } catch (err) {
       set({ error: errorMessage(err) });
       return false;
     }
   },
-}));
+
+  loadModel: async (modelId: string) => {
+    set({error: null});
+    try {
+      await modelsApi.loadModel(modelId);
+      return true;
+    } catch (err) {
+      set({ error: errorMessage(err) });
+      return false;
+    }
+  },
+
+  pullModel: (modelId: string) => get().downloadModel({model_id: modelId}),
+
+  downloadModel: async (payload?: DownloadModelPayload) => {
+    set({error: null});
+    try {
+      await modelsApi.downloadModel(payload);
+      await get().load();
+      return true;
+    } catch (err) {
+      set({ error: errorMessage(err) });
+      return false;
+    }
+  },
+  };
+});
