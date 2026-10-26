@@ -175,7 +175,7 @@ test('real Explorer components render native model selection and the payload-typ
         ...common,...dropdown,...state,'../types':{},
         '../../../store/engine/useConnectionStore':{useConnectionStore:()=>({host:'127.0.0.1',port:8000})},
         '../services/apiTransport':{executeApiRequest:()=>{}},'../utils/modelFilter':filter,
-        '../services/catalogDiscovery':{discoverCatalog:async()=>({data:[]})},
+        '../../../api/engine/audio/audio.api':{audioApi:{voiceCatalog:async()=>({data:[]})}},
         '../utils/requestPayload':payloadHelpers,
     });
     assert.match(renderToStaticMarkup(React.createElement(RequestHeader)),/Native extraction \(no model\)/);

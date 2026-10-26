@@ -136,3 +136,76 @@ test('models store reports failed inventory and keeps previous inventory instead
     fail=true;await store.getState().load();assert.equal(store.getState().status,'error');
     assert.equal(store.getState().error,'Inventory unavailable');assert.equal(store.getState().installed[0].id,'retained');
 });
+
+function speechHarness(handler){
+    const h=harness(handler);
+    const catalog=load('src/api/engine/audio/audioCatalog.ts',{'../../client/cep':h,'../../client/errors':h.errors});
+    const unexpected=()=>{throw Error('Unexpected audio generation/retired route');};
+    const audio=load('src/api/engine/audio/audio.api.ts',{
+        '../../client':{client:h.client},'../../client/transport':{engineFetch:unexpected},
+        './audio.endpoints':{AUDIO_ENDPOINTS:{}},'../../../utils/mimeSniffer':{base64ToBlob:unexpected,sniffMimeType:unexpected},
+        './speechRequest':{requestSpeech:unexpected},'./audioCatalog':catalog,
+    });
+    return {...h,...audio};
+}
+const voiceResult=(model,voice_mode='preset')=>({object:'list',model,
+    data:[{id:'default',language:null,default:true},{id:'package-voice',language:'hi',default:false}],
+    capabilities:{languages:['hi','en-US'],language_control:'explicit',voice_mode,coherent_input:false}});
+
+test('speech discovery shares CEP and keeps package-specific voice capabilities',async()=>{
+    const controller=new AbortController();
+    for(const mode of ['preset','embedded','reference_source','reference_profile']){
+        const response=voiceResult('installed-speech',mode);
+        const h=speechHarness((url,body)=>result(body,response));
+        const actual=await h.audioApi.voiceCatalog('installed-speech',controller.signal);
+        assert.equal(actual,response);assert.equal(h.requests[0].body.method,'audio.voices');
+        assert.equal(h.requests[0].body.params.model,'installed-speech');
+        assert.equal(h.requests[0].options.signal,controller.signal);
+    }
+});
+
+test('voice defaults and transcription languages preserve omission/order and cancellation',async()=>{
+    const controller=new AbortController();
+    const h=speechHarness((url,body)=>result(body,body.method==='audio.voices'?voiceResult('default-package'):
+        {object:'list',model:'installed-stt',data:['hi','en','ja']}));
+    assert.equal((await h.audioApi.voices(undefined,controller.signal)).length,2);
+    assert.equal(Object.keys(h.requests[0].body.params).length,0);
+    const languages=await h.audioApi.languages('installed-stt',controller.signal);
+    assert.deepEqual(languages,['hi','en','ja']);
+    assert.equal(h.requests[1].body.method,'audio.languages');
+    assert.equal(h.requests[1].options.signal,controller.signal);
+});
+
+test('empty catalogues and automatic language control are not replaced with guessed presets',async()=>{
+    const response={object:'list',model:'automatic-package',data:[],capabilities:{
+        languages:[],language_control:'auto',voice_mode:'reference_profile',coherent_input:true}};
+    const h=speechHarness((url,body)=>result(body,body.method==='audio.voices'?response:
+        {object:'list',model:'automatic-package',data:[]}));
+    assert.equal((await h.audioApi.voiceCatalog()).capabilities.language_control,'auto');
+    assert.equal((await h.audioApi.languages()).length,0);
+});
+
+test('invalid or wrong-package speech catalogues fail instead of showing an empty success',async()=>{
+    for(const bad of [{},null,{...voiceResult('expected'),capabilities:undefined},
+        {...voiceResult('expected'),data:[{id:'voice',language:null}]},
+        {...voiceResult('expected'),capabilities:{...voiceResult('expected').capabilities,voice_mode:'guessed'}},
+        voiceResult('another-package')]){
+        const h=speechHarness((url,body)=>result(body,bad));
+        await assert.rejects(h.audioApi.voiceCatalog('expected'),error=>error.statusText==='INVALID_AUDIO_CATALOG');
+    }
+    for(const bad of [null,{object:'list',model:'stt',data:['en',42]},
+        {object:'list',model:'stt',data:['']},{object:'list',model:'wrong',data:[]}]){
+        const h=speechHarness((url,body)=>result(body,bad));
+        await assert.rejects(h.audioApi.languages('stt'),error=>error.statusText==='INVALID_AUDIO_CATALOG');
+    }
+});
+
+test('speech discovery preserves missing-package errors and auth failures',async()=>{
+    const h=speechHarness((url,body)=>({jsonrpc:'2.0',id:body.id,error:{code:-32004,
+        message:'Package missing',data:{type:'model_not_found'}}}));
+    await assert.rejects(h.audioApi.voiceCatalog('missing'),error=>error.code===-32004&&error.data.type==='model_not_found');
+    await assert.rejects(h.audioApi.languages('missing'),error=>error.code===-32004);
+    const failure=new h.errors.ApiError('Auth required',401,'Unauthorized');
+    const auth=speechHarness(()=>{throw failure;});
+    await assert.rejects(auth.audioApi.voiceCatalog(),error=>error===failure);
+});

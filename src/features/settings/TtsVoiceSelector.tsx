@@ -52,15 +52,21 @@ export function TtsVoiceSelector({ modelId }: TtsVoiceSelectorProps) {
     useEffect(() => {
         if (!modelId) {
             setVoices([]);
+            setCapabilities(null);
+            setError(null);
+            setLoading(false);
             return;
         }
 
         let isMounted = true;
+        const controller = new AbortController();
+        setVoices([]);
+        setCapabilities(null);
         setLoading(true);
         setError(null);
 
         audioApi
-            .voiceCatalog(modelId)
+            .voiceCatalog(modelId, controller.signal)
             .then(({ data: list, capabilities: caps }) => {
                 if (!isMounted) return;
                 setVoices(list);
@@ -94,6 +100,7 @@ export function TtsVoiceSelector({ modelId }: TtsVoiceSelectorProps) {
 
         return () => {
             isMounted = false;
+            controller.abort();
         };
     }, [modelId]);
 

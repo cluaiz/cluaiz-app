@@ -22,15 +22,19 @@ export function SttLanguageSelector({ modelId }: SttLanguageSelectorProps) {
     useEffect(() => {
         if (!modelId) {
             setAvailable([]);
+            setError(null);
+            setLoading(false);
             return;
         }
 
         let isMounted = true;
+        const controller = new AbortController();
+        setAvailable([]);
         setLoading(true);
         setError(null);
 
         audioApi
-            .languages(modelId)
+            .languages(modelId, controller.signal)
             .then((list) => {
                 if (!isMounted) return;
                 setAvailable(list);
@@ -45,6 +49,7 @@ export function SttLanguageSelector({ modelId }: SttLanguageSelectorProps) {
 
         return () => {
             isMounted = false;
+            controller.abort();
         };
     }, [modelId]);
 

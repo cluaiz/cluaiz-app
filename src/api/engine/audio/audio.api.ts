@@ -2,6 +2,7 @@ import { client } from '../../client';
 import { AUDIO_ENDPOINTS } from './audio.endpoints';
 import { base64ToBlob, sniffMimeType } from '../../../utils/mimeSniffer';
 import { requestSpeech } from './speechRequest';
+import { getVoiceCatalog, getSttLanguages } from './audioCatalog';
 import type {
   SpeechRequest,
   TranscriptionResponse,
@@ -22,29 +23,17 @@ const dataUriToBlob = (audio: string): Blob => base64ToBlob(audio, sniffMimeType
 
 export const audioApi = {
   /** Voices of a TTS model (the TTS slot's model when omitted); "default" first. */
-  voices: async (model?: string): Promise<TtsVoice[]> => {
-    return (await audioApi.voiceCatalog(model)).data;
+  voices: async (model?: string, signal?: AbortSignal): Promise<TtsVoice[]> => {
+    return (await audioApi.voiceCatalog(model, signal)).data;
   },
 
   voiceCatalog: async (model?: string, signal?: AbortSignal): Promise<TtsVoiceCatalog> => {
-    const query = model ? `?model=${encodeURIComponent(model)}` : '';
-    const res = await fetch(`${client.getBaseUrl()}${AUDIO_ENDPOINTS.VOICES}${query}`, { headers: authHeaders(false), signal });
-    if (!res.ok) throw new Error(`Voice list failed: ${res.status} ${res.statusText}`);
-    const body = await res.json();
-    const data: TtsVoice[] = Array.isArray(body?.data) ? body.data : [];
-    return { model: body.model, data, capabilities: body.capabilities ?? {
-      languages: [...new Set(data.flatMap(v => v.language ? [v.language] : []))],
-      language_control: 'explicit', voice_mode: 'preset', coherent_input: false,
-    } };
+    return getVoiceCatalog(model, signal);
   },
 
   /** Language codes a speech-to-text model can transcribe (the STT slot's model when omitted). */
-  languages: async (model?: string): Promise<string[]> => {
-    const query = model ? `?model=${encodeURIComponent(model)}` : '';
-    const res = await fetch(`${client.getBaseUrl()}${AUDIO_ENDPOINTS.LANGUAGES}${query}`, { headers: authHeaders(false) });
-    if (!res.ok) throw new Error(`Language list failed: ${res.status} ${res.statusText}`);
-    const body = await res.json();
-    return Array.isArray(body?.data) ? body.data.filter((code: unknown) => typeof code === 'string') : [];
+  languages: async (model?: string, signal?: AbortSignal): Promise<string[]> => {
+    return getSttLanguages(model, signal);
   },
 
   /**

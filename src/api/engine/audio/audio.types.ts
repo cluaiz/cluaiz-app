@@ -45,7 +45,7 @@ export interface AudioExecuteResponse {
   metrics?: Record<string, any>;
 }
 
-/** One voice of a TTS model (GET /v1/audio/voices); "default" lets the engine pick by language */
+/** One voice from CEP audio.voices; "default" lets the engine pick by language. */
 export interface TtsVoice {
   id: string;
   language: string | null;

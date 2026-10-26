@@ -6,7 +6,7 @@ import { executeApiRequest } from '../services/apiTransport';
 import { CustomDropdown } from '../../../components/ui/dropdown/CustomDropdown';
 import { endpointUsesModel, getFilteredModelsForEndpoint, isEmbeddingModel } from '../utils/modelFilter';
 import { Play, RotateCcw, Loader2 } from 'lucide-react';
-import { discoverCatalog } from '../services/catalogDiscovery';
+import { audioApi } from '../../../api/engine/audio/audio.api';
 import { isSpeechRequest, methodPath } from '../utils/requestPayload';
 
 export const RequestHeader: React.FC = () => {
@@ -89,7 +89,7 @@ export const RequestHeader: React.FC = () => {
         useApiStore.setState({ availableVoices: [{ value: 'default', label: 'Default Voice' }] });
         if (!isSpeechEndpoint || !selectedModel) return;
         const controller = new AbortController();
-        discoverCatalog<{data: {id: string; language?: string}[]}>('audio.voices', {model:selectedModel}, controller.signal).then(catalog => {
+        audioApi.voiceCatalog(selectedModel, controller.signal).then(catalog => {
             if (!controller.signal.aborted) useApiStore.setState({ availableVoices: catalog.data.map(voice => ({
                 value: voice.id, label: `${voice.id}${voice.language ? ` (${voice.language})` : ''}`
             })) });
