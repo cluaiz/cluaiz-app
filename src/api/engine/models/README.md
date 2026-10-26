@@ -50,7 +50,8 @@ checks the actual caller/domain adapters with an injected transport boundary and
 the existing Explorer contracts. Separate browser evidence uses the actual React
 hook and chat adapter with controlled HTTP responses; it is not model inference.
 
-This slice does not migrate hardware telemetry, optimization, voices/languages,
-token/approval controls, model load/remove/inspect/download or every settings page.
-Those methods in the endpoints table remain pending. It does not add an Engine
+Hardware now delegates to the shared [system owner](../system/README.md), and
+voice/language discovery has its separate [audio owner](../audio/README.md).
+Token/approval controls and model load/remove/inspect/download remain separate.
+Those methods in the endpoints table remain pending. This does not add an Engine
 backend, model, downloader, native connector or new design system.

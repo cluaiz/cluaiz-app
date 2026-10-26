@@ -95,6 +95,13 @@ test('partial GGUF sampler changes retain other samplers and return acknowledged
     assert.equal((await h.inferenceApi.saveOnnx({n_gpu_layers:-1})).onnx.n_gpu_layers,-1);
 });
 
+test('malformed patches and sampler containers are refused before a read or write',async()=>{
+    const h=settingsHarness(()=>{throw Error('Invalid patch dispatched');});
+    for(const patch of [null,[],3])await assert.rejects(h.setConfig('onnx',patch),error=>error.statusText==='INVALID_CONFIG_PATCH');
+    for(const samplers of [[],3,'wrong'])await assert.rejects(h.inferenceApi.saveGguf({samplers}),error=>error.statusText==='INVALID_CONFIG_PATCH');
+    assert.equal(h.requests.length,0);
+});
+
 const toast={promise:async promise=>typeof promise==='function'?promise():promise};
 
 test('optimization store uses saved values and rolls back only its failed draft',async()=>{

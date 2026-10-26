@@ -30,5 +30,8 @@ export async function getConfig<S extends keyof ConfigSections>(section: S, sign
 }
 
 export async function setConfig<S extends keyof ConfigSections>(section: S, patch: object, signal?: AbortSignal): Promise<ConfigSections[S]> {
+  if (!patch || typeof patch !== 'object' || Array.isArray(patch)) {
+    throw new ApiError('A settings patch must be an object', 400, 'INVALID_CONFIG_PATCH', 'config.set');
+  }
   return sectionValue(await callCep('config.set', { section, patch }, { signal }), section);
 }

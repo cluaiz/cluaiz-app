@@ -21,6 +21,9 @@ export const inferenceApi = {
    * Persists updated GGUF engine configuration to disk
    */
   saveGguf: async (config: Partial<GgufConfig> | Record<string, any>): Promise<{ status: string; gguf: GgufConfig }> => {
+    if (config.samplers != null && (typeof config.samplers !== 'object' || Array.isArray(config.samplers))) {
+      throw new ApiError('GGUF samplers must be an object or null', 400, 'INVALID_CONFIG_PATCH', 'config.set');
+    }
     // The Engine replaces a provided sampler object; preserve omitted saved sampler fields.
     const patch = config.samplers ? { ...config,
       samplers: { ...(await getConfig('gguf')).samplers, ...config.samplers } } : config;
