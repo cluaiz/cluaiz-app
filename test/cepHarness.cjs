@@ -20,7 +20,10 @@ function harness(handler){
     },get:async()=>{throw Error('Unexpected retired GET endpoint');}};
     const errors=load('src/api/client/errors.ts',{});
     const cep=load('src/api/client/cep.ts',{'./client':{client},'./errors':errors});
+    const tasks=load('src/api/client/cepTask.ts',{'./cep':cep,'./errors':errors});
+    const filePath=load('src/utils/filePath.ts',{});
     const base={'../../client/cep':cep,'../../client/errors':errors};
+    const actions=load('src/api/engine/models/actions.ts',{...base,'../../client/cepTask':tasks,'../../../utils/filePath':filePath});
     const config=load('src/api/engine/config/config.api.ts',base);
     const systemData=load('src/api/engine/system/systemData.ts',base);
     const permission=load('src/api/engine/permission/permission.api.ts',{
@@ -29,9 +32,9 @@ function harness(handler){
     });
     const models=load('src/api/engine/models/models.api.ts',{
         '../../client':{client},...base,'../permission/permission.api':permission,
-        '../system/systemData':systemData,'./models.endpoints':{MODELS_ENDPOINTS:{}},
+        '../system/systemData':systemData,'./models.endpoints':{MODELS_ENDPOINTS:{}},'./actions':actions,
     });
-    return {...cep,...config,...systemData,...permission,...models,errors,requests,client};
+    return {...cep,...tasks,...actions,...config,...systemData,...permission,...models,filePath,errors,requests,client};
 }
 function filesystemHarness(handler){
     const h=harness(handler);
@@ -44,7 +47,7 @@ function toolHarness(handler){
     const lifecycle=load('src/api/engine/tools/lifecycle.ts',{...shared,'../../client/cepTask':tasks,'./catalog':catalog});
     const cache=load('src/api/engine/tools/cache.ts',{...shared,'./catalog':catalog,'./lifecycle':lifecycle});
     const settings=load('src/api/engine/tools/settings.ts',{...shared,'./lifecycle':lifecycle});
-    const files=load('src/api/engine/tools/files.ts',{...shared,'./lifecycle':lifecycle,'./cache':cache});
+    const files=load('src/api/engine/tools/files.ts',{...shared,'./lifecycle':lifecycle,'./cache':cache,'../../../utils/filePath':h.filePath});
     const execution=load('src/api/engine/tools/execution.ts',{...shared,'./lifecycle':lifecycle});
     const base={'../../../client':{client:h.client},'../../../client/errors':h.errors,
         '../catalog':catalog,'../lifecycle':lifecycle,'../cache':cache,'../settings':settings,'../files':files,'../execution':execution};

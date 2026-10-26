@@ -2,19 +2,18 @@ import { callCep } from '../../client/cep';
 import { ApiError } from '../../client/errors';
 import { toolTarget } from './lifecycle';
 import { isToolCacheInfo } from './cache';
+import { isPackageRelativePath } from '../../../utils/filePath';
 import type { ComponentFileItem, ComponentFilesResponse, UpdateComponentFilePayload } from './components/components.types';
 
 const object = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === 'object' && !Array.isArray(value);
-const relativePath = (value: unknown): value is string => typeof value === 'string' && value.length > 0
-  && !value.includes('\0') && !/^(?:[a-z]:|[/\\])/i.test(value) && !value.split(/[/\\]/).includes('..');
 const invalid = (method: string) => new ApiError('Engine returned an invalid tool file result', 200, 'INVALID_TOOL_FILE', method);
 
 /** Relative package files only. Canonicalization/roots and symlink authorization stay in Engine. */
 export async function listToolFiles(kind?: string, name?: string, signal?: AbortSignal): Promise<ComponentFilesResponse> {
   const value = await callCep<unknown>('tools.files', toolTarget(kind, name), {signal});
   if (!object(value) || !Array.isArray(value.files) || value.files.some(file => !object(file)
-    || typeof file.name !== 'string' || !file.name || !relativePath(file.path) || typeof file.is_dir !== 'boolean')
+    || typeof file.name !== 'string' || !file.name || !isPackageRelativePath(file.path) || typeof file.is_dir !== 'boolean')
     || typeof value.truncated !== 'boolean' || !Number.isSafeInteger(value.skipped) || Number(value.skipped) < 0
     || !isToolCacheInfo(value.cache)) throw invalid('tools.files');
   return {status: 'success', files: value.files as ComponentFileItem[], cache: value.cache,
@@ -24,7 +23,7 @@ export async function listToolFiles(kind?: string, name?: string, signal?: Abort
 export async function readToolFile(kind: string, name: string, path: string, signal?: AbortSignal):
 Promise<{status: string; content: string; path: string; message?: string}> {
   const target = toolTarget(kind, name);
-  if (!relativePath(path)) throw new ApiError('Choose a relative path inside this tool package', 400, 'INVALID_TOOL_FILE_PATH', 'tools.read_file');
+  if (!isPackageRelativePath(path)) throw new ApiError('Choose a relative path inside this tool package', 400, 'INVALID_TOOL_FILE_PATH', 'tools.read_file');
   const value = await callCep<unknown>('tools.read_file', {...target, path}, {signal});
   if (!object(value) || typeof value.path !== 'string' || !value.path || typeof value.text !== 'string') {
     throw invalid('tools.read_file');

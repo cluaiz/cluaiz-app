@@ -4,15 +4,13 @@ import { ApiError } from '../../client/errors';
 import { permissionApi } from '../permission/permission.api';
 import { readHardwareSummary } from '../system/systemData';
 import { MODELS_ENDPOINTS } from './models.endpoints';
+import { downloadInstalledModel, inspectInstalledModel, loadInstalledModel, removeInstalledModel } from './actions';
 import type {
   InstalledModelsResponse,
   OpenAiModelsResponse,
   AvailableModelsResponse,
   HardwareStatusResponse,
-  InspectHeaderResponse,
   TagsResponse,
-  DownloadModelPayload,
-  DownloadModelResponse,
   ModelRegistryEntry,
 } from './models.types';
 
@@ -65,7 +63,8 @@ export const modelsApi = {
    * Fetches hardware capabilities and recommendations
    */
   getAvailable: (): Promise<AvailableModelsResponse> => {
-    return client.get<AvailableModelsResponse>(MODELS_ENDPOINTS.AVAILABLE);
+    return Promise.reject(new ApiError('Model recommendations are unavailable in the current Engine API',
+      501, 'MODEL_RECOMMENDATIONS_UNAVAILABLE', 'models'));
   },
 
   /**
@@ -76,31 +75,19 @@ export const modelsApi = {
   },
 
   /**
-   * Inspects raw GGUF or ONNX tensor headers for an installed model
+   * Inspects the installed GGUF header through CEP models.inspect.
    */
-  inspectHeader: (modelId: string, filename?: string): Promise<InspectHeaderResponse> => {
-    return client.get<InspectHeaderResponse>(MODELS_ENDPOINTS.INSPECT_RAW_HEADER(modelId), {
-      params: filename ? { filename } : undefined,
-    });
-  },
+  inspectHeader: inspectInstalledModel,
 
   /**
    * Loads a model into memory
    */
-  loadModel: (modelId: string): Promise<{ status: string; message?: string }> => {
-    return client.post<{ status: string; message?: string }>(MODELS_ENDPOINTS.LOAD, {
-      model_id: modelId,
-    });
-  },
+  loadModel: loadInstalledModel,
 
   /**
-   * Triggers a model pull in the background
+   * Waits for the same validated CEP download task as downloadModel.
    */
-  pullModel: (modelId: string): Promise<{ status: string; message?: string }> => {
-    return client.post<{ status: string; message?: string }>(MODELS_ENDPOINTS.PULL, {
-      model_id: modelId,
-    });
-  },
+  pullModel: (modelId: string, signal?: AbortSignal) => downloadInstalledModel({model_id: modelId}, signal),
 
   /**
    * Fetches downloaded models list (/api/tags)
@@ -110,24 +97,18 @@ export const modelsApi = {
   },
 
   /**
-   * Triggers or queues model download (/models/download)
+   * Completes only after the Engine download task's final result.
    */
-  downloadModel: (payload: DownloadModelPayload = {}): Promise<DownloadModelResponse> => {
-    return client.post<DownloadModelResponse>(MODELS_ENDPOINTS.DOWNLOAD, payload);
-  },
+  downloadModel: downloadInstalledModel,
 
   /**
    * Physically deletes a model file from the disk vault
    */
-  deleteModel: (modelId: string): Promise<{ status: string; message?: string }> => {
-    return client.del<{ status: string; message?: string }>(
-      MODELS_ENDPOINTS.DELETE_MODEL(modelId)
-    );
-  },
+  deleteModel: removeInstalledModel,
 
   // Aliases for seamless backwards compatibility
   getInstalledModels: (): Promise<InstalledModelsResponse> => modelsApi.getInstalled(),
   getHardwareStatus: (): Promise<HardwareStatusResponse> => modelsApi.getHardware(),
-  inspectModelHeader: (modelId: string, filename?: string): Promise<InspectHeaderResponse> =>
+  inspectModelHeader: (modelId: string, filename?: string) =>
     modelsApi.inspectHeader(modelId, filename),
 };

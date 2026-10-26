@@ -12,6 +12,11 @@ flowchart LR
     C --> E["Engine models.list"]
     E --> A["Validate inventory; preserve metadata and format alias"]
     A --> UI
+    UI --> L["Shared model actions: load / remove / inspect"]
+    L --> C
+    UI --> D["download / pull: start one models.download task"]
+    D --> T["Existing callCepTask: await actual result"]
+    T --> C
     UI --> S["Select installed chat model"]
     S --> G["config.get: engine"]
     G --> P["Preserve slots; replace selected chat slot"]
@@ -42,6 +47,26 @@ flowchart LR
 - A failed inventory sets the models store to error and retains previous data,
   rather than reporting success with an empty list. The chat picker clears its
   stale choices and offers retry. No model is invented from a display label.
+- `actions.ts` owns CEP models.load/remove/inspect/download. Installed model ids
+  are not repo URLs or paths. Optional header files use the same relative-package
+  path validator as tool files, moved into the existing filePath utility.
+- Load/remove require matching model identity and actual timing/directory fields
+  before an App success. These potentially long operations have no fixed client
+  deadline; an optional signal aborts observation, not a promise of server rollback.
+- Raw header inspection returns the real model/file/metadata/int_arrays/languages/
+  tensors shape. Current Engine probes GGUF; an ONNX probe error is preserved.
+  ONNX explicit load is unsupported by current models.load; ONNX still loads on
+  its first inference request. This repair does not add an ONNX loader/prober.
+- Download/pull share one models.download task start and the existing CEP task
+  waiter. The final installed id can differ from the requested catalog/HF id.
+  A cached result with downloaded:false and path:null is valid. A task handle,
+  malformed final reply or failed/cancelled task is not download success.
+- Download payload retains model_id as the App field, translated to model on
+  the wire. Catalog ids and HF owner/name[:QUANT] or supported URLs go to Engine
+  resolution. Unknown extra payload fields fail rather than being discarded.
+- Standard /v1/models and /api/tags compatibility reads remain direct and valid.
+  getAvailable refuses before dispatch because current Engine exposes no model
+  recommendation method; it does not invent a suggested roster.
 
 ## Scope and verification
 
@@ -52,6 +77,8 @@ hook and chat adapter with controlled HTTP responses; it is not model inference.
 
 Hardware now delegates to the shared [system owner](../system/README.md), and
 voice/language discovery has its separate [audio owner](../audio/README.md).
-Token/approval controls and model load/remove/inspect/download remain separate.
-Those methods in the endpoints table remain pending. This does not add an Engine
-backend, model, downloader, native connector or new design system.
+Token/approval controls, model Inspector metadata/stale-request integration and
+store action feedback still have separate work. Remaining model endpoint constants
+are only supported compatibility reads. This does not add an Engine backend, model,
+downloader, native connector or new design system. Actual third-party model support,
+native loads and public model downloads are not certified by adapter tests.

@@ -64,15 +64,12 @@ export interface AvailableModelsResponse {
 export type { HardwareDetectorStats, HardwareStatusResponse } from '../system/system.types';
 
 export interface InspectHeaderResponse {
-  status: string;
-  model_id: string;
-  supported_tasks?: string[];
-  file_path?: string;
-  format?: 'GGUF' | 'ONNX' | string;
-  tensor_count?: number;
-  metadata_kv?: Record<string, unknown>;
-  tensors_shape_map?: Record<string, unknown>;
-  message?: string;
+  model: string;
+  file: string;
+  metadata: Record<string, unknown>;
+  int_arrays: Record<string, number[]>;
+  speech_languages: string[];
+  tensors: Array<{name: string; dims: number[]; ggml_type: number; offset: number; size_bytes: number}>;
 }
 
 export interface TagModelDetails {
@@ -97,6 +94,8 @@ export interface DownloadModelPayload {
 }
 
 export interface DownloadModelResponse {
-  success: boolean;
-  status: string;
+  status: 'success';
+  model: string;
+  path: string | null;
+  downloaded: boolean;
 }

@@ -9,6 +9,12 @@ export function extractBaseName(pathStr: string): string {
     return parts.length > 0 ? parts[parts.length - 1] : pathStr;
 }
 
+/** Portable relative package path; canonicalization and symlink checks belong to Engine. */
+export function isPackageRelativePath(value: unknown): value is string {
+    return typeof value === 'string' && value.length > 0 && !value.includes('\0')
+        && !/^(?:[a-z]:|[/\\])/i.test(value) && !value.split(/[/\\]/).includes('..');
+}
+
 export function getFileExtension(name?: string): string | undefined {
     if (!name || !name.includes('.')) return undefined;
     const parts = name.split('.');
