@@ -1,3 +1,4 @@
+import { engineFetch } from '../../client/transport';
 /** Retry only admission refusals, before a speech response has emitted any audio. */
 const MAX_BUSY_RETRIES = 4;
 
@@ -21,7 +22,7 @@ export async function requestSpeech(url: string, options: RequestInit): Promise<
     const signal = options.signal || undefined;
     for (let attempt = 0; ; attempt++) {
         signal?.throwIfAborted();
-        const response = await fetch(url, options);
+        const response = await engineFetch(url, options);
         if (response.status !== 429 || attempt === MAX_BUSY_RETRIES) return response;
         const error = await response.clone().json().catch(() => null);
         if (error?.error?.type !== 'speech_busy') return response;

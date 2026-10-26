@@ -42,13 +42,9 @@ export const useStorageStore = create<StorageState>((set, get) => ({
     set({ isCleaning: true, error: null });
     try {
       await storageApi.cleanTempMedia();
-      // Optimistically reset media size display
+      const usage = await storageApi.getTempMediaStatus();
       set({
-        mediaStatus: {
-          file_count: 0,
-          total_size_bytes: 0,
-          total_size_mb: '0.00 MB',
-        },
+        mediaStatus: usage,
         isCleaning: false,
       });
     } catch (err) {
@@ -65,10 +61,10 @@ export const useStorageStore = create<StorageState>((set, get) => ({
     set({ settings: next, isSaving: true, error: null });
 
     try {
-      await storageApi.updateStorageSettings(patch);
-      set({ isSaving: false, status: 'success' });
+      const saved = await storageApi.updateStorageSettings(patch);
+      if (get().settings === next) set({ settings: saved.storage, isSaving: false, status: 'success' });
     } catch (err) {
-      set({ settings: prev, isSaving: false, status: 'error', error: errorMessage(err) });
+      if (get().settings === next) set({ settings: prev, isSaving: false, status: 'error', error: errorMessage(err) });
     }
   },
 }));

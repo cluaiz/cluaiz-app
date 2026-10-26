@@ -515,15 +515,20 @@ version = "0.1.0"
 dependencies = [
  "base64 0.22.1",
  "dirs 5.0.1",
+ "http-body-util",
+ "hyper",
+ "hyper-util",
  "notify",
  "rfd",
  "serde",
  "serde_json",
+ "sha2",
  "tauri",
  "tauri-build",
  "tauri-plugin-opener",
  "tauri-plugin-shell",
  "tokio",
+ "uuid",
  "windows-sys 0.61.2",
 ]
 

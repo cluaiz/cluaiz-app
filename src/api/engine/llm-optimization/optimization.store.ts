@@ -50,10 +50,11 @@ export const useOptimizationStore = create<OptimizationState>((set, get) => ({
     set({ optimization: next, isSaving: true, error: null });
 
     try {
-      await optimizationApi.update({ [key]: value });
-      set({ isSaving: false, status: 'success' });
+      const saved = await optimizationApi.update({ [key]: value });
+      if (get().optimization === next) set({ optimization: saved.optimization, isSaving: false, status: 'success' });
     } catch (err) {
       // Rollback on failure
+      if (get().optimization !== next) return;
       set({
         optimization: prev,
         isSaving: false,
@@ -75,9 +76,10 @@ export const useOptimizationStore = create<OptimizationState>((set, get) => ({
     set({ optimization: next, isSaving: true, error: null });
 
     try {
-      await optimizationApi.update({ [key]: value });
-      set({ isSaving: false, status: 'success' });
+      const saved = await optimizationApi.update({ [key]: value });
+      if (get().optimization === next) set({ optimization: saved.optimization, isSaving: false, status: 'success' });
     } catch (err) {
+      if (get().optimization !== next) return;
       set({
         optimization: prev,
         isSaving: false,

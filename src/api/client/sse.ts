@@ -1,5 +1,6 @@
 import { ApiError } from './errors';
 import { http } from './http';
+import { engineFetch } from './transport';
 
 export interface SseOptions {
   onToken?: (token: string) => void;
@@ -57,7 +58,7 @@ export async function streamSse(
 
   let response: Response;
   try {
-    response = await fetch(url, {
+    response = await engineFetch(url, {
       method: 'POST',
       headers,
       body: JSON.stringify(body),
@@ -151,6 +152,7 @@ export async function streamSse(
     options.onError?.(apiErr);
     throw apiErr;
   } finally {
+    await reader.cancel().catch(() => {});
     reader.releaseLock();
     options.onDone?.();
   }

@@ -7,6 +7,7 @@
  * 3. History navigation (browser back & forward buttons)
  */
 import { useLayoutStore } from '../store/ui/useLayoutStore';
+import { extensionPath, parseExtensionPath, type ExtensionRoute } from '../extensions/routes';
 
 export type SettingsTabId =
     | 'general'
@@ -33,13 +34,14 @@ export const VALID_SETTINGS_TABS: SettingsTabId[] = [
     'help'
 ];
 
-export type MainViewId = 'chat' | 'notebook' | 'settings' | 'tools' | 'apis' | 'toolkit' | 'library' | 'components';
+export type MainViewId = 'chat' | 'notebook' | 'settings' | 'tools' | 'apis' | 'toolkit' | 'library' | 'components' | 'extensions';
 
 export interface RouteState {
     view: MainViewId;
     isSettingsOpen: boolean;
     settingsTab: SettingsTabId;
     activeChatId?: string | null;
+    extension?: ExtensionRoute;
 }
 
 function extractTabFromPath(pathname: string): string | null {
@@ -110,12 +112,16 @@ export function parseCurrentRoute(): RouteState {
 
     // Determine base active view
     let view: MainViewId = 'chat';
-    if (pathname.includes('/notebook') || hash.includes('/notebook')) {
+    if (pathname === '/extensions' || pathname.startsWith('/extensions/')) {
+        view = 'extensions';
+    } else if (pathname.includes('/notebook') || hash.includes('/notebook')) {
         view = 'notebook';
     } else if (pathname.includes('/tools')) {
         view = 'tools';
     } else if (pathname.includes('/apis')) {
         view = 'apis';
+    } else if (pathname === '/components' || hash.split('?')[0] === '#/components') {
+        view = 'components';
     } else if (pathname.includes('/toolkit')) {
         view = 'toolkit';
     } else if (pathname.includes('/library') || hash.includes('/library')) {
@@ -129,6 +135,7 @@ export function parseCurrentRoute(): RouteState {
         isSettingsOpen: isSettingsPath,
         settingsTab,
         activeChatId,
+        extension: view === 'extensions' ? parseExtensionPath(pathname) || undefined : undefined,
     };
 }
 
@@ -186,7 +193,9 @@ export function pushViewRoute(view: MainViewId, replace: boolean = false): void 
     if (typeof window === 'undefined') return;
     try {
         const url = new URL(window.location.href);
-        const targetPath = view === 'chat' ? '/' : `/${view}`;
+        const selectedExtension = useLayoutStore.getState().activeExtension;
+        const targetPath = view === 'chat' ? '/' : view === 'extensions' && selectedExtension
+            ? extensionPath(selectedExtension) : `/${view}`;
         url.pathname = targetPath;
         url.searchParams.delete('tab');
         if (view !== 'chat') {

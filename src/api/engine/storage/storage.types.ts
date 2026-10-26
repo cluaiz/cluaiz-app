@@ -1,6 +1,6 @@
 /**
  * Cluaiz Engine Storage Type Definitions
- * Matched 1:1 to Rust schema in cluaiz/inference-engine/api/src/handlers/storage.rs
+ * Temporary-media CEP results and the saved config.storage section.
  */
 
 export interface StorageStatus {
@@ -14,13 +14,9 @@ export interface StorageStatus {
 
 export interface StorageSettings {
   cleanup_policy: 'Immediate' | 'Hourly' | 'Daily' | 'Never' | string;
-  max_temp_media_gb?: number;
-  auto_clean_interval_hours?: number;
-  enable_auto_clean?: boolean;
-  [key: string]: unknown;
 }
 
 export interface CleanStorageResponse {
-  status: string;
-  message: string;
+  removed_files: number;
+  freed_bytes: number;
 }

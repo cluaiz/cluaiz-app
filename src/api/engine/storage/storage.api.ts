@@ -1,5 +1,5 @@
-import { client } from '../../client';
-import { STORAGE_ENDPOINTS } from './storage.endpoints';
+import { callCep } from '../../client/cep';
+import { getConfig, setConfig } from '../config/config.api';
 import type {
   StorageStatus,
   StorageSettings,
@@ -14,32 +14,29 @@ export const storageApi = {
    * Fetches temporary media usage statistics from the engine
    */
   getTempMediaStatus: (): Promise<StorageStatus> => {
-    return client.get<StorageStatus>(STORAGE_ENDPOINTS.TEMP_MEDIA);
+    return callCep<StorageStatus>('storage.status');
   },
 
   /**
    * Cleans all temporary media stored in the engine workspace
    */
   cleanTempMedia: (): Promise<CleanStorageResponse> => {
-    return client.post<CleanStorageResponse>(STORAGE_ENDPOINTS.CLEAN_TEMP_MEDIA, {});
+    return callCep<CleanStorageResponse>('storage.clean');
   },
 
   /**
    * Fetches active storage control settings
    */
   getStorageSettings: (): Promise<StorageSettings> => {
-    return client.get<StorageSettings>(STORAGE_ENDPOINTS.SETTINGS);
+    return getConfig('storage');
   },
 
   /**
    * Updates storage control settings on the engine
    */
-  updateStorageSettings: (
+  updateStorageSettings: async (
     settings: Partial<StorageSettings>
-  ): Promise<{ status: string; message?: string }> => {
-    return client.post<{ status: string; message?: string }>(
-      STORAGE_ENDPOINTS.SETTINGS,
-      settings
-    );
+  ): Promise<{ status: string; storage: StorageSettings }> => {
+    return { status: 'success', storage: await setConfig('storage', settings) };
   },
 };

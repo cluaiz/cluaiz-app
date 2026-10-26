@@ -1,134 +1,52 @@
 pub mod core;
 pub mod features;
+include!("../commands.rs");
 
-use core::engine::spawner::{boot_cluaiz_engine, update_engine_settings, get_session_token};
+use core::engine::native::{
+    engine_native_cancel, engine_native_head, engine_native_read, engine_native_start,
+    requests::NativeRequests,
+};
+use core::engine::spawner::{boot_cluaiz_engine, get_session_token, update_engine_settings};
 use core::state::EngineState;
 use features::chat::commands::{ffi_delete_session, ffi_fetch_history, ffi_send_message};
 use features::chat::storage::{
-    storage_load_sessions_index,
+    storage_append_message, storage_delete_session, storage_load_session_messages,
+    storage_load_session_metadata, storage_load_sessions_index, storage_resolve_asset_path,
+    storage_save_asset, storage_save_session_messages, storage_save_session_metadata,
     storage_save_sessions_index,
-    storage_load_session_metadata,
-    storage_save_session_metadata,
-    storage_load_session_messages,
-    storage_append_message,
-    storage_save_session_messages,
-    storage_delete_session,
-    storage_save_asset,
-    storage_resolve_asset_path,
 };
-use features::code_editor::{start_fs_watcher, stop_fs_watcher, pick_folder};
+use features::code_editor::{pick_folder, start_fs_watcher, stop_fs_watcher};
+use features::extensions::{
+    extension_guest_message, extension_host_message, extension_surface_close,
+    extension_surface_open, extension_surface_resize,
+    extension_packages_list, extension_package_read, extension_package_commit,
+};
 use tauri::Manager;
+use features::desktop_lifecycle::{desktop_lifecycle_status, desktop_set_background, desktop_show_main, desktop_quit};
 
-async fn start_local_bridge() {
-    let port: u16 = std::env::var("CLUAIZ_BRIDGE_PORT")
-        .ok()
-        .and_then(|p| p.parse().ok())
-        .unwrap_or_else(|| {
-            let content = include_str!("../../../src/api/app/native/native.endpoints.ts");
-            for line in content.lines() {
-                let trimmed = line.trim();
-                if trimmed.starts_with("export const DEFAULT_BRIDGE_PORT") {
-                    if let Some(val_str) = trimmed.split('=').nth(1) {
-                        let clean = val_str.trim().trim_end_matches(';').trim();
-                        if let Ok(p) = clean.parse::<u16>() {
-                            return p;
-                        }
-                    }
-                }
-            }
-            1421
-        });
-
-    let bind_addr = format!("0.0.0.0:{}", port);
-    let listener = match tokio::net::TcpListener::bind(&bind_addr).await {
-        Ok(l) => l,
-        Err(e) => {
-            eprintln!("[LocalBridge] Port bind notice on {}: {}", bind_addr, e);
-            return;
-        }
+macro_rules! native_handler {
+    (main [$($main:ident),*] guest [$($guest:ident),*]) => {
+        tauri::generate_handler![$($main),*, $($guest),*]
     };
-    println!("[LocalBridge] Local HTTP Bridge active on port {} (0.0.0.0: accepts localhost, LAN IP, and domain)", port);
-
-    loop {
-        let (mut socket, _) = match listener.accept().await {
-            Ok(s) => s,
-            Err(_) => continue,
-        };
-
-        tokio::spawn(async move {
-            use tokio::io::{AsyncReadExt, AsyncWriteExt};
-            let mut buf = [0u8; 2048];
-            let n = match socket.read(&mut buf).await {
-                Ok(n) if n > 0 => n,
-                _ => return,
-            };
-            let req = String::from_utf8_lossy(&buf[..n]);
-
-            // Handle CORS preflight
-            if req.starts_with("OPTIONS") {
-                let response = "HTTP/1.1 204 No Content\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Allow-Methods: GET, POST, OPTIONS\r\nAccess-Control-Allow-Headers: *\r\n\r\n";
-                let _ = socket.write_all(response.as_bytes()).await;
-                return;
-            }
-
-            if req.contains("/api/pick-folder") || req.contains("/api/pick_folder") {
-                let folder_res = features::code_editor::pick_folder().await;
-                let (status, path_val) = match folder_res {
-                    Ok(Some(path)) => ("success", Some(path)),
-                    Ok(None) => ("cancelled", None),
-                    Err(e) => ("error", Some(e)),
-                };
-                let json = serde_json::json!({
-                    "status": status,
-                    "path": path_val
-                }).to_string();
-
-                let response = format!(
-                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Allow-Methods: GET, POST, OPTIONS\r\nAccess-Control-Allow-Headers: *\r\nContent-Length: {}\r\n\r\n{}",
-                    json.len(),
-                    json
-                );
-                let _ = socket.write_all(response.as_bytes()).await;
-            } else {
-                let response = "HTTP/1.1 404 Not Found\r\nAccess-Control-Allow-Origin: *\r\nContent-Length: 0\r\n\r\n";
-                let _ = socket.write_all(response.as_bytes()).await;
-            }
-        });
-    }
 }
 
 #[allow(dependency_on_unit_never_type_fallback)]
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    features::desktop_lifecycle::configure(features::extensions::configure(tauri::Builder::default()))
         .manage(EngineState::default())
+        .manage(NativeRequests::default())
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![
-            get_session_token,
-            boot_cluaiz_engine,
-            update_engine_settings,
-            ffi_send_message,
-            ffi_fetch_history,
-            ffi_delete_session,
-            start_fs_watcher,
-            stop_fs_watcher,
-            pick_folder,
-            storage_load_sessions_index,
-            storage_save_sessions_index,
-            storage_load_session_metadata,
-            storage_save_session_metadata,
-            storage_load_session_messages,
-            storage_append_message,
-            storage_save_session_messages,
-            storage_delete_session,
-            storage_save_asset,
-            storage_resolve_asset_path
-        ])
-        .setup(|_app| {
-            tauri::async_runtime::spawn(async move {
-                start_local_bridge().await;
-            });
-            Ok(())
+        .invoke_handler(app_commands!(native_handler))
+        .setup(|app| { features::desktop_lifecycle::setup(app.handle()); Ok(()) })
+        .on_window_event(|window, event| {
+            features::desktop_lifecycle::window_event(window, event);
+            if matches!(event, tauri::WindowEvent::Destroyed) {
+                features::extensions::window_destroyed(window.app_handle(), window.label());
+                window
+                    .state::<NativeRequests>()
+                    .cancel_owner(window.label());
+            }
         })
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
@@ -139,6 +57,7 @@ pub fn run() {
                     if let Some(mut child) = child_lock.take() {
                         println!("Tauri App Exiting: Killing Cluaiz Engine...");
                         let _ = child.kill();
+                        let _ = child.wait();
                     }
                 }
             }

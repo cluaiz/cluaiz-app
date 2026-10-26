@@ -6,11 +6,13 @@ export const nativeApi = {
   isDesktop: (): boolean => isTauri(),
 
   bootEngine: async (): Promise<boolean> => {
-    return (await ipc.invoke<boolean>(NATIVE_COMMANDS.BOOT_ENGINE)) ?? false;
+    await ipc.invoke<string>(NATIVE_COMMANDS.BOOT_ENGINE);
+    return true;
   },
 
   updateEngineSettings: async (settings: Record<string, any>): Promise<boolean> => {
-    return (await ipc.invoke<boolean>(NATIVE_COMMANDS.UPDATE_SETTINGS, { settings })) ?? false;
+    await ipc.invoke<string>(NATIVE_COMMANDS.UPDATE_SETTINGS, { payload: settings });
+    return true;
   },
 
   getSessionToken: async (): Promise<string | null> => {

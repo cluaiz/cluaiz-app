@@ -2,6 +2,7 @@ import { client } from '../../client';
 import { callCep } from '../../client/cep';
 import { ApiError } from '../../client/errors';
 import { permissionApi } from '../permission/permission.api';
+import { readHardwareSummary } from '../system/systemData';
 import { MODELS_ENDPOINTS } from './models.endpoints';
 import type {
   InstalledModelsResponse,
@@ -71,7 +72,7 @@ export const modelsApi = {
    * Probes physical GPU, VRAM, and RAM hardware stats
    */
   getHardware: (): Promise<HardwareStatusResponse> => {
-    return client.get<HardwareStatusResponse>(MODELS_ENDPOINTS.HARDWARE);
+    return readHardwareSummary();
   },
 
   /**

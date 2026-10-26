@@ -35,7 +35,7 @@ export interface SystemState {
   planExecution: (payload: LatencyComparePayload) => Promise<LatencyCompareResponse>;
   fetchProcesses: () => Promise<void>;
   fetchSystemControl: () => Promise<void>;
-  executeCommand: (command: string) => Promise<CmdResponse>;
+  executeCommand: (command: string, timeoutMs?: number) => Promise<CmdResponse>;
   clearCommandHistory: () => void;
   reset: () => void;
 }
@@ -121,10 +121,10 @@ export const useSystemStore = create<SystemState>((set, get) => ({
     }
   },
 
-  executeCommand: async (command: string) => {
+  executeCommand: async (command: string, timeoutMs?: number) => {
     set({ isExecutingCmd: true, error: null });
     try {
-      const res = await systemApi.executeCommand(command);
+      const res = await systemApi.executeCommand(command, timeoutMs);
       const isOk = res.status === 'success';
       const entry: CommandExecutionEntry = {
         command,

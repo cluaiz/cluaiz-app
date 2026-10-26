@@ -1,5 +1,5 @@
 import { client } from '../../client';
-import { callCep } from '../../client/cep';
+import { getConfig, setConfig } from '../config/config.api';
 import { ApiError } from '../../client/errors';
 import { PERMISSION_ENDPOINTS } from './permission.endpoints';
 import type {
@@ -28,14 +28,14 @@ export const permissionApi = {
    * Reads saved Engine settings; installed inventory remains owned by modelsApi.
    */
   getPermission: async (signal?: AbortSignal): Promise<PermissionResponse> => {
-    return engineSettings(await callCep('config.get', { section: 'engine' }, { signal }));
+    return engineSettings({ engine: await getConfig('engine', signal) });
   },
 
   /**
    * Saves the patch through CEP; nested objects follow the Engine's merge rules.
    */
   updatePermission: async (payload: Partial<PermissionSchema> | Record<string, any>, signal?: AbortSignal): Promise<PermissionResponse> => {
-    return engineSettings(await callCep('config.set', { section: 'engine', patch: payload }, { signal }));
+    return engineSettings({ engine: await setConfig('engine', payload, signal) });
   },
 
   /**

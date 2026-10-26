@@ -1,21 +1,15 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { isTauri } from '../api/client/ipc';
+export { isTauri } from '../api/client/ipc';
 
 /**
  * Checks if the app is currently running in a Tauri desktop environment.
  */
-export const isTauri = (): boolean => {
-    return typeof window !== 'undefined' && (
-        '__TAURI_INTERNALS__' in window || 
-        '__TAURI__' in window || 
-        '__TAURI_IPC__' in window || 
-        !!(window as any).__TAURI__
-    );
-};
 
 /**
- * Sends a CDQL query directly through the Rust FFI Named Pipe.
+ * Retained legacy name; CDQL has no implemented Engine endpoint.
  * @param query The CDQL query string
  * @returns A promise resolving to the JSON string response from the database
  */
@@ -24,13 +18,8 @@ export async function executeCDQLFFI(query: string): Promise<string> {
         throw new Error("Cannot execute FFI command in a non-Tauri environment.");
     }
     
-    // We will hook this up to the CDQL WASM engine in the future
-    // For now, we simulate an empty response or call a placeholder
-    try {
-        return await invoke<string>('ffi_fetch_history'); // using history as a placeholder for CDQL
-    } catch {
-        return "[]";
-    }
+    void query;
+    throw new Error('CDQL execution is unsupported. Use the existing storage APIs.');
 }
 
 /**
@@ -57,7 +46,7 @@ export async function sendFFIMessage(message: string): Promise<void> {
  * Fetches the entire chat history.
  */
 export async function fetchFFIHistory(): Promise<string> {
-    if (!isTauri()) return "[]";
+    if (!isTauri()) throw new Error('Legacy native history requires the desktop App; use ChatStorageManager.');
     return await invoke<string>('ffi_fetch_history');
 }
 

@@ -1,5 +1,4 @@
-import { client } from '../../client';
-import { OPTIMIZATION_ENDPOINTS } from './optimization.endpoints';
+import { getConfig, setConfig } from '../config/config.api';
 import type {
   OptimizationControl,
   OptimizationStatusResponse,
@@ -12,20 +11,17 @@ export const optimizationApi = {
   /**
    * Fetches current hardware optimization state from the engine
    */
-  getStatus: (): Promise<OptimizationStatusResponse> => {
-    return client.get<OptimizationStatusResponse>(OPTIMIZATION_ENDPOINTS.STATUS);
+  getStatus: async (): Promise<OptimizationStatusResponse> => {
+    return { status: 'success', optimization: await getConfig('optimization') };
   },
 
   /**
    * Updates optimization control settings on the engine
    */
-  update: (
+  update: async (
     patch: Partial<OptimizationControl>
-  ): Promise<{ status: string; message?: string }> => {
-    return client.post<{ status: string; message?: string }>(
-      OPTIMIZATION_ENDPOINTS.UPDATE,
-      patch
-    );
+  ): Promise<OptimizationStatusResponse> => {
+    return { status: 'success', optimization: await setConfig('optimization', patch) };
   },
 
   // Aliases for backwards compatibility

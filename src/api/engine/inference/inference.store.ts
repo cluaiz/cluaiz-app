@@ -58,7 +58,7 @@ export const useInferenceStore = create<InferenceState>((set, get) => ({
     const prev = get().gguf;
     set({ gguf: next, isSaving: true, error: null });
     try {
-      await toast.promise(
+      const saved = await toast.promise(
         inferenceApi.saveGguf(next),
         {
           loading: 'Saving inference configuration...',
@@ -66,10 +66,10 @@ export const useInferenceStore = create<InferenceState>((set, get) => ({
           error: 'Failed to save inference configuration'
         }
       );
-      set({ isSaving: false, status: 'success' });
+      if (get().gguf === next) set({ gguf: saved.gguf, isSaving: false, status: 'success' });
     } catch (err) {
       // Rollback to previous state on failure
-      set({ gguf: prev, isSaving: false, status: 'error', error: errorMessage(err) });
+      if (get().gguf === next) set({ gguf: prev, isSaving: false, status: 'error', error: errorMessage(err) });
     }
   },
 
@@ -77,7 +77,7 @@ export const useInferenceStore = create<InferenceState>((set, get) => ({
     const prev = get().onnx;
     set({ onnx: next, isSaving: true, error: null });
     try {
-      await toast.promise(
+      const saved = await toast.promise(
         inferenceApi.saveOnnx(next),
         {
           loading: 'Saving ONNX configuration...',
@@ -85,10 +85,10 @@ export const useInferenceStore = create<InferenceState>((set, get) => ({
           error: 'Failed to save ONNX configuration'
         }
       );
-      set({ isSaving: false, status: 'success' });
+      if (get().onnx === next) set({ onnx: saved.onnx, isSaving: false, status: 'success' });
     } catch (err) {
       // Rollback to previous state on failure
-      set({ onnx: prev, isSaving: false, status: 'error', error: errorMessage(err) });
+      if (get().onnx === next) set({ onnx: prev, isSaving: false, status: 'error', error: errorMessage(err) });
     }
   },
 

@@ -1,6 +1,9 @@
 import { client } from '../../client';
 import { SYSTEM_ENDPOINTS } from './system.endpoints';
 import { permissionApi } from '../permission/permission.api';
+import { callCep } from '../../client/cep';
+import { ApiError } from '../../client/errors';
+import { readSystemInfo, readSystemLive } from './systemData';
 import type {
   HealthResponse,
   SystemInfoResponse,
@@ -26,65 +29,69 @@ export const systemApi = {
    * Fetches high-level engine metadata, version, and architecture pillars.
    */
   getSystemInfo: async (): Promise<SystemInfoResponse> => {
-    return client.get<SystemInfoResponse>(SYSTEM_ENDPOINTS.INFO, { skipAuth: true });
+    return readSystemInfo();
   },
 
   /**
    * Fetches calibrated host hardware profile and silicon truth: CPU GFLOPS, RAM bandwidth, GPU VRAM, PCIe Gen/width.
    */
   getHardwareInfo: async (): Promise<HardwareProfileResponse> => {
-    return client.get<HardwareProfileResponse>(SYSTEM_ENDPOINTS.INFO_HARDWARE);
+    return { status: 'success', hardware: (await readSystemInfo()).hardware };
   },
 
   /**
    * Fetches live real-time system metrics: host RAM/VRAM, per-core CPU %, engine process RSS memory and CPU usage.
    */
   getLiveTelemetry: async (): Promise<SystemLiveResponse> => {
-    return client.get<SystemLiveResponse>(SYSTEM_ENDPOINTS.LIVE);
+    return readSystemLive();
   },
 
   /**
    * Autonomously plans model hardware placement and evaluates the 5 execution candidates.
    */
   planExecution: async (payload: LatencyComparePayload): Promise<LatencyCompareResponse> => {
-    return client.post<LatencyCompareResponse>(SYSTEM_ENDPOINTS.PLAN, payload);
+    return callCep<LatencyCompareResponse>('system.plan', payload);
   },
 
   /**
    * Evaluates execution plan and latency between direct host RAM -> CPU vs RAM -> PCIe -> GPU streaming.
    */
   compareLatency: async (payload: LatencyComparePayload): Promise<LatencyCompareResponse> => {
-    return client.post<LatencyCompareResponse>(SYSTEM_ENDPOINTS.PLAN, payload);
+    return systemApi.planExecution(payload);
   },
 
   /**
    * Executes a terminal shell command on the host machine via the local engine daemon.
    * Requires loopback authentication.
+   * Defaults to 10 minutes (600,000ms) for long-running CLI / npm / npx processes.
    */
-  executeCommand: async (command: string): Promise<CmdResponse> => {
+  executeCommand: async (command: string, timeoutMs?: number): Promise<CmdResponse> => {
     const payload: CmdPayload = { command };
-    return client.post<CmdResponse>(SYSTEM_ENDPOINTS.EXECUTE_CMD, payload);
+    return client.post<CmdResponse>(SYSTEM_ENDPOINTS.EXECUTE_CMD, payload, { timeoutMs: timeoutMs ?? 600000 });
   },
 
   /**
    * Fetches real-time running model processes, allocations, and hardware telemetry snapshot.
    */
   getProcesses: async (): Promise<ProcessTelemetryResponse> => {
-    return client.get<ProcessTelemetryResponse>(SYSTEM_ENDPOINTS.PS);
+    return callCep<ProcessTelemetryResponse>('system.ps');
   },
 
   /**
    * Fetches active hardware governor control state.
    */
   getSystemControl: async (): Promise<SystemControlResponse> => {
-    return client.get<SystemControlResponse>(SYSTEM_ENDPOINTS.CONTROL);
+    throw new ApiError('Brain Mode control is not supported by the current Engine.',
+      501, 'UNSUPPORTED_OPERATION', 'system.control');
   },
 
   /**
    * Updates system control state (e.g., brain_mode).
    */
   updateSystemControl: async (payload: Record<string, unknown>): Promise<any> => {
-    return client.post(SYSTEM_ENDPOINTS.CONTROL, payload);
+    void payload;
+    throw new ApiError('Brain Mode control is not supported by the current Engine.',
+      501, 'UNSUPPORTED_OPERATION', 'system.control');
   },
 
   // Permission & Auth delegates for unified system domain consumption

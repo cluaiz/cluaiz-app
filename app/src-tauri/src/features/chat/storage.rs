@@ -2,9 +2,18 @@ use std::path::{Path, PathBuf};
 use tokio::fs::{self, OpenOptions};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
+// Tests exercise the real commands without changing Windows Known Folders or
+// touching the user's catalog. This override does not exist in an App build.
+#[cfg(test)]
+tokio::task_local! { static TEST_STORAGE_ROOT: PathBuf; }
+
 /// Dynamically locates the root storage directory for Cluaiz chat data.
 /// Resolves cross-platform using `dirs::data_dir()` with fallback to `dirs::home_dir()`.
 fn get_storage_root() -> Result<PathBuf, String> {
+    #[cfg(test)]
+    if let Ok(root) = TEST_STORAGE_ROOT.try_with(Clone::clone) {
+        return Ok(root);
+    }
     let base = dirs::data_dir()
         .or_else(dirs::home_dir)
         .ok_or_else(|| "Could not locate standard data or home directory".to_string())?;
@@ -332,4 +341,97 @@ async fn rebuild_index_internal(root: &Path) -> Result<String, String> {
     let _ = fs::write(index_path, catalog_str.as_bytes()).await;
 
     Ok(catalog_str)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct OwnedRoot(PathBuf);
+    impl OwnedRoot {
+        fn new() -> Self {
+            Self(std::env::temp_dir().join(format!("cluaiz-storage-{}", uuid::Uuid::new_v4())))
+        }
+    }
+    impl Drop for OwnedRoot {
+        fn drop(&mut self) {
+            // Only the UUID directory created by this test is removed.
+            if let (Ok(target), Ok(parent)) = (self.0.canonicalize(), std::env::temp_dir().canonicalize()) {
+                if target.parent() == Some(parent.as_path()) {
+                    let _ = std::fs::remove_dir_all(target);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_storage_root_preserves_standard_data_location_outside_test_scope() {
+        let base = dirs::data_dir().or_else(dirs::home_dir).unwrap();
+        assert_eq!(get_storage_root().unwrap(), base.join("cluaiz").join("data"));
+    }
+
+    #[tokio::test]
+    async fn test_storage_commands_save_reload_replace_and_delete_owned_session() {
+        let owned = OwnedRoot::new();
+        TEST_STORAGE_ROOT.scope(owned.0.clone(), async {
+            let session = "extension-session".to_string();
+            let meta = serde_json::json!({ "id": session, "extensionId": "test.extension", "title": "First" });
+            storage_save_session_metadata(session.clone(), meta.to_string()).await.unwrap();
+            let loaded: serde_json::Value = serde_json::from_str(
+                &storage_load_session_metadata(session.clone()).await.unwrap()).unwrap();
+            assert_eq!(loaded, meta);
+            let mut updated = meta.clone();
+            updated["title"] = serde_json::json!("Updated");
+            storage_save_session_metadata(session.clone(), updated.to_string()).await.unwrap();
+            let index = serde_json::json!({ "version": 1, "sessions": [updated] });
+            storage_save_sessions_index(index.to_string()).await.unwrap();
+            storage_save_sessions_index(index.to_string()).await.unwrap();
+            assert_eq!(serde_json::from_str::<serde_json::Value>(
+                &storage_load_sessions_index().await.unwrap()).unwrap(), index);
+            for text in ["user input", "model output"] {
+                storage_append_message(session.clone(), serde_json::json!({ "text": text }).to_string()).await.unwrap();
+            }
+            let rows = storage_load_session_messages(session.clone(), None, None).await.unwrap();
+            assert_eq!(rows.len(), 2);
+            assert_eq!(storage_load_session_messages(session.clone(), Some(1), Some(1)).await.unwrap(), rows[1..]);
+            storage_save_session_messages(session.clone(), rows[1].clone() + "\n").await.unwrap();
+            assert_eq!(storage_load_session_messages(session.clone(), None, None).await.unwrap(), rows[1..]);
+            let asset = storage_save_asset(session.clone(), "sample.bin".into(), vec![0, 255, 7]).await.unwrap();
+            let asset_path = storage_resolve_asset_path(session.clone(), asset).await.unwrap();
+            assert_eq!(fs::read(asset_path).await.unwrap(), [0, 255, 7]);
+            storage_delete_session(session.clone()).await.unwrap();
+            assert!(storage_load_session_messages(session.clone(), None, None).await.unwrap().is_empty());
+            assert_eq!(storage_load_session_metadata(session).await.unwrap(), "");
+        }).await;
+    }
+
+    #[tokio::test]
+    async fn test_storage_commands_recover_catalog_and_corrupt_message_tail() {
+        let owned = OwnedRoot::new();
+        TEST_STORAGE_ROOT.scope(owned.0.clone(), async {
+            let session = "recovery-session".to_string();
+            let meta = serde_json::json!({ "id": session, "title": "Recovered" });
+            storage_save_session_metadata(session.clone(), meta.to_string()).await.unwrap();
+            fs::write(owned.0.join("sessions_index.json"), "{broken").await.unwrap();
+            let index: serde_json::Value = serde_json::from_str(&storage_load_sessions_index().await.unwrap()).unwrap();
+            assert_eq!(index["sessions"], serde_json::json!([meta]));
+            storage_save_session_messages(session.clone(), "{\"text\":\"retained\"}\n{truncated".into()).await.unwrap();
+            let messages = storage_load_session_messages(session.clone(), None, None).await.unwrap();
+            assert_eq!(messages, ["{\"text\":\"retained\"}"]);
+            assert!(storage_load_session_messages(session, Some(1), Some(9)).await.unwrap().is_empty());
+        }).await;
+    }
+
+    #[tokio::test]
+    async fn test_storage_commands_refuse_invalid_session_before_creating_files() {
+        let owned = OwnedRoot::new();
+        TEST_STORAGE_ROOT.scope(owned.0.clone(), async {
+            for session in ["", "../outside", "C:\\outside", "session/name"] {
+                assert!(storage_append_message(session.into(), "{}".into()).await.is_err());
+                assert!(storage_save_session_metadata(session.into(), "{}".into()).await.is_err());
+                assert!(storage_delete_session(session.into()).await.is_err());
+            }
+            assert!(!owned.0.exists());
+        }).await;
+    }
 }

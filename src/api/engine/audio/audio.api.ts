@@ -1,4 +1,5 @@
 import { client } from '../../client';
+import { engineFetch } from '../../client/transport';
 import { AUDIO_ENDPOINTS } from './audio.endpoints';
 import { base64ToBlob, sniffMimeType } from '../../../utils/mimeSniffer';
 import { requestSpeech } from './speechRequest';
@@ -60,6 +61,7 @@ export const audioApi = {
     const reader = res.body.getReader();
     const decoder = new TextDecoder('utf-8');
     let buffer = '';
+    try {
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
@@ -82,6 +84,10 @@ export const audioApi = {
       }
     }
     throw new Error('TTS stream ended without audio output');
+    } finally {
+      await reader.cancel().catch(() => {});
+      reader.releaseLock();
+    }
   },
 
   /**
@@ -149,7 +155,7 @@ export const audioApi = {
    * Transcribes audio into text using OpenAI-compatible STT.
    * Supports both pure JSON with Base64 Data URI and multipart FormData.
    */
-  transcriptions: async (payload: { file: string; model?: string; language?: string; languages?: string[]; stream?: boolean } | FormData): Promise<TranscriptionResponse> => {
+  transcriptions: async (payload: { file: string; model?: string; language?: string; languages?: string[]; stream?: boolean } | FormData, signal?: AbortSignal): Promise<TranscriptionResponse> => {
     const baseUrl = client.getBaseUrl();
     const url = `${baseUrl}${AUDIO_ENDPOINTS.TRANSCRIPTIONS}`;
     const token = client.getToken();
@@ -167,10 +173,11 @@ export const audioApi = {
       body = JSON.stringify({ stream: false, ...payload });
     }
 
-    const res = await fetch(url, {
+    const res = await engineFetch(url, {
       method: 'POST',
       headers,
       body,
+      signal,
     });
 
     if (!res.ok) {
@@ -217,7 +224,7 @@ export const audioApi = {
       headers['Authorization'] = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
     }
 
-    const res = await fetch(url, {
+    const res = await engineFetch(url, {
       method: 'POST',
       headers,
       body: JSON.stringify({ stream: true, ...payload }),
@@ -292,6 +299,7 @@ export const audioApi = {
       callbacks.onError?.(readErr);
       throw readErr;
     } finally {
+      await reader.cancel().catch(() => {});
       reader.releaseLock();
     }
 

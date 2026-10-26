@@ -1,4 +1,5 @@
 import { ApiError } from './errors';
+import { engineFetch } from './transport';
 import { useConnectionStore } from '../../store/engine/useConnectionStore';
 import type { RequestOptions, AuthTokenSyncHandler } from './types';
 export type { RequestOptions, AuthTokenSyncHandler };
@@ -134,7 +135,7 @@ class HttpClient {
 
     let response: Response;
     try {
-      response = await fetch(url, {
+      response = await engineFetch(url, {
         ...options,
         headers,
         signal: options.signal || controller.signal,

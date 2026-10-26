@@ -6,7 +6,6 @@
 export const MODELS_ENDPOINTS = {
   LIST_V1: '/v1/models',
   AVAILABLE: '/models/available',
-  HARDWARE: '/hardware',
   LOAD: '/models/load',
   DOWNLOAD: '/models/download',
   PULL: '/api/pull',

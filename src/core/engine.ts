@@ -1,9 +1,9 @@
 import { invoke } from '@tauri-apps/api/core';
-import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import { useEngineStore } from '../store/engine/useEngineStore';
 import { useConnectionStore } from '../store/engine/useConnectionStore';
-import { client, nativeApi, chatApi } from '../api';
+import { client, chatApi } from '../api';
 import type { ProcessingEvent } from '../api/engine/chat/chat.types';
+import { isTauri } from '../api/client/ipc';
 
 export interface EngineStatus {
     status: 'offline' | 'booting' | 'online' | 'error';
@@ -14,17 +14,9 @@ export interface EngineStatus {
 /**
  * Checks if we are running inside the Tauri native wrapper (Desktop/Mobile)
  */
-export const isNative = (): boolean => {
-    return typeof window !== 'undefined' && ('__TAURI_INTERNALS__' in window || '__TAURI__' in window || '__TAURI_IPC__' in window);
-};
+export const isNative = isTauri;
 
-/**
- * Unified FFI Engine Client.
- * 100% Reusable across Mobile, Desktop, and Web.
- * 
- * - In Desktop/Mobile (Tauri), it delegates to Rust FFI for Zero-Latency memory access.
- * - In Web, it falls back to a WASM/HTTP bridge.
- */
+/** Shared chat client; transport selection stays in the API client. */
 export interface SendChatOptions {
     model?: string;
     session_id?: string;
@@ -104,98 +96,33 @@ export interface StreamChunk {
 }
 
 export class cluaizEngine {
-    private static isBooted = false;
     private static activeAbortController: AbortController | null = null;
     private static activeStreamId: string | null = null;
 
     /**
      * Initializes the Co-Execution architecture.
-     * Tells the native shell to spawn or link the `~/.cluaiz/bin/cluaiz` engine via FFI.
+     * Boots the owned native Engine or checks the explicitly selected HTTP service.
      */
     static async boot(): Promise<void> {
-        if (this.isBooted) return;
-        this.isBooted = true; // Set synchronously to prevent Strict Mode double-boot
-
         useEngineStore.getState().setStatus('booting');
-
-        if (isNative()) {
-            console.log("[cluaizEngine] Native environment detected. Booting zero-latency FFI engine...");
-            try {
+        try {
+            if (useConnectionStore.getState().protocol === 'ffi') {
+                if (!isNative()) throw new Error('Native Engine connection requires the desktop App.');
                 await invoke('boot_cluaiz_engine');
-                console.log("[cluaizEngine] Engine FFI Link Established.");
-
-                try {
-                    const sessionToken = await nativeApi.getSessionToken();
-                    if (sessionToken) {
-                        client.setToken(sessionToken);
-                    }
-                } catch (e) {
-                    console.warn('[cluaizEngine] Failed to retrieve session token:', e);
-                }
-
-                useEngineStore.getState().setStatus('idle');
-
-                // If Lazy Load is OFF, trigger EAGER_LOAD
-                const perms = useEngineStore.getState().permissions;
-                if (perms && !perms.lazy_load_model) {
-                    await this.sendEagerLoad();
-                }
-            } catch (err) {
-                console.error("[cluaizEngine] Failed to boot engine via FFI:", err);
-                this.isBooted = false; // Revert if failed
-                useEngineStore.getState().setStatus('error');
-                throw err;
+            } else {
+                await client.get('/health', { skipAuth: true });
             }
-        } else {
-            console.log("[cluaizEngine] Web environment detected. Falling back to WebAssembly/Gateway...");
-            // Simulate web boot
-            setTimeout(() => {
-                this.isBooted = true;
-                useEngineStore.getState().setStatus('idle');
-            }, 1000);
+            useEngineStore.getState().setStatus('idle');
+        } catch (error) {
+            useEngineStore.getState().setStatus('error');
+            throw error;
         }
     }
 
-    /**
-     * Triggers the EAGER_LOAD command via FFI to pre-load the ML model into VRAM immediately.
-     */
-    static async sendEagerLoad(): Promise<void> {
-        if (isNative()) {
-            console.log("[cluaizEngine] Sending EAGER_LOAD to IPC Pipe...");
-            try {
-                await invoke('update_engine_settings', {
-                    payload: { action: "EAGER_LOAD" }
-                });
-            } catch (err) {
-                console.error("[cluaizEngine] EAGER_LOAD FFI error:", err);
-            }
-        }
-    }
-
-    /**
-     * Executes a CDQL query directly against the compute node database.
-     * Automatically routes dynamically based on user's active connection protocol.
-     */
-    static async executeCDQL(query: string): Promise<any> {
-        const { protocol, getBaseUrl } = useConnectionStore.getState();
-        const shouldUseFFI = protocol === 'ffi' && isNative();
-
-        if (shouldUseFFI) {
-            console.log("[CDQL Transport] Executing via Native C-Pointer (FFI):", query);
-            const { executeCDQLFFI } = await import('./tauri-api');
-            const responseJson = await executeCDQLFFI(query);
-            return JSON.parse(responseJson);
-        } else {
-            const baseUrl = getBaseUrl();
-            console.log(`[CDQL Transport] Executing via HTTP REST (${baseUrl}):`, query);
-            const res = await fetch(`${baseUrl}/v1/db/execute`, {
-                method: 'POST',
-                headers: client.getHeaders(),
-                body: JSON.stringify({ query })
-            });
-            if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
-            return await res.json();
-        }
+    /** No database/CDQL protocol is implemented by the current Engine. */
+    static async executeCDQL(query: string): Promise<never> {
+        void query;
+        throw new Error('CDQL execution is unsupported. Use the existing storage APIs.');
     }
 
     private static subscribers = new Set<(token: string | StreamChunk) => void>();
@@ -212,7 +139,7 @@ export class cluaizEngine {
 
     /**
      * Sends a chat message to the engine.
-     * Dynamically uses Native C-Pointer or configured HTTP API port depending on user setting.
+     * Uses the configured native IPC or explicit HTTP API transport.
      * Optionally accepts a direct per-call stream callback for guaranteed token delivery.
      */
     static async send(
@@ -220,16 +147,7 @@ export class cluaizEngine {
         options?: SendChatOptions,
         onChunk?: (token: string | StreamChunk) => void
     ): Promise<void> {
-        const { protocol, getBaseUrl } = useConnectionStore.getState();
-        const shouldUseFFI = protocol === 'ffi' && isNative();
-
-        if (shouldUseFFI) {
-            console.log("[Engine Transport] Routing message via Native C-Pointer (FFI)...");
-            const { sendFFIMessage } = await import('./tauri-api');
-            await sendFFIMessage(message);
-        } else {
-            const baseUrl = getBaseUrl();
-            console.log(`[Engine Transport] Routing message via HTTP REST (${baseUrl})...`, message, options);
+        // Both transports reuse the existing chat payload and SSE parser.
 
             const payload: any = {
                 messages: (options?.messages && options.messages.length > 0)
@@ -425,7 +343,6 @@ export class cluaizEngine {
                     emitChunk({ error: { message: error.message, type: error.statusText } });
                 }
             });
-        }
     }
 
     /**
@@ -471,31 +388,22 @@ export class cluaizEngine {
      */
     static async onToken(callback: (token: string | StreamChunk) => void): Promise<() => void> {
         this.subscribers.add(callback);
-        if (isNative()) {
-            const { listenToEngineStream } = await import('./tauri-api');
-            const unlisten = await listenToEngineStream((token) => callback(token));
-            return () => {
-                this.subscribers.delete(callback);
-                unlisten();
-            };
-        } else {
-            return () => {
-                this.subscribers.delete(callback);
-            };
-        }
+        return () => { this.subscribers.delete(callback); };
     }
 
     /**
      * Fetches chat history from the engine.
      */
     static async fetchHistory(): Promise<any[]> {
-        return [];
+        const { ChatStorageManager } = await import('../services/storage/ChatStorageManager');
+        return (await new ChatStorageManager().loadSessionsIndex())?.sessions || [];
     }
 
     /**
-     * Deletes a chat session from the engine (no-op: UI manages sessions independently in IndexedDB).
+     * Deletes a chat session through its existing storage owner.
      */
     static async deleteSession(_sessionId: string): Promise<void> {
-        // UI owns session management; engine remains a stateless inference runtime.
+        const { ChatStorageManager } = await import('../services/storage/ChatStorageManager');
+        await new ChatStorageManager().deleteSession(_sessionId);
     }
 }

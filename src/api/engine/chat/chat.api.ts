@@ -13,11 +13,11 @@ export const chatApi = {
   /**
    * Non-streaming Chat Completion request.
    */
-  createCompletion: async (payload: ChatCompletionRequest): Promise<ChatCompletionResponse> => {
+  createCompletion: async (payload: ChatCompletionRequest, signal?: AbortSignal): Promise<ChatCompletionResponse> => {
     return http.post<ChatCompletionResponse>(CHAT_ENDPOINTS.COMPLETIONS, {
       ...payload,
       stream: false,
-    });
+    }, { signal });
   },
 
   /**

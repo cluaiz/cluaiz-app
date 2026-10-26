@@ -61,19 +61,7 @@ export interface AvailableModelsResponse {
   available_models: unknown[];
 }
 
-export interface HardwareDetectorStats {
-  vram_gb?: number;
-  ram_gb?: number;
-  gpu_name?: string;
-  cpu_cores?: number;
-  has_gpu?: boolean;
-  [key: string]: unknown;
-}
-
-export interface HardwareStatusResponse {
-  success: boolean;
-  hardware: HardwareDetectorStats;
-}
+export type { HardwareDetectorStats, HardwareStatusResponse } from '../system/system.types';
 
 export interface InspectHeaderResponse {
   status: string;
