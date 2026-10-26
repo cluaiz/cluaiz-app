@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-prototype-report"
+description = "Enables the prototype_report command without any pre-configured scope."
+commands.allow = ["prototype_report"]
+
+[[permission]]
+identifier = "deny-prototype-report"
+description = "Denies the prototype_report command without any pre-configured scope."
+commands.deny = ["prototype_report"]

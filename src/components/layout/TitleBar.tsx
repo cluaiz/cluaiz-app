@@ -5,6 +5,7 @@ import { Minus, Square, X, MoreVertical, PanelLeftOpen, Copy } from 'lucide-reac
 import { useThemeStore } from '../../store/ui/useThemeStore';
 import { useLayoutStore } from '../../store/ui/useLayoutStore';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { CluaizLogo } from '../ui/CluaizLogo';
 
 export function TitleBar() {
     const [inTauri, setInTauri] = useState(false);
@@ -81,7 +82,7 @@ export function TitleBar() {
     const LogoSection = () => (
         <div className="flex items-center px-3 h-full">
             <div data-tauri-drag-region className="flex items-center h-full cursor-default pr-3">
-                <img src="/logo.ico" alt="cluaiz Logo" className={`w-4 h-4 object-contain mr-2 drop-shadow-sm pointer-events-none transition-all duration-300 ${theme === 'light' || theme === 'classic' ? 'brightness-0' : 'invert dark:invert-0'}`} />
+                <CluaizLogo size={16} alt="Cluaiz Logo" className="mr-2" />
                 <span className="text-xs font-bold text-[var(--text-primary)] tracking-widest pointer-events-none">
                     Cluaiz
                 </span>

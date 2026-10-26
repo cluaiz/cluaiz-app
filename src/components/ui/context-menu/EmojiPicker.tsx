@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Search, Clock, Smile, User, Cat, Coffee, Plane, Activity, Lightbulb, Hash, Flag, X } from 'lucide-react';
+import { Clock, Smile, User, Cat, Coffee, Plane, Activity, Lightbulb, Hash, Flag, X } from 'lucide-react';
+import { SearchIcon } from '../../animate-ui/icons/search';
 import { EmojiMeta, type EmojiMetadata } from '../../../assets/EmojiMeta';
 import { LottieEmoji } from './LottieEmoji';
 import { Input } from '../Input';
@@ -86,16 +87,16 @@ export const EmojiPicker: React.FC<EmojiPickerProps> = ({ onSelect, noAnimation 
     return (
         <ContainerComponent
             {...animationProps}
-            className="w-[320px] h-[360px] bg-white dark:bg-zinc-950/95 backdrop-blur-md border border-black/10 dark:border-white/10 rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+            className="w-[320px] h-[360px] bg-[var(--bg-secondary)] backdrop-blur-md border border-[var(--border-color)] rounded-2xl shadow-2xl flex flex-col overflow-hidden text-[var(--text-primary)]"
         >
             {/* Header with Search and Categories - shrink-0 prevents cut-off */}
-            <div className="p-3 border-b border-black/5 dark:border-white/5 bg-black/5 dark:bg-white/5 space-y-3 shrink-0">
+            <div className="p-3 border-b border-[var(--border-color)]/30 bg-[var(--bg-tertiary)]/40 space-y-3 shrink-0">
                 <Input
                     placeholder="Search emojis..."
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     sizeVariant="sm"
-                    leftIcon={<Search className="w-4 h-4 text-[var(--text-muted)]" />}
+                    leftIcon={<SearchIcon size={16} className="text-[var(--text-muted)]" />}
                     rightElement={search ? (
                         <button
                             type="button"
@@ -121,8 +122,10 @@ export const EmojiPicker: React.FC<EmojiPickerProps> = ({ onSelect, noAnimation 
                                     setSearch('');
                                 }}
                                 className={cn(
-                                    "p-2 rounded-full transition-all flex-shrink-0 group relative",
-                                    isActive ? "bg-blue-500/10 text-blue-500 dark:text-blue-400" : "text-zinc-500 hover:bg-black/5 dark:hover:bg-white/5 hover:text-zinc-700 dark:hover:text-zinc-300"
+                                    "p-2 rounded-full transition-all flex-shrink-0 group relative cursor-pointer",
+                                    isActive
+                                        ? "text-[var(--accent-color)] bg-[var(--accent-color)]/10"
+                                        : "text-[var(--text-muted)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]"
                                 )}
                                 title={cat.label}
                             >
@@ -130,7 +133,7 @@ export const EmojiPicker: React.FC<EmojiPickerProps> = ({ onSelect, noAnimation 
                                 {isActive && (
                                     <motion.div
                                         layoutId="active-pill"
-                                        className="absolute inset-0 border-2 border-blue-500/30 rounded-full"
+                                        className="absolute inset-0 border-2 border-[var(--accent-color)]/40 rounded-full"
                                         transition={{ type: "spring", stiffness: 300, damping: 30 }}
                                     />
                                 )}
@@ -143,7 +146,7 @@ export const EmojiPicker: React.FC<EmojiPickerProps> = ({ onSelect, noAnimation 
             {/* List scroll container */}
             <div className="flex-1 p-2 overflow-y-auto no-scrollbar">
                 {activeCategory === 'recent' && !search && recent.length === 0 ? (
-                    <div className="h-full flex flex-col items-center justify-center text-zinc-500 gap-2 min-h-[200px]">
+                    <div className="h-full flex flex-col items-center justify-center text-[var(--text-muted)] gap-2 min-h-[200px]">
                         <Clock className="w-8 h-8 opacity-50" />
                         <span className="text-sm">No recent emojis</span>
                     </div>
@@ -153,21 +156,23 @@ export const EmojiPicker: React.FC<EmojiPickerProps> = ({ onSelect, noAnimation 
                             <button
                                 key={code}
                                 onClick={() => handleSelect(getEmojiFromCodepoint(code), code)}
-                                className="aspect-square flex items-center justify-center hover:bg-black/5 dark:hover:bg-white/5 rounded-xl transition-transform hover:scale-110 active:scale-95 cursor-pointer"
+                                className="aspect-square flex items-center justify-center hover:bg-[var(--bg-tertiary)] rounded-xl transition-transform hover:scale-115 active:scale-95 cursor-pointer"
                                 title={data.name}
                             >
                                 <LottieEmoji
                                     path={data.path}
                                     style={{ width: 32, height: 32 }}
                                     alt={getEmojiFromCodepoint(code)}
-                                    playOnHover={false}
+                                    playOnHover={true}
+                                    loop={false}
+                                    autoplay={false}
                                 />
                             </button>
                         ))}
                     </div>
                 )}
                 {filteredEmojis.length === 0 && search && (
-                    <div className="h-full flex flex-col items-center justify-center text-zinc-500 gap-2 pt-10 min-h-[200px]">
+                    <div className="h-full flex flex-col items-center justify-center text-[var(--text-muted)] gap-2 pt-10 min-h-[200px]">
                         <span className="text-xl">😕</span>
                         <span className="text-sm">No emojis found</span>
                     </div>

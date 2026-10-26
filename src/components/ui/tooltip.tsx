@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 
-interface TooltipProps {
+export interface TooltipProps {
     children: React.ReactNode;
     title: string;
     subtitle?: string;

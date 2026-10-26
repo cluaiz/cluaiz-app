@@ -5,133 +5,8 @@ import { SessionIndexItem, SessionsIndex } from '../../services/storage/types';
 import { inferChatTopicAndEmoji } from '../../utils/topicProber';
 import { parseCurrentRoute, pushChatRoute } from '../../core/router';
 
-export interface ChatMessage {
-    id: string;
-    sender: 'user' | 'assistant' | 'system';
-    text: string;
-    thinking?: string;
-    thinkingDuration?: number | string;
-    postToolThinking?: string;
-    postToolThinkingDuration?: number | string;
-    toolCalls?: Array<{
-        id: string;
-        name: string;
-        category?: string;
-        arguments?: string;
-        result?: string;
-        logs?: string[];
-        latencyMs?: number;
-        status: 'running' | 'completed' | 'failed';
-        iconSvg?: string;
-    }>;
-    permissionRequest?: {
-        requestId: string;
-        toolName: string;
-        category?: string;
-        parameters?: any;
-        status: 'pending' | 'approved' | 'rejected' | 'timeout';
-        feedback?: string;
-    };
-    time: string;
-    date: number; // Stored as timestamp
-    reactions?: string[];
-    pinned?: boolean;
-    isStarred?: boolean;
-    highlights?: string[];
-    telemetry?: {
-        tps: string;
-        elapsed: string;
-        ttft: string;
-        tokens: number;
-    };
-    attachments?: Array<{ name: string; size?: number; type?: string; previewUrl?: string }>;
-    parts?: Array<{ type: string; [key: string]: any }>;
-    replyTo?: {
-        text: string;
-        sender?: string;
-    };
-    finishReason?: string;
-    contextReport?: any;
-}
-
-export interface ChatSession {
-    id: string;
-    title: string;
-    avatar?: string;
-    tags: string[];
-    unread: number;
-    pinned: boolean;
-    pinnedAt?: number;
-    favourite?: boolean;
-    archived: boolean;
-    /** When the chat was archived; the archive delete timer counts from here */
-    archivedAt?: number;
-    muted: boolean;
-    createdAt: number;
-    updatedAt: number;
-    messages: ChatMessage[];
-    lastMessagePreview?: string;
-    messageCount?: number;
-    isIncognito?: boolean;
-    lastEngineContext?: any;
-    droppedBoundaryMessageId?: string;
-}
-
-interface ChatStore {
-    sessions: Record<string, ChatSession>;
-    activeSessionId: string | null;
-    isHydrated: boolean;
-    isLoadingMessages: boolean;
-    /** Chat whose answer is being generated now (it keeps streaming while another chat is open) */
-    streamingSessionId: string | null;
-    setStreamingSession: (sessionId: string | null) => void;
-
-    // Actions
-    hydrateFromStorage: () => Promise<void>;
-    /** `incognito` = a private chat that is never written to storage */
-    createNewSession: (initialTitle?: string, options?: { incognito?: boolean }) => string;
-    switchSession: (sessionId: string | null, syncUrl?: boolean) => Promise<void>;
-    deleteSession: (sessionId: string) => void;
-    finalizeAssistantMessage: (sessionId: string) => Promise<void>;
-
-    addMessage: (sessionId: string, message: Omit<ChatMessage, 'id'>) => void;
-    appendTokenToLastMessage: (sessionId: string, token: string) => void;
-    appendThinkingToLastMessage: (sessionId: string, token: string) => void;
-    appendToolCallToLastMessage: (sessionId: string, toolCall: {
-        id: string;
-        name: string;
-        category?: string;
-        arguments?: string;
-        status: 'running' | 'completed' | 'failed';
-        iconSvg?: string;
-    }) => void;
-    updateToolResultOnLastMessage: (sessionId: string, toolResult: {
-        id: string;
-        name?: string;
-        category?: string;
-        status?: 'completed' | 'failed';
-        latency_ms?: number;
-        result?: string;
-        logs?: string[];
-        output_result?: any;
-        iconSvg?: string;
-    }) => void;
-    attachTelemetryToLastMessage: (sessionId: string, telemetry: { tps: string; elapsed: string; ttft: string; tokens: number }) => void;
-    setPermissionRequestOnLastMessage: (sessionId: string, req: {
-        requestId: string;
-        toolName: string;
-        category?: string;
-        parameters?: any;
-        status: 'pending' | 'approved' | 'rejected' | 'timeout';
-        feedback?: string;
-    }) => void;
-    resolvePermissionRequest: (sessionId: string, requestId: string, decision: 'approved' | 'rejected' | 'timeout', feedback?: string) => void;
-    updateMessage: (sessionId: string, messageIndex: number, updater: (msg: ChatMessage) => ChatMessage) => void;
-    deleteMessage: (sessionId: string, messageIndex: number) => void;
-    updateSession: (sessionId: string, updater: (session: ChatSession) => ChatSession) => void;
-    setSessionEngineContext: (sessionId: string, context: any, boundaryId?: string) => void;
-    setLastMessageFinishReason: (sessionId: string, finishReason: string) => void;
-}
+import type { ChatMessage, ChatSession, ChatStore, CreateChatSessionOptions } from './types';
+export type { ChatMessage, ChatSession } from './types';
 
 export const generateChatId = () => {
     const now = new Date();
@@ -157,6 +32,7 @@ const syncIndexToStorage = (sessions: Record<string, ChatSession>, activeId: str
         }
         return {
             id: s.id,
+            extensionId: s.extensionId,
             title: s.title || 'New Chat',
             createdAt: s.createdAt,
             updatedAt: s.updatedAt,
@@ -186,6 +62,7 @@ const syncSessionMeta = (session: ChatSession) => {
     if (session.isIncognito) return;
     chatStorageManager.saveSessionMetadata(session.id, {
         id: session.id,
+        extensionId: session.extensionId,
         title: session.title || 'New Chat',
         createdAt: session.createdAt,
         updatedAt: session.updatedAt
@@ -230,6 +107,7 @@ export const useChatStore = create<ChatStore>()(
                     for (const s of index.sessions) {
                         sessionsMap[s.id] = {
                             id: s.id,
+                            extensionId: s.extensionId,
                             title: s.title || 'New Chat',
                             tags: Array.isArray(s.tags) ? s.tags : [],
                             unread: 0,
@@ -295,10 +173,11 @@ export const useChatStore = create<ChatStore>()(
             }
         },
 
-        createNewSession: (initialTitle?: string, options?: { incognito?: boolean }) => {
+        createNewSession: (initialTitle?: string, options?: CreateChatSessionOptions) => {
             const id = generateChatId();
             const newSession: ChatSession = {
                 id,
+                extensionId: options?.extensionId,
                 title: initialTitle || 'New Chat',
                 tags: [],
                 unread: 0,
@@ -315,22 +194,39 @@ export const useChatStore = create<ChatStore>()(
             const updatedSessions = { ...get().sessions, [id]: newSession };
             set({
                 sessions: updatedSessions,
-                activeSessionId: id,
+                activeSessionId: options?.activate === false ? get().activeSessionId : id,
             });
 
             if (!newSession.isIncognito) {
-                pushChatRoute(id);
+                if (options?.activate !== false) pushChatRoute(id);
                 syncSessionMeta(newSession);
-                syncIndexToStorage(updatedSessions, id);
+                syncIndexToStorage(updatedSessions, get().activeSessionId);
             }
             return id;
+        },
+
+        loadMessages: async (sessionId) => {
+            const session = get().sessions[sessionId];
+            if (!session || session.messages.length) return;
+            const messages = await chatStorageManager.loadSessionMessages(sessionId);
+            if ((session.messageCount || 0) > 0 && !messages.length
+                && get().sessions[sessionId]?.messages === session.messages) {
+                throw new Error('Saved chat messages could not be loaded; retry before sending another message.');
+            }
+            set(state => {
+                const target = state.sessions[sessionId];
+                // Never resurrect a deleted session or replace messages added during I/O.
+                if (!target || target.messages !== session.messages) return state;
+                return { sessions: { ...state.sessions, [sessionId]: { ...target, messages } } };
+            });
         },
 
         switchSession: async (sessionId: string | null, syncUrl: boolean = true) => {
             const currentGen = ++sessionSwitchGeneration;
             // A normal chat keeps answering in the background; leaving a private chat stops its answer
             const streaming = get().streamingSessionId;
-            if (get().activeSessionId !== sessionId && streaming && get().sessions[streaming]?.isIncognito) {
+            if (get().activeSessionId !== sessionId && streaming === get().activeSessionId
+                && streaming && get().sessions[streaming]?.isIncognito) {
                 try {
                     const { cluaizEngine } = await import('../../core/engine');
                     await cluaizEngine.stop();
@@ -353,29 +249,11 @@ export const useChatStore = create<ChatStore>()(
             if (session && session.messages.length === 0) {
                 set({ isLoadingMessages: true });
                 try {
-                    const messages = await chatStorageManager.loadSessionMessages(sessionId);
-                    // Safe race check: ensure user didn't switch to another session during async I/O
-                    if (sessionSwitchGeneration === currentGen && get().activeSessionId === sessionId) {
-                        set((state) => {
-                            const target = state.sessions[sessionId];
-                            if (!target) return state;
-                            return {
-                                sessions: {
-                                    ...state.sessions,
-                                    [sessionId]: {
-                                        ...target,
-                                        messages
-                                    }
-                                },
-                                isLoadingMessages: false
-                            };
-                        });
-                    }
+                    await get().loadMessages(sessionId);
                 } catch (err) {
                     console.warn(`[ChatStore] Failed to load messages for ${sessionId}:`, err);
-                    if (sessionSwitchGeneration === currentGen) {
-                        set({ isLoadingMessages: false });
-                    }
+                } finally {
+                    if (sessionSwitchGeneration === currentGen) set({ isLoadingMessages: false });
                 }
             }
         },

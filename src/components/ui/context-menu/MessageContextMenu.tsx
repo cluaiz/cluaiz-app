@@ -133,9 +133,9 @@ export const MessageContextMenu: React.FC<MessageContextMenuProps> = ({
                                                 {meta?.path ? (
                                                     <LottieEmoji
                                                         path={meta.path}
-                                                        loop={true}
-                                                        autoplay={true}
-                                                        playOnHover={false}
+                                                        loop={false}
+                                                        autoplay={false}
+                                                        playOnHover={true}
                                                         shouldPreload={true}
                                                         alt={r.emoji}
                                                         style={{ width: 20, height: 20 }}

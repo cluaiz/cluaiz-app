@@ -6,6 +6,7 @@ import { EmojiMeta } from '../../../assets/EmojiMeta';
 import { ContextChip } from '../../../components/ui/ContextChip';
 import { extractBaseName } from '../../../utils/filePath';
 import { MarkdownRenderer } from '../../../components/ui/MarkdownRenderer';
+import { ChatErrorCard } from './ChatErrorCard';
 import { useSpeechHighlightStore } from '../../../store/chat/useSpeechHighlightStore';
 import { useVoiceSessionStore } from '../../../store/chat/useVoiceSessionStore';
 
@@ -256,6 +257,8 @@ const CollapsibleUserMessage: React.FC<CollapsibleUserMessageProps> = ({
 };
 
 interface MessageBubbleProps {
+    sessionId?: string;
+    autoSpeech?: boolean;
     msg: ChatMessage;
     index: number;
     handleMessageContextMenu: (e: React.MouseEvent, index: number) => void;
@@ -267,9 +270,12 @@ interface MessageBubbleProps {
     onSkipThinking?: () => void;
     isStreaming?: boolean;
     processingLabel?: string;
+    onRetry?: (messageIndex: number) => void;
 }
 
 const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
+    sessionId,
+    autoSpeech = true,
     msg,
     index,
     handleMessageContextMenu,
@@ -280,9 +286,11 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
     onToggleSelect,
     onSkipThinking,
     isStreaming = false,
-    processingLabel
+    processingLabel,
+    onRetry
 }) => {
-    const activeSessionId = useChatStore(s => s.activeSessionId) || '';
+    const mainSessionId = useChatStore(s => s.activeSessionId);
+    const activeSessionId = sessionId ?? mainSessionId ?? '';
     const isUser = msg.sender === 'user';
     const isThinking = Boolean(msg.thinking && !msg.text);
     const [isThinkingOpen, setIsThinkingOpen] = React.useState(isThinking);
@@ -310,10 +318,10 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
     const voiceMode = useVoiceSessionStore((s) => s.active);
     const autoOpenedRef = React.useRef(false);
     React.useEffect(() => {
-        if (isUser || !isStreaming || !voiceMode || autoOpenedRef.current) return;
+        if (!autoSpeech || isUser || !isStreaming || !voiceMode || autoOpenedRef.current) return;
         autoOpenedRef.current = true;
         openDeck({ messageId: msgAudioId, text: msg.text || '', isStreaming: true });
-    }, [isUser, isStreaming, voiceMode, msgAudioId, msg.text, openDeck]);
+    }, [autoSpeech, isUser, isStreaming, voiceMode, msgAudioId, msg.text, openDeck]);
 
     const handleMouseUp = () => {
         if (!onTextSelect) return;
@@ -569,18 +577,22 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
                                 <CheckCheck className="w-3.5 h-3.5 opacity-80" />
                             </div>
 
-                            {/* Reactions for user */}
+                            {/* Reactions for user - clean and borderless */}
                             {msg.reactions && msg.reactions.length > 0 && (
-                                <div className="absolute -bottom-3 right-2 flex items-center gap-0.5 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-full px-1.5 py-0.5 shadow-sm z-10">
+                                <div className="absolute -bottom-3 right-2 flex items-center gap-1 z-10">
                                     {msg.reactions.map((r, ri) => {
                                         const codepoint = getEmojiCodepoint(r);
                                         const meta = EmojiMeta[codepoint];
                                         return (
-                                            <span key={ri} className="flex items-center justify-center w-4 h-4">
+                                            <span
+                                                key={ri}
+                                                className="flex items-center justify-center w-4.5 h-4.5 cursor-pointer transition-transform hover:scale-125 active:scale-95"
+                                                title={r}
+                                            >
                                                 {meta?.path ? (
-                                                    <LottieEmoji path={meta.path} loop={true} autoplay={true} playOnHover={false} shouldPreload={true} alt={r} style={{ width: 14, height: 14 }} />
+                                                    <LottieEmoji path={meta.path} loop={false} autoplay={true} playOnHover={true} shouldPreload={true} alt={r} style={{ width: 16, height: 16 }} />
                                                 ) : (
-                                                    <span className="text-[10px]">{r}</span>
+                                                    <span className="text-xs leading-none">{r}</span>
                                                 )}
                                             </span>
                                         );
@@ -667,20 +679,64 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
                         </div>
                     )}
 
-                    {/* 4. Message Markdown Body */}
-                    {msg.text ? (
-                        <div
-                            onMouseUp={handleMouseUp}
-                            className="w-full max-w-full overflow-hidden select-text text-[var(--text-primary)] font-[family-name:var(--font-family)] break-words break-all [overflow-wrap:anywhere] min-w-0 transition-all duration-300 group-[.chat-turn-focused]/turn:brightness-125"
-                            style={{ fontSize: 'var(--chat-bubble-font-size, 14px)', fontFamily: 'var(--font-family)' }}
-                        >
-                            <MarkdownRenderer
-                                content={msg.text}
-                                allowWorkspaceOpen={true}
-                                messageId={msg.id || `${msg.time || ''}-${msg.text.slice(0, 16)}`}
-                            />
-                        </div>
-                    ) : null}
+                    {/* 4. Message Markdown Body & Error Card */}
+                    {(() => {
+                        const isError = Boolean(
+                            msg.finishReason === 'error' ||
+                            msg.text?.startsWith('Request failed:') ||
+                            msg.text?.includes('\n\nRequest failed:')
+                        );
+
+                        if (!isError) {
+                            return msg.text ? (
+                                <div
+                                    onMouseUp={handleMouseUp}
+                                    className="w-full max-w-full overflow-hidden select-text text-[var(--text-primary)] font-[family-name:var(--font-family)] break-words break-all [overflow-wrap:anywhere] min-w-0 transition-all duration-300 group-[.chat-turn-focused]/turn:brightness-125"
+                                    style={{ fontSize: 'var(--chat-bubble-font-size, 14px)', fontFamily: 'var(--font-family)' }}
+                                >
+                                    <MarkdownRenderer
+                                        content={msg.text}
+                                        allowWorkspaceOpen={true}
+                                        messageId={msg.id || `${msg.time || ''}-${msg.text.slice(0, 16)}`}
+                                    />
+                                </div>
+                            ) : null;
+                        }
+
+                        // Message has failed: separate any partial generated content from error details
+                        let partialText = '';
+                        let errorDetail = msg.text || '';
+                        const marker = 'Request failed:';
+                        const idx = errorDetail.indexOf(marker);
+                        if (idx !== -1) {
+                            partialText = errorDetail.slice(0, idx).trim();
+                            errorDetail = errorDetail.slice(idx).trim();
+                        }
+
+                        return (
+                            <div className="w-full flex flex-col">
+                                {partialText ? (
+                                    <div
+                                        onMouseUp={handleMouseUp}
+                                        className="w-full max-w-full overflow-hidden select-text text-[var(--text-primary)] font-[family-name:var(--font-family)] break-words break-all [overflow-wrap:anywhere] min-w-0 transition-all duration-300 mb-2"
+                                        style={{ fontSize: 'var(--chat-bubble-font-size, 14px)', fontFamily: 'var(--font-family)' }}
+                                    >
+                                        <MarkdownRenderer
+                                            content={partialText}
+                                            allowWorkspaceOpen={true}
+                                            messageId={msg.id || `${msg.time || ''}-${partialText.slice(0, 16)}`}
+                                        />
+                                    </div>
+                                ) : null}
+
+                                <ChatErrorCard
+                                    errorText={errorDetail || 'Request failed to complete.'}
+                                    hasPartialContent={Boolean(partialText)}
+                                    onRetry={onRetry ? () => onRetry(index) : undefined}
+                                />
+                            </div>
+                        );
+                    })()}
 
                     {/* 5. Waiting indicator when streaming/generating and no text/tools/thinking yet */}
                     {isStreaming && !msg.text && !msg.toolCalls?.some(tc => tc.status === 'running') && !msg.thinking && !msg.postToolThinking && !msg.telemetry && (
@@ -697,20 +753,44 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
                         className="flex items-center justify-between gap-3 mt-2.5 pt-1.5 font-[family-name:var(--font-family)] text-[var(--text-muted)] select-none w-full border-t border-[var(--border-color)]/10"
                         style={{ fontSize: 'calc(var(--chat-bubble-font-size, 14px) * 0.78)', fontFamily: 'var(--font-family)' }}
                     >
-                        {msg.telemetry ? (
-                            <div className="flex items-center gap-2 flex-wrap" style={{ fontSize: 'inherit' }}>
-                                <span><b className="text-[var(--text-primary)] font-semibold">{msg.telemetry.tps}</b> TPS</span>
-                                <span>·</span>
-                                <span><b className="text-[var(--text-primary)] font-semibold">{formatSecondsOnly(msg.telemetry.elapsed)}</b>s</span>
-                                <span>·</span>
-                                <span><b className="text-[var(--text-primary)] font-semibold">{formatSecondsOnly(msg.telemetry.ttft)}</b>s TTFT</span>
-                                <span>·</span>
-                                <span><b className="text-[var(--text-primary)] font-semibold">{msg.telemetry.tokens}</b> Tokens</span>
-                            </div>
-                        ) : <div />}
+                        <div className="flex items-center gap-2 flex-wrap min-w-0" style={{ fontSize: 'inherit' }}>
+                            {msg.telemetry && (
+                                <>
+                                    <span><b className="text-[var(--text-primary)] font-semibold">{msg.telemetry.tps}</b> TPS</span>
+                                    <span>·</span>
+                                    <span><b className="text-[var(--text-primary)] font-semibold">{formatSecondsOnly(msg.telemetry.elapsed)}</b>s</span>
+                                    <span>·</span>
+                                    <span><b className="text-[var(--text-primary)] font-semibold">{formatSecondsOnly(msg.telemetry.ttft)}</b>s TTFT</span>
+                                    <span>·</span>
+                                    <span><b className="text-[var(--text-primary)] font-semibold">{msg.telemetry.tokens}</b> Tokens</span>
+                                </>
+                            )}
+                            {/* Reactions for AI - placed directly side-by-side with tokens, clean and borderless */}
+                            {msg.reactions && msg.reactions.length > 0 && (
+                                <div className="flex items-center gap-1 ml-1.5">
+                                    {msg.reactions.map((r, ri) => {
+                                        const codepoint = getEmojiCodepoint(r);
+                                        const meta = EmojiMeta[codepoint];
+                                        return (
+                                            <span
+                                                key={ri}
+                                                className="flex items-center justify-center w-4.5 h-4.5 cursor-pointer transition-transform hover:scale-125 active:scale-95"
+                                                title={r}
+                                            >
+                                                {meta?.path ? (
+                                                    <LottieEmoji path={meta.path} loop={false} autoplay={true} playOnHover={true} shouldPreload={true} alt={r} style={{ width: 16, height: 16 }} />
+                                                ) : (
+                                                    <span className="text-xs leading-none">{r}</span>
+                                                )}
+                                            </span>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
 
-                        <div className="flex items-center gap-2 ml-auto" style={{ fontSize: 'inherit' }}>
-                            {msg.text && (
+                        <div className="flex items-center gap-2 ml-auto shrink-0" style={{ fontSize: 'inherit' }}>
+                            {msg.text && !msg.finishReason?.includes('error') && !msg.text.startsWith('Request failed:') && (
                                 <button
                                     type="button"
                                     onClick={() => {
@@ -741,27 +821,6 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
                             <span>{formatDisplayTime(msg.time)}</span>
                         </div>
                     </div>
-
-                    {/* 7. Reactions for AI */}
-                    {msg.reactions && msg.reactions.length > 0 && (
-                        <div className="flex items-center gap-1 mt-1.5">
-                            <div className="flex items-center gap-0.5 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-full px-2 py-0.5 shadow-sm">
-                                {msg.reactions.map((r, ri) => {
-                                    const codepoint = getEmojiCodepoint(r);
-                                    const meta = EmojiMeta[codepoint];
-                                    return (
-                                        <span key={ri} className="flex items-center justify-center w-4 h-4">
-                                            {meta?.path ? (
-                                                <LottieEmoji path={meta.path} loop={true} autoplay={true} playOnHover={false} shouldPreload={true} alt={r} style={{ width: 14, height: 14 }} />
-                                            ) : (
-                                                <span className="text-[10px]">{r}</span>
-                                            )}
-                                        </span>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    )}
                 </div>
             )}
         </div>
@@ -775,7 +834,8 @@ export const MessageBubble = React.memo(MessageBubbleComponent, (prev, next) => 
         prev.isSelectionMode === next.isSelectionMode &&
         prev.isSelected === next.isSelected &&
         prev.isStreaming === next.isStreaming &&
-        prev.processingLabel === next.processingLabel
+        prev.processingLabel === next.processingLabel &&
+        prev.onRetry === next.onRetry
     );
 });
 

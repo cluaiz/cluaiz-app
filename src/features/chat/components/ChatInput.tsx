@@ -97,9 +97,11 @@ const checkModelVisionSupport = (modelId: string, map?: Record<string, any>): bo
 };
 
 interface ChatInputProps {
+    /** Owned SDK chat currently supports text with model defaults, not the main agent/tool path. */
+    textOnly?: boolean;
     inputValue: string;
     setInputValue: (val: string) => void;
-    handleSendMessage: (customText?: string, options?: import('../../../core/engine').SendChatOptions) => void;
+    handleSendMessage: (customText?: string, options?: import('../../../core/engine').SendChatOptions) => void | boolean | Promise<void>;
     replyingTo?: { text: string; messageIndex: number; type?: 'message' | 'selection' } | null;
     setReplyingTo?: (val: { text: string; messageIndex: number; type?: 'message' | 'selection' } | null) => void;
     isFloating?: boolean;
@@ -108,6 +110,7 @@ interface ChatInputProps {
 }
 
 export const ChatInput: React.FC<ChatInputProps> = ({
+    textOnly = false,
     inputValue,
     setInputValue,
     handleSendMessage,
@@ -331,6 +334,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     const BANNED_ARCHIVE_OR_BINARY_REGEX = /\.(zip|tar|gz|tgz|rar|7z|bz2|xz|exe|msi|bin|dll|iso|dmg|apk|sys)$/i;
 
     const handleStageFiles = (files: FileList | any[] | any) => {
+        if (textOnly) { toast.info('Extension shared chat currently accepts text only.'); return; }
         if (!files || files.length === 0) return;
         const rawFiles = Array.from(files);
 
@@ -417,6 +421,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     };
 
     const handlePasteLargeText = (text: string) => {
+        if (textOnly) return false; // Keep pasted text in the editor; do not convert it to an attachment.
         const lines = text.split('\n').length;
         const snippetId = `snippet-${Date.now()}-${Math.random().toString(36).substring(2, 5)}`;
         const firstLine = text.trim().split('\n')[0].slice(0, 24);
@@ -512,6 +517,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
     const handleDrop = (e: React.DragEvent) => {
         e.preventDefault();
+        if (textOnly) { setIsDraggingOver(false); return; }
         e.stopPropagation();
         setIsDraggingOver(false);
 
@@ -562,6 +568,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
     // Global listener for code selection "Ask AI" context injection
     useEffect(() => {
+        if (textOnly) return;
         const handleInsertContext = (e: any) => {
             const detail = e.detail;
             if (!detail) return;
@@ -572,7 +579,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         };
         document.addEventListener('insert-chat-context', handleInsertContext);
         return () => document.removeEventListener('insert-chat-context', handleInsertContext);
-    }, []);
+    }, [textOnly]);
 
     const handlePromptSubmit = async (
         serializedText: string,
@@ -581,6 +588,10 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             skills: string[];
         }
     ) => {
+        if (textOnly && (contextData.files.length || contextData.skills.length || stagedAttachments.length)) {
+            toast.info('Extension shared chat currently accepts text only.');
+            return;
+        }
         if (!serializedText.trim() && contextData.files.length === 0 && contextData.skills.length === 0 && stagedAttachments.length === 0) return;
         if (!isEngineOnline) {
             toast.error('Cluaiz Engine is offline. Start engine to chat.');
@@ -638,7 +649,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         }
 
         triggerSparkBurst(2200);
-        handleSendMessage(promptText, options);
+        if (handleSendMessage(promptText, options) === false) return;
         setInputValue('');
         setStagedAttachments([]);
         inlineInputRef.current?.clear();
@@ -1545,11 +1556,10 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                     setIsModelOpen(false);
                     setIsAttachOpen(false);
                 }}
-                style={{
-                    color: effortConfig.levelColor
-                }}
-                className={`flex items-center gap-1 sm:gap-1.5 px-2 py-1.5 rounded-lg transition-colors text-[0.7rem] sm:text-xs font-medium border border-transparent cursor-pointer select-none hover:bg-[var(--bg-tertiary)] ${
-                    isPromptBarEffortOpen ? 'bg-[var(--bg-tertiary)]' : ''
+                className={`flex items-center gap-1 sm:gap-1.5 px-2 py-1.5 rounded-lg transition-colors text-[0.7rem] sm:text-xs font-medium border border-transparent cursor-pointer select-none ${
+                    isPromptBarEffortOpen
+                        ? 'bg-[var(--bg-tertiary)] text-[var(--text-primary)]'
+                        : 'hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
                 } ${isMaxEffort ? 'font-semibold' : ''}`}
                 title={`Reasoning Effort: ${displayEffortLabel}`}
                 aria-label="Reasoning Effort"
@@ -1794,7 +1804,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             >
                 <InlinePromptInput
                     ref={inlineInputRef}
-                    placeholder={isEngineOnline ? "Ask AI..." : "Cluaiz Engine is offline..."}
+                    placeholder={isEngineOnline ? (textOnly ? "Ask AI (text only)..." : "Ask AI...") : "Cluaiz Engine is offline..."}
                     onTextChange={(val) => {
                         setInputValue(val);
                         typingEnergyRef.current.energy = Math.min(1.6, typingEnergyRef.current.energy + 0.25);
@@ -1816,9 +1826,10 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 {/* Left Cluster: [+] Attach Button -> Model Selector -> Effort Pill Control */}
                 <div className="flex items-center gap-1 sm:gap-1.5 min-w-0">
                     <div className="relative">
-                        {isAttachOpen && attachmentMenu}
+                        {!textOnly && isAttachOpen && attachmentMenu}
                         <button
                             ref={attachButtonRef}
+                            disabled={textOnly}
                             type="button"
                             onClick={() => {
                                 setIsAttachOpen(!isAttachOpen);
@@ -1826,7 +1837,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                                 setIsPromptBarEffortOpen(false);
                             }}
                             className={`transition-colors p-1.5 pl-0 rounded-full cursor-pointer ${isAttachOpen ? 'text-[var(--accent-color)] bg-[var(--bg-tertiary)]' : 'text-[var(--text-muted)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--accent-color)]'}`}
-                            title="Add context, files, or skills"
+                            title={textOnly ? 'Files and tools are not connected to extension chat yet' : 'Add context, files, or skills'}
                         >
                             <Plus className={`w-5 h-5 transition-transform duration-300 ${isAttachOpen ? 'rotate-45' : 'rotate-0'}`} />
                         </button>
@@ -1834,12 +1845,12 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
                     {renderModelSelector()}
 
-                    {renderEffortControl()}
+                    {!textOnly && renderEffortControl()}
                 </div>
 
                 {/* Right Cluster: Voice Mic + Send / Stop Button */}
                 <div className="flex items-center gap-1.5 flex-shrink-0">
-                    <VoiceInputControl
+                    {!textOnly && <VoiceInputControl
                         ref={voiceInputRef}
                         isAnswering={isStreaming}
                         onText={(heard) => replaceInputText(withBase(heard))}
@@ -1854,7 +1865,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                             setVoiceMode(currentMode);
                         }}
                         onVoiceFrequencyChange={(freq) => setVoiceFrequency(freq)}
-                    />
+                    />}
 
                     <div className="w-7 h-7 flex items-center justify-center flex-shrink-0">
                         {isStreaming ? (

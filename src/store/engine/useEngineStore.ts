@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { sendFFIMessage, listenToEngineStream, isTauri } from '../../core/tauri-api';
+import { listenToEngineStream, isTauri } from '../../core/tauri-api';
 import { UnlistenFn } from '@tauri-apps/api/event';
 import { useConnectionStore, saveFallbackConnection } from './useConnectionStore';
 import { http, systemApi, optimizationApi, modelsApi, nativeApi, type PermissionSchema, type OptimizationControl, client, usePermissionStore } from '../../api';
@@ -126,10 +126,10 @@ export const useEngineStore = create<EngineState>()((set, get) => ({
 
     initEngineSettings: async () => {
         set({ fetchStatus: 'loading' });
-        const { protocol, getBaseUrl } = useConnectionStore.getState();
+        const { protocol } = useConnectionStore.getState();
         const shouldUseFFI = protocol === 'ffi' && isTauri();
 
-        const fetchViaHttp = async () => {
+        const fetchSettings = async () => {
             try {
                 // 1. Seed native session token before making any engine calls (IPC in Tauri, Bridge fallback in Web)
                 try {
@@ -183,7 +183,7 @@ export const useEngineStore = create<EngineState>()((set, get) => ({
                         usePermissionStore.getState().setAuthModalOpen(true);
                         return;
                     }
-                    throw new Error("Unable to reach engine HTTP endpoints");
+                    throw new Error("Unable to reach the selected Engine connection");
                 }
 
                 const rawPerm = permData?.permission || {};
@@ -227,11 +227,11 @@ export const useEngineStore = create<EngineState>()((set, get) => ({
                     return m.category === 'stt' || m.category === 'audio' || id.includes('whisper') || id.includes('moonshine') || id.includes('sensevoice');
                 });
 
-                const hasGpu = (rawHw?.active_drivers?.length ?? 0) > 0;
-                const vram_gb = rawHw?.memory?.vram_gb || (hasGpu ? 4 : 0);
-                const ram_gb = Math.round(rawHw?.memory?.total_capacity_gb || 16);
-                const gpu_name = rawHw?.active_drivers?.[0]?.driver_id || (hasGpu ? 'Discrete GPU' : 'None');
-                const cpu_cores = rawHw?.cpu?.physical_cores || 8;
+                const hasGpu = rawHw?.has_gpu ?? false;
+                const vram_gb = rawHw?.vram_gb ?? 0;
+                const ram_gb = rawHw?.ram_gb ?? 0;
+                const gpu_name = rawHw?.gpu_name ?? 'Unavailable';
+                const cpu_cores = rawHw?.cpu_cores ?? 0;
 
                 const booster: OptimizationControl = {
                     flash_attention: rawOpt.flash_attention || 'Auto',
@@ -291,9 +291,7 @@ export const useEngineStore = create<EngineState>()((set, get) => ({
                     available_devices: rawPerm.available_devices || ['CPU', 'GPU']
                 };
 
-                if (rawPerm.connection_protocol) {
-                    useConnectionStore.getState().setProtocol(rawPerm.connection_protocol);
-                }
+                // Transport is this client's choice. Server preferences cannot downgrade native IPC.
                 if (rawPerm.api_port) {
                     useConnectionStore.getState().setPort(rawPerm.api_port);
                 }
@@ -302,7 +300,7 @@ export const useEngineStore = create<EngineState>()((set, get) => ({
                 }
 
                 saveFallbackConnection({
-                    protocol: rawPerm.connection_protocol,
+                    protocol: useConnectionStore.getState().protocol,
                     host: rawPerm.api_host,
                     port: rawPerm.api_port || useConnectionStore.getState().port
                 });
@@ -310,13 +308,13 @@ export const useEngineStore = create<EngineState>()((set, get) => ({
                 set({
                     permissions,
                     booster,
-                    hardware: { vram_gb, ram_gb, gpu_name, cpu_cores, has_gpu: hasGpu },
+                    hardware: hwData ? { vram_gb, ram_gb, gpu_name, cpu_cores, has_gpu: hasGpu } : null,
                     installedModelsMap,
                     fetchStatus: 'success',
                     status: 'idle'
                 });
             } catch (error: any) {
-                console.error("[useEngineStore] Failed to fetch engine settings via HTTP:", error);
+                console.error("[useEngineStore] Failed to fetch engine settings:", error);
                 const isAuthError =
                     error?.status === 401 ||
                     String(error?.message || '').includes('401') ||
@@ -334,25 +332,20 @@ export const useEngineStore = create<EngineState>()((set, get) => ({
             try {
                 const { cluaizEngine } = await import('../../core/engine');
 
-                // Force boot the engine if it's not already online
-                if (get().status === 'idle' || get().status === 'error') {
-                    try {
-                        await cluaizEngine.boot();
-                    } catch (e) {
-                        console.error("Failed to boot engine during settings init:", e);
-                    }
-                }
+                await cluaizEngine.boot();
 
-                // Settings are read from the engine's HTTP API in every mode
-                await fetchViaHttp();
+                // The existing API adapters select native IPC without a TCP fallback.
+                await fetchSettings();
                 return;
             } catch (error) {
-                console.warn("[useEngineStore] FFI init failed, falling back to HTTP:", error);
+                console.error("[useEngineStore] Native Engine initialization failed:", error);
+                set({ fetchStatus: 'error', status: 'error' });
+                return;
             }
         }
 
         // Web mode or HTTP protocol mode: directly fetch over HTTP
-        await fetchViaHttp();
+        await fetchSettings();
     },
 
     updatePermission: async (key, value) => {
@@ -703,9 +696,15 @@ export const useEngineStore = create<EngineState>()((set, get) => ({
         }));
 
         try {
-            await sendFFIMessage(text);
+            const { cluaizEngine } = await import('../../core/engine');
+            await cluaizEngine.send(text, undefined, chunk => {
+                if (typeof chunk === 'string') return;
+                if (chunk.content) get().appendStreamToken(chunk.content);
+                if (chunk.error) throw new Error(chunk.error.message);
+            });
+            set({ status: 'idle', activeStreamId: null });
         } catch (error) {
-            console.error("FFI Send Error:", error);
+            console.error("Engine send error:", error);
             set({ status: 'error' });
         }
     },

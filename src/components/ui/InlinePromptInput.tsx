@@ -117,18 +117,20 @@ export const InlinePromptInput = forwardRef<InlinePromptInputHandle, InlinePromp
         lastSavedRangeRef.current = range;
     }, []);
 
-    // Check if editor has any text or chips
-    const checkEmpty = useCallback(() => {
-        if (!editorRef.current) {
-            setIsEmpty(true);
-            return true;
-        }
+    // The public getter can be called during a parent's render; reads must not set state.
+    const readEmpty = useCallback(() => {
+        if (!editorRef.current) return true;
         const text = editorRef.current.innerText || '';
         const hasChips = editorRef.current.querySelectorAll('[data-context-chip-host]').length > 0;
-        const empty = text.trim() === '' && !hasChips;
+        return text.trim() === '' && !hasChips;
+    }, []);
+
+    // Input/change events still keep the visual placeholder in sync.
+    const checkEmpty = useCallback(() => {
+        const empty = readEmpty();
         setIsEmpty(empty);
         return empty;
-    }, []);
+    }, [readEmpty]);
 
     // Extract text and context chips on demand, converting rich DOM nodes into clean Markdown for AI
     const serializeEditor = useCallback(() => {
@@ -339,8 +341,8 @@ export const InlinePromptInput = forwardRef<InlinePromptInputHandle, InlinePromp
         insertChip,
         insertText,
         getSerializedContent: serializeEditor,
-        isEmpty: () => checkEmpty()
-    }), [focusEditor, clear, insertChip, insertText, serializeEditor, checkEmpty]);
+        isEmpty: readEmpty
+    }), [focusEditor, clear, insertChip, insertText, serializeEditor, readEmpty]);
 
     // Keyboard navigation & Submission handling
     const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {

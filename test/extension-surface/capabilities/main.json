@@ -1,0 +1,6 @@
+{
+  "identifier": "prototype-main",
+  "description": "Only the prototype host view may invoke the host-only test command.",
+  "webviews": ["main"],
+  "permissions": ["allow-prototype-report", "allow-prototype-main-only"]
+}

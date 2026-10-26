@@ -18,7 +18,6 @@ const DESC_CONTEXT: Record<string, string> = {
     'Extreme': 'Leaves out the oldest turns, half the context at a time (fastest, forgets the most).'
 };
 
-const DESC_BRAIN_MODE = (active: boolean) => active ? 'Enabled: LLM is completely turned off. Only database and tools will run.' : 'Disabled: Normal mode. Generative AI is active.';
 const DESC_LAZY_LOAD = (active: boolean) => active ? 'Enabled: Model loads only on first message. Saves RAM while idle.' : 'Disabled: Model loads instantly on startup.';
 const DESC_FLASH_ATTN: Record<string, string> = { 'Auto': 'System uses Flash Attention if supported by your hardware.', 'On': 'Forces Flash Attention. Very fast for long contexts.', 'Off': 'Disables Flash Attention. Useful if the model hallucinates.' };
 const DESC_KV_QUANT: Record<string, string> = { 'Auto': 'System decides the best quantization level.', 'Kv16': 'Highest quality, uses more RAM.', 'Kv8': 'Good balance of quality and RAM usage.', 'Kv4': 'Maximum compression. Saves massive RAM but may reduce long-context quality slightly.' };
@@ -246,13 +245,13 @@ export function EngineSettings() {
                     <SettingSection title="Engine Lifecycle & Models">
                         <SettingItem
                             label="Pure Brain Mode (LLM OFF)"
-                            description="Run the engine purely as a stateful database and knowledge base. Generative models will be disabled."
+                            description="Unavailable: the current Engine does not implement a separate database-only Brain Mode."
                             toggle
                             active={brainMode}
                             loading={Boolean(pendingKeys['brain_mode'])}
-                            disabled={Boolean(pendingKeys['brain_mode'])}
+                            disabled
                             onToggle={() => setBrainMode(!brainMode)}
-                            dynamicDescription={DESC_BRAIN_MODE(brainMode)}
+                            dynamicDescription="This control is not supported by the current Engine."
                         />
                         <SettingItem
                             label="Lazy Load Model (On Send)"

@@ -1,0 +1,6 @@
+{
+  "identifier": "prototype-guest",
+  "description": "The test child can report results but has no host-only command permission.",
+  "webviews": ["extension-probe"],
+  "permissions": ["allow-prototype-report"]
+}

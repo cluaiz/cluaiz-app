@@ -1,6 +1,7 @@
 import { ExecutionMetrics, HttpMethod, ApiProtocol } from '../types';
 import { WavStreamPlayer } from '../../../services/audio/wavStreamPlayer';
-import { isTauri, sendFFIMessage } from '../../../core/tauri-api';
+import { ipc, isTauri } from '../../../api/client/ipc';
+import { createEngineFetch } from '../../../api/client/transport';
 import { client } from '../../../api/client';
 
 export interface TransportRequestOptions {
@@ -28,70 +29,6 @@ export async function executeApiRequest(opts: TransportRequestOptions): Promise<
     const startTime = performance.now();
     speechStream.stop();
 
-    // 1. Native C-Pointer (FFI) Execution Path
-    if (protocol === 'c-pointer') {
-        if (!isTauri()) {
-            const timeMs = Math.round(performance.now() - startTime);
-            const fallbackMsg = JSON.stringify(
-                {
-                    protocol: "c-pointer (FFI)",
-                    status: "notice",
-                    message: "Native C-Pointer (FFI) execution requires the Tauri Desktop Runtime.",
-                    target: url,
-                    simulated_payload: body
-                },
-                null,
-                2
-            );
-            return {
-                metrics: {
-                    status: 200,
-                    statusText: "OK (Web Simulation)",
-                    timeMs,
-                    sizeBytes: new Blob([fallbackMsg]).size
-                },
-                body: fallbackMsg
-            };
-        }
-
-        try {
-            await sendFFIMessage(body);
-            const timeMs = Math.round(performance.now() - startTime);
-            const resText = JSON.stringify(
-                {
-                    protocol: "c-pointer (FFI)",
-                    status: "dispatched",
-                    target: url,
-                    message: "Instruction sent to engine IPC Named Pipe."
-                },
-                null,
-                2
-            );
-            return {
-                metrics: {
-                    status: 200,
-                    statusText: "IPC Dispatched",
-                    timeMs,
-                    sizeBytes: new Blob([resText]).size
-                },
-                body: resText
-            };
-        } catch (err: any) {
-            const timeMs = Math.round(performance.now() - startTime);
-            const errStr = JSON.stringify({ error: err?.message || String(err) }, null, 2);
-            return {
-                metrics: {
-                    status: 500,
-                    statusText: "FFI IPC Error",
-                    timeMs,
-                    sizeBytes: new Blob([errStr]).size
-                },
-                body: errStr
-            };
-        }
-    }
-
-    // 2. HTTP REST API Execution Path
     const fetchOptions: RequestInit = {
         method,
         headers: client.getHeaders(headers)
@@ -106,7 +43,14 @@ export async function executeApiRequest(opts: TransportRequestOptions): Promise<
         : `${client.getBaseUrl().replace(/\/+$/, '')}/${url.replace(/^\/+/, '')}`;
 
     try {
-        const response = await fetch(targetUrl, fetchOptions);
+        const requestNative = createEngineFetch({
+            getProtocol: () => 'ffi', isTauri, getBaseUrl: () => client.getBaseUrl(),
+            nativeInvoke: (command, args) => ipc.invoke(command, args),
+            httpFetch: (input, init) => fetch(input, init),
+        });
+        const response = protocol === 'c-pointer'
+            ? await requestNative(targetUrl, fetchOptions)
+            : await fetch(targetUrl, fetchOptions);
         const headersTime = (performance.now() - startTime).toFixed(2);
         const contentType = response.headers.get('content-type') || '';
         const isSse = contentType.includes('text/event-stream');
@@ -125,6 +69,7 @@ export async function executeApiRequest(opts: TransportRequestOptions): Promise<
             const reader = response.body.getReader();
             const decoder = new TextDecoder('utf-8');
 
+            try {
             while (true) {
                 const { done, value } = await reader.read();
                 if (done) break;
@@ -174,6 +119,11 @@ export async function executeApiRequest(opts: TransportRequestOptions): Promise<
                         isStreaming: true
                     });
                 }
+            }
+
+            } finally {
+                await reader.cancel().catch(() => {});
+                reader.releaseLock();
             }
 
             const totalTime = parsedTotalSecs || `${((performance.now() - startTime) / 1000).toFixed(2)}s`;

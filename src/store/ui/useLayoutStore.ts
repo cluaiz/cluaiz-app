@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import type { ExtensionRoute } from '../../extensions/routes';
 
 export type SidebarPosition = 'left' | 'right';
 
@@ -42,8 +43,10 @@ interface LayoutState {
     setDateRange: (range: DateRange | undefined) => void;
     activeChatData: ActiveChatData | null;
     setActiveChatData: (data: ActiveChatData | null) => void;
-    activeView: 'chat' | 'notebook' | 'settings' | 'tools' | 'apis' | 'toolkit' | 'library' | 'components';
-    setActiveView: (view: 'chat' | 'notebook' | 'settings' | 'tools' | 'apis' | 'toolkit' | 'library' | 'components') => void;
+    activeView: 'chat' | 'notebook' | 'settings' | 'tools' | 'apis' | 'toolkit' | 'library' | 'components' | 'extensions';
+    setActiveView: (view: LayoutState['activeView']) => void;
+    activeExtension: ExtensionRoute | null;
+    setActiveExtension: (route: ExtensionRoute | null) => void;
     previewModalAsset: any | null;
     setPreviewModalAsset: (asset: any | null) => void;
 }
@@ -78,6 +81,8 @@ export const useLayoutStore = create<LayoutState>()(
             setActiveChatData: (activeChatData) => set({ activeChatData }),
             activeView: 'chat',
             setActiveView: (activeView) => set({ activeView }),
+            activeExtension: null,
+            setActiveExtension: (activeExtension) => set({ activeView: 'extensions', activeExtension }),
             previewModalAsset: null,
             setPreviewModalAsset: (previewModalAsset) => set({ previewModalAsset }),
         }),

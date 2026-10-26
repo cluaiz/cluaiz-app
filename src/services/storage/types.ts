@@ -1,7 +1,8 @@
-import { ChatMessage } from '../../store/chat/useChatStore';
+import type { ChatMessage } from '../../store/chat/types';
 
 export interface SessionIndexItem {
     id: string;
+    extensionId?: string;
     title: string;
     createdAt: number;
     updatedAt: number;
@@ -24,6 +25,7 @@ export interface SessionsIndex {
 
 export interface SessionMetadata {
     id: string;
+    extensionId?: string;
     title: string;
     createdAt: number;
     updatedAt: number;

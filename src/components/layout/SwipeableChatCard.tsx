@@ -215,7 +215,7 @@ export const SwipeableChatCard: React.FC<SwipeableChatCardProps> = ({
                     <span className="text-[13px] font-semibold text-[var(--text-primary)] truncate leading-snug">
                         {chat.name || 'New Chat'}
                     </span>
-                    <span className="text-[11px] text-[var(--text-muted)] truncate leading-snug font-normal mt-0.5">
+                    <span className="text-[11px] text-[var(--text-secondary)] truncate leading-snug font-normal mt-0.5">
                         {subtitleText}
                     </span>
                 </div>
@@ -236,7 +236,7 @@ export const SwipeableChatCard: React.FC<SwipeableChatCardProps> = ({
                     </div>
 
                     {/* Bottom Row: Timestamp (aligned with message preview) */}
-                    <span className="text-[10px] font-medium text-[var(--text-muted)] font-mono leading-none">
+                    <span className="text-[10px] font-medium text-[var(--text-secondary)]/80 font-mono leading-none">
                         {chat.time || ''}
                     </span>
                 </div>

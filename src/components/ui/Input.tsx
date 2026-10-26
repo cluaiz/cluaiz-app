@@ -25,7 +25,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
                 )}
                 <input
                     ref={ref}
-                    className={`ui-input ${sizeClasses[sizeVariant]} ${leftIcon ? 'pl-8' : ''} ${rightElement ? 'pr-8' : ''} ${error ? 'ui-input-error' : ''} ${className}`}
+                    className={`ui-input ${sizeClasses[sizeVariant]} ${leftIcon ? '!pl-9' : ''} ${rightElement ? '!pr-9' : ''} ${error ? 'ui-input-error' : ''} ${className}`}
                     {...props}
                 />
                 {rightElement && (

@@ -101,22 +101,22 @@ const LottieInner: React.FC<{
 }) => {
     const lottieRef = useRef<any>(null);
     const [isHovered, setIsHovered] = useState(false);
+    const initialPlayedRef = useRef(false);
 
-    const defaultLoop = playOnHover ? isHovered : (loop ?? true);
-    const defaultAutoplay = playOnHover ? false : (autoplay ?? true);
+    // Respect explicit autoplay prop; fallback to false if playOnHover
+    const shouldAutoplay = autoplay !== undefined ? autoplay : !playOnHover;
+    const shouldLoop = loop ?? false;
 
     useEffect(() => {
-        if (!playOnHover || !lottieRef.current) return;
-        if (isHovered) {
-            lottieRef.current.play?.();
-        } else {
-            lottieRef.current.stop?.();
-        }
-    }, [isHovered, playOnHover]);
+        if (!shouldAutoplay || !lottieRef.current || initialPlayedRef.current) return;
+        initialPlayedRef.current = true;
+        lottieRef.current?.goToAndPlay?.(0, true);
+    }, [shouldAutoplay]);
 
     const handleMouseEnter = () => {
         if (!playOnHover) return;
         setIsHovered(true);
+        lottieRef.current?.goToAndPlay?.(0, true);
     };
 
     const handleMouseLeave = () => {
@@ -127,14 +127,15 @@ const LottieInner: React.FC<{
     return (
         <div 
             style={{ ...style, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            className={`transition-transform duration-200 select-none ${playOnHover ? 'hover:scale-115 active:scale-95' : ''}`}
             onMouseEnter={handleMouseEnter}
             onMouseLeave={handleMouseLeave}
         >
             <Lottie
                 lottieRef={lottieRef}
                 src={animationData}
-                loop={defaultLoop}
-                autoplay={defaultAutoplay}
+                loop={shouldLoop}
+                autoplay={shouldAutoplay}
                 style={{ width: '100%', height: '100%', ...style }}
                 {...restProps}
             />

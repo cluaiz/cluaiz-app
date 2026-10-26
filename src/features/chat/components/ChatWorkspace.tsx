@@ -1,3 +1,6 @@
+import { useLegacyChatEvents } from '../hooks/useLegacyChatEvents';
+import { useExtensionChat } from '../hooks/useExtensionChat';
+import type { ExtensionChatBinding } from '../../extensions/ExtensionChatWorkspace';
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { currentChatPrefs } from '../../../store/chat/useChatPrefsStore';
 import { useLayoutStore } from '../../../store/ui/useLayoutStore';
@@ -54,8 +57,10 @@ const PrivateModeToggleButton: React.FC<{
     );
 };
 
-export function ChatWorkspace() {
+export function ChatWorkspace({ workspace, chatBinding }: { workspace?: React.ReactNode; chatBinding?: ExtensionChatBinding | null } = {}) {
+    const isBoundChat = chatBinding !== undefined;
     const { splitPaneWidth, setSplitPaneWidth, splitReversed, toggleSplitReversed, activeChatData } = useLayoutStore();
+    const visibleSplitPaneWidth = workspace !== undefined && splitPaneWidth === 100 ? 50 : splitPaneWidth;
     const { chatBackground } = useThemeStore();
     const activeAudioDeck = useSpeechHighlightStore((s) => s.activeDeck);
     const closeAudioDeck = useSpeechHighlightStore((s) => s.closeDeck);
@@ -69,7 +74,7 @@ export function ChatWorkspace() {
     const [isIncognito, setIsIncognito] = useState(() => !currentChatPrefs().saveHistory);
 
     const {
-        activeSessionId,
+        activeSessionId: mainSessionId,
         sessions,
         switchSession,
         deleteSession,
@@ -78,7 +83,10 @@ export function ChatWorkspace() {
     } = useChatStore();
 
     // The active session's messages
-    const activeSession = activeSessionId ? sessions[activeSessionId] : null;
+    const requestedSessionId = isBoundChat ? chatBinding?.handle.id ?? null : mainSessionId;
+    const candidate = requestedSessionId ? sessions[requestedSessionId] : null;
+    const activeSession = isBoundChat && candidate?.extensionId !== chatBinding?.sdk.identity.id ? null : candidate;
+    const activeSessionId = isBoundChat ? activeSession?.id ?? null : mainSessionId;
     const messages = activeSession ? activeSession.messages : [];
 
     const [inputValue, setInputValue] = useState('');
@@ -102,24 +110,22 @@ export function ChatWorkspace() {
     const telemetry = useChatTelemetry();
     const {
         breakdown,
-        setBreakdown,
         liveStats,
         fetchContextTelemetry,
         syncSessionTokens,
-        startStreaming,
-        recordToken,
         endStreaming,
-        recordToolExecution
     } = telemetry;
 
     useEffect(() => {
+        if (isBoundChat && !activeSessionId) return;
         fetchContextTelemetry('default', activeSessionId || 'default');
         if (messages && messages.length > 0) {
             syncSessionTokens(messages);
         }
-    }, [activeSessionId, messages, fetchContextTelemetry, syncSessionTokens]);
+    }, [activeSessionId, messages, fetchContextTelemetry, syncSessionTokens, isBoundChat]);
 
     useEffect(() => {
+        if (isBoundChat) return;
         // Opening a new chat leaves a normal chat answering in the background; a private one stops
         const stopIfPrivate = () => {
             const { streamingSessionId, sessions: all } = useChatStore.getState();
@@ -143,7 +149,7 @@ export function ChatWorkspace() {
             document.removeEventListener('start-new-chat', handleNewChat);
             document.removeEventListener('start-new-private-chat', handleNewPrivateChat);
         };
-    }, [switchSession]);
+    }, [switchSession, isBoundChat]);
 
     const [msgMenu, setMsgMenu] = useState<{
         x: number;
@@ -178,6 +184,11 @@ export function ChatWorkspace() {
 
     const [isSelectionMode, setIsSelectionMode] = useState(false);
     const [selectedMessageIndices, setSelectedMessageIndices] = useState<number[]>([]);
+    useEffect(() => {
+        if (!isBoundChat) return;
+        setInputValue(''); setReplyingTo(null); setSelectedMessageIndices([]); setIsSelectionMode(false);
+        setMsgMenu(null); setSelectionMenu(null); setUnhighlightMenu(null);
+    }, [isBoundChat, activeSessionId]);
 
     useEffect(() => {
         const handleClickOutside = () => {
@@ -300,115 +311,20 @@ main().catch(console.error);`);
 
     const { launchOnStartup } = useEngineStore();
 
-    useEffect(() => {
-        let unlistenToken: (() => void) | undefined;
-        let isUnmounted = false;
-
-        import('../../../core/engine').then(({ cluaizEngine }) => {
-            // Conditionally boot the engine based on user settings
-            if (launchOnStartup) {
-                cluaizEngine.boot().catch(console.error);
-            }
-
-            cluaizEngine.onToken((chunk) => {
-                const store = useChatStore.getState();
-                if (!store.activeSessionId) return;
-
-                if (chunk === '[DONE]') {
-                    const finalStats = endStreaming();
-                    const now = new Date();
-                    const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
-
-                    if (finalStats && finalStats.tokens > 0) {
-                        store.attachTelemetryToLastMessage(store.activeSessionId, finalStats);
-                    }
-                    const activeSess = store.sessions[store.activeSessionId];
-                    if (activeSess?.messages && activeSess.messages.length > 0) {
-                        const lastIdx = activeSess.messages.length - 1;
-                        const lastMsg = activeSess.messages[lastIdx];
-                        if (lastMsg.sender === 'assistant' && !lastMsg.time) {
-                            store.updateMessage(store.activeSessionId, lastIdx, m => ({ ...m, time: timeStr }));
-                        }
-                        syncSessionTokens(activeSess.messages);
-                    }
-                    store.finalizeAssistantMessage(store.activeSessionId);
-                    return;
-                }
-
-                // If chunk has contextTelemetry from SSE
-                if (typeof chunk === 'object' && chunk.contextTelemetry) {
-                    const telemetry = chunk.contextTelemetry.context_breakdown || chunk.contextTelemetry;
-                    setBreakdown(telemetry);
-                    return;
-                }
-
-                // If chunk has permissionRequest
-                if (typeof chunk === 'object' && chunk.permissionRequest) {
-                    store.setPermissionRequestOnLastMessage(store.activeSessionId, chunk.permissionRequest);
-                    return;
-                }
-
-                // If chunk has toolCall
-                if (typeof chunk === 'object' && chunk.toolCall) {
-                    store.appendToolCallToLastMessage(store.activeSessionId, chunk.toolCall);
-                    recordToolExecution(chunk.toolCall.name, undefined, 'running', chunk.toolCall.category);
-                    return;
-                }
-
-                // If chunk has toolResult
-                if (typeof chunk === 'object' && chunk.toolResult) {
-                    store.updateToolResultOnLastMessage(store.activeSessionId, chunk.toolResult);
-                    recordToolExecution(chunk.toolResult.name || 'tool', chunk.toolResult.latency_ms, 'completed', chunk.toolResult.category);
-                    return;
-                }
-
-                recordToken();
-
-                const reasoning = typeof chunk === 'object' ? chunk.reasoning : undefined;
-                const content = typeof chunk === 'object' ? chunk.content : chunk;
-
-                const session = store.sessions[store.activeSessionId];
-                const lastMsg = session?.messages[session.messages.length - 1];
-
-                if (!lastMsg || lastMsg.sender !== 'assistant') {
-                    store.addMessage(store.activeSessionId, {
-                        sender: 'assistant',
-                        text: content || '',
-                        thinking: reasoning || '',
-                        time: '',
-                        date: Date.now()
-                    });
-                } else {
-                    if (reasoning) {
-                        store.appendThinkingToLastMessage(store.activeSessionId, reasoning);
-                    }
-                    if (content) {
-                        store.appendTokenToLastMessage(store.activeSessionId, content);
-                    }
-                }
-            }).then(unlisten => {
-                if (isUnmounted) {
-                    unlisten();
-                } else {
-                    unlistenToken = unlisten;
-                }
-            }).catch(console.error);
-        });
-
-        return () => {
-            isUnmounted = true;
-            if (unlistenToken) unlistenToken();
-        };
-    }, []);
+    useLegacyChatEvents(!isBoundChat, launchOnStartup, telemetry);
 
     // The engine may be answering another chat in the background: streaming UI only for its own chat
     const streamingSessionId = useChatStore(s => s.streamingSessionId);
-    const streamingHere = liveStats.isStreaming && streamingSessionId === activeSessionId;
+    const boundChat = useExtensionChat(chatBinding ?? undefined, telemetry,
+        () => { setInputValue(''); setReplyingTo(null); }, inputValue, replyingTo?.text);
+    const streamingHere = (isBoundChat ? boundChat.running : liveStats.isStreaming) && streamingSessionId === activeSessionId;
 
-    const { handleSendMessage, processing } = useChatSend({
+    const { handleSendMessage: sendMainMessage, handleRetryMessage, processing } = useChatSend({
         inputValue, setInputValue, replyingTo, setReplyingTo, isIncognito, messages, telemetry
     });
+    const handleSendMessage = isBoundChat ? boundChat.send : sendMainMessage;
     const handleStopStreaming = async () => {
+        if (isBoundChat) { boundChat.stop(); return; }
         try {
             const { cluaizEngine } = await import('../../../core/engine');
             await cluaizEngine.stop();
@@ -487,11 +403,11 @@ main().catch(console.error);`);
         <div ref={containerRef} className={`flex-1 flex overflow-hidden relative ${splitReversed ? 'flex-row-reverse' : 'flex-row'}`}>
 
             <div
-                style={{ width: `${splitPaneWidth}%` }}
+                style={{ width: `${visibleSplitPaneWidth}%` }}
                 className="h-full flex flex-col bg-[var(--bg-primary)] overflow-hidden relative"
             >
                 {/* Top Right Incognito Toggle - Only on Landing Page */}
-                {messages.length === 0 && (
+                {!isBoundChat && messages.length === 0 && (
                     <div className="absolute top-4 right-4 z-40">
                         <PrivateModeToggleButton
                             isIncognito={isIncognito}
@@ -508,7 +424,7 @@ main().catch(console.error);`);
                 )}
 
 
-                {messages.length === 0 ? (
+                {isBoundChat && !activeSession ? <div className="flex-1 flex items-center justify-center text-[var(--text-secondary)]" role="status">Open a extension chat to begin.</div> : messages.length === 0 ? (
                     <div className="flex-1 flex flex-col items-center justify-center p-2 sm:p-4 md:p-8 z-20 relative">
 
                         <DynamicGreeting />
@@ -521,6 +437,8 @@ main().catch(console.error);`);
                         )}
                         <motion.div layout layoutId="chat-input-wrapper" className="w-full max-w-2xl lg:max-w-3xl 2xl:max-w-4xl mx-auto z-10 px-2 sm:px-4 md:px-8">
                             <ChatInput
+                                key={isBoundChat ? activeSessionId : undefined}
+                                textOnly={isBoundChat}
                                 inputValue={inputValue}
                                 setInputValue={setInputValue}
                                 handleSendMessage={handleSendMessage}
@@ -537,7 +455,7 @@ main().catch(console.error);`);
                         <div className="flex-1 relative overflow-hidden flex flex-col min-h-0">
                             {/* Pinned Top Audio Player Deck - Fixed Flush at the Very Top of Chat */}
                             <AnimatePresence>
-                                {activeAudioDeck && (
+                                {activeAudioDeck && (!isBoundChat || messages.some(message => message.id === activeAudioDeck.messageId)) && (
                                     <motion.div
                                         initial={{ opacity: 0, y: -10, scale: 0.98 }}
                                         animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -584,8 +502,11 @@ main().catch(console.error);`);
                                                 <div className="flex flex-col gap-4">
                                                     {groupMsgs.map((msg) => {
                                                         const currentIndex = absoluteIndex++;
+                                                        const isLatestMessage = currentIndex === messages.length - 1;
                                                         return (
                                                             <MessageBubble
+                                                                sessionId={activeSessionId ?? undefined}
+                                                                autoSpeech={!isBoundChat}
                                                                 key={msg.id || currentIndex}
                                                                 msg={msg}
                                                                 index={currentIndex}
@@ -595,9 +516,10 @@ main().catch(console.error);`);
                                                                 isSelectionMode={isSelectionMode}
                                                                 isSelected={selectedMessageIndices.includes(currentIndex)}
                                                                 onToggleSelect={() => handleToggleSelect(currentIndex)}
-                                                                onSkipThinking={handleSkipThinking}
+                                                                onSkipThinking={isBoundChat ? undefined : handleSkipThinking}
                                                                 isStreaming={streamingHere && msg.id === messages[messages.length - 1]?.id}
                                                                 processingLabel={processing?.sessionId === activeSessionId ? processing.label : undefined}
+                                                                onRetry={isBoundChat || !isLatestMessage ? undefined : handleRetryMessage}
                                                             />
                                                         );
                                                     })}
@@ -683,6 +605,8 @@ main().catch(console.error);`);
                             ) : (
                                 <motion.div layout layoutId="chat-input-wrapper" className="relative w-full max-w-2xl lg:max-w-3xl 2xl:max-w-4xl mx-auto z-10 px-2 sm:px-4 md:px-8 pb-1 sm:pb-2">
                                     <ChatInput
+                                        key={isBoundChat ? activeSessionId : undefined}
+                                        textOnly={isBoundChat}
                                         inputValue={inputValue}
                                         setInputValue={setInputValue}
                                         handleSendMessage={handleSendMessage}
@@ -733,7 +657,7 @@ main().catch(console.error);`);
                 )}
             </div>
 
-            {splitPaneWidth < 100 && (
+            {visibleSplitPaneWidth < 100 && (
                 <>
                     <ResizableDivider
                         onMouseDown={(e) => {
@@ -748,10 +672,10 @@ main().catch(console.error);`);
                     />
 
                     <div
-                        style={{ width: `${100 - splitPaneWidth}%` }}
+                        style={{ width: `${100 - visibleSplitPaneWidth}%` }}
                         className="h-full flex flex-col bg-[var(--bg-secondary)] overflow-hidden"
                     >
-                        <WorkspaceEditorPane />
+                        {workspace ?? <WorkspaceEditorPane />}
                     </div>
                 </>
             )}

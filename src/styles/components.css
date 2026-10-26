@@ -578,3 +578,35 @@
   color: var(--text-primary);
   background-color: color-mix(in srgb, var(--bg-tertiary) 60%, transparent);
 }
+
+/* ==========================================================================
+   WORKSPACE TERMINAL STYLES (Theme-safe & Sleek)
+   ========================================================================== */
+.terminal-viewport-container .xterm {
+  padding: 4px 8px;
+}
+
+.terminal-viewport-container .xterm-viewport {
+  background-color: transparent !important;
+  overflow-y: auto !important;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-color) transparent;
+}
+
+.terminal-viewport-container .xterm-viewport::-webkit-scrollbar {
+  width: 6px;
+}
+
+.terminal-viewport-container .xterm-viewport::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.terminal-viewport-container .xterm-viewport::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 4px;
+}
+
+.terminal-viewport-container .xterm-viewport::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+

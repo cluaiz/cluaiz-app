@@ -15,6 +15,7 @@ import { SwipeableChatCard } from './SwipeableChatCard';
 import { ChatContextMenu } from '../ui/context-menu/ChatContextMenu';
 import { LabelModal } from '../ui/LabelModal';
 import { EditChatModal } from '../ui/EditChatModal';
+import { CluaizLogo } from '../ui/CluaizLogo';
 
 interface DockIconButtonProps {
     tooltip: string;
@@ -842,7 +843,7 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                                             onClick={() => setSidebarCollapsed(false)}
                                         />
                                     ) : (
-                                        <img src="/logo.ico" alt="cluaiz Logo" className={`w-10 h-10 object-contain drop-shadow-sm transition-all duration-300 ${theme === 'light' || theme === 'classic' ? 'brightness-0' : 'invert dark:invert-0'}`} />
+                                        <CluaizLogo size={36} glow alt="Cluaiz Logo" />
                                     )}
                                 </Tooltip>
                             </div>

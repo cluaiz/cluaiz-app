@@ -6,14 +6,12 @@ import { systemApi, storageApi } from '../../api';
 import { AlertBanner } from '../../components/ui/AlertBanner';
 import { PortConfirmModal } from '../../components/ui/modal/PortConfirmModal';
 import { toast } from '../../components/ui/toast';
+import { DesktopBackgroundSetting } from './DesktopBackgroundSetting';
 
 export function GeneralSettings() {
     // Startup & Background State (Persisted)
     const [launchStartup, setLaunchStartup] = useState(() => {
         try { return localStorage.getItem('cluaiz_launch_startup') === 'true'; } catch { return false; }
-    });
-    const [runBackground, setRunBackground] = useState(() => {
-        try { return localStorage.getItem('cluaiz_run_background') !== 'false'; } catch { return true; }
     });
 
     // Dynamic Connection State from Store (Zero Hardcoding)
@@ -22,7 +20,7 @@ export function GeneralSettings() {
     const initEngineSettings = useEngineStore((state) => state.initEngineSettings);
 
     // Live Engine Values strictly prioritize permission.json (zero hardcoded fallback)
-    const currentProtocol = (permissions?.connection_protocol as ConnectionProtocol) || protocol || 'http';
+    const currentProtocol = protocol;
     const currentPort = (permissions?.api_port ?? port)?.toString() ?? '';
     const currentHost = permissions?.api_host || host || '0.0.0.0';
 
@@ -51,10 +49,6 @@ export function GeneralSettings() {
         try { localStorage.setItem('cluaiz_launch_startup', String(val)); } catch {}
     };
 
-    const handleToggleBackground = (val: boolean) => {
-        setRunBackground(val);
-        try { localStorage.setItem('cluaiz_run_background', String(val)); } catch {}
-    };
 
     // Fetch initial settings & storage telemetry dynamically from active endpoint
     useEffect(() => {
@@ -77,8 +71,9 @@ export function GeneralSettings() {
                 }
             } catch {
                 if (isMounted) {
-                    setStorageUsage('0.00 MB');
-                    setFileCount(0);
+                    const usage = await storageApi.getTempMediaStatus();
+                    setStorageUsage(usage.total_size_mb || `${(usage.total_size_bytes / (1024 * 1024)).toFixed(2)} MB`);
+                    setFileCount(usage.file_count);
                 }
             }
 
@@ -106,9 +101,12 @@ export function GeneralSettings() {
         try {
             await toast.promise(
                 async () => {
-                    await systemApi.updatePermission({ connection_protocol: proto });
                     useConnectionStore.getState().setProtocol(proto);
                     await initEngineSettings();
+                    if (useEngineStore.getState().fetchStatus !== 'success') {
+                        setIsOffline(true);
+                        throw new Error('Selected Engine connection is unavailable. Check the Engine or choose another connection mode.');
+                    }
                     setIsOffline(false);
                 },
                 {
@@ -237,7 +235,7 @@ export function GeneralSettings() {
                 },
                 {
                     loading: 'Cleaning temporary media cache...',
-                    success: (res: any) => `Cleaned ${res?.cleaned_human || 'cache'} (${res?.cleaned_files || 0} files deleted)`,
+                    success: (res) => `Cleaned ${(res.freed_bytes / (1024 * 1024)).toFixed(2)} MB (${res.removed_files} files deleted)`,
                     error: (err) => 'Failed to clean storage: ' + (err?.message || 'Unknown error')
                 }
             );
@@ -251,8 +249,8 @@ export function GeneralSettings() {
     // Dynamic description maps matching Developer Hub
     const protocolDescriptions: Record<string, { desc: string; dynamic: string }> = {
         ffi: {
-            desc: 'Direct in-memory zero-copy Rust FFI pipe. Bypasses TCP network stack for maximum local throughput.',
-            dynamic: 'Active Mode: Native C-Pointer (FFI) Pipe — Direct In-Memory Kernel'
+            desc: 'Local named pipe or Unix socket to the Engine. Uses existing APIs without a TCP listener; requires a compatible Engine.',
+            dynamic: 'Active Mode: Native IPC'
         },
         http: {
             desc: 'Standard HTTP REST API gateway. Communicates via TCP loopback on local port for external integrations.',
@@ -317,13 +315,7 @@ export function GeneralSettings() {
                     active={launchStartup}
                     onToggle={() => handleToggleStartup(!launchStartup)}
                 />
-                <SettingItem
-                    label="Run in background"
-                    description="Keep Cluaiz running in the tray when window is closed."
-                    toggle
-                    active={runBackground}
-                    onToggle={() => handleToggleBackground(!runBackground)}
-                />
+                <DesktopBackgroundSetting />
             </SettingSection>
 
             {/* Network & Connection (Dynamic - Engine Source of Truth) */}
@@ -341,7 +333,7 @@ export function GeneralSettings() {
                     }
                     select={[
                         { value: 'http', label: 'HTTP REST API (Default)' },
-                        { value: 'ffi', label: 'Native C-Pointer (FFI)' }
+                        { value: 'ffi', label: 'Native IPC (Desktop)' }
                     ]}
                     value={pendingProtocol || currentProtocol}
                     onChange={handleProtocolChange}
@@ -351,13 +343,13 @@ export function GeneralSettings() {
                     loading={isSyncingPort}
                     description={
                         currentProtocol === 'ffi'
-                            ? 'Network port is bypassed because Native C-Pointer uses direct memory IPC instead of TCP sockets.'
+                            ? 'Native IPC uses a local pipe/socket; this network port is not used.'
                             : portDescriptions[currentPort]?.desc ||
                               'Port for engine HTTP REST API communication.'
                     }
                     dynamicDescription={
                         currentProtocol === 'ffi'
-                            ? 'Status: Inactive (Bypassed by Native C-Pointer)'
+                            ? 'Status: Not used by Native IPC'
                             : portDescriptions[currentPort]?.dynamic ||
                               `Target Gateway: ${getBaseUrl()}`
                     }
@@ -376,12 +368,12 @@ export function GeneralSettings() {
                     loading={isSyncingHost}
                     description={
                         currentProtocol === 'ffi'
-                            ? 'Host network configuration is bypassed when Native C-Pointer FFI is active.'
+                            ? 'Native IPC uses the Engine endpoint owned by this desktop App.'
                             : 'Host IP address for the engine HTTP gateway.'
                     }
                     dynamicDescription={
                         currentProtocol === 'ffi'
-                            ? 'Status: Inactive (Bypassed by Native C-Pointer)'
+                            ? 'Status: Not used by Native IPC'
                             : `Target Gateway: ${getBaseUrl()}`
                     }
                     select={[

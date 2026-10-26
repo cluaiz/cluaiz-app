@@ -272,6 +272,67 @@ export function useChatSend({ inputValue, setInputValue, replyingTo, setReplying
         }
     };
 
+    const handleRetryMessage = async (assistantMsgIndex: number) => {
+        const store = useChatStore.getState();
+        const sessionId = store.activeSessionId;
+        if (!sessionId) return;
+        const session = store.sessions[sessionId];
+        if (!session || !session.messages) return;
 
-    return { handleSendMessage, processing };
+        const targetAssistantMsg = session.messages[assistantMsgIndex];
+        if (!targetAssistantMsg) return;
+
+        // Find the preceding user message
+        let userPrompt = '';
+        let userAttachments: any[] | undefined = undefined;
+        let userParts: any[] | undefined = undefined;
+        for (let i = assistantMsgIndex - 1; i >= 0; i--) {
+            if (session.messages[i]?.sender === 'user') {
+                userPrompt = session.messages[i].text || '';
+                userAttachments = session.messages[i].attachments;
+                userParts = session.messages[i].parts;
+                break;
+            }
+        }
+
+        // Check if there was partial text before the error marker
+        let partialText = '';
+        if (targetAssistantMsg.text) {
+            const marker = 'Request failed:';
+            const idx = targetAssistantMsg.text.indexOf(marker);
+            if (idx > 0) {
+                partialText = targetAssistantMsg.text.slice(0, idx).trim();
+            }
+        }
+
+        if (partialText) {
+            // RESUME FLOW:
+            // 1. Keep the generated partial text and clear the error flag
+            store.updateMessage(sessionId, assistantMsgIndex, m => ({
+                ...m,
+                finishReason: undefined,
+                text: partialText
+            }));
+
+            // 2. Prompt model to continue from the exact cutoff point
+            const continuationPrompt = `Please continue your response directly from where you stopped. Do not repeat previous text. Last sentence was: "${partialText.slice(-100)}"`;
+            await handleSendMessage(continuationPrompt);
+        } else {
+            // CLEAN RETRY FLOW:
+            // 1. Remove the failed assistant message row and its user message turn
+            // so re-sending it produces a clean, fresh turn without duplicating the user prompt.
+            const userIdx = assistantMsgIndex - 1;
+            store.deleteMessage(sessionId, assistantMsgIndex);
+            if (userIdx >= 0 && session.messages[userIdx]?.sender === 'user') {
+                store.deleteMessage(sessionId, userIdx);
+            }
+
+            // 2. Re-send original user prompt cleanly
+            if (userPrompt || userAttachments || userParts) {
+                await handleSendMessage(userPrompt, { attachments: userAttachments, parts: userParts });
+            }
+        }
+    };
+
+    return { handleSendMessage, handleRetryMessage, processing };
 }

@@ -31,6 +31,7 @@ import { FileIcon } from 'react-material-icon-theme';
 import { FilePreviewDispatcher, isPreviewableFile } from '../../../components/preview/FilePreviewDispatcher';
 import { EditorLoadingSkeleton } from '../../../components/preview/EditorLoadingSkeleton';
 import { resolveDiskPath } from '../../../utils/mediaResolver';
+import { CluaizLogo } from '../../../components/ui/CluaizLogo';
 
 export const WorkspaceEditorPane: React.FC = () => {
     const {
@@ -98,12 +99,21 @@ export const WorkspaceEditorPane: React.FC = () => {
         .filter(rw => !rw.path.startsWith('#<') && !rw.name.includes('CLIXML') && !rw.path.includes('CLIXML'))
         .slice(0, 5);
 
-    // Auto-sync files from physical disk on mount / active project change
+    // Auto-sync files from physical disk on mount / active project change / window focus
     React.useEffect(() => {
         if (activeProjectId) {
             syncFromDisk(activeProjectId);
         }
-    }, [activeProjectId]);
+
+        const handleFocus = () => {
+            if (activeProjectId) {
+                syncFromDisk(activeProjectId);
+            }
+        };
+
+        window.addEventListener('focus', handleFocus);
+        return () => window.removeEventListener('focus', handleFocus);
+    }, [activeProjectId, syncFromDisk]);
 
     // Intercept browser shortcuts to prevent conflicts when workspace is active
     React.useEffect(() => {
@@ -379,14 +389,14 @@ export const WorkspaceEditorPane: React.FC = () => {
                 {/* Top Workspace Header Bar (Theme Matched) */}
                 <div className="h-10 border-b border-[var(--border-color)]/70 bg-[var(--bg-secondary)] flex items-center justify-between px-3 flex-shrink-0">
                     <div className="flex items-center gap-2">
-                        <img src="/logo.ico" alt="Cluaiz" className="w-4 h-4 object-contain opacity-70" />
+                        <CluaizLogo size={16} alt="Workspace Logo" />
                         <span className="text-xs font-semibold text-[var(--text-primary)]">Workspace</span>
                     </div>
                     <div className="flex items-center gap-1">
                         <button
                             type="button"
                             onClick={toggleMaximize}
-                            className="p-1.5 rounded hover:bg-white/10 text-zinc-400 hover:text-zinc-200 transition-colors"
+                            className="p-1.5 rounded hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
                             title={isMaximized ? "Restore split" : "Maximize editor"}
                         >
                             {isMaximized ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
@@ -394,7 +404,7 @@ export const WorkspaceEditorPane: React.FC = () => {
                         <button
                             type="button"
                             onClick={handleClose}
-                            className="p-1.5 rounded hover:bg-white/10 text-zinc-400 hover:text-rose-400 transition-colors"
+                            className="p-1.5 rounded hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-rose-400 transition-colors cursor-pointer"
                             title="Close workspace"
                         >
                             <X className="w-3.5 h-3.5" />
@@ -406,10 +416,12 @@ export const WorkspaceEditorPane: React.FC = () => {
                 <div className="flex-1 overflow-y-auto custom-scrollbar flex flex-col p-6 text-[var(--text-secondary)] font-sans">
                     <div className="max-w-sm w-full mx-auto my-auto flex flex-col items-center text-center py-6">
                         {/* Centered Cluaiz Logo */}
-                        <img
-                            src="/logo.ico"
+                        <CluaizLogo
+                            size={56}
+                            glow
+                            interactive
+                            className="mb-3"
                             alt="Cluaiz Logo"
-                            className="w-14 h-14 object-contain opacity-50 mb-2 pointer-events-none drop-shadow-sm transition-opacity hover:opacity-80"
                         />
                         <h2 className="text-base font-semibold text-[var(--text-primary)] tracking-wide mb-6">
                             Cluaiz
@@ -446,7 +458,7 @@ export const WorkspaceEditorPane: React.FC = () => {
                         <div className="w-full mt-8 text-left">
                             <div className="flex items-center justify-between mb-2">
                                 <h4 className="text-xs font-semibold text-[var(--text-muted)]">Workspaces</h4>
-                                <span className="text-[10px] text-zinc-500 font-mono">Recent</span>
+                                <span className="text-[10px] text-[var(--text-muted)] font-mono">Recent</span>
                             </div>
 
                             {cleanRecentWorkspaces.length > 0 ? (
@@ -457,7 +469,7 @@ export const WorkspaceEditorPane: React.FC = () => {
                                             <div
                                                 key={rw.path}
                                                 onClick={() => handleOpenRecentWorkspace(rw.path)}
-                                                className={`group p-2.5 rounded-lg bg-[var(--bg-secondary)] hover:bg-white/[0.06] border border-[var(--border-color)]/60 hover:border-[var(--border-color)] cursor-pointer transition-all flex items-center justify-between ${
+                                                className={`group p-2.5 rounded-lg bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] border border-[var(--border-color)]/60 hover:border-[var(--border-color)] cursor-pointer transition-all flex items-center justify-between ${
                                                     isThisOpening ? 'opacity-80 border-[var(--accent-color)]/60 bg-[var(--accent-color)]/5' : ''
                                                 }`}
                                             >
@@ -485,7 +497,7 @@ export const WorkspaceEditorPane: React.FC = () => {
                                                                 e.stopPropagation();
                                                                 removeRecentWorkspace(rw.path);
                                                             }}
-                                                            className="p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-white/10 text-zinc-500 hover:text-zinc-300 transition-all flex-shrink-0"
+                                                            className="p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-[var(--bg-primary)] text-[var(--text-muted)] hover:text-rose-400 transition-all flex-shrink-0 cursor-pointer"
                                                             title="Remove from recent"
                                                         >
                                                             <X className="w-3.5 h-3.5" />

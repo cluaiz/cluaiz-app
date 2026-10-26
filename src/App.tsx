@@ -9,11 +9,15 @@ import { AuthTokenModal } from './features/settings/components/AuthTokenModal';
 import { Cpu, Database, Maximize2 } from 'lucide-react';
 import { useThemeStore, isThemeDark } from './store/ui/useThemeStore';
 import { useLayoutStore } from './store/ui/useLayoutStore';
-import { NotebookHub } from './features/notebook/NotebookHub';
+import { ExtensionWorkspaceHost } from './features/extensions/ExtensionWorkspaceHost';
+import { ExtensionActivities } from './features/extensions/ExtensionActivities';
+import { DesktopLifecycleBootstrap } from './core/DesktopLifecycleBootstrap';
+import { bundledWorkspaceRoutes } from './extensions/bundled';
 import { ApiWorkspace } from './features/api/ApiWorkspace';
 import { ToolsWorkspace } from './features/tools';
-import { LibraryHub, AssetPreviewModal } from './features/library';
+import { AssetPreviewModal } from './features/library';
 import { ComponentShowcase } from './components/ComponentShowcase';
+import { ToolkitWorkspace } from './features/extensions/ToolkitWorkspace';
 import { openAttachmentInWorkspace } from './features/chat/utils/workspaceAttachmentOpener';
 import { ElasticSlider } from './components/ui/cursor/ElasticSlider';
 import ClickSpark from './components/ui/ClickSpark';
@@ -34,7 +38,7 @@ function MainAppContent() {
         tab: initialRoute.settingsTab
     });
     const { theme, darkAccent, lightAccent, cursorType } = useThemeStore();
-    const { activeView, previewModalAsset, setPreviewModalAsset } = useLayoutStore();
+    const { activeView, activeExtension, previewModalAsset, setPreviewModalAsset } = useLayoutStore();
     const activeAccent = isThemeDark(theme) ? darkAccent : lightAccent;
 
     const handleOpenSettings = (tab?: string) => {
@@ -65,6 +69,9 @@ function MainAppContent() {
             isFirstMountRef.current = false;
             // On initial load, honor the exact entered browser URL!
             const currentRoute = parseCurrentRoute();
+            if (!currentRoute.isSettingsOpen && currentRoute.view === 'extensions') {
+                useLayoutStore.getState().setActiveExtension(currentRoute.extension || null);
+            }
             if (currentRoute.isSettingsOpen) {
                 pushSettingsRoute(currentRoute.settingsTab, true);
             } else if (currentRoute.view === 'chat') {
@@ -83,7 +90,7 @@ function MainAppContent() {
         if (!settingsState.isOpen) {
             pushViewRoute(activeView);
         }
-    }, [activeView, settingsState.isOpen]);
+    }, [activeView, activeExtension, settingsState.isOpen]);
 
     useEffect(() => {
 
@@ -105,7 +112,8 @@ function MainAppContent() {
                 tab: route.settingsTab
             });
             if (!route.isSettingsOpen && route.view) {
-                useLayoutStore.getState().setActiveView(route.view);
+                if (route.view === 'extensions') useLayoutStore.getState().setActiveExtension(route.extension || null);
+                else useLayoutStore.getState().setActiveView(route.view);
             }
             if (route.activeChatId !== undefined) {
                 const currentActive = useChatStore.getState().activeSessionId;
@@ -172,14 +180,18 @@ function MainAppContent() {
                 mainContent={
                     activeView === 'components' ? (
                         <ComponentShowcase />
+                    ) : activeView === 'toolkit' ? (
+                        <ToolkitWorkspace />
                     ) : activeView === 'notebook' ? (
-                        <NotebookHub />
+                        <ExtensionWorkspaceHost {...bundledWorkspaceRoutes.notebook} />
                     ) : activeView === 'apis' ? (
                         <ApiWorkspace />
                     ) : activeView === 'tools' ? (
                         <ToolsWorkspace />
                     ) : activeView === 'library' ? (
-                        <LibraryHub />
+                        <ExtensionWorkspaceHost {...bundledWorkspaceRoutes.library} />
+                    ) : activeView === 'extensions' ? (
+                        <ExtensionWorkspaceHost extensionId={activeExtension?.extensionId || ''} viewId={activeExtension?.viewId || ''} />
                     ) : (
                         <ChatWorkspace />
                     )
@@ -268,7 +280,9 @@ export default function App() {
     return (
         <ErrorBoundary>
             <ThemeProvider>
+                <DesktopLifecycleBootstrap />
                 <MainAppContent />
+                <ExtensionActivities />
             </ThemeProvider>
         </ErrorBoundary>
     );

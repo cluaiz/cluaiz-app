@@ -1,0 +1,15 @@
+[package]
+name = "cluaiz-extension-surface-prototype"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[workspace]
+
+[build-dependencies]
+tauri-build = "=2.6.2"
+
+[dependencies]
+tauri = { version = "=2.11.2", features = ["protocol-asset", "unstable"] }
+serde_json = "1"
+

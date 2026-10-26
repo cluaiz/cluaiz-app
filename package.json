@@ -6,12 +6,21 @@
   "main": "src/index.ts",
   "types": "src/index.ts",
   "workspaces": [
-    "app"
+    "app",
+    "packages/extension-sdk",
+    "packages/extension-devkit"
   ],
   "scripts": {
     "sync:api": "node scripts/sync-api-docs.mjs",
     "check:api": "node scripts/sync-api-docs.mjs --check",
     "test:api-docs": "node --test test/api_docs.test.mjs test/api_explorer.test.cjs",
+    "build:extensions": "node scripts/build-extension-packages.mjs",
+    "test:extensions": "node --test test/extension_devkit.test.mjs",
+    "test:component-reference": "node test/component_reference.mjs",
+    "test:extension-artifact": "node test/build_extension_runtime_artifact.mjs",
+    "test:extension-runtime": "node test/extension_runtime_acceptance.mjs",
+    "test:extension-packages": "node test/extension_packages.mjs",
+    "test:extension-activities": "node test/extension_packages.mjs --activities",
     "dev:web": "npm run dev -w app",
     "build:web": "npm run build -w app",
     "dev:desktop": "npm run tauri dev -w app",
@@ -45,6 +54,7 @@
     "lottie-react": "^3.1.2",
     "lowlight": "^3.3.0",
     "lucide-react": "^1.17.0",
+    "mermaid": "^12.2.0",
     "novel": "^1.0.2",
     "prosemirror-state": "^1.4.4",
     "react": "^19.2.6",
@@ -57,8 +67,7 @@
     "remark-gfm": "^4.0.1",
     "three": "^0.184.0",
     "three-spritetext": "^1.10.0",
-    "zustand": "^5.0.14",
-    "mermaid": "^12.2.0"
+    "zustand": "^5.0.14"
   },
   "devDependencies": {
     "@tailwindcss/typography": "^0.5.20",

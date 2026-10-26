@@ -10,6 +10,9 @@ import { cn } from '../../lib/utils';
 import { ContextChip } from './ContextChip';
 import { extractBaseName } from '../../utils/filePath';
 import { SpeechWordHighlighter } from './SpeechWordHighlighter';
+import hljs from 'highlight.js';
+// @ts-ignore
+import 'highlight.js/styles/vs2015.css';
 
 export interface MarkdownRendererProps {
     content: string;
@@ -139,6 +142,19 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ language, value, allowWorkspaceOp
     const lines = value.split('\n');
     const displayLang = (language || 'code').toUpperCase();
 
+    const highlightedCode = React.useMemo(() => {
+        if (!value) return '';
+        try {
+            const validLang = language && hljs.getLanguage(language) ? language : undefined;
+            if (validLang) {
+                return hljs.highlight(value, { language: validLang, ignoreIllegals: true }).value;
+            }
+            return hljs.highlightAuto(value).value;
+        } catch {
+            return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
+    }, [value, language]);
+
     // 2. Real Code Editor Block (Line Numbers + Dynamic Theme Matching + Full View Expansion)
     return (
         <>
@@ -192,7 +208,7 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ language, value, allowWorkspaceOp
                                 ))}
                             </div>
                             <pre className="p-3 font-mono text-xs leading-5 text-[var(--text-primary)] select-text m-0 overflow-x-auto flex-1 bg-transparent">
-                                <code>{value}</code>
+                                <code dangerouslySetInnerHTML={{ __html: highlightedCode }} className="hljs !bg-transparent !p-0 font-mono" />
                             </pre>
                         </div>
                     </div>
@@ -272,7 +288,7 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ language, value, allowWorkspaceOp
 
                     {/* Code Content */}
                     <pre className="p-3 font-mono text-xs leading-5 text-[var(--text-primary)] select-text m-0 overflow-x-auto flex-1 bg-transparent">
-                        <code>{value}</code>
+                        <code dangerouslySetInnerHTML={{ __html: highlightedCode }} className="hljs !bg-transparent !p-0 font-mono" />
                     </pre>
                 </div>
             </div>

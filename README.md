@@ -4,7 +4,21 @@ This is the Tauri-based frontend application for the cluaiz engine, directly con
 
 ---
 
+## App workspace extension foundation
+
+Notebook and Library use a shared bundled workspace host, with a private versioned manifest/SDK, owned state and request disposal. Existing routes and screen data remain in place. Local author tooling uses `@cluaiz/extension-sdk` and `@cluaiz/extension-devkit`. Toolkit accepts explicitly approved local UI packages through the isolated browser/native document host, with install, manual update, permissions, enable/disable and uninstall. These unsigned packages are limited to on-demand full workspaces. See [local packages](src/extensions/packages/README.md) for usage and remaining trust/platform boundaries.
+
 ## 🚀 CORE USER FEATURES & FUNCTIONALITIES
+
+Installed workspace extensions also offer Open floating in Toolkit: a separate
+native guest window on desktop, or an App panel in the browser. Their sessions
+survive main-screen navigation while the App runs. Close/Stop, disable and
+uninstall release the matching session. In the desktop App, General Settings →
+Run in background makes main-window close hide to the tray; Show restores the same
+window and Quit Cluaiz exits. With the setting off, normal close exits. Browser
+tabs cannot use this native feature. Headless/background runtime profiles, native
+workers, publisher signing and other OS acceptance
+remain separate work. See [floating lifetime and limits](src/extensions/README.md).
 
 The Visual Matrix is a highly customizable, feature-rich interface giving users absolute control over their local AI and chat environment.
 
@@ -24,39 +38,21 @@ The Visual Matrix is a highly customizable, feature-rich interface giving users 
 
 ---
 
-## ⚙️ NATIVE ARCHITECTURE & FFI IPC
+## Native Engine connection
 
-Unlike standard web apps, this dashboard does not use WebSockets or standard HTTP to communicate with its backend engine. It utilizes **deep OS-level native integration** via Tauri's Rust backend for absolute zero-latency telemetry stream.
+Desktop Native IPC uses a request-owned Windows named pipe or Unix socket. The Engine runs with `serve --native-endpoint <path>` and dispatches the same API paths through its existing authenticated router. Browser and explicitly selected HTTP connections keep the HTTP gateway. The persisted `ffi` setting is a compatibility identifier; this is not in-process FFI or shared memory.
 
 ```mermaid
-graph TD
-    UI["Visual Matrix (React/App.tsx)"] --> Events["Tauri Event Emitter"]
-    Events --> Tauri["Tauri Backend (spawner.rs)"]
-    Tauri -- "Native Named Pipe" --> Pipe["\\\\.\\pipe\\cluaiz_engine_pipe"]
-    Pipe -- "JSON Byte Stream" --> Engine["cluaiz.exe (Production Engine)"]
-    
-    subgraph Windows OS
-        Tauri -. "Grouped under" .-> JobObject["Windows Job Object"]
-        Engine -. "Grouped under" .-> JobObject
-    end
+flowchart TD
+    UI["Existing React API adapters"] --> Transport["Explicit transport selection"]
+    Transport -->|"desktop native"| Host["Tauri start / head / read / cancel"]
+    Host --> Pipe["Request-owned OS pipe or Unix socket"]
+    Pipe --> Gate["Engine session Bearer gate"]
+    Transport -->|"HTTP"| HTTP["Configured HTTP gateway"]
+    Gate --> Router["Existing Axum router and domain handlers"]
+    HTTP --> Router
 ```
 
-### Deep Technical Breakdown: Engine Connection
+The launcher at `app/src-tauri/src/core/engine/spawner.rs` requires an authenticated health reply before reporting readiness. Failed/cancelled startup cleans its owned child. Each request owns its cancellation and bounded response queue; incomplete bodies return errors. Windows job handles preserve owned process-tree cleanup when assignment succeeds. There is no automatic native-to-HTTP fallback or CDQL recovery claim.
 
-The communication between the visual UI and the cluaiz Engine is handled by `src/core/engine/spawner.rs`.
-
-1. **Windows Job Objects (`JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`)**
-   The Tauri app does not merely spawn the `cluaiz.exe` engine; it rigidly groups the Engine process inside a Windows Job Object. This ensures that the OS treats both processes as a single atomic unit. If the Tauri shell dies, the OS guarantees the Engine dies with it, preventing zombie processes.
-   
-2. **Native Named Pipes (IPC)**
-   The Tauri backend connects to the Engine via a native Windows Named Pipe (`\\.\pipe\cluaiz_engine_pipe`) using `tokio::net::windows::named_pipe`. This allows massive throughput of telemetry and AI token generation data at near zero-copy memory speeds, completely bypassing the OS network stack.
-   
-3. **Event Emitter Bridge**
-   The raw byte stream from the pipe is buffered, parsed as JSON lines, and immediately routed to the React frontend via Tauri Events (e.g., `engine_token`, `engine_sys_response`).
-
----
-
-## 🛑 NATIVE FAILURE STATE & RECOVERY
-
-- **Critical Failure Point (Exit Code `4294967295`):** If the frontend triggers an unhandled memory panic or a catastrophic UI failure, the Tauri App shell will crash with `4294967295` (Generic `-1` Unsigned Error). Because of the Windows Job Object integration, the OS immediately detects the shell termination and forcefully kills `cluaiz.exe`. The entire visual matrix safely collapses without leaking resources.
-- **IPC Disconnect Recovery:** If the IPC pipe breaks during normal operation without a panic, the frontend catches the disconnect event and transitions into an "Offline Monitor" state. It continuously polls the Named Pipe to reconnect, and synchronizes lost data via CDQL once the engine is resurrected.
+A matching Engine build is required; an older installed binary without the new CLI option cannot serve native mode. This change does not replace a user's installed Engine automatically. See [transport ownership and limits](src/api/client/README.md) and [native connector](app/src-tauri/src/core/engine/native/README.md). Windows transport/CLI evidence is recorded in the foundation plan; Linux/macOS desktop acceptance remains separate. Local UI package execution uses App-side mediation; direct per-extension Engine authority and publisher signing remain pending.

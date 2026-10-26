@@ -1,38 +1,6 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
-const fs=require('node:fs');
-const path=require('node:path');
-const vm=require('node:vm');
-const ts=require(require.resolve('typescript',{paths:[path.join(__dirname,'../app')]}));
-
-// Only the existing authenticated client boundary is injected; adapters below are real code.
-function load(file,imports){
-    const exports={};
-    const source=fs.readFileSync(path.join(__dirname,'..',file),'utf8');
-    const code=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
-    vm.runInNewContext(code,{exports,AbortController,Error,console,require:name=>{
-        if(!(name in imports))throw Error('Unexpected import '+name);return imports[name];
-    }});
-    return exports;
-}
-function harness(handler){
-    const requests=[];
-    const client={post:async(url,body,options)=>{
-        requests.push({url,body,options});
-        return handler(url,body,options);
-    },get:async()=>{throw Error('Unexpected retired GET endpoint');}};
-    const errors=load('src/api/client/errors.ts',{});
-    const cep=load('src/api/client/cep.ts',{'./client':{client},'./errors':errors});
-    const permission=load('src/api/engine/permission/permission.api.ts',{
-        '../../client':{client},'../../client/cep':cep,'../../client/errors':errors,
-        './permission.endpoints':{PERMISSION_ENDPOINTS:{}},
-    });
-    const models=load('src/api/engine/models/models.api.ts',{
-        '../../client':{client},'../../client/cep':cep,'../../client/errors':errors,
-        '../permission/permission.api':permission,'./models.endpoints':{MODELS_ENDPOINTS:{}},
-    });
-    return {...cep,...permission,...models,errors,requests,client};
-}
+const {load,harness}=require('./cepHarness.cjs');
 const result=(request,value)=>({jsonrpc:'2.0',id:request.id,result:value});
 
 test('CEP preserves concurrent response identity and transport options',async()=>{

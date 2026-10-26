@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { 
     Terminal as TerminalIcon, X, Maximize2, Minimize2, Plus, 
-    ChevronDown, Shield, ShieldAlert, ShieldCheck, Loader2, Check, Ban 
+    ChevronDown, Loader2 
 } from 'lucide-react';
 import { Terminal as XTerm } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
@@ -10,11 +10,38 @@ import { ProjectFile } from '../types';
 import { useSystemStore } from '../../../api/engine/system/system.store';
 import type { CmdResponse } from '../../../api/engine/system/system.types';
 import { FileIcon, FolderIcon } from 'react-material-icon-theme';
+import { useThemeStore } from '../../../store/ui/useThemeStore';
+import { useProjectStore } from '../../../store/workspace/useProjectStore';
 
-export type SecurityMode = 'full_access' | 'sandboxed' | 'strict';
+const sendEngineCmd = (command: string, timeoutMs?: number): Promise<CmdResponse> => {
+    return useSystemStore.getState().executeCommand(command, timeoutMs);
+};
 
-const sendEngineCmd = (command: string): Promise<CmdResponse> => {
-    return useSystemStore.getState().executeCommand(command);
+// Pure path validation guard across Windows, Linux and macOS
+const isValidPath = (p: string | undefined | null, isWin: boolean): boolean => {
+    if (!p || typeof p !== 'string') return false;
+    const clean = p.trim();
+    if (clean.length < 2) return false;
+    if (clean.includes('\n') || clean.includes('\r')) return false;
+    const lower = clean.toLowerCase();
+    if (
+        lower.includes('failed') || 
+        lower.includes('http://') || 
+        lower.includes('https://') || 
+        lower.includes('engine connection') || 
+        lower.includes('cannot find') ||
+        lower.includes('not recognized') ||
+        lower.includes('syntax is incorrect') ||
+        lower.includes('no such file') ||
+        clean.includes('& {') ||
+        clean.includes('powershell')
+    ) {
+        return false;
+    }
+    if (isWin) {
+        return /^[a-zA-Z]:[\\/]/.test(clean) || clean.startsWith('\\\\');
+    }
+    return clean.startsWith('/') || clean.startsWith('~');
 };
 
 export interface TerminalTarget {
@@ -49,6 +76,7 @@ export const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
     onClose,
     cwd: initialCwd,
     terminalTarget,
+    files = {},
     projectName = 'workspace',
     rootPath,
 }) => {
@@ -65,24 +93,33 @@ export const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
         ? 'powershell' 
         : isMac ? 'zsh' : 'bash';
 
+    const { theme } = useThemeStore();
+
     const [systemCwd, setSystemCwd] = useState<string>(() => {
-        try { return localStorage.getItem('cluaiz_user_profile_dir') || ''; } catch { return ''; }
+        try {
+            const stored = localStorage.getItem('cluaiz_user_profile_dir') || '';
+            if (isValidPath(stored, isWindows)) {
+                return stored;
+            }
+            localStorage.removeItem('cluaiz_user_profile_dir');
+            return '';
+        } catch { return ''; }
     });
 
-    const getBaseRootPath = useCallback(() => rootPath || systemCwd || '', [rootPath, systemCwd]);
+    const getBaseRootPath = useCallback(() => rootPath || (isValidPath(systemCwd, isWindows) ? systemCwd : '') || '', [rootPath, systemCwd, isWindows]);
 
-    // Proactively resolve host user profile directory ($env:USERPROFILE) when no workspace is open
+    // Proactively resolve host user profile directory ($env:USERPROFILE / $HOME) when no workspace is open
     useEffect(() => {
         if (!rootPath) {
-            const probeCmd = isWindows 
-                ? 'powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$env:USERPROFILE"' 
-                : 'echo $HOME';
+            const probeCmd = isWindows ? 'echo %USERPROFILE%' : 'echo $HOME';
             sendEngineCmd(probeCmd).then(res => {
-                const probed = res?.output?.trim().split(/[\r\n]+/)[0]?.trim();
-                if (probed && probed.length > 1) {
-                    try { localStorage.setItem('cluaiz_user_profile_dir', probed); } catch {}
-                    setSystemCwd(probed);
-                    setSessions(prev => prev.map(s => (s.id === 'sess-1' && !s.cwd) ? { ...s, cwd: probed } : s));
+                if (res?.status === 'success' && res.output) {
+                    const probed = res.output.trim().split(/[\r\n]+/)[0]?.trim();
+                    if (isValidPath(probed, isWindows)) {
+                        try { localStorage.setItem('cluaiz_user_profile_dir', probed); } catch {}
+                        setSystemCwd(probed);
+                        setSessions(prev => prev.map(s => (s.id === 'sess-1' && (!s.cwd || !isValidPath(s.cwd, isWindows))) ? { ...s, cwd: probed } : s));
+                    }
                 }
             }).catch(() => {});
         }
@@ -90,8 +127,6 @@ export const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
 
     const [terminalHeight, setTerminalHeight] = useState(250);
     const [isMaximized, setIsMaximized] = useState(false);
-    const [securityMode, setSecurityMode] = useState<SecurityMode>('sandboxed');
-    const [pendingReviewCmd, setPendingReviewCmd] = useState<string | null>(null);
     const [isExecuting, setIsExecuting] = useState(false);
     const [isNewMenuOpen, setIsNewMenuOpen] = useState(false);
 
@@ -198,10 +233,11 @@ export const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
             ? (isAbsolute ? normalizedSub : `${getBaseRootPath()}${sep}${normalizedSub}`)
             : getBaseRootPath();
 
-        // Proactively ensure target folder exists on disk via engine
+        // Proactively ensure target folder exists on disk via native engine command
+        const cleanTargetPath = targetPath.replace(/^["']|["']$/g, '').trim();
         const mkdirCmd = isWindows 
-            ? `powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "if (-not (Test-Path -LiteralPath '${targetPath}')) { New-Item -ItemType Directory -Path '${targetPath}' -Force | Out-Null }"`
-            : `mkdir -p "${targetPath}"`;
+            ? `if not exist "${cleanTargetPath}" mkdir "${cleanTargetPath}"`
+            : `mkdir -p "${cleanTargetPath}"`;
         sendEngineCmd(mkdirCmd).catch(() => {});
 
         const existing = sessionsRef.current.find(s => s.cwd.toLowerCase() === targetPath.toLowerCase());
@@ -251,65 +287,138 @@ export const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
             return;
         }
 
-        // Strict Review check
-        if (securityMode === 'strict' && !pendingReviewCmd) {
-            setPendingReviewCmd(trimmed);
-            return;
-        }
-
-        // Sandboxed check
-        if (securityMode === 'sandboxed') {
-            const forbiddenPaths = ['c:\\windows', 'c:\\program files', '/etc', '/bin', '/usr'];
-            const lower = trimmed.toLowerCase();
-            const touchesForbidden = forbiddenPaths.some(fp => lower.includes(fp));
-            if (touchesForbidden && !pendingReviewCmd) {
-                setPendingReviewCmd(trimmed);
-                return;
-            }
-        }
+        // Effective directory fallback
+        const effectiveCwd = (isValidPath(curSession.cwd, isWindows) ? curSession.cwd : '') || 
+                             (isValidPath(systemCwd, isWindows) ? systemCwd : '') || 
+                             rootPath || 
+                             (isWindows ? 'C:\\Users' : '.');
 
         setIsExecuting(true);
         term.write('\r\n');
 
         try {
-            // Effective directory fallback
-            const effectiveCwd = curSession.cwd || systemCwd || '.';
-            const safeCwd = effectiveCwd.replace(/'/g, "''");
-
-            // Builtin cd navigation
-            if (trimmed.toLowerCase().startsWith('cd ') || trimmed.toLowerCase() === 'cd') {
-                const target = trimmed.slice(2).trim();
-                if (!target) {
-                    term.writeln(`\x1b[90m${effectiveCwd}\x1b[0m`);
-                    printPrompt(effectiveCwd, curSession.shellType);
-                    setIsExecuting(false);
-                    return;
-                }
-
-                const script = `& { if (-not (Test-Path -LiteralPath '${safeCwd}')) { New-Item -ItemType Directory -Path '${safeCwd}' -Force | Out-Null }; Set-Location -LiteralPath '${safeCwd}'; Set-Location '${target.replace(/'/g, "''")}'; (Get-Location).Path }`;
-                const data = await sendEngineCmd(`powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "${script}"`);
-                if (data.status === 'success' && data.output) {
-                    const lines = data.output.trim().split('\n');
-                    const resolved = lines[lines.length - 1]?.trim();
-                    if (resolved && resolved.length > 2) {
-                        curSession.cwd = resolved;
-                        setSessions([...sessionsRef.current]);
-                    }
+            // Builtin cd navigation: handles cd, cd .., cd.., cd/, cd\, cd~, cd <path>
+            const cdRegex = /^cd(\.\.|[\/\\]|~|\s.*|$)/i;
+            if (cdRegex.test(trimmed)) {
+                let target = '';
+                if (/^cd\.\./i.test(trimmed)) {
+                    target = '..' + trimmed.slice(4);
+                } else if (/^cd[\/\\]/i.test(trimmed)) {
+                    target = trimmed.slice(2);
+                } else if (/^cd~/i.test(trimmed)) {
+                    target = '~' + trimmed.slice(3);
                 } else {
-                    term.writeln(`\x1b[31mSet-Location: Cannot find path '${target}' because it does not exist.\x1b[0m`);
+                    target = trimmed.slice(2).trim();
                 }
-                printPrompt(curSession.cwd || effectiveCwd, curSession.shellType);
-                setIsExecuting(false);
+
+                // Strip surrounding quotes
+                target = target.replace(/^["']|["']$/g, '').trim();
+
+                if (!target) {
+                    if (isWindows) {
+                        term.writeln(`\x1b[90m${effectiveCwd}\x1b[0m`);
+                        return;
+                    } else {
+                        target = '~';
+                    }
+                }
+
+                // Handle tilde home alias
+                if (target === '~' || target.startsWith('~/') || target.startsWith('~\\')) {
+                    const homeDir = systemCwd || (isWindows ? 'C:\\Users' : '/');
+                    target = target === '~' ? homeDir : target.replace('~', homeDir);
+                }
+
+                const cleanCwd = effectiveCwd.replace(/^["']|["']$/g, '').trim();
+                const cleanTarget = target.replace(/^["']|["']$/g, '').trim();
+
+                const navCmd = isWindows
+                    ? `cd /d ${cleanCwd} && cd ${cleanTarget} && cd`
+                    : `cd "${cleanCwd}" && cd "${cleanTarget}" && pwd`;
+
+                const data = await sendEngineCmd(navCmd);
+                let resolved: string | undefined;
+
+                if (data.status === 'success' && data.output) {
+                    const lines = data.output.trim().split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+                    const candidate = lines[lines.length - 1];
+                    if (candidate && isValidPath(candidate, isWindows)) {
+                        resolved = candidate;
+                    }
+                }
+
+                // If direct cd failed, try Smart Workspace Directory Auto-Jump
+                if (!resolved && !cleanTarget.startsWith('.') && !cleanTarget.includes('/') && !cleanTarget.includes('\\')) {
+                    // Check in files prop first (fast in-memory lookup)
+                    let matchedSubdir = '';
+                    const lowerTarget = cleanTarget.toLowerCase();
+                    for (const f of Object.values(files || {}) as ProjectFile[]) {
+                        if (!f?.path) continue;
+                        const norm = f.path.replace(/\\/g, '/');
+                        const parts = norm.split('/');
+                        for (let i = 1; i < parts.length; i++) {
+                            const dirPart = parts.slice(0, i).join('/');
+                            const dirName = parts[i - 1]?.toLowerCase();
+                            if (dirName === lowerTarget || dirPart.toLowerCase().endsWith('/' + lowerTarget)) {
+                                matchedSubdir = dirPart;
+                                break;
+                            }
+                        }
+                        if (matchedSubdir) break;
+                    }
+
+                    if (matchedSubdir) {
+                        const subCmd = isWindows
+                            ? `cd /d ${cleanCwd} && cd ${matchedSubdir.replace(/\//g, '\\')} && cd`
+                            : `cd "${cleanCwd}" && cd "${matchedSubdir}" && pwd`;
+                        const subRes = await sendEngineCmd(subCmd);
+                        if (subRes.status === 'success' && subRes.output) {
+                            const subLines = subRes.output.trim().split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+                            const subCandidate = subLines[subLines.length - 1];
+                            if (subCandidate && isValidPath(subCandidate, isWindows)) {
+                                resolved = subCandidate;
+                                term.writeln(`\x1b[90m-> Auto-jumped to workspace folder: ${matchedSubdir}\x1b[0m`);
+                            }
+                        }
+                    }
+
+                    // Fallback to fast OS deep probe if not found in files prop
+                    if (!resolved) {
+                        const probeCmd = isWindows
+                            ? `cd /d ${cleanCwd} && dir /s /b /ad ${cleanTarget} 2>nul`
+                            : `find "${cleanCwd}" -maxdepth 5 -type d -name "${cleanTarget}" 2>/dev/null`;
+                        const probeRes = await sendEngineCmd(probeCmd);
+                        if (probeRes.status === 'success' && probeRes.output) {
+                            const firstFound = probeRes.output.trim().split(/\r?\n/).map(l => l.trim()).filter(Boolean)[0];
+                            if (firstFound && isValidPath(firstFound, isWindows)) {
+                                resolved = firstFound;
+                                term.writeln(`\x1b[90m-> Auto-jumped to workspace folder: ${firstFound}\x1b[0m`);
+                            }
+                        }
+                    }
+                }
+
+                if (resolved && isValidPath(resolved, isWindows)) {
+                    curSession.cwd = resolved;
+                    setSessions([...sessionsRef.current]);
+                } else {
+                    const errMsg = data.output?.trim() || `The system cannot find the path specified.`;
+                    term.writeln(`\x1b[31m${errMsg}\x1b[0m`);
+                }
                 return;
             }
 
-            // General command execution inside session cwd
-            const escaped = trimmed.replace(/"/g, '`"');
-            const pwshScript = curSession.shellType === 'cmd'
-                ? `& { if (-not (Test-Path -LiteralPath '${safeCwd}')) { New-Item -ItemType Directory -Path '${safeCwd}' -Force | Out-Null }; Set-Location -LiteralPath '${safeCwd}'; cmd.exe /c "${trimmed.replace(/"/g, '\\"')}" }`
-                : `& { if (-not (Test-Path -LiteralPath '${safeCwd}')) { New-Item -ItemType Directory -Path '${safeCwd}' -Force | Out-Null }; Set-Location -LiteralPath '${safeCwd}'; ${escaped} }`;
-            const data = await sendEngineCmd(`powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "${pwshScript}"`);
-            if (data.output) {
+            // General command execution inside session cwd (native Windows cmd / Unix sh)
+            const cleanCwd = effectiveCwd.replace(/^["']|["']$/g, '').trim();
+            const hostCmd = isWindows
+                ? `cd /d ${cleanCwd} && ${trimmed}`
+                : `cd "${cleanCwd}" && ${trimmed}`;
+
+            const data = await sendEngineCmd(hostCmd);
+            if (data.status === 'error' && (data.output?.includes('Engine connection failed') || data.output?.includes('Failed to fetch'))) {
+                term.writeln(`\x1b[33m[Cluaiz Engine Offline]\x1b[0m Cannot execute host command.`);
+                term.writeln(`\x1b[90mThe local Cluaiz engine backend (http://127.0.0.1:8000) is offline. Start the Cluaiz engine to execute system commands.\x1b[0m`);
+            } else if (data.output) {
                 const cleanOutput = data.output.replace(/\r?\n/g, '\r\n');
                 if (data.status === 'error') {
                     term.writeln(`\x1b[31m${cleanOutput}\x1b[0m`);
@@ -321,10 +430,53 @@ export const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
             term.writeln(`\x1b[31m[Cluaiz Engine Error]: ${err?.message || err}\x1b[0m`);
         } finally {
             setIsExecuting(false);
-            setPendingReviewCmd(null);
-            printPrompt(curSession.cwd, curSession.shellType);
+            printPrompt(curSession.cwd || effectiveCwd, curSession.shellType, undefined, false);
+            // Instant Live File Tree Auto-Sync (like VS Code): automatically update workspace tree after terminal commands
+            useProjectStore.getState().syncFromDisk().catch(() => {});
         }
-    }, [printPrompt, securityMode, pendingReviewCmd, getActiveSession]);
+    }, [printPrompt, getActiveSession, isWindows, systemCwd, rootPath, files]);
+
+    // Dynamic XTerm theme generator from active CSS tokens
+    const getXTermTheme = useCallback(() => {
+        const computed = typeof window !== 'undefined' ? getComputedStyle(document.documentElement) : null;
+        const bgPrimary = computed?.getPropertyValue('--bg-primary')?.trim() || '#0d1117';
+        const bgSecondary = computed?.getPropertyValue('--bg-secondary')?.trim() || '#161b22';
+        const textPrimary = computed?.getPropertyValue('--text-primary')?.trim() || '#e6edf3';
+        const textMuted = computed?.getPropertyValue('--text-muted')?.trim() || '#8b949e';
+        const accentColor = computed?.getPropertyValue('--accent-color')?.trim() || '#38bdf8';
+        const accentRgb = computed?.getPropertyValue('--accent-color-rgb')?.trim() || '56, 189, 248';
+
+        return {
+            background: bgPrimary,
+            foreground: textPrimary,
+            cursor: accentColor,
+            cursorAccent: bgPrimary,
+            selectionBackground: `rgba(${accentRgb}, 0.28)`,
+            black: bgSecondary,
+            red: '#ff7b72',
+            green: '#3fb950',
+            yellow: '#e3b341',
+            blue: accentColor,
+            magenta: '#d2a8ff',
+            cyan: accentColor,
+            white: textPrimary,
+            brightBlack: textMuted,
+            brightRed: '#ffa198',
+            brightGreen: '#56d364',
+            brightYellow: '#f1e05a',
+            brightBlue: accentColor,
+            brightMagenta: '#e2c5ff',
+            brightCyan: accentColor,
+            brightWhite: '#ffffff',
+        };
+    }, []);
+
+    // Dynamically update terminal theme on active theme switch
+    useEffect(() => {
+        if (xtermRef.current) {
+            xtermRef.current.options.theme = getXTermTheme();
+        }
+    }, [theme, getXTermTheme]);
 
     // Handle Tab Autocompletion
     const handleTabCompletion = useCallback(async () => {
@@ -337,10 +489,18 @@ export const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
         if (!lastWord) return;
 
         try {
-            const effectiveCwd = curSession.cwd || systemCwd || '.';
-            const safeCwd = effectiveCwd.replace(/'/g, "''");
-            const script = `& { if (Test-Path -LiteralPath '${safeCwd}') { Set-Location -LiteralPath '${safeCwd}'; Get-ChildItem -Name | Where-Object { $_ -like '${lastWord}*' } } }`;
-            const data = await sendEngineCmd(`powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "${script}"`);
+            const effectiveCwd = (isValidPath(curSession.cwd, isWindows) ? curSession.cwd : '') || 
+                                 (isValidPath(systemCwd, isWindows) ? systemCwd : '') || 
+                                 rootPath || 
+                                 (isWindows ? 'C:\\Users' : '.');
+            const cleanCwd = effectiveCwd.replace(/^["']|["']$/g, '').trim();
+            const cleanPrefix = lastWord.replace(/^["']|["']$/g, '').trim();
+
+            const tabCmd = isWindows
+                ? `cd /d ${cleanCwd} && dir /b /a ${cleanPrefix}* 2>nul`
+                : `cd "${cleanCwd}" && ls -d ${cleanPrefix}* 2>/dev/null`;
+
+            const data = await sendEngineCmd(tabCmd);
             if (data.status === 'success' && data.output) {
                 const matches = data.output.trim().split(/\r?\n/).map((s: string) => s.trim()).filter(Boolean);
                 if (matches.length === 1) {
@@ -355,7 +515,7 @@ export const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
                 }
             }
         } catch {}
-    }, [getActiveSession, printPrompt]);
+    }, [getActiveSession, printPrompt, isWindows, systemCwd, rootPath]);
 
     const isExecutingRef = useRef(isExecuting);
     isExecutingRef.current = isExecuting;
@@ -376,22 +536,33 @@ export const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
         }
 
         const term = new XTerm({
-            theme: {
-                background: '#0d1117', foreground: '#e6edf3', cursor: '#38bdf8', cursorAccent: '#0d1117',
-                selectionBackground: 'rgba(56, 189, 248, 0.25)', black: '#21262d', red: '#ff7b72',
-                green: '#3fb950', yellow: '#e3b341', blue: '#58a6ff', magenta: '#d2a8ff', cyan: '#39c5cf',
-                white: '#b1bac4', brightBlack: '#6e7681', brightRed: '#ffa198', brightGreen: '#56d364',
-                brightYellow: '#f1e05a', brightBlue: '#79c0ff', brightMagenta: '#e2c5ff', brightCyan: '#56d4dd', brightWhite: '#ffffff',
-            },
+            theme: getXTermTheme(),
             fontFamily: 'Consolas, "Fira Code", monospace, "Courier New"',
-            fontSize: 12, lineHeight: 1.25, cursorBlink: true, cursorStyle: 'bar',
-            allowTransparency: true, convertEol: true,
+            fontSize: 13,
+            lineHeight: 1.35,
+            cursorBlink: true,
+            cursorStyle: 'block',
+            cursorWidth: 2,
+            smoothScrollDuration: 120,
+            scrollback: 5000,
+            allowTransparency: true,
+            convertEol: true,
         });
 
         const fitAddon = new FitAddon();
         term.loadAddon(fitAddon);
         term.open(terminalContainerRef.current);
         fitAddon.fit();
+
+        // Responsive ResizeObserver: ensures canvas & scrollbar stay perfectly synced with container
+        const resizeObserver = new ResizeObserver(() => {
+            requestAnimationFrame(() => {
+                try { fitAddon.fit(); } catch {}
+            });
+        });
+        if (terminalContainerRef.current) {
+            resizeObserver.observe(terminalContainerRef.current);
+        }
 
         // Attach native clipboard copy & paste
         term.attachCustomKeyEventHandler((event: KeyboardEvent) => {
@@ -430,23 +601,34 @@ export const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
         // Clean direct initial prompt with dynamic host path resolution
         const initTerminalPrompt = async () => {
             let activeCwd = curSession.cwd || systemCwd;
-            if (!activeCwd) {
-                try { activeCwd = localStorage.getItem('cluaiz_user_profile_dir') || ''; } catch {}
+            if (!isValidPath(activeCwd, isWindows)) {
+                activeCwd = '';
             }
             if (!activeCwd) {
                 try {
-                    const probeCmd = isWindows 
-                        ? 'powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$env:USERPROFILE"' 
-                        : 'echo $HOME';
-                    const res = await sendEngineCmd(probeCmd);
-                    const probed = res?.output?.trim().split(/[\r\n]+/)[0]?.trim();
-                    if (probed && probed.length > 1) {
-                        activeCwd = probed;
-                        try { localStorage.setItem('cluaiz_user_profile_dir', probed); } catch {}
+                    const stored = localStorage.getItem('cluaiz_user_profile_dir') || '';
+                    if (isValidPath(stored, isWindows)) {
+                        activeCwd = stored;
+                    } else {
+                        localStorage.removeItem('cluaiz_user_profile_dir');
                     }
                 } catch {}
             }
-            const finalCwd = activeCwd || (isWindows ? 'C:\\Users' : '~');
+            if (!activeCwd) {
+                try {
+                    const probeCmd = isWindows ? 'echo %USERPROFILE%' : 'echo $HOME';
+                    const res = await sendEngineCmd(probeCmd);
+                    if (res?.status === 'success' && res.output) {
+                        const probed = res.output.trim().split(/[\r\n]+/)[0]?.trim();
+                        if (isValidPath(probed, isWindows)) {
+                            activeCwd = probed;
+                            try { localStorage.setItem('cluaiz_user_profile_dir', probed); } catch {}
+                        }
+                    }
+                } catch {}
+            }
+            const fallbackPath = rootPath || (isWindows ? 'C:\\Users' : '~');
+            const finalCwd = isValidPath(activeCwd, isWindows) ? activeCwd : fallbackPath;
             curSession.cwd = finalCwd;
             setSystemCwd(finalCwd);
             setSessions(prev => prev.map(s => s.id === curSession.id ? { ...s, cwd: finalCwd } : s));
@@ -511,6 +693,7 @@ export const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
 
         return () => {
             disposable.dispose();
+            resizeObserver.disconnect();
             window.removeEventListener('resize', handleResize);
             term.dispose();
             xtermRef.current = null;
@@ -571,8 +754,8 @@ export const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
 
     return (
         <div 
-            style={{ height: isMaximized ? '80%' : `${terminalHeight}px` }}
-            className="w-full border-t border-[var(--border-color)]/80 bg-[#0d1117] flex flex-col font-mono text-xs flex-shrink-0 z-30 select-none shadow-2xl transition-all duration-150"
+            style={{ height: isMaximized ? '80%' : `${terminalHeight}px`, backgroundColor: 'var(--bg-primary)' }}
+            className="w-full border-t border-[var(--border-color)]/80 flex flex-col font-mono text-xs flex-shrink-0 z-30 select-none shadow-2xl transition-all duration-150"
         >
             {/* Top Resize Dragger */}
             <div 
@@ -582,15 +765,15 @@ export const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
             />
 
             {/* UNIFIED TOP HEADER: Tabs on Left + Controls on Right */}
-            <div className="h-8 border-b border-white/[0.08] bg-zinc-950/90 px-2 flex items-center justify-between flex-shrink-0">
+            <div className="h-8 border-b border-[var(--border-color)]/70 bg-[var(--bg-secondary)] px-2 flex items-center justify-between flex-shrink-0">
                 {/* Left Zone: Title + Inline Tabs + Add Button */}
                 <div className="flex items-center gap-1.5 overflow-x-auto custom-scrollbar flex-1 mr-2">
-                    <span className="flex items-center gap-1.5 text-[11px] font-semibold text-zinc-300 pr-1 shrink-0">
-                        <TerminalIcon className="w-3.5 h-3.5 text-cyan-400" />
+                    <span className="flex items-center gap-1.5 text-[11px] font-semibold text-[var(--text-primary)] pr-1 shrink-0">
+                        <TerminalIcon className="w-3.5 h-3.5 text-[var(--accent-color)]" />
                         TERMINAL
                     </span>
 
-                    <div className="h-3.5 w-px bg-white/10 shrink-0 mx-0.5" />
+                    <div className="h-3.5 w-px bg-[var(--border-color)]/60 shrink-0 mx-0.5" />
 
                     {/* Inline Terminal Session Tabs with Code-Editor Style Icons */}
                     <div className="flex items-center gap-1 overflow-x-auto custom-scrollbar">
@@ -604,8 +787,8 @@ export const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
                                     onClick={() => setActiveSessionId(sess.id)}
                                     className={`group flex items-center gap-1.5 px-2.5 py-1 rounded text-[11px] cursor-pointer transition-all shrink-0 ${
                                         isActive
-                                            ? 'bg-white/[0.10] text-cyan-300 font-medium border border-cyan-500/30'
-                                            : 'text-zinc-400 hover:bg-white/[0.04] hover:text-zinc-200'
+                                            ? 'bg-[var(--accent-color)]/10 text-[var(--accent-color)] font-medium border border-[var(--accent-color)]/30'
+                                            : 'text-[var(--text-muted)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]'
                                     }`}
                                 >
                                     {isFile ? (
@@ -618,7 +801,7 @@ export const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
                                         type="button"
                                         onClick={(e) => handleCloseSession(e, sess.id)}
                                         title="Close Terminal"
-                                        className="opacity-0 group-hover:opacity-100 hover:bg-white/10 p-0.5 rounded text-zinc-500 hover:text-rose-400 transition-all shrink-0"
+                                        className="opacity-0 group-hover:opacity-100 hover:bg-[var(--bg-primary)] p-0.5 rounded text-[var(--text-muted)] hover:text-rose-400 transition-all shrink-0 cursor-pointer"
                                     >
                                         <X className="w-2.5 h-2.5" />
                                     </button>
@@ -629,19 +812,19 @@ export const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
 
                     {/* Add New Session Button (+) with Dropdown */}
                     <div className="relative shrink-0">
-                        <div className="flex items-center rounded hover:bg-white/10 text-zinc-400 hover:text-white transition-colors">
+                        <div className="flex items-center rounded hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors">
                             <button
                                 type="button"
                                 onClick={() => handleAddSession(defaultShell)}
                                 title={`New Terminal (${defaultShell})`}
-                                className="p-1"
+                                className="p-1 cursor-pointer"
                             >
                                 <Plus className="w-3.5 h-3.5" />
                             </button>
                             <button
                                 type="button"
                                 onClick={() => setIsNewMenuOpen(prev => !prev)}
-                                className="p-0.5 pr-1"
+                                className="p-0.5 pr-1 cursor-pointer"
                                 title="Select Shell"
                             >
                                 <ChevronDown className="w-2.5 h-2.5 opacity-70" />
@@ -651,13 +834,13 @@ export const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
                         {isNewMenuOpen && (
                             <>
                                 <div className="fixed inset-0 z-40" onClick={() => setIsNewMenuOpen(false)} />
-                                <div className="absolute left-0 top-full mt-1 w-36 bg-zinc-900 border border-white/10 rounded-lg shadow-2xl p-1 z-50 text-[11px]">
+                                <div className="absolute left-0 top-full mt-1 w-36 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg shadow-2xl p-1 z-50 text-[11px]">
                                     {(isWindows ? ['powershell', 'cmd'] : ['bash', 'zsh']).map((sh) => (
                                         <button
                                             key={sh}
                                             type="button"
                                             onClick={() => handleAddSession(sh as any)}
-                                            className="w-full text-left px-2 py-1 rounded hover:bg-white/10 text-zinc-200 capitalize"
+                                            className="w-full text-left px-2 py-1 rounded hover:bg-[var(--bg-tertiary)] text-[var(--text-primary)] capitalize cursor-pointer"
                                         >
                                             {sh === 'cmd' ? 'Command Prompt' : sh}
                                         </button>
@@ -668,38 +851,10 @@ export const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
                     </div>
                 </div>
 
-                {/* Right Zone: Security Sandbox Selector + Window Controls */}
+                {/* Right Zone: Running indicator + Window Controls */}
                 <div className="flex items-center gap-1.5 shrink-0">
-                    {/* Security Sandbox Mode Selector */}
-                    <div className="flex items-center bg-white/[0.04] p-0.5 rounded-lg border border-white/5 text-[10px]">
-                        <button
-                            type="button"
-                            onClick={() => setSecurityMode('full_access')}
-                            title="Full access: Agents have full access to machine & resources."
-                            className={`flex items-center gap-1 px-1.5 py-0.5 rounded transition-colors ${securityMode === 'full_access' ? 'bg-emerald-500/20 text-emerald-300 font-semibold' : 'text-zinc-500 hover:text-zinc-300'}`}
-                        >
-                            <Shield className="w-2.5 h-2.5" /> Full Access
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setSecurityMode('sandboxed')}
-                            title="Sandboxed: Agents run restricted to trusted folders."
-                            className={`flex items-center gap-1 px-1.5 py-0.5 rounded transition-colors ${securityMode === 'sandboxed' ? 'bg-amber-500/20 text-amber-300 font-semibold' : 'text-zinc-500 hover:text-zinc-300'}`}
-                        >
-                            <ShieldCheck className="w-2.5 h-2.5" /> Sandboxed
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setSecurityMode('strict')}
-                            title="Strict: Terminal commands always require manual review."
-                            className={`flex items-center gap-1 px-1.5 py-0.5 rounded transition-colors ${securityMode === 'strict' ? 'bg-rose-500/20 text-rose-300 font-semibold' : 'text-zinc-500 hover:text-zinc-300'}`}
-                        >
-                            <ShieldAlert className="w-2.5 h-2.5" /> Strict
-                        </button>
-                    </div>
-
                     {isExecuting && (
-                        <span className="flex items-center gap-1 text-[10px] text-cyan-400 font-mono animate-pulse">
+                        <span className="flex items-center gap-1.5 text-[11px] text-[var(--accent-color)] font-mono animate-pulse mr-1">
                             <Loader2 className="w-3 h-3 animate-spin" />
                             Running...
                         </span>
@@ -713,66 +868,25 @@ export const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
                             setTimeout(() => fitAddonRef.current?.fit(), 160);
                         }}
                         title={isMaximized ? "Restore" : "Maximize"}
-                        className="p-1 rounded hover:bg-white/10 text-zinc-400 hover:text-white transition-colors"
+                        className="p-1 rounded hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
                     >
-                        {isMaximized ? <Minimize2 className="w-3 h-3" /> : <Maximize2 className="w-3 h-3" />}
+                        {isMaximized ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
                     </button>
                     <button
                         type="button"
                         onClick={onClose}
                         title="Close Terminal"
-                        className="p-1 rounded hover:bg-rose-500/20 text-zinc-400 hover:text-rose-400 transition-colors"
+                        className="p-1 rounded hover:bg-rose-500/20 text-[var(--text-muted)] hover:text-rose-400 transition-colors cursor-pointer"
                     >
-                        <X className="w-3 h-3" />
+                        <X className="w-3.5 h-3.5" />
                     </button>
                 </div>
             </div>
 
-            {/* Strict / Sandbox Review Modal Banner */}
-            {pendingReviewCmd && (
-                <div className="bg-amber-950/90 border-b border-amber-500/30 px-3 py-1.5 flex items-center justify-between text-[11px] text-amber-200">
-                    <span className="flex items-center gap-1.5 font-mono">
-                        <ShieldAlert className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                        <span>Confirm Command:</span>
-                        <code className="bg-black/40 px-1.5 py-0.5 rounded text-white font-bold">{pendingReviewCmd}</code>
-                    </span>
-                    <div className="flex items-center gap-2">
-                        <button
-                            type="button"
-                            onClick={() => {
-                                const cmd = pendingReviewCmd;
-                                setPendingReviewCmd(null);
-                                setTimeout(() => executeOnSystem(cmd), 40);
-                            }}
-                            className="flex items-center gap-1 px-2.5 py-0.5 rounded bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 font-semibold border border-emerald-500/30 transition-colors cursor-pointer"
-                        >
-                            <Check className="w-3 h-3" />
-                            Run
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => {
-                                setPendingReviewCmd(null);
-                                const term = xtermRef.current;
-                                if (term) {
-                                    term.writeln('\r\n\x1b[31mCancelled by user.\x1b[0m');
-                                    const sess = getActiveSession();
-                                    printPrompt(sess.cwd, sess.shellType);
-                                }
-                            }}
-                            className="flex items-center gap-1 px-2.5 py-0.5 rounded bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 font-semibold border border-rose-500/30 transition-colors cursor-pointer"
-                        >
-                            <Ban className="w-3 h-3" />
-                            Deny
-                        </button>
-                    </div>
-                </div>
-            )}
-
             {/* 100% Full-Width xterm.js Canvas Container with Right-Click Paste */}
             <div 
                 ref={terminalContainerRef}
-                className="flex-1 w-full h-full overflow-hidden p-2 select-text"
+                className="flex-1 w-full h-full overflow-hidden select-text relative terminal-viewport-container"
                 onContextMenu={(e) => {
                     e.preventDefault();
                     if (xtermRef.current?.hasSelection()) {

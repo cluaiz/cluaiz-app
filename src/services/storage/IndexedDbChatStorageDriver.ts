@@ -77,6 +77,7 @@ export class IndexedDbChatStorageDriver implements IChatStorageDriver {
                             if (s?.id) {
                                 existingMap.set(s.id, {
                                     id: s.id,
+                                    extensionId: s.extensionId,
                                     title: s.title || 'New Chat',
                                     createdAt: s.createdAt || Date.now(),
                                     updatedAt: s.updatedAt || Date.now(),
@@ -92,6 +93,7 @@ export class IndexedDbChatStorageDriver implements IChatStorageDriver {
                         if (m?.id && !existingMap.has(m.id)) {
                             existingMap.set(m.id, {
                                 id: m.id,
+                                extensionId: m.extensionId,
                                 title: m.title || 'New Chat',
                                 createdAt: m.createdAt || Date.now(),
                                 updatedAt: m.updatedAt || Date.now(),
