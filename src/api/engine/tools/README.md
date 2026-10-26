@@ -1,8 +1,8 @@
-# Component: installed tool discovery
+# Component: installed tool discovery and lifecycle
 
 ## Technical specification
 
-- **Purpose:** one typed owner for installed skill/plugin/MCP discovery. Lifecycle, execution, settings and file operations have separate contracts.
+- **Purpose:** shared owners for installed skill/plugin/MCP discovery and install/remove. Execution, settings and file operations have separate contracts.
 - **Transport:** shared callCep and authenticated client, using the selected HTTP or desktop native IPC connection. Features do not construct tools.list envelopes or Engine URLs.
 - **Wire:** tools.list accepts optional kind (skill/plugin/mcp), returning real registry entries and function metadata. These are protocol categories, not hardcoded package names.
 - **Ownership:** catalog.ts validates records once; existing components/category APIs delegate. No second client, registry or global cache is added.
@@ -31,6 +31,8 @@ flowchart LR
 | pluginsApi.listPlugins | Existing status/plugins container with actual entries |
 | mcpApi.listMcp | Existing status/mcp_servers container with actual entries |
 | useToolsStore.refreshAll | One catalog request; category counts and toolsCount from that reply |
+| skillsApi.installSkill / pluginsApi.installPlugin / mcpApi.installMcp | Shared lifecycle.ts → tools.install once → cepTask.ts waits for tasks.result |
+| Category remove methods | Shared tools.remove; validate returned kind/name before App success |
 
 - **Metadata:** actual id/name, description, state, version and functions are retained. The touched ToolsSettings/ChatInput fallbacks that fabricated version1.0.0, display names or enabled state were removed.
 - **Counts:** toolsCount means installed packages, not functions or tools bound to a chat. The unused sessionToolsCount name was corrected; no feature consumer was found. Per-chat binding uses chat.tools/set_tools, still pending in the old session adapter.
@@ -41,10 +43,13 @@ flowchart LR
 ## Files and remaining migration
 
 - **catalog.ts:** one wire request/validator and existing components projection.
-- **Category APIs:** thin discovery delegates; their obsolete list URL constants were removed. Remaining old endpoint constants do not prove those operations work.
+- **Category APIs:** thin discovery/lifecycle delegates; retired list/install/remove URL constants are removed. Cache constants still mark pending migration.
+- **lifecycle.ts:** validates package target and matching install/remove result. The existing status/message shape is an App projection after actual success, not a CEP envelope.
+- **cepTask.ts (client):** starts once, validates method/task identity and waits in Engine-supported 30-second result windows with a 35-second transport timeout. Only CEP timeout errors trigger status inspection; failed/cancelled/approval/transport errors propagate. A terminal task whose own operation timed out is not polled forever. Waiting has no fixed total deadline, matching the previous install contract.
+- **Abort semantics:** an optional signal stops client observation. This does not cancel or roll back installation on the Engine; its task may finish after disconnection. No automatic install retry or server cancellation is added.
 - **tools.store.ts:** one read per count refresh. Separate feature consumers may each read; no cross-component cache is promised.
 - **Features:** retain current visuals and consume real rich metadata through adapters.
-- **Still pending:** install/remove, settings/cache, inspector file editing, dynamic execution, old session tools adapter and permission/task workflows. The list can load; remaining action buttons are not certified by these discovery checks.
+- **Still pending:** settings/cache, inspector file editing, dynamic execution, old session tools adapter and permission/task UI workflows. Lifecycle adapter checks do not certify these other action buttons, every package, or native execution.
 
 ## Verification
 

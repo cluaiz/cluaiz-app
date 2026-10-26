@@ -1,6 +1,7 @@
 import { client } from '../../../client';
 import { SKILLS_ENDPOINTS } from './skills.endpoints';
 import { listTools } from '../catalog';
+import { installTool, removeTool } from '../lifecycle';
 import type {
   SkillListResponse,
   SkillActionResponse,
@@ -19,26 +20,17 @@ export const skillsApi = {
 
   /**
    * Installs a WASM skill natively into the engine.
-   * POST /v1/skills/install
+   * Waits for the CEP tools.install task's real result.
    */
-  installSkill: async (skillName: string): Promise<SkillActionResponse> => {
-    return client.post<SkillActionResponse>(
-      SKILLS_ENDPOINTS.INSTALL,
-      { skill_name: skillName },
-      // The engine answers after the download finishes, so no fixed timeout.
-      { timeoutMs: 0 }
-    );
-  },
+  installSkill: (skillName: string, signal?: AbortSignal): Promise<SkillActionResponse> =>
+    installTool('skill', skillName, signal),
 
   /**
    * Removes an installed WASM skill.
-   * DELETE /v1/skills/remove
+   * CEP tools.remove, preserving refusal and package identity.
    */
-  removeSkill: async (skillName: string): Promise<SkillActionResponse> => {
-    return client.delete<SkillActionResponse>(SKILLS_ENDPOINTS.REMOVE, {
-      body: { skill_name: skillName },
-    });
-  },
+  removeSkill: (skillName: string, signal?: AbortSignal): Promise<SkillActionResponse> =>
+    removeTool('skill', skillName, signal),
 
   /**
    * Lists the WASM skills cache report.

@@ -1,9 +1,7 @@
 /**
  * Cluaiz Engine Plugins Endpoints
- * Matches routes.rs:61-66
+ * Remaining legacy cache route; lifecycle uses the shared CEP adapter.
  */
 export const PLUGINS_ENDPOINTS = {
-  INSTALL: '/v1/plugins/install',
-  REMOVE: '/v1/plugins/remove',
   CACHE: '/v1/plugins/cache',
 } as const;

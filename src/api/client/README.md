@@ -25,6 +25,8 @@ HTTP/1 syntax is reused **inside the OS IPC connection**. Native-only mode does 
 
 ## Interface and behavior
 
+- `cep.ts` validates JSON-RPC identity and preserves Engine domain errors through the existing authenticated client. `cepTask.ts` starts task methods once and waits for their actual result; it does not treat the initial task descriptor as success. Install callers share it. Aborting stops observation, not server work or package changes. Task state is Engine memory and may disappear after restart/expiry; that error propagates.
+
 - `engineFetch(input, init)` returns a normal `Response`. JSON, binary and existing SSE parsers consume the same body stream.
 - `createNativeFetch(invoke, engineBaseUrl)` accepts root-relative paths or URLs matching the configured Engine origin. Foreign origins, embedded credentials, fragments and ambiguous URL input reject before invocation.
 - The native host selects its endpoint and reads its Engine session token. Frontend headers cannot override native auth, host or transfer framing. No arbitrary socket/remote connector is exposed to the WebView.

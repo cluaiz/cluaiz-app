@@ -1,6 +1,7 @@
 import { client } from '../../../client';
 import { PLUGINS_ENDPOINTS } from './plugins.endpoints';
 import { listTools } from '../catalog';
+import { installTool, removeTool } from '../lifecycle';
 import type {
   PluginListResponse,
   PluginActionResponse,
@@ -19,26 +20,17 @@ export const pluginsApi = {
 
   /**
    * Installs a plugin natively into the engine.
-   * POST /v1/plugins/install
+   * Waits for the CEP tools.install task's real result.
    */
-  installPlugin: async (pluginName: string): Promise<PluginActionResponse> => {
-    return client.post<PluginActionResponse>(
-      PLUGINS_ENDPOINTS.INSTALL,
-      { plugin_name: pluginName },
-      // The engine answers after the download finishes, so no fixed timeout.
-      { timeoutMs: 0 }
-    );
-  },
+  installPlugin: (pluginName: string, signal?: AbortSignal): Promise<PluginActionResponse> =>
+    installTool('plugin', pluginName, signal),
 
   /**
    * Removes an installed plugin.
-   * DELETE /v1/plugins/remove
+   * CEP tools.remove, preserving refusal and package identity.
    */
-  removePlugin: async (pluginName: string): Promise<PluginActionResponse> => {
-    return client.delete<PluginActionResponse>(PLUGINS_ENDPOINTS.REMOVE, {
-      body: { plugin_name: pluginName },
-    });
-  },
+  removePlugin: (pluginName: string, signal?: AbortSignal): Promise<PluginActionResponse> =>
+    removeTool('plugin', pluginName, signal),
 
   /**
    * Lists plugin cache report.

@@ -1,6 +1,7 @@
 import { client } from '../../../client';
 import { MCP_ENDPOINTS } from './mcp.endpoints';
 import { listTools } from '../catalog';
+import { installTool, removeTool } from '../lifecycle';
 import type {
   McpListResponse,
   McpActionResponse,
@@ -19,26 +20,17 @@ export const mcpApi = {
 
   /**
    * Installs or registers an MCP server natively.
-   * POST /v1/mcp/install
+   * Waits for the CEP tools.install task's real result.
    */
-  installMcp: async (mcpName: string): Promise<McpActionResponse> => {
-    return client.post<McpActionResponse>(
-      MCP_ENDPOINTS.INSTALL,
-      { mcp_name: mcpName },
-      // The engine answers after the download finishes, so no fixed timeout.
-      { timeoutMs: 0 }
-    );
-  },
+  installMcp: (mcpName: string, signal?: AbortSignal): Promise<McpActionResponse> =>
+    installTool('mcp', mcpName, signal),
 
   /**
    * Removes an installed MCP server.
-   * DELETE /v1/mcp/remove
+   * CEP tools.remove, preserving refusal and package identity.
    */
-  removeMcp: async (mcpName: string): Promise<McpActionResponse> => {
-    return client.delete<McpActionResponse>(MCP_ENDPOINTS.REMOVE, {
-      body: { mcp_name: mcpName },
-    });
-  },
+  removeMcp: (mcpName: string, signal?: AbortSignal): Promise<McpActionResponse> =>
+    removeTool('mcp', mcpName, signal),
 
   /**
    * Lists MCP cache report.
