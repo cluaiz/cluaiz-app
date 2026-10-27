@@ -86,7 +86,6 @@ export const usePermissionStore = create<PermissionState>((set, get) => {
         const sessionToken = await nativeApi.getSessionToken();
         if (started !== epoch) return null;
         if (sessionToken && sessionToken.trim()) {
-          http.setToken(sessionToken.trim());
           return sessionToken.trim();
         }
       }

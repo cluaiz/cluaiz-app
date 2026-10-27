@@ -3,6 +3,8 @@ import { engineFetch } from './transport';
 import { useConnectionStore } from '../../store/engine/useConnectionStore';
 import type { RequestOptions, AuthTokenSyncHandler } from './types';
 export type { RequestOptions, AuthTokenSyncHandler };
+type StopCause = 'connection' | 'cancelled' | 'timeout';
+interface AuthSynchronization { connection: number; credential: number; handler: number; task: Promise<string | null>; }
 
 /**
  * HTTP Transport Client
@@ -16,14 +18,40 @@ export type { RequestOptions, AuthTokenSyncHandler };
 class HttpClient {
   private cachedToken: string | null = null;
   private authTokenSyncHandler: AuthTokenSyncHandler | null = null;
-  private isSyncingToken = false;
+  private connectionVersion = 0;
+  private credentialVersion = 0;
+  private handlerVersion = 0;
+  private authSynchronization: AuthSynchronization | null = null;
+  private readonly observations = new Set<(cause: StopCause) => void>();
   private readonly defaultTimeoutMs = 10000;
+
+  constructor() {
+    useConnectionStore.subscribe((current, previous) => {
+      if (current.protocol !== previous.protocol || current.host !== previous.host || current.port !== previous.port) {
+        ++this.connectionVersion;
+        for (const stop of this.observations) stop('connection');
+      }
+    });
+  }
 
   /**
    * Registers a domain-level token synchronization callback for 401 retries
    */
   public setAuthTokenSyncHandler(handler: AuthTokenSyncHandler | null): void {
+    ++this.handlerVersion;
     this.authTokenSyncHandler = handler;
+  }
+
+  private synchronizeAuth(handler: AuthTokenSyncHandler): Promise<string | null> {
+    const current = this.authSynchronization;
+    if (current && current.connection === this.connectionVersion && current.credential === this.credentialVersion
+      && current.handler === this.handlerVersion) return current.task;
+    const synchronization = { connection: this.connectionVersion, credential: this.credentialVersion,
+      handler: this.handlerVersion, task: Promise.resolve().then(() => handler()) };
+    this.authSynchronization = synchronization;
+    const finish = () => { if (this.authSynchronization === synchronization) this.authSynchronization = null; };
+    void synchronization.task.then(finish, finish);
+    return synchronization.task;
   }
 
   /**
@@ -49,6 +77,7 @@ class HttpClient {
    * Sets or clears the active token in memory & storage
    */
   public setToken(token: string | null): void {
+    ++this.credentialVersion;
     this.cachedToken = token ? token.trim() : null;
     if (typeof window !== 'undefined') {
       try {
@@ -90,117 +119,114 @@ class HttpClient {
    */
   public async request<T = unknown>(
     path: string,
-    options: RequestOptions & { method?: string; body?: unknown } = {},
-    retryCount = 0
+    options: RequestOptions & { method?: string; body?: unknown } = {}
   ): Promise<T> {
+    const version = this.connectionVersion;
     const baseUrl = this.getBaseUrl();
-    let url = path.startsWith('http://') || path.startsWith('https://')
-      ? path
-      : `${baseUrl}${path.startsWith('/') ? path : `/${path}`}`;
-
-    // Append query parameters if provided
+    let url = /^https?:\/\//.test(path) ? path : baseUrl + (path.startsWith('/') ? path : '/' + path);
     if (options.params) {
-      const searchParams = new URLSearchParams();
-      for (const [key, value] of Object.entries(options.params)) {
-        if (value !== undefined) {
-          searchParams.append(key, String(value));
-        }
-      }
-      const qs = searchParams.toString();
-      if (qs) {
-        url += (url.includes('?') ? '&' : '?') + qs;
-      }
+      const params = new URLSearchParams();
+      for (const [key, value] of Object.entries(options.params)) if (value !== undefined) params.append(key, String(value));
+      if (params.size) url += (url.includes('?') ? '&' : '?') + params.toString();
     }
-
-    // Build headers
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      ...((options.headers as Record<string, string>) || {}),
-    };
-
-    if (!options.skipAuth) {
-      const token = this.getToken();
-      if (token) {
-        headers['Authorization'] = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
-      }
-    }
-
-    // Abort timeout setup (timeoutMs: 0 disables timeout for user dialogs)
-    const timeout = options.timeoutMs !== undefined ? options.timeoutMs : this.defaultTimeoutMs;
+    // Capture the payload/headers once. A 401 retry must not reserialize a mutated caller object.
+    const { body: payload, params: _params, timeoutMs: _timeout, skipAuth, signal: caller, ...requestOptions } = options;
+    const body = payload === undefined ? undefined : JSON.stringify(payload);
+    const headers = { 'Content-Type': 'application/json', ...((options.headers as Record<string, string>) || {}) };
+    const timeout = options.timeoutMs ?? this.defaultTimeoutMs;
+    if (!Number.isFinite(timeout) || timeout < 0) throw new ApiError('Use a nonnegative request timeout', 400, 'INVALID_TIMEOUT', url);
     const controller = new AbortController();
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    if (timeout > 0) {
-      timer = setTimeout(() => controller.abort(), timeout);
-    }
-
-    let response: Response;
+    let cause: StopCause | undefined;
+    let openResponse: Response | undefined;
+    let rejectStopped: (error: ApiError) => void = () => {};
+    const stopped = new Promise<never>((_, reject) => { rejectStopped = reject; });
+    void stopped.catch(() => {});
+    const failure = () => cause === 'connection'
+      ? new ApiError('Engine connection changed; request observation ended', 409, 'STALE_CONNECTION', url)
+      : cause === 'timeout'
+        ? new ApiError('Request timed out after ' + timeout + 'ms: ' + url, 0, 'TIMEOUT', url)
+        : new ApiError('Engine request cancelled', 0, 'CANCELLED', url);
+    const stop = (reason: StopCause) => {
+      if (cause) return;
+      cause = reason;
+      controller.abort();
+      rejectStopped(failure());
+    };
+    const guard = () => {
+      if (version !== this.connectionVersion && !cause) stop('connection');
+      if (cause) throw failure();
+    };
+    const wait = async <R,>(task: Promise<R>): Promise<R> => {
+      try { const value = await Promise.race([task, stopped]); guard(); return value; }
+      catch (error) { guard(); throw error; }
+    };
+    const discard = (value: Response | undefined) => {
+      if (value?.body && !value.bodyUsed) void value.body.cancel().catch(() => {});
+    };
+    const onAbort = () => stop('cancelled');
+    this.observations.add(stop);
+    caller?.addEventListener('abort', onAbort, { once: true });
+    if (caller?.aborted) stop('cancelled');
+    const timer = timeout > 0 ? setTimeout(() => stop('timeout'), timeout) : undefined;
     try {
-      response = await engineFetch(url, {
-        ...options,
-        headers,
-        signal: options.signal || controller.signal,
-        body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
-      });
-    } catch (netErr: unknown) {
-      if (timer !== undefined) clearTimeout(timer);
-      const isAbort = (netErr as Error)?.name === 'AbortError';
-      const msg = isAbort
-        ? `Request timed out after ${timeout}ms: ${url}`
-        : `Engine connection failed (${url}): ${(netErr as Error)?.message || String(netErr)}`;
-      throw new ApiError(msg, 0, isAbort ? 'TIMEOUT' : 'OFFLINE', url);
+      // Only one retry, and only after an actual 401. No replay on network/5xx/unknown outcomes.
+      for (let attempt = 0; attempt < 2; ++attempt) {
+        guard();
+        const credential = this.credentialVersion;
+        const attemptHeaders: Record<string, string> = { ...headers };
+        const token = skipAuth ? null : this.getToken();
+        if (token) attemptHeaders.Authorization = token.startsWith('Bearer ') ? token : 'Bearer ' + token;
+        let response: Response;
+        try {
+          response = await wait(engineFetch(url, { ...requestOptions, headers: attemptHeaders,
+            signal: controller.signal, body }).then(value => {
+              if (cause || version !== this.connectionVersion) { discard(value); guard(); }
+              return value;
+            }));
+          openResponse = response;
+        } catch (error) {
+          guard();
+          throw new ApiError('Engine connection failed (' + url + '): ' + ((error as Error)?.message || String(error)),
+            0, (error as Error)?.name === 'AbortError' ? 'CANCELLED' : 'OFFLINE', url);
+        }
+
+        if (!response.ok) {
+          let message = 'HTTP Error ' + response.status + ': ' + response.statusText;
+          let details: unknown;
+          try {
+            details = await wait(response.json());
+            const data = details as { message?: string; error?: unknown } | null;
+            if (data?.message) message = data.message;
+            else if (data?.error) message = typeof data.error === 'string' ? data.error : JSON.stringify(data.error);
+          } catch { guard(); /* Empty/non-JSON errors retain their actual HTTP status. */ }
+          const denied = new ApiError(message, response.status, response.statusText, url, details);
+          if (response.status === 401 && attempt === 0 && !skipAuth) {
+            // A manually replaced key wins over a delayed refresh for this same connection.
+            if (credential !== this.credentialVersion) {
+              if (this.getToken()) continue;
+            } else if (this.authTokenSyncHandler) {
+              const handler = this.handlerVersion;
+              const refreshed = await wait(this.synchronizeAuth(this.authTokenSyncHandler));
+              guard();
+              if (handler === this.handlerVersion && credential === this.credentialVersion && refreshed?.trim()) {
+                this.setToken(refreshed);
+              }
+              if ((credential !== this.credentialVersion || (handler === this.handlerVersion && refreshed?.trim())) && this.getToken()) continue;
+            }
+          }
+          throw denied;
+        }
+        if (response.status === 204) return undefined as T;
+        const contentType = response.headers.get('content-type') || '';
+        return await wait(contentType.includes('application/json') ? response.json() as Promise<T> : response.text() as Promise<T>);
+      }
+      throw new ApiError('Engine authentication retry ended', 401, 'UNAUTHORIZED', url);
     } finally {
       if (timer !== undefined) clearTimeout(timer);
+      caller?.removeEventListener('abort', onAbort);
+      this.observations.delete(stop);
+      discard(openResponse);
     }
-
-
-    // Handle 401 via pluggable domain handler (ZERO hardcoded endpoints)
-    if (
-      response.status === 401 &&
-      retryCount === 0 &&
-      !options.skipAuth &&
-      this.authTokenSyncHandler &&
-      !this.isSyncingToken
-    ) {
-      this.isSyncingToken = true;
-      try {
-        const refreshedToken = await this.authTokenSyncHandler();
-        if (refreshedToken) {
-          this.setToken(refreshedToken);
-          return this.request<T>(path, options, retryCount + 1);
-        }
-      } finally {
-        this.isSyncingToken = false;
-      }
-    }
-
-    // Handle non-2xx responses
-    if (!response.ok) {
-      let errorMsg = `HTTP Error ${response.status}: ${response.statusText}`;
-      let errorDetails: unknown = undefined;
-      try {
-        const errorJson = await response.json();
-        errorDetails = errorJson;
-        if (errorJson?.message) errorMsg = errorJson.message;
-        else if (errorJson?.error) {
-          errorMsg = typeof errorJson.error === 'string' ? errorJson.error : JSON.stringify(errorJson.error);
-        }
-      } catch {
-        // Fallback to statusText if not JSON
-      }
-      throw new ApiError(errorMsg, response.status, response.statusText, url, errorDetails);
-    }
-
-    // Handle empty 204 No Content
-    if (response.status === 204) {
-      return undefined as unknown as T;
-    }
-
-    // Parse JSON or raw text
-    const contentType = response.headers.get('content-type') || '';
-    if (contentType.includes('application/json')) {
-      return (await response.json()) as T;
-    }
-    return (await response.text()) as unknown as T;
   }
 
   public get<T = unknown>(path: string, options?: RequestOptions): Promise<T> {

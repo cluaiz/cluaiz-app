@@ -1,12 +1,12 @@
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
 const ts=require(require.resolve('typescript',{paths:[path.join(__dirname,'../app')]}));
 
-function load(file,imports){
+function load(file,imports,globals={}){
     const exports={};
     const source=fs.readFileSync(path.join(__dirname,'..',file),'utf8');
-    const code=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,
+    const code=ts.transpileModule(source,{fileName:file,compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,
         jsx:ts.JsxEmit.ReactJSX,esModuleInterop:true}}).outputText;
-    vm.runInNewContext(code,{exports,AbortController,Error,Blob,atob,btoa,console,setTimeout,clearTimeout,require:name=>{
+    vm.runInNewContext(code,{exports,AbortController,Error,Blob,atob,btoa,console,setTimeout,clearTimeout,...globals,require:name=>{
         if(!(name in imports))throw Error('Unexpected import '+name);return imports[name];
     }});
     return exports;

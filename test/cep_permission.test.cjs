@@ -5,17 +5,17 @@ const record=(id='ap_owned',status='pending')=>({id,principal:'agent',method:'mc
     created_at:'2026-10-27T10:00:00Z',expires_at:'2026-10-27T10:05:00Z',status});
 const normalize=value=>JSON.parse(JSON.stringify(value));
 const deferred=()=>{let resolve;return {promise:new Promise(r=>resolve=r),resolve:value=>resolve(value)};};
-function storeFor(h,active='session-secret'){
-    let token=active,subscriber;
-    const http={getToken:()=>token,setToken:value=>{token=value;},setAuthTokenSyncHandler:()=>{}};
+function storeFor(h,active='session-secret',desktop=false){
+    let token=active,subscriber,synchronize;
+    const http={getToken:()=>token,setToken:value=>{token=value;},setAuthTokenSyncHandler:handler=>{synchronize=handler;}};
     const connection={subscribe:fn=>{subscriber=fn;}};
     const store=load('src/api/engine/permission/permission.store.ts',{
         zustand:require('zustand'),'../../client':{http,errorMessage:h.errors.errorMessage},'./permission.api':h,
-        '../../app/native/native.api':{nativeApi:{isDesktop:()=>false}},'../../client/errors':h.errors,
+        '../../app/native/native.api':{nativeApi:{isDesktop:()=>desktop,getSessionToken:async()=> ' owned-native-key '}},'../../client/errors':h.errors,
         '../../../store/engine/useConnectionStore':{useConnectionStore:connection},
     }).usePermissionStore;
     store.setState({permissions:{lazy_load_model:true,api_auth:{required:true,tokens:['key-a','key-b']}}});
-    return {store,http,switchConnection:()=>subscriber({host:'new',port:8000,protocol:'http'},{host:'old',port:8000,protocol:'http'})};
+    return {store,http,synchronize:()=>synchronize(),switchConnection:()=>subscriber({host:'new',port:8000,protocol:'http'},{host:'old',port:8000,protocol:'http'})};
 }
 
 test('token facade uses only CEP and retains real authentication state',async()=>{
@@ -30,6 +30,11 @@ test('token facade uses only CEP and retains real authentication state',async()=
     assert.ok(h.requests.every(r=>r.url==='/v1/cep'));
     assert.deepEqual(normalize(h.requests.map(r=>[r.body.method,r.body.params])),[
         ['tokens.list',{}],['tokens.create',{}],['tokens.revoke',{token:'key-new'}]]);
+});
+
+test('native auth synchronization returns its key without changing the credential outside the request owner',async()=>{
+    const h=harness(()=>{throw Error('Unexpected network request');});const {http,synchronize}=storeFor(h,'owned-current',true);
+    assert.equal(await synchronize(),'owned-native-key');assert.equal(http.getToken(),'owned-current');
 });
 
 test('token responses cannot invent a created/revoked key, auth flag or fallback list',async()=>{

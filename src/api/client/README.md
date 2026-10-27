@@ -53,6 +53,55 @@ An older Engine without `serve --native-endpoint` cannot satisfy native readines
 
 This is the trusted desktop host transport. Per-extension Engine principals, scoped grants, detached surfaces and downloaded executable isolation remain P8 and later. The current native commands are restricted to the main host window and are not an external extension SDK.
 
-## Evidence boundaries
+## Logical request, auth retry and cancellation
+
+For calls through `HttpClient`, one logical request owns its target, serialized JSON
+payload, request options and observation lifetime. An HTTP 401 may retry once on that
+same connection. The retry does not reserialize a caller object that changed while
+authentication was pending, and it does not switch to a newly selected transport or
+Engine. Network failures, 5xx responses and unknown outcomes are never replayed.
+
+The client tracks connection generations, including A→B→A changes. Changing the
+selected protocol/host/port ends active observations. A late response or auth result
+cannot update that old request or send its retry to the new target. This is not a
+rollback: work already accepted by an Engine may continue.
+
+The request-owned controller combines caller cancellation, connection invalidation
+and timeout. A caller signal no longer replaces the timeout signal. The async budget
+covers headers, body consumption and auth waiting; `timeoutMs: 0` disables the timeout,
+not caller cancellation or connection guards. Discarded response bodies are released,
+and timers/listeners are removed on completion. Native IPC still owns its request ID
+and cancellation commands; there is no fallback from native to HTTP.
+
+Local errors distinguish `STALE_CONNECTION`, `CANCELLED` and `TIMEOUT`. Actual HTTP
+errors retain their status and decoded error body; CEP errors remain the owning
+domain caller's responsibility. Empty204 and non-JSON text behavior stay supported.
+
+Concurrent 401 calls can share in-flight auth synchronization for the same connection,
+credential and callback registration. A manual `setToken`, cleared credential,
+replaced callback or different connection takes precedence over an old result. An
+obsolete synchronization cannot block a different connection. The built-in native
+auth callback returns its key; the client applies it only after freshness checks.
+Custom auth callbacks should also return the key rather than mutate client state.
+
+This repair does not introduce per-Engine credential profiles or change the existing
+configured-key storage behavior for a new user-initiated request. Direct SSE/audio
+users of `engineFetch` retain their own stream-lifetime handling; this section does
+not claim a new shared retry policy for those parsers.
+
+### Request-scope validation
+
+`test/transport_scope.test.cjs` exercises the actual client, transport selector and
+native adapter at controlled network/IPC boundaries: stale/ABA connections, exact
+retry payload, manual/auth changes, cancellation, response-body timeout, concurrent
+requests and native handle release. `test/cep_permission.test.cjs` checks that native
+auth synchronization returns a key without bypassing the request owner.
+
+An isolated two-server loopback proof also checks real HTTP routing, identical retry
+bytes, late auth and socket cancellation. It uses fake fixture data, no user Engine
+or credentials. Passing these tests is not packaged WebView/native-Rust acceptance
+or evidence that a client abort terminates server work.
+
+## Native connector evidence
 
 `test/native_transport.test.ts` uses the actual TS adapter with an injected invoke boundary. `test/native-transport/` compiles the actual Rust connector/ownership modules and runs OS pipe fixtures. Engine `api/tests/native_contract.rs` exercises the real native gateway and shared router. A successful module test does not establish native WebView UI acceptance or model inference quality. Executed commands/results are recorded in `.agent/plan/extension-foundation-implementation_plan.md`.
