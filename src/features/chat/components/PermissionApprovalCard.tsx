@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { Shield, Check, X, AlertTriangle, MessageSquare, ChevronDown, ChevronUp, Clock } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Shield, Check, X, MessageSquare, ChevronDown, ChevronUp, Clock } from 'lucide-react';
 import { useConnectionStore } from '../../../store/engine/useConnectionStore';
 import { useChatStore } from '../../../store/chat/useChatStore';
 
-import { permissionApi } from '../../../api/engine/permission/permission.api';
+import { usePermissionStore } from '../../../api/engine/permission/permission.store';
+import { errorMessage } from '../../../api/client/errors';
 
 interface PermissionApprovalCardProps {
     sessionId: string;
@@ -19,53 +20,48 @@ interface PermissionApprovalCardProps {
 
 export const PermissionApprovalCard: React.FC<PermissionApprovalCardProps> = ({ sessionId, permissionRequest }) => {
     const resolvePermissionRequest = useChatStore(s => s.resolvePermissionRequest);
+    const connection = useConnectionStore(s => `${s.protocol}:${s.host}:${s.port}`);
+    const scope = JSON.stringify([connection, sessionId, permissionRequest.requestId, permissionRequest.status]);
+    const current = useRef<string | null>(scope);
+    current.current = scope;
+    const submitting = useRef<string | null>(null);
 
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [showFeedbackInput, setShowFeedbackInput] = useState(false);
     const [feedbackText, setFeedbackText] = useState('');
     const [showParams, setShowParams] = useState(false);
-    const [secondsLeft, setSecondsLeft] = useState(120);
+    const [error, setError] = useState<string | null>(null);
 
-    // 120s Countdown timer for pending approval
+    // SSE does not provide a deadline. Engine decides expiry; mounting this card must not restart a timer.
     useEffect(() => {
-        if (permissionRequest.status !== 'pending') return;
-        const interval = setInterval(() => {
-            setSecondsLeft(prev => {
-                if (prev <= 1) {
-                    clearInterval(interval);
-                    resolvePermissionRequest(sessionId, permissionRequest.requestId, 'timeout');
-                    return 0;
-                }
-                return prev - 1;
-            });
-        }, 1000);
-        return () => clearInterval(interval);
-    }, [permissionRequest.status, sessionId, permissionRequest.requestId, resolvePermissionRequest]);
+        current.current = scope;
+        submitting.current = null;
+        setIsSubmitting(false);
+        setError(null);
+        setFeedbackText('');
+        setShowFeedbackInput(false);
+        return () => { current.current = null; };
+    }, [scope]);
 
-    const handleApprove = async () => {
+    const submit = async (approved: boolean) => {
+        if (submitting.current === scope || permissionRequest.status !== 'pending') return;
+        submitting.current = scope;
         setIsSubmitting(true);
+        setError(null);
+        const feedback = feedbackText.trim() || undefined;
         try {
-            await permissionApi.approvePermission(permissionRequest.requestId);
-            resolvePermissionRequest(sessionId, permissionRequest.requestId, 'approved');
-        } catch (err: any) {
-            console.error('[PermissionApprovalCard] Failed to approve:', err);
-            alert(`Approval failed: ${err.message || 'Unauthorized or connection error'}`);
+            const store = usePermissionStore.getState();
+            if (approved) await store.approvePermission(permissionRequest.requestId);
+            else await store.rejectPermission(permissionRequest.requestId, feedback);
+            if (current.current === scope) resolvePermissionRequest(sessionId, permissionRequest.requestId,
+                approved ? 'approved' : 'rejected', approved ? undefined : feedback);
+        } catch (err) {
+            if (current.current === scope) setError(errorMessage(err));
         } finally {
-            setIsSubmitting(false);
-        }
-    };
-
-    const handleReject = async () => {
-        setIsSubmitting(true);
-        const trimmedFeedback = feedbackText.trim();
-        try {
-            await permissionApi.rejectPermission(permissionRequest.requestId, trimmedFeedback || undefined);
-            resolvePermissionRequest(sessionId, permissionRequest.requestId, 'rejected', trimmedFeedback || undefined);
-        } catch (err: any) {
-            console.error('[PermissionApprovalCard] Failed to reject:', err);
-            alert(`Rejection failed: ${err.message || 'Unauthorized or connection error'}`);
-        } finally {
-            setIsSubmitting(false);
+            if (current.current === scope) {
+                submitting.current = null;
+                setIsSubmitting(false);
+            }
         }
     };
 
@@ -98,7 +94,7 @@ export const PermissionApprovalCard: React.FC<PermissionApprovalCardProps> = ({ 
         return (
             <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-500/10 border border-amber-500/20 rounded-xl text-xs text-amber-400 font-semibold my-1.5 w-fit">
                 <Clock size={14} />
-                <span>Action timed out after 120s</span>
+                <span>Action approval expired</span>
             </div>
         );
     }
@@ -130,7 +126,7 @@ export const PermissionApprovalCard: React.FC<PermissionApprovalCardProps> = ({ 
 
                 <div className="flex items-center gap-1 text-[11px] font-mono text-amber-400 bg-amber-500/10 px-2 py-1 rounded-lg border border-amber-500/20">
                     <Clock size={12} />
-                    <span>{secondsLeft}s</span>
+                    <span>Awaiting decision</span>
                 </div>
             </div>
 
@@ -169,6 +165,7 @@ export const PermissionApprovalCard: React.FC<PermissionApprovalCardProps> = ({ 
             )}
 
             {/* Decision Buttons */}
+            {error && <p role="alert" className="text-xs text-rose-400">{error}</p>}
             <div className="flex items-center justify-between pt-1 gap-2">
                 {!showFeedbackInput ? (
                     <button
@@ -184,7 +181,7 @@ export const PermissionApprovalCard: React.FC<PermissionApprovalCardProps> = ({ 
                     <button
                         type="button"
                         disabled={isSubmitting}
-                        onClick={handleReject}
+                        onClick={() => void submit(false)}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 text-rose-400 border border-rose-500/30 text-xs font-bold transition-all cursor-pointer disabled:opacity-50"
                     >
                         <X size={14} /> Reject
@@ -192,7 +189,7 @@ export const PermissionApprovalCard: React.FC<PermissionApprovalCardProps> = ({ 
                     <button
                         type="button"
                         disabled={isSubmitting}
-                        onClick={handleApprove}
+                        onClick={() => void submit(true)}
                         className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-emerald-500 text-[var(--bg-primary)] hover:opacity-90 font-bold text-xs shadow-md transition-all cursor-pointer disabled:opacity-50"
                     >
                         <Check size={14} /> Approve Action

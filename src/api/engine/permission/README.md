@@ -69,6 +69,10 @@ The App applies the returned `api_auth_required` flag. In the current Engine, re
 
 ## Validation and boundaries
 
+The existing chat approval card delegates decisions to this store. It disables both decision buttons while submitting, displays a real decision error inline and resolves the chat message only after acknowledgment. Changing request, session, Engine connection or unmounting prevents the old callback from resolving the currently displayed request. These guards do not cancel an already-dispatched server decision.
+
+The chat SSE event currently carries no authoritative deadline. The card shows “Awaiting decision” instead of restarting a local countdown when rendered. Expired/missing approvals return the Engine error when answered; this change does not add background expiry synchronization or a new approval-center screen.
+
 `test/cep_permission.test.cjs` exercises the actual adapters/stores at the shared-client boundary: token limits/refusals, preserved session secrets, last-key auth state, pending/acknowledged decisions, stale polls, connection switches and Settings delegation.
 
 Native packaged acceptance and real model-driven chat resumption need separate acceptance runs. These adapter checks do not prove that every App API group has migrated. Engine authorization, approval lifetimes, protected-call retry and persistence remain Engine-owned.
