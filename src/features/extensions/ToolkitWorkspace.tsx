@@ -9,7 +9,9 @@ import { openExtensionWorkspace } from '../../extensions/navigation';
 import { InstalledExtensions } from './InstalledExtensions';
 
 const DeveloperPreview = lazy(() => import('./DeveloperExtensionWorkspace'));
+const Models = lazy(() => import('./ModelCatalogue').then(module => ({ default: module.ModelCatalogue })));
 export const TOOLKIT_SECTIONS = [
+    { id: 'models', label: 'Models' },
     { id: 'extensions', label: 'Extensions' },
     { id: 'tools', label: 'Plugins, MCP & skills' },
     { id: 'components', label: 'UI components & SDK' },
@@ -41,6 +43,7 @@ export function ToolkitWorkspace() {
             <Tabs items={[...TOOLKIT_SECTIONS]} value={section} onChange={select} />
         </header>
         <div className="flex-1 min-h-0 overflow-auto">
+            {section === 'models' && <Suspense fallback={<p className="p-4">Opening models…</p>}><Models /></Suspense>}
             {section === 'tools' && <ToolsWorkspace />}
             {section === 'components' && <ComponentShowcase />}
             {section === 'extensions' && (preview && import.meta.env.DEV ? <div className="flex flex-col h-full min-h-0">

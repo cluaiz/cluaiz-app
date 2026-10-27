@@ -144,3 +144,27 @@ floating Close and full Quit. Hiding main does not destroy its session owner;
 existing guests can continue using the same SDK. No extension gains permission
 to inspect/change background policy, restore main or quit the platform. Existing
 General Settings remains the user control; see ../../core/README.md.
+
+## Catalogue-first onboarding in Toolkit
+
+- **Models:** Toolkit section=models reads the website family/variant list through the public catalogue API. Existing themed family cards/single-model cards, local search/capability/format filters and bounded Show more rendering share the returned snapshot. Actual quantization/package bytes/readiness/support notes come from metadata. Ambiguous/incomplete variants cannot initiate an invented file selection.
+- **Install:** one explicit selected catalogue-id:quant is passed to the existing models.download task owner. No download starts on browsing. Final acknowledgment precedes the success notice and real installed-inventory refresh. A refresh failure is distinguished from failed installation. Source/connection/unmount guards suppress stale UI; stopping observation does not cancel server work.
+- **Tools:** existing ToolsWorkspace now has Available and Installed views. Installed reuses ToolsSettings and existing offline handling. Available reads root/family pointers, filters locally, loads manifests on deliberate detail opening and uses existing tools.install only for supported skill/plugin/MCP ids. A missing family is an explicit warning. Legacy extension/soul metadata is not executable App UI-package provenance.
+- **Common owner:** useCatalogue owns read-view lifetime; api/catalogue owns network/cache/schema. Engine credentials never travel to public website/GitHub. Main App ThemeProvider and existing components remain the design system; no separate dropdown/theme palette or raw HTML renderer is added.
+
+```mermaid
+flowchart TD
+  T["Toolkit"] --> M["Models: families / models / variants"]
+  T --> W["Tools: Available / Installed"]
+  M --> P["Public catalogue API / local cache"]
+  W --> P
+  M --> E["Existing models.download / final task result"]
+  W --> I["Existing tools.install / acknowledged result"]
+  T --> X["Existing Extensions package admission"]
+```
+
+Catalogue availability is not runtime certification. Public signed distribution,
+legacy extension conversion, byte-progress/cancel controls and restoring an
+in-flight install after leaving/restarting remain separate work. The live website
+and repository may publish older data than local checkouts; the App displays the
+real source or its explicit failure instead of filling missing entries itself.

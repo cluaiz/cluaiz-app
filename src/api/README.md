@@ -276,3 +276,12 @@ To avoid merge conflicts when 20–30 developers work on this repo:
    - Step 1: Add path to `[domain].endpoints.ts`.
    - Step 2: Add request/response types in `[domain].types.ts`.
    - Step 3: Add typed method in `[domain].api.ts` using `http.get/post/del`.
+
+## Public catalogue boundary
+
+The catalogue/ API owner reads public website model metadata and the official tools
+repository through bounded, credential-free HTTPS requests. Features delegate to
+its adapters; only catalogue/public.ts owns those reads. It must never reuse the
+Engine authenticated client or receive its Bearer token. Installation remains in
+the existing Engine domain APIs/tasks. See [catalogue contract](./catalogue/README.md)
+for validation, cache and server-enforced quota boundaries.
