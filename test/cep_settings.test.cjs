@@ -7,6 +7,7 @@ function settingsHarness(handler){
     const h=harness(handler);
     const base={'../config/config.api':h,'../../client/cep':h,'../../client/errors':h.errors};
     const system=load('src/api/engine/system/system.api.ts',{
+        './execution':h,
         '../../client':{client:h.client},'./system.endpoints':{SYSTEM_ENDPOINTS:{}},
         '../permission/permission.api':h,'./systemData':h,...base,
     });

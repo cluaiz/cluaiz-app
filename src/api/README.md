@@ -104,7 +104,7 @@ Every single route declared in `cluaiz/inference-engine/api/src/routes.rs` is ma
 |---|---|---|---|---|
 | **`system/`** | `/health` | `GET` | `systemApi.getHealth()` | `useSystemStore` |
 | | `/info` | `GET` | `systemApi.getSystemInfo()` | |
-| | `/v1/system/cmd` | `POST` | `systemApi.executeCommand()` | |
+| | `system.exec` via `/v1/cep` | `POST` | `systemApi.executeCommand()` / `executeProgram()` | |
 | | `/v1/system/ps` | `GET` | `systemApi.getProcesses()` | |
 | | `/v1/system/control` | `GET` | `systemApi.getSystemControl()` | |
 | **`permission/`** | `config.get` via `/v1/cep` | `POST` | `permissionApi.getPermission()` | `usePermissionStore` |

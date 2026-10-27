@@ -1,11 +1,15 @@
 import { create } from 'zustand';
 import { type Status, errorMessage } from '../../client';
 import { systemApi } from './system.api';
+import { commandApproval } from './execution';
+import { ApiError } from '../../client/errors';
+import { useConnectionStore } from '../../../store/engine/useConnectionStore';
 import type {
   HealthResponse,
   SystemInfoResponse,
   ActiveProcess,
   CmdResponse,
+  CommandOptions,
   CommandExecutionEntry,
   HardwareProfileResponse,
   SystemLiveResponse,
@@ -35,12 +39,17 @@ export interface SystemState {
   planExecution: (payload: LatencyComparePayload) => Promise<LatencyCompareResponse>;
   fetchProcesses: () => Promise<void>;
   fetchSystemControl: () => Promise<void>;
-  executeCommand: (command: string, timeoutMs?: number) => Promise<CmdResponse>;
+  executeCommand: (command: string, timeoutMs?: number, options?: CommandOptions) => Promise<CmdResponse>;
   clearCommandHistory: () => void;
   reset: () => void;
 }
 
-export const useSystemStore = create<SystemState>((set, get) => ({
+export const useSystemStore = create<SystemState>((set, get) => {
+let commandVersion = 0;
+useConnectionStore.subscribe((current, previous) => {
+  if (current.protocol !== previous.protocol || current.host !== previous.host || current.port !== previous.port) get().reset();
+});
+return {
   health: null,
   info: null,
   hardwareInfo: null,
@@ -121,10 +130,13 @@ export const useSystemStore = create<SystemState>((set, get) => ({
     }
   },
 
-  executeCommand: async (command: string, timeoutMs?: number) => {
+  executeCommand: async (command, timeoutMs, options) => {
+    if (get().isExecutingCmd) throw new ApiError('Another command is being observed', 409, 'COMMAND_BUSY');
+    const version = ++commandVersion;
     set({ isExecutingCmd: true, error: null });
     try {
-      const res = await systemApi.executeCommand(command, timeoutMs);
+      const res = await systemApi.executeCommand(command, timeoutMs, options);
+      if (version !== commandVersion || options?.signal?.aborted) throw new ApiError('Command observation ended', 409, 'STALE_COMMAND');
       const isOk = res.status === 'success';
       const entry: CommandExecutionEntry = {
         command,
@@ -140,6 +152,11 @@ export const useSystemStore = create<SystemState>((set, get) => ({
 
       return res;
     } catch (err) {
+      if (version !== commandVersion || options?.signal?.aborted) throw err;
+      if (commandApproval(err)) {
+        set({ isExecutingCmd: false });
+        throw err;
+      }
       const msg = errorMessage(err);
       const entry: CommandExecutionEntry = {
         command,
@@ -154,7 +171,9 @@ export const useSystemStore = create<SystemState>((set, get) => ({
         error: msg,
       }));
 
-      return { status: 'error', output: msg };
+      throw err;
+    } finally {
+      if (version === commandVersion) set({ isExecutingCmd: false });
     }
   },
 
@@ -163,6 +182,7 @@ export const useSystemStore = create<SystemState>((set, get) => ({
   },
 
   reset: () => {
+    ++commandVersion;
     set({
       health: null,
       info: null,
@@ -177,4 +197,5 @@ export const useSystemStore = create<SystemState>((set, get) => ({
       error: null,
     });
   },
-}));
+};
+});

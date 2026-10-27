@@ -1,48 +1,20 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { 
     Terminal as TerminalIcon, X, Maximize2, Minimize2, Plus, 
-    ChevronDown, Loader2 
+    Loader2
 } from 'lucide-react';
 import { Terminal as XTerm } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
 import { ProjectFile } from '../types';
-import { useSystemStore } from '../../../api/engine/system/system.store';
-import type { CmdResponse } from '../../../api/engine/system/system.types';
+import { useConnectionStore } from '../../../store/engine/useConnectionStore';
+import { useTerminalHost } from '../hooks/useTerminalHost';
+import { useTerminalExecution } from '../hooks/useTerminalExecution';
+import { terminalPath, changeTerminalDirectory, completeTerminalPath, terminalCommand } from '../hooks/terminalPaths';
+import { Button } from '../../../components/ui/Button';
 import { FileIcon, FolderIcon } from 'react-material-icon-theme';
 import { useThemeStore } from '../../../store/ui/useThemeStore';
 import { useProjectStore } from '../../../store/workspace/useProjectStore';
-
-const sendEngineCmd = (command: string, timeoutMs?: number): Promise<CmdResponse> => {
-    return useSystemStore.getState().executeCommand(command, timeoutMs);
-};
-
-// Pure path validation guard across Windows, Linux and macOS
-const isValidPath = (p: string | undefined | null, isWin: boolean): boolean => {
-    if (!p || typeof p !== 'string') return false;
-    const clean = p.trim();
-    if (clean.length < 2) return false;
-    if (clean.includes('\n') || clean.includes('\r')) return false;
-    const lower = clean.toLowerCase();
-    if (
-        lower.includes('failed') || 
-        lower.includes('http://') || 
-        lower.includes('https://') || 
-        lower.includes('engine connection') || 
-        lower.includes('cannot find') ||
-        lower.includes('not recognized') ||
-        lower.includes('syntax is incorrect') ||
-        lower.includes('no such file') ||
-        clean.includes('& {') ||
-        clean.includes('powershell')
-    ) {
-        return false;
-    }
-    if (isWin) {
-        return /^[a-zA-Z]:[\\/]/.test(clean) || clean.startsWith('\\\\');
-    }
-    return clean.startsWith('/') || clean.startsWith('~');
-};
 
 export interface TerminalTarget {
     path: string;
@@ -52,9 +24,10 @@ export interface TerminalTarget {
 
 export interface TerminalSession {
     id: string;
+    origin: string;
     displayName: string;
     targetType: 'folder' | 'file' | 'root';
-    shellType: 'powershell' | 'cmd' | 'bash' | 'zsh';
+    shellType: 'cmd' | 'sh';
     cwd: string;
     commandHistory: string[];
     historyIndex: number | null;
@@ -76,64 +49,30 @@ export const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
     onClose,
     cwd: initialCwd,
     terminalTarget,
-    files = {},
     projectName = 'workspace',
     rootPath,
 }) => {
-    const isWindows = typeof navigator !== 'undefined' && (
-        navigator.userAgent.includes('Windows') || 
-        navigator.platform?.startsWith('Win')
-    );
-    const isMac = typeof navigator !== 'undefined' && (
-        navigator.userAgent.includes('Mac') || 
-        navigator.platform?.startsWith('Mac')
-    );
-
-    const defaultShell: 'powershell' | 'cmd' | 'bash' | 'zsh' = isWindows 
-        ? 'powershell' 
-        : isMac ? 'zsh' : 'bash';
+    const connection = useConnectionStore(s => `${s.protocol}:${s.host}:${s.port}`);
+    const host = useTerminalHost(isOpen, connection, rootPath);
+    const isWindows = host.windows;
+    const defaultShell = isWindows ? 'cmd' as const : 'sh' as const;
 
     const { theme } = useThemeStore();
 
-    const [systemCwd, setSystemCwd] = useState<string>(() => {
-        try {
-            const stored = localStorage.getItem('cluaiz_user_profile_dir') || '';
-            if (isValidPath(stored, isWindows)) {
-                return stored;
-            }
-            localStorage.removeItem('cluaiz_user_profile_dir');
-            return '';
-        } catch { return ''; }
-    });
-
-    const getBaseRootPath = useCallback(() => rootPath || (isValidPath(systemCwd, isWindows) ? systemCwd : '') || '', [rootPath, systemCwd, isWindows]);
-
-    // Proactively resolve host user profile directory ($env:USERPROFILE / $HOME) when no workspace is open
-    useEffect(() => {
-        if (!rootPath) {
-            const probeCmd = isWindows ? 'echo %USERPROFILE%' : 'echo $HOME';
-            sendEngineCmd(probeCmd).then(res => {
-                if (res?.status === 'success' && res.output) {
-                    const probed = res.output.trim().split(/[\r\n]+/)[0]?.trim();
-                    if (isValidPath(probed, isWindows)) {
-                        try { localStorage.setItem('cluaiz_user_profile_dir', probed); } catch {}
-                        setSystemCwd(probed);
-                        setSessions(prev => prev.map(s => (s.id === 'sess-1' && (!s.cwd || !isValidPath(s.cwd, isWindows))) ? { ...s, cwd: probed } : s));
-                    }
-                }
-            }).catch(() => {});
-        }
-    }, [rootPath, isWindows]);
+    const getBaseRootPath = useCallback(() => host.workspace, [host.workspace]);
 
     const [terminalHeight, setTerminalHeight] = useState(250);
     const [isMaximized, setIsMaximized] = useState(false);
     const [isExecuting, setIsExecuting] = useState(false);
-    const [isNewMenuOpen, setIsNewMenuOpen] = useState(false);
+    const isExecutingRef = useRef(isExecuting);
+    isExecutingRef.current = isExecuting;
+    const origin = JSON.stringify([connection, host.workspace]);
 
     // Multi-session state
     const [sessions, setSessions] = useState<TerminalSession[]>([
         {
             id: 'sess-1',
+            origin,
             displayName: projectName || 'terminal',
             targetType: 'root',
             shellType: defaultShell,
@@ -143,6 +82,14 @@ export const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
         }
     ]);
     const [activeSessionId, setActiveSessionId] = useState<string>('sess-1');
+    const execution = useTerminalExecution(JSON.stringify([isOpen, connection, activeSessionId, host.ready, host.workspace]));
+    useEffect(() => { isExecutingRef.current = false; setIsExecuting(false); }, [isOpen, connection, activeSessionId, host.ready, host.workspace]);
+    useEffect(() => {
+        if (!host.ready) return;
+        setSessions([{ id: 'sess-1', origin, displayName: projectName || 'terminal', targetType: 'root',
+            shellType: defaultShell, cwd: host.workspace, commandHistory: [], historyIndex: null }]);
+        setActiveSessionId('sess-1');
+    }, [connection, host.ready]);
 
     const terminalContainerRef = useRef<HTMLDivElement>(null);
     const xtermRef = useRef<XTerm | null>(null);
@@ -161,17 +108,13 @@ export const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
     }, []);
 
     // Print Prompt to Xterm
-    const printPrompt = useCallback((path: string, shell: string, term?: XTerm, withNewline = true) => {
+    const printPrompt = useCallback((path: string, _shell: string, term?: XTerm, withNewline = true) => {
         const targetTerm = term || xtermRef.current;
         if (!targetTerm) return;
         const normalized = path || getBaseRootPath();
         const prefix = withNewline ? '\r\n' : '';
         if (isWindows) {
-            if (shell === 'cmd') {
-                targetTerm.write(`${prefix}\x1b[90m${normalized}\x1b[0m\x1b[33m>\x1b[0m `);
-            } else {
-                targetTerm.write(`${prefix}\x1b[36mPS\x1b[0m \x1b[90m${normalized}\x1b[0m\x1b[33m>\x1b[0m `);
-            }
+            targetTerm.write(`${prefix}\x1b[90m${normalized}\x1b[0m\x1b[33m>\x1b[0m `);
         } else {
             targetTerm.write(`${prefix}\x1b[32muser@cluaiz\x1b[0m:\x1b[34m${normalized}\x1b[0m$ `);
         }
@@ -194,7 +137,7 @@ export const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
 
     // Handle Target Right-Click Launch (Folder, File, or Root)
     useEffect(() => {
-        if (!isOpen) return;
+        if (!isOpen || !host.ready) return;
 
         let rawPath = '';
         let targetType: 'folder' | 'file' | 'root' = 'folder';
@@ -209,7 +152,6 @@ export const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
             return;
         }
 
-        const sep = isWindows ? '\\' : '/';
         let dirSub = '';
         let displayName = projectName || 'terminal';
 
@@ -225,22 +167,10 @@ export const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
             displayName = projectName;
         }
 
-        const isAbsolute = isWindows 
-            ? /^[a-zA-Z]:[\\/]/.test(dirSub)
-            : dirSub.startsWith('/');
-        const normalizedSub = isWindows ? dirSub.replace(/\//g, '\\') : dirSub;
-        const targetPath = dirSub 
-            ? (isAbsolute ? normalizedSub : `${getBaseRootPath()}${sep}${normalizedSub}`)
-            : getBaseRootPath();
+        const targetPath = terminalPath(getBaseRootPath(), dirSub || '.');
 
-        // Proactively ensure target folder exists on disk via native engine command
-        const cleanTargetPath = targetPath.replace(/^["']|["']$/g, '').trim();
-        const mkdirCmd = isWindows 
-            ? `if not exist "${cleanTargetPath}" mkdir "${cleanTargetPath}"`
-            : `mkdir -p "${cleanTargetPath}"`;
-        sendEngineCmd(mkdirCmd).catch(() => {});
-
-        const existing = sessionsRef.current.find(s => s.cwd.toLowerCase() === targetPath.toLowerCase());
+        const existing = sessionsRef.current.find(s => s.origin === origin && (isWindows
+            ? s.cwd.toLowerCase() === targetPath.toLowerCase() : s.cwd === targetPath));
         if (existing) {
             existing.displayName = displayName;
             existing.targetType = targetType;
@@ -252,6 +182,7 @@ export const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
         const newId = `sess-${Date.now()}`;
         const newSession: TerminalSession = {
             id: newId,
+            origin,
             displayName,
             targetType,
             shellType: defaultShell,
@@ -262,13 +193,13 @@ export const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
 
         setSessions(prev => [...prev, newSession]);
         setActiveSessionId(newId);
-    }, [terminalTarget, initialCwd, isOpen, defaultShell, getBaseRootPath, isWindows, projectName]);
+    }, [terminalTarget, initialCwd, isOpen, host.ready, origin, defaultShell, getBaseRootPath, projectName, isWindows]);
 
     // Execute Command on OS via Engine
     const executeOnSystem = useCallback(async (commandToRun: string) => {
         const term = xtermRef.current;
         const curSession = getActiveSession();
-        if (!term || !curSession) return;
+        if (!term || !curSession || !host.ready || isExecutingRef.current) return;
 
         const trimmed = commandToRun.trim();
         if (!trimmed) {
@@ -287,154 +218,41 @@ export const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
             return;
         }
 
-        // Effective directory fallback
-        const effectiveCwd = (isValidPath(curSession.cwd, isWindows) ? curSession.cwd : '') || 
-                             (isValidPath(systemCwd, isWindows) ? systemCwd : '') || 
-                             rootPath || 
-                             (isWindows ? 'C:\\Users' : '.');
+        const effectiveCwd = curSession.cwd || host.workspace;
 
+        isExecutingRef.current = true;
         setIsExecuting(true);
         term.write('\r\n');
 
         try {
-            // Builtin cd navigation: handles cd, cd .., cd.., cd/, cd\, cd~, cd <path>
+            // Navigation uses the existing filesystem API, never a shell probe.
             const cdRegex = /^cd(\.\.|[\/\\]|~|\s.*|$)/i;
             if (cdRegex.test(trimmed)) {
-                let target = '';
-                if (/^cd\.\./i.test(trimmed)) {
-                    target = '..' + trimmed.slice(4);
-                } else if (/^cd[\/\\]/i.test(trimmed)) {
-                    target = trimmed.slice(2);
-                } else if (/^cd~/i.test(trimmed)) {
-                    target = '~' + trimmed.slice(3);
-                } else {
-                    target = trimmed.slice(2).trim();
-                }
-
-                // Strip surrounding quotes
-                target = target.replace(/^["']|["']$/g, '').trim();
-
-                if (!target) {
-                    if (isWindows) {
-                        term.writeln(`\x1b[90m${effectiveCwd}\x1b[0m`);
-                        return;
-                    } else {
-                        target = '~';
-                    }
-                }
-
-                // Handle tilde home alias
-                if (target === '~' || target.startsWith('~/') || target.startsWith('~\\')) {
-                    const homeDir = systemCwd || (isWindows ? 'C:\\Users' : '/');
-                    target = target === '~' ? homeDir : target.replace('~', homeDir);
-                }
-
-                const cleanCwd = effectiveCwd.replace(/^["']|["']$/g, '').trim();
-                const cleanTarget = target.replace(/^["']|["']$/g, '').trim();
-
-                const navCmd = isWindows
-                    ? `cd /d ${cleanCwd} && cd ${cleanTarget} && cd`
-                    : `cd "${cleanCwd}" && cd "${cleanTarget}" && pwd`;
-
-                const data = await sendEngineCmd(navCmd);
-                let resolved: string | undefined;
-
-                if (data.status === 'success' && data.output) {
-                    const lines = data.output.trim().split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-                    const candidate = lines[lines.length - 1];
-                    if (candidate && isValidPath(candidate, isWindows)) {
-                        resolved = candidate;
-                    }
-                }
-
-                // If direct cd failed, try Smart Workspace Directory Auto-Jump
-                if (!resolved && !cleanTarget.startsWith('.') && !cleanTarget.includes('/') && !cleanTarget.includes('\\')) {
-                    // Check in files prop first (fast in-memory lookup)
-                    let matchedSubdir = '';
-                    const lowerTarget = cleanTarget.toLowerCase();
-                    for (const f of Object.values(files || {}) as ProjectFile[]) {
-                        if (!f?.path) continue;
-                        const norm = f.path.replace(/\\/g, '/');
-                        const parts = norm.split('/');
-                        for (let i = 1; i < parts.length; i++) {
-                            const dirPart = parts.slice(0, i).join('/');
-                            const dirName = parts[i - 1]?.toLowerCase();
-                            if (dirName === lowerTarget || dirPart.toLowerCase().endsWith('/' + lowerTarget)) {
-                                matchedSubdir = dirPart;
-                                break;
-                            }
-                        }
-                        if (matchedSubdir) break;
-                    }
-
-                    if (matchedSubdir) {
-                        const subCmd = isWindows
-                            ? `cd /d ${cleanCwd} && cd ${matchedSubdir.replace(/\//g, '\\')} && cd`
-                            : `cd "${cleanCwd}" && cd "${matchedSubdir}" && pwd`;
-                        const subRes = await sendEngineCmd(subCmd);
-                        if (subRes.status === 'success' && subRes.output) {
-                            const subLines = subRes.output.trim().split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-                            const subCandidate = subLines[subLines.length - 1];
-                            if (subCandidate && isValidPath(subCandidate, isWindows)) {
-                                resolved = subCandidate;
-                                term.writeln(`\x1b[90m-> Auto-jumped to workspace folder: ${matchedSubdir}\x1b[0m`);
-                            }
-                        }
-                    }
-
-                    // Fallback to fast OS deep probe if not found in files prop
-                    if (!resolved) {
-                        const probeCmd = isWindows
-                            ? `cd /d ${cleanCwd} && dir /s /b /ad ${cleanTarget} 2>nul`
-                            : `find "${cleanCwd}" -maxdepth 5 -type d -name "${cleanTarget}" 2>/dev/null`;
-                        const probeRes = await sendEngineCmd(probeCmd);
-                        if (probeRes.status === 'success' && probeRes.output) {
-                            const firstFound = probeRes.output.trim().split(/\r?\n/).map(l => l.trim()).filter(Boolean)[0];
-                            if (firstFound && isValidPath(firstFound, isWindows)) {
-                                resolved = firstFound;
-                                term.writeln(`\x1b[90m-> Auto-jumped to workspace folder: ${firstFound}\x1b[0m`);
-                            }
-                        }
-                    }
-                }
-
-                if (resolved && isValidPath(resolved, isWindows)) {
-                    curSession.cwd = resolved;
-                    setSessions([...sessionsRef.current]);
-                } else {
-                    const errMsg = data.output?.trim() || `The system cannot find the path specified.`;
-                    term.writeln(`\x1b[31m${errMsg}\x1b[0m`);
-                }
+                const target = trimmed.slice(2).trim();
+                if (!target) { term.writeln(effectiveCwd); return; }
+                const resolved = await changeTerminalDirectory(effectiveCwd, target);
+                if (xtermRef.current !== term) return;
+                curSession.cwd = resolved;
+                setSessions([...sessionsRef.current]);
                 return;
             }
 
-            // General command execution inside session cwd (native Windows cmd / Unix sh)
-            const cleanCwd = effectiveCwd.replace(/^["']|["']$/g, '').trim();
-            const hostCmd = isWindows
-                ? `cd /d ${cleanCwd} && ${trimmed}`
-                : `cd "${cleanCwd}" && ${trimmed}`;
-
-            const data = await sendEngineCmd(hostCmd);
-            if (data.status === 'error' && (data.output?.includes('Engine connection failed') || data.output?.includes('Failed to fetch'))) {
-                term.writeln(`\x1b[33m[Cluaiz Engine Offline]\x1b[0m Cannot execute host command.`);
-                term.writeln(`\x1b[90mThe local Cluaiz engine backend (http://127.0.0.1:8000) is offline. Start the Cluaiz engine to execute system commands.\x1b[0m`);
-            } else if (data.output) {
-                const cleanOutput = data.output.replace(/\r?\n/g, '\r\n');
-                if (data.status === 'error') {
-                    term.writeln(`\x1b[31m${cleanOutput}\x1b[0m`);
-                } else {
-                    term.writeln(cleanOutput);
-                }
-            }
-        } catch (err: any) {
-            term.writeln(`\x1b[31m[Cluaiz Engine Error]: ${err?.message || err}\x1b[0m`);
-        } finally {
-            setIsExecuting(false);
-            printPrompt(curSession.cwd || effectiveCwd, curSession.shellType, undefined, false);
-            // Instant Live File Tree Auto-Sync (like VS Code): automatically update workspace tree after terminal commands
+            // Engine chooses cmd/sh and enforces shell policy before any process starts.
+            const data = await execution.execute(terminalCommand(effectiveCwd, trimmed, isWindows));
+            if (xtermRef.current !== term) return;
+            if (data.output) term.writeln(data.output.replace(/\r?\n/g, '\r\n'));
+            if (data.status === 'error') term.writeln(`[Process exited: ${data.exit_code ?? 'no exit code'}]`);
             useProjectStore.getState().syncFromDisk().catch(() => {});
+        } catch (err: unknown) {
+            if (xtermRef.current === term) term.writeln(`[Cluaiz Engine Error]: ${err instanceof Error ? err.message : String(err)}`);
+        } finally {
+            if (xtermRef.current === term) {
+                isExecutingRef.current = false;
+                setIsExecuting(false);
+                printPrompt(curSession.cwd || effectiveCwd, curSession.shellType, term, false);
+            }
         }
-    }, [printPrompt, getActiveSession, isWindows, systemCwd, rootPath, files]);
+    }, [printPrompt, getActiveSession, isWindows, host.ready, host.workspace, execution.execute]);
 
     // Dynamic XTerm theme generator from active CSS tokens
     const getXTermTheme = useCallback(() => {
@@ -478,47 +296,32 @@ export const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
         }
     }, [theme, getXTermTheme]);
 
-    // Handle Tab Autocompletion
+    // Completion lists existing Engine files, without executing ls/dir.
     const handleTabCompletion = useCallback(async () => {
-        const term = xtermRef.current;
-        const curSession = getActiveSession();
-        if (!term || !curSession) return;
-
+        const term = xtermRef.current, session = getActiveSession();
         const line = currentLineRef.current;
-        const lastWord = line.split(' ').pop() || '';
-        if (!lastWord) return;
-
+        const word = line.split(' ').pop() || '';
+        if (!term || !session || !word || !host.ready || isExecutingRef.current) return;
         try {
-            const effectiveCwd = (isValidPath(curSession.cwd, isWindows) ? curSession.cwd : '') || 
-                                 (isValidPath(systemCwd, isWindows) ? systemCwd : '') || 
-                                 rootPath || 
-                                 (isWindows ? 'C:\\Users' : '.');
-            const cleanCwd = effectiveCwd.replace(/^["']|["']$/g, '').trim();
-            const cleanPrefix = lastWord.replace(/^["']|["']$/g, '').trim();
-
-            const tabCmd = isWindows
-                ? `cd /d ${cleanCwd} && dir /b /a ${cleanPrefix}* 2>nul`
-                : `cd "${cleanCwd}" && ls -d ${cleanPrefix}* 2>/dev/null`;
-
-            const data = await sendEngineCmd(tabCmd);
-            if (data.status === 'success' && data.output) {
-                const matches = data.output.trim().split(/\r?\n/).map((s: string) => s.trim()).filter(Boolean);
-                if (matches.length === 1) {
-                    const match = matches[0];
-                    const completion = match.slice(lastWord.length);
-                    currentLineRef.current += completion;
-                    term.write(completion);
-                } else if (matches.length > 1) {
-                    term.writeln('\r\n' + matches.join('   '));
-                    printPrompt(curSession.cwd, curSession.shellType);
-                    term.write(currentLineRef.current);
-                }
+            const data = await completeTerminalPath(session.cwd || host.workspace, word);
+            if (xtermRef.current !== term || currentLineRef.current !== line) return;
+            if (data.matches.length === 1) {
+                const completion = data.matches[0].slice(word.length);
+                currentLineRef.current += completion;
+                term.write(completion);
+            } else if (data.matches.length > 1) {
+                term.writeln('\r\n' + data.matches.join('   '));
             }
-        } catch {}
-    }, [getActiveSession, printPrompt, isWindows, systemCwd, rootPath]);
+            if (data.truncated || data.skipped) term.writeln('\r\n[Directory listing is partial]');
+            if (data.matches.length > 1 || data.truncated || data.skipped) {
+                printPrompt(session.cwd, session.shellType);
+                term.write(currentLineRef.current);
+            }
+        } catch (error) {
+            if (xtermRef.current === term) term.writeln(`\r\n[Completion unavailable]: ${error instanceof Error ? error.message : String(error)}`);
+        }
+    }, [getActiveSession, printPrompt, host.ready, host.workspace]);
 
-    const isExecutingRef = useRef(isExecuting);
-    isExecutingRef.current = isExecuting;
     const executeOnSystemRef = useRef(executeOnSystem);
     executeOnSystemRef.current = executeOnSystem;
     const handleTabCompletionRef = useRef(handleTabCompletion);
@@ -528,7 +331,7 @@ export const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
 
     // Initialize or switch Xterm
     useEffect(() => {
-        if (!isOpen || !terminalContainerRef.current) return;
+        if (!isOpen || !host.ready || !terminalContainerRef.current) return;
 
         if (xtermRef.current) {
             xtermRef.current.dispose();
@@ -598,43 +401,9 @@ export const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
         const curSession = getActiveSession();
         currentLineRef.current = '';
 
-        // Clean direct initial prompt with dynamic host path resolution
-        const initTerminalPrompt = async () => {
-            let activeCwd = curSession.cwd || systemCwd;
-            if (!isValidPath(activeCwd, isWindows)) {
-                activeCwd = '';
-            }
-            if (!activeCwd) {
-                try {
-                    const stored = localStorage.getItem('cluaiz_user_profile_dir') || '';
-                    if (isValidPath(stored, isWindows)) {
-                        activeCwd = stored;
-                    } else {
-                        localStorage.removeItem('cluaiz_user_profile_dir');
-                    }
-                } catch {}
-            }
-            if (!activeCwd) {
-                try {
-                    const probeCmd = isWindows ? 'echo %USERPROFILE%' : 'echo $HOME';
-                    const res = await sendEngineCmd(probeCmd);
-                    if (res?.status === 'success' && res.output) {
-                        const probed = res.output.trim().split(/[\r\n]+/)[0]?.trim();
-                        if (isValidPath(probed, isWindows)) {
-                            activeCwd = probed;
-                            try { localStorage.setItem('cluaiz_user_profile_dir', probed); } catch {}
-                        }
-                    }
-                } catch {}
-            }
-            const fallbackPath = rootPath || (isWindows ? 'C:\\Users' : '~');
-            const finalCwd = isValidPath(activeCwd, isWindows) ? activeCwd : fallbackPath;
-            curSession.cwd = finalCwd;
-            setSystemCwd(finalCwd);
-            setSessions(prev => prev.map(s => s.id === curSession.id ? { ...s, cwd: finalCwd } : s));
-            printPrompt(finalCwd, curSession.shellType, term, false);
-        };
-        initTerminalPrompt();
+        // Prompt uses the selected Engine workspace, not a browser-cached home directory.
+        curSession.cwd = curSession.origin === origin ? curSession.cwd || host.workspace : host.workspace;
+        printPrompt(curSession.cwd, defaultShell, term, false);
 
         // Native Keystroke Handler
         const disposable = term.onData((data) => {
@@ -698,7 +467,7 @@ export const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
             term.dispose();
             xtermRef.current = null;
         };
-    }, [isOpen, activeSessionId]);
+    }, [isOpen, activeSessionId, host.ready, host.workspace, connection]);
 
     // Handle Height Resizing
     const handleMouseDownResize = (e: React.MouseEvent) => {
@@ -724,16 +493,15 @@ export const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
     };
 
     // Add Session
-    const handleAddSession = (type: 'powershell' | 'cmd' | 'bash' | 'zsh' = defaultShell) => {
+    const handleAddSession = () => {
         const base = getBaseRootPath();
         const baseName = projectName || base.split(/[\\/]/).filter(Boolean).pop() || 'terminal';
         const newId = `sess-${Date.now()}`;
         setSessions(prev => [...prev, {
-            id: newId, displayName: baseName, targetType: 'root', shellType: type,
+            id: newId, origin, displayName: baseName, targetType: 'root', shellType: defaultShell,
             cwd: base, commandHistory: [], historyIndex: null
         }]);
         setActiveSessionId(newId);
-        setIsNewMenuOpen(false);
     };
 
     // Close Session
@@ -810,44 +578,22 @@ export const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
                         })}
                     </div>
 
-                    {/* Add New Session Button (+) with Dropdown */}
+                    {/* New session uses the Engine's actual platform shell. */}
                     <div className="relative shrink-0">
                         <div className="flex items-center rounded hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors">
                             <button
                                 type="button"
-                                onClick={() => handleAddSession(defaultShell)}
+                                onClick={handleAddSession}
+                                disabled={!host.ready}
                                 title={`New Terminal (${defaultShell})`}
                                 className="p-1 cursor-pointer"
                             >
                                 <Plus className="w-3.5 h-3.5" />
                             </button>
-                            <button
-                                type="button"
-                                onClick={() => setIsNewMenuOpen(prev => !prev)}
-                                className="p-0.5 pr-1 cursor-pointer"
-                                title="Select Shell"
-                            >
-                                <ChevronDown className="w-2.5 h-2.5 opacity-70" />
-                            </button>
+
                         </div>
 
-                        {isNewMenuOpen && (
-                            <>
-                                <div className="fixed inset-0 z-40" onClick={() => setIsNewMenuOpen(false)} />
-                                <div className="absolute left-0 top-full mt-1 w-36 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg shadow-2xl p-1 z-50 text-[11px]">
-                                    {(isWindows ? ['powershell', 'cmd'] : ['bash', 'zsh']).map((sh) => (
-                                        <button
-                                            key={sh}
-                                            type="button"
-                                            onClick={() => handleAddSession(sh as any)}
-                                            className="w-full text-left px-2 py-1 rounded hover:bg-[var(--bg-tertiary)] text-[var(--text-primary)] capitalize cursor-pointer"
-                                        >
-                                            {sh === 'cmd' ? 'Command Prompt' : sh}
-                                        </button>
-                                    ))}
-                                </div>
-                            </>
-                        )}
+
                     </div>
                 </div>
 
@@ -856,7 +602,7 @@ export const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
                     {isExecuting && (
                         <span className="flex items-center gap-1.5 text-[11px] text-[var(--accent-color)] font-mono animate-pulse mr-1">
                             <Loader2 className="w-3 h-3 animate-spin" />
-                            Running...
+                            {execution.approval ? 'Awaiting approval...' : 'Waiting for result...'}
                         </span>
                     )}
 
@@ -883,7 +629,16 @@ export const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
                 </div>
             </div>
 
-            {/* 100% Full-Width xterm.js Canvas Container with Right-Click Paste */}
+            {!host.ready && <p role={host.error ? 'alert' : 'status'} className="p-2 text-xs text-[var(--text-secondary)]">
+                {host.error || 'Reading Engine workspace...'}
+            </p>}
+            {execution.approval && <div className="flex items-center gap-2 p-2 text-xs border-b border-[var(--border-color)] text-[var(--text-primary)]">
+                <span className="min-w-0 flex-1">Command approval: <code className="break-all">{execution.approval.target}</code></span>
+                <Button size="sm" disabled={execution.deciding} onClick={() => void execution.decide(false)}>Reject</Button>
+                <Button size="sm" disabled={execution.deciding} onClick={() => void execution.decide(true)}>Approve</Button>
+            </div>}
+            {execution.error && <p role="alert" className="p-2 text-xs text-[var(--text-danger)]">{execution.error}</p>}
+            {/* Full-width xterm canvas; clipboard behavior stays in the existing view. */}
             <div 
                 ref={terminalContainerRef}
                 className="flex-1 w-full h-full overflow-hidden select-text relative terminal-viewport-container"

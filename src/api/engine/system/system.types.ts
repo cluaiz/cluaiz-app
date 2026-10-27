@@ -52,8 +52,10 @@ export interface LatencyCompareResponse {
   request_overrides?: Record<string, number>;
 }
 export interface SystemControlResponse { status: string; control?: unknown; message?: string; }
-export interface CmdPayload { command: string; }
-export interface CmdResponse { status: 'success' | 'error' | string; output: string; }
+export type CmdPayload = { command: string; program?: never; args?: never } | { program: string; args: string[]; command?: never };
+export interface CommandOptions { approvalId?: string; timeoutMs?: number; signal?: AbortSignal; }
+export interface CommandApproval { id: string; target: string; expiresAt: string; }
+export interface CmdResponse { status: 'success' | 'error'; output: string; exit_code: number | null; stdout: string; stderr: string; }
 export interface CommandExecutionEntry {
   command: string; output: string; status: 'success' | 'error'; timestamp: number;
 }

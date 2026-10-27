@@ -26,6 +26,7 @@ function harness(handler){
     const actions=load('src/api/engine/models/actions.ts',{...base,'../../client/cepTask':tasks,'../../../utils/filePath':filePath});
     const config=load('src/api/engine/config/config.api.ts',base);
     const systemData=load('src/api/engine/system/systemData.ts',base);
+    const execution=load('src/api/engine/system/execution.ts',base);
     const filesystem=load('src/api/engine/fs/fs.api.ts',base);
     const tokens=load('src/api/engine/permission/tokens.ts',base);
     const approvals=load('src/api/engine/permission/approvals.ts',base);
@@ -36,7 +37,7 @@ function harness(handler){
         '../../client':{client},...base,'../permission/permission.api':permission,
         '../system/systemData':systemData,'./models.endpoints':{MODELS_ENDPOINTS:{}},'./actions':actions,'../fs/fs.api':filesystem,
     });
-    return {...cep,...tasks,...actions,...config,...systemData,...permission,...filesystem,...models,filePath,errors,requests,client};
+    return {...cep,...tasks,...actions,...config,...systemData,...execution,...permission,...filesystem,...models,filePath,errors,requests,client};
 }
 function filesystemHarness(handler){
     return harness(handler);

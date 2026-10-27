@@ -4,11 +4,12 @@ import { permissionApi } from '../permission/permission.api';
 import { callCep } from '../../client/cep';
 import { ApiError } from '../../client/errors';
 import { readSystemInfo, readSystemLive } from './systemData';
+import { executeSystem } from './execution';
 import type {
   HealthResponse,
   SystemInfoResponse,
-  CmdPayload,
   CmdResponse,
+  CommandOptions,
   ProcessTelemetryResponse,
   SystemControlResponse,
   HardwareProfileResponse,
@@ -61,14 +62,14 @@ export const systemApi = {
   },
 
   /**
-   * Executes a terminal shell command on the host machine via the local engine daemon.
-   * Requires loopback authentication.
-   * Defaults to 10 minutes (600,000ms) for long-running CLI / npm / npx processes.
+   * Runs a shell line under the Engine's exec policy. Approval errors stay CEP errors.
+   * Transport timeout stops observation, not the Engine process.
    */
-  executeCommand: async (command: string, timeoutMs?: number): Promise<CmdResponse> => {
-    const payload: CmdPayload = { command };
-    return client.post<CmdResponse>(SYSTEM_ENDPOINTS.EXECUTE_CMD, payload, { timeoutMs: timeoutMs ?? 600000 });
-  },
+  executeCommand: (command: string, timeoutMs?: number, options?: CommandOptions): Promise<CmdResponse> =>
+    executeSystem({ command }, { ...options, ...(timeoutMs !== undefined && { timeoutMs }) }),
+
+  executeProgram: (program: string, args: string[] = [], options?: CommandOptions): Promise<CmdResponse> =>
+    executeSystem({ program, args }, options),
 
   /**
    * Fetches real-time running model processes, allocations, and hardware telemetry snapshot.
