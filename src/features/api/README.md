@@ -63,3 +63,59 @@ unrelated App API clients are outside this Explorer migration.
 
 This catalog wiring does not certify all downloaded models, change Engine
 permissions, migrate the rest of the App's API clients, or add a new native ABI.
+
+## Interactive architecture overview
+
+Open `/apis` without a selected endpoint, or use the existing **Architecture
+Overview** button in the sidebar. This is an explanation and navigation view;
+it is not a live trace or a request executor.
+
+```mermaid
+flowchart LR
+    A[App / CLI / extension] <--> T[Existing HTTP or native transport]
+    T <--> G[Applicable Engine checks]
+    G <--> I[Chat and media]
+    G <--> M[Memory and context]
+    G <--> O[Tools, files, models and settings]
+    I <--> M
+    I <--> R[Compatible model runtime]
+    M <--> S[Events, notes and saved KV]
+    O <--> S
+```
+
+- `utils/architectureGraph.ts` projects the existing catalog into typed nodes.
+  It reuses `catalogPillars` and the existing transport helper. Selection identity
+  is HTTP method plus logical path: sharing `/v1/cep` does not merge methods.
+  Every catalog endpoint remains reachable once, including future unknown groups.
+  Memory, notes, context and saved KV have their own node instead of implying
+  that every read runs inference. Descriptive relationships and example steps
+  contain no executable request payloads.
+- `components/ApiArchitectureLanding.tsx` owns the selected node, search and
+  example step. It reads the existing API/connection stores without another
+  catalog or inventory loader. Search includes names, descriptions and groups.
+  Missing catalog data shows an explicit message and an intentional retry.
+- `components/ApiArchitectureCanvas.tsx` owns pan, bounded zoom and Fit. Its
+  buttons support keyboard selection; closing details restores focus. Narrow
+  viewports default to a readable list, with Map/List switching also available.
+  Map wheel handling stays inside the map, so details scroll independently.
+  Relationships are static; no movement is needed to understand a step.
+- `components/ApiArchitectureInspector.tsx` explains purpose, input, output,
+  storage, model involvement and limitations. Payload and Documentation actions
+  pass the original endpoint to the existing Explorer store. They do not send
+  its request. The model node separates the Explorer selection and inventory
+  snapshot from unmeasured loaded state, device and context. A connection change
+  hides inventory metadata captured for the original connection.
+
+Choose an example to step through chat, recall, human/AI notes, tools, ingestion,
+speech, vectors, model lifecycle or saved KV. Steps highlight related modules;
+they neither simulate a successful API result nor modify Engine state. An example
+whose required groups are absent is marked unavailable. Full payload variants
+and language examples remain in the original endpoint documentation.
+
+The overview explains capabilities that do not yet have complete user controls.
+In particular, it does not build the AI Memory panel, persist external memory
+events, change model tool policy, or prove recall quality. The existing Notebook
+is a separate feature. Browser acceptance covers the shared React UI; native
+desktop and other operating-system acceptance must be reported separately.
+
+Focused projection tests: `node --test test/api_architecture.test.cjs`.
