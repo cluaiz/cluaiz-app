@@ -58,33 +58,30 @@ export interface PermissionResponse {
   message?: string;
 }
 
-export interface TokenGenerateResponse {
-  status: string;
-  message: string;
-  token: string;
+export interface TokenListResponse {
   tokens: string[];
+  api_auth_required: boolean;
 }
 
-export interface TokenRevokeResponse {
-  status: string;
-  message: string;
-  tokens: string[];
+export interface TokenGenerateResponse extends TokenListResponse {
+  token: string;
+}
+
+export interface TokenRevokeResponse extends TokenListResponse {
+  revoked_token: string;
 }
 
 export interface PendingPermissionRequest {
   id: string;
-  action: string;
+  method: string;
   target: string;
-  caller: string;
-  timestamp_ms: number;
-  status: 'pending' | 'approved' | 'rejected' | string;
-  tool_name?: string;
-  parameters?: Record<string, any>;
-  timestamp?: number;
+  principal: string;
+  created_at: string;
+  expires_at: string;
+  status: 'pending' | 'approved' | 'rejected' | 'used';
 }
 
 export interface PendingPermissionsResponse {
-  status: string;
   pending: PendingPermissionRequest[];
 }
 
@@ -94,7 +91,6 @@ export interface ApprovalActionRequest {
 }
 
 export interface ApprovalActionResponse {
-  status: string;
-  message: string;
-  request?: PendingPermissionRequest;
+  approval: PendingPermissionRequest;
+  grant?: { chat_id: string; tool: string; minutes: number } | null;
 }

@@ -107,13 +107,14 @@ Every single route declared in `cluaiz/inference-engine/api/src/routes.rs` is ma
 | | `/v1/system/cmd` | `POST` | `systemApi.executeCommand()` | |
 | | `/v1/system/ps` | `GET` | `systemApi.getProcesses()` | |
 | | `/v1/system/control` | `GET` | `systemApi.getSystemControl()` | |
-| **`permission/`** | `/v1/system/permission` | `GET` | `permissionApi.getPermission()` | `usePermissionStore` |
-| | `/v1/system/permission` | `POST` | `permissionApi.updatePermission()` | |
-| | `/v1/system/auth/token/generate` | `POST` | `permissionApi.generateAuthToken()` | |
-| | `/v1/system/auth/token/revoke` | `POST` | `permissionApi.revokeAuthToken()` | |
-| | `/v1/system/permission/pending` | `GET` | `permissionApi.getPendingPermissions()` | |
-| | `/v1/system/permission/approve` | `POST` | `permissionApi.approvePermission()` | |
-| | `/v1/system/permission/reject` | `POST` | `permissionApi.rejectPermission()` | |
+| **`permission/`** | `config.get` via `/v1/cep` | `POST` | `permissionApi.getPermission()` | `usePermissionStore` |
+| | `config.set` via `/v1/cep` | `POST` | `permissionApi.updatePermission()` | |
+| | `tokens.list` via `/v1/cep` | `POST` | `permissionApi.listAuthTokens()` | |
+| | `tokens.create` via `/v1/cep` | `POST` | `permissionApi.generateAuthToken()` | |
+| | `tokens.revoke` via `/v1/cep` | `POST` | `permissionApi.revokeAuthToken()` | |
+| | `approvals.list` via `/v1/cep` | `POST` | `permissionApi.getPendingPermissions()` | |
+| | `approvals.approve` via `/v1/cep` | `POST` | `permissionApi.approvePermission()` | |
+| | `approvals.reject` via `/v1/cep` | `POST` | `permissionApi.rejectPermission()` | |
 | **`chat/`** | `/v1/chat/completions` | `POST` | `chatApi.createCompletion()` / `streamCompletion()` | `useChatStore` |
 | | `/v1/chat/context_telemetry` | `GET` | `chatApi.getContextTelemetry()` | |
 | | `/v1/chat/cancel` | `POST` | `chatApi.cancelStream()` | |

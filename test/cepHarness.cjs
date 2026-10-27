@@ -27,9 +27,10 @@ function harness(handler){
     const config=load('src/api/engine/config/config.api.ts',base);
     const systemData=load('src/api/engine/system/systemData.ts',base);
     const filesystem=load('src/api/engine/fs/fs.api.ts',base);
+    const tokens=load('src/api/engine/permission/tokens.ts',base);
+    const approvals=load('src/api/engine/permission/approvals.ts',base);
     const permission=load('src/api/engine/permission/permission.api.ts',{
-        '../../client':{client},'../config/config.api':config,'../../client/errors':errors,
-        './permission.endpoints':{PERMISSION_ENDPOINTS:{}},
+        '../config/config.api':config,'../../client/errors':errors,'./tokens':tokens,'./approvals':approvals,
     });
     const models=load('src/api/engine/models/models.api.ts',{
         '../../client':{client},...base,'../permission/permission.api':permission,

@@ -1,13 +1,10 @@
-import { client } from '../../client';
 import { getConfig, setConfig } from '../config/config.api';
 import { ApiError } from '../../client/errors';
-import { PERMISSION_ENDPOINTS } from './permission.endpoints';
+import { listTokens, createToken, revokeToken } from './tokens';
+import { listApprovals, decideApproval } from './approvals';
 import type {
   PermissionResponse,
   PermissionSchema,
-  TokenGenerateResponse,
-  TokenRevokeResponse,
-  PendingPermissionsResponse,
   ApprovalActionRequest,
   ApprovalActionResponse,
 } from './permission.types';
@@ -38,26 +35,10 @@ export const permissionApi = {
     return engineSettings({ engine: await setConfig('engine', payload, signal) });
   },
 
-  /**
-   * Generates a cryptographically secure API authentication token on the engine.
-   */
-  generateAuthToken: async (): Promise<TokenGenerateResponse> => {
-    return client.post<TokenGenerateResponse>(PERMISSION_ENDPOINTS.AUTH_TOKEN_GENERATE, {});
-  },
-
-  /**
-   * Revokes an existing API token from the engine security registry.
-   */
-  revokeAuthToken: async (token: string): Promise<TokenRevokeResponse> => {
-    return client.post<TokenRevokeResponse>(PERMISSION_ENDPOINTS.AUTH_TOKEN_REVOKE, { token });
-  },
-
-  /**
-   * Fetches all pending Human-In-The-Loop (HITL) tool execution permission requests.
-   */
-  getPendingPermissions: async (): Promise<PendingPermissionsResponse> => {
-    return client.get<PendingPermissionsResponse>(PERMISSION_ENDPOINTS.PENDING_PERMISSIONS);
-  },
+  listAuthTokens: listTokens,
+  generateAuthToken: createToken,
+  revokeAuthToken: revokeToken,
+  getPendingPermissions: listApprovals,
 
   /**
    * Approves a pending HITL permission request, unblocking active LLM inference task.
@@ -66,11 +47,7 @@ export const permissionApi = {
     payloadOrId: ApprovalActionRequest | string,
     feedback?: string
   ): Promise<ApprovalActionResponse> => {
-    const payload: ApprovalActionRequest =
-      typeof payloadOrId === 'string'
-        ? { request_id: payloadOrId, feedback }
-        : payloadOrId;
-    return client.post<ApprovalActionResponse>(PERMISSION_ENDPOINTS.APPROVE_PERMISSION, payload);
+    return decideApproval(true, payloadOrId, feedback);
   },
 
   /**
@@ -80,11 +57,7 @@ export const permissionApi = {
     payloadOrId: ApprovalActionRequest | string,
     feedback?: string
   ): Promise<ApprovalActionResponse> => {
-    const payload: ApprovalActionRequest =
-      typeof payloadOrId === 'string'
-        ? { request_id: payloadOrId, feedback }
-        : payloadOrId;
-    return client.post<ApprovalActionResponse>(PERMISSION_ENDPOINTS.REJECT_PERMISSION, payload);
+    return decideApproval(false, payloadOrId, feedback);
   },
 };
 

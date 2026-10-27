@@ -400,13 +400,9 @@ export const useEngineStore = create<EngineState>()((set, get) => ({
         try {
             return await toast.promise(
                 async () => {
-                    const res = await systemApi.generateAuthToken();
-                    // If client currently has no active token, immediately adopt the newly generated token
-                    if (!http.getToken() && res?.token) {
-                        http.setToken(res.token);
-                    }
+                    const token = await usePermissionStore.getState().generateAuthToken();
                     await get().initEngineSettings();
-                    return res?.token || '';
+                    return token;
                 },
                 {
                     loading: 'Generating API key...',
@@ -425,14 +421,7 @@ export const useEngineStore = create<EngineState>()((set, get) => ({
         try {
             await toast.promise(
                 async () => {
-                    const res = await systemApi.revokeAuthToken(token);
-                    // If the revoked token was the active token in the HTTP client (or is no longer valid),
-                    // immediately switch to the first remaining valid token, or null if none remain.
-                    const currentActiveToken = http.getToken();
-                    if (currentActiveToken === token || (res?.tokens && !res.tokens.includes(currentActiveToken || ''))) {
-                        const remaining = res?.tokens || [];
-                        http.setToken(remaining.length > 0 ? remaining[0] : null);
-                    }
+                    await usePermissionStore.getState().revokeAuthToken(token);
                     await get().initEngineSettings();
                 },
                 {
