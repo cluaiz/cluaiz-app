@@ -99,3 +99,39 @@ test('projection and scenario output is deterministic for the same catalog',()=>
     assert.deepEqual(json(build(fixture)),json(build(fixture)));
     assert.deepEqual(json(scenarios(build(fixture))),json(scenarios(build(fixture))));
 });
+
+test('progressive graph reaches every real API and keeps original parameters, payloads and response examples',()=>{
+    const catalog=JSON.parse(fs.readFileSync(path.join(__dirname,'../public/data/api-catalog.json'),'utf8'));
+    const graph=build(catalog), reached=new Set();
+    for(const owner of graph.nodes)for(const group of owner.groups)for(const endpoint of group.endpoints){
+        const view=architecture.architectureView(graph,[owner.id,group.id,key(endpoint)]);
+        const method=view.items.find(item=>item.kind==='api');
+        assert.equal(method.endpoint,endpoint);assert.equal(view.path.length,3);reached.add(key(method.endpoint));
+        assert.deepEqual(json(view.items.filter(item=>item.kind==='detail').map(item=>item.detail)),['input','processing','output','state','model']);
+        assert.ok(view.items.filter(item=>item.kind==='detail').every(item=>item.endpoint===endpoint));
+        const ids=new Set(view.items.map(item=>item.id));assert.equal(ids.size,view.items.length);
+        assert.ok(view.edges.every(edge=>ids.has(edge.from)&&ids.has(edge.to)));
+        assert.ok(view.edges.some(edge=>edge.to===method.id&&edge.label==='Request input'));
+    }
+    assert.equal(reached.size,graph.count);
+});
+
+test('expansion is bounded, supports back paths and recovers when a catalog entry disappears',()=>{
+    const graph=build(fixture), root=architecture.architectureView(graph,[]);
+    assert.equal(root.items.length,graph.nodes.length);assert.equal(root.items.some(item=>item.kind==='api'),false);
+    const domain=architecture.architectureView(graph,['memory']);
+    assert.equal(domain.items.filter(item=>item.kind==='group').length,4);
+    const group=graph.nodes.find(item=>item.id==='memory').groups[0];
+    const methods=architecture.architectureView(graph,['memory',group.id]);
+    assert.equal(methods.items.filter(item=>item.kind==='api').length,group.endpoints.length);
+    assert.deepEqual(json(architecture.architectureView(graph,['memory',group.id,'removed']).path),['memory',group.id]);
+    assert.deepEqual(json(architecture.architectureView(graph,['removed']).path),[]);
+    assert.equal(architecture.architectureView(build([]),[]).items.some(item=>item.kind==='api'),false);
+});
+
+test('search reveals original methods as connected nodes and produces an honest empty result',()=>{
+    const graph=build(fixture), view=architecture.architectureView(graph,[],'fs.write');
+    assert.equal(view.matches,1);assert.equal(view.items.filter(item=>item.kind==='api')[0].endpoint,fixture[5].endpoints[1]);
+    assert.equal(view.edges.length,1);
+    assert.equal(architecture.architectureView(graph,[],'no-such-owned-method').items.length,0);
+});

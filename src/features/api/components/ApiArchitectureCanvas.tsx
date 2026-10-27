@@ -1,165 +1,76 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Monitor, Network, ShieldCheck, Brain, Layers, Wrench, Folder, Boxes, SlidersHorizontal,
-    Database, Cpu, ZoomIn, ZoomOut, Maximize2, List, Map as MapIcon } from 'lucide-react';
+import React, { useMemo } from 'react';
+import { Boxes, ChevronRight, Cpu, Database, Folder, Layers, Maximize2, Network, ShieldCheck, SlidersHorizontal, Wrench, ZoomIn, ZoomOut } from 'lucide-react';
 import { Button } from '../../../components/ui/Button';
-import type { ArchitectureGraph, ArchitectureNode } from '../utils/architectureGraph';
+import { ApiArchitectureInspector } from './ApiArchitectureInspector';
+import { architectureEdgePath, architectureLayout } from '../utils/architectureLayout';
+import { architectureTransport, type ArchitectureView } from '../utils/architectureGraph';
+import { useArchitectureViewport } from '../hooks/useArchitectureViewport';
+import type { ApiEndpoint, InstalledModel } from '../types';
 
 interface Props {
-    graph: ArchitectureGraph; selected: string | null; highlighted: string[];
-    modelLabel: string; onSelect: (id: string) => void;
+    view: ArchitectureView; highlighted: string[]; modelLabel: string; toolbar: React.ReactNode; navigationKey: string;
+    selectedModel: string; model?: InstalledModel; connection: string;
+    onNavigate: (path: string[]) => void; onOpen: (endpoint: ApiEndpoint, docs: boolean) => void;
 }
-const WIDTH = 238, HEIGHT = 124, ROW = 152, MIN_ZOOM = 0.2, MAX_ZOOM = 2.5;
-const icons: Record<string, typeof Monitor> = { client: Monitor, transport: Network, guard: ShieldCheck,
-    inference: Brain, memory: Layers, tools: Wrench, files: Folder, models: Boxes, system: SlidersHorizontal,
-    runtime: Cpu, saved: Database };
+const icons: Record<string, typeof Network> = { transport: Network, guard: ShieldCheck, memory: Layers,
+    tools: Wrench, files: Folder, models: Boxes, system: SlidersHorizontal, runtime: Cpu, saved: Database };
 
-export function ApiArchitectureCanvas({ graph, selected, highlighted, modelLabel, onSelect }: Props) {
-    const stage = useRef<HTMLDivElement>(null);
-    const drag = useRef<{ id: number; x: number; y: number; left: number; top: number } | null>(null);
-    const moved = useRef(false);
-    const [size, setSize] = useState({ width: 0, height: 0 });
-    const [view, setView] = useState({ x: 0, y: 0, scale: 1 });
-    const [mode, setMode] = useState<'map' | 'list' | null>(null);
-    const list = mode === 'list' || (mode === null && size.width > 0 && size.width < 640);
-    const layout = useMemo(() => {
-        const domains = graph.nodes.filter(node => node.groups.length);
-        const height = Math.max(740, domains.length * ROW + 88);
-        const positions = new Map<string, { x: number; y: number }>([
-            ['client', { x: 28, y: height / 2 - HEIGHT / 2 }],
-            ['transport', { x: 310, y: height / 2 - 170 }],
-            ['guard', { x: 310, y: height / 2 + 38 }],
-            ['runtime', { x: 930, y: height * 0.2 }],
-            ['saved', { x: 930, y: height * 0.64 }],
-        ]);
-        domains.forEach((node, i) => positions.set(node.id, { x: 620, y: 54 + i * ROW }));
-        return { positions, width: 1200, height };
-    }, [graph]);
-    const fit = useCallback(() => {
-        const scale = Math.max(MIN_ZOOM, Math.min((size.width - 32) / layout.width, (size.height - 32) / layout.height, 1));
-        setView({ x: (size.width - layout.width * scale) / 2, y: (size.height - layout.height * scale) / 2, scale });
-        moved.current = false;
-    }, [size, layout]);
-
-    useEffect(() => {
-        const element = stage.current;
-        if (!element) return;
-        const observer = new ResizeObserver(([entry]) => setSize({ width: entry.contentRect.width, height: entry.contentRect.height }));
-        observer.observe(element);
-        return () => observer.disconnect();
-    }, []);
-    useEffect(() => { if (!moved.current && size.width && size.height) fit(); }, [fit, size]);
-
-    const zoom = useCallback((factor: number, x = size.width / 2, y = size.height / 2) => {
-        moved.current = true;
-        setView(previous => {
-            const scale = Math.max(MIN_ZOOM, Math.min(previous.scale * factor, MAX_ZOOM));
-            return { x: x - (x - previous.x) * scale / previous.scale,
-                y: y - (y - previous.y) * scale / previous.scale, scale };
-        });
-    }, [size]);
-    useEffect(() => {
-        const element = stage.current;
-        if (!element || list) return;
-        const wheel = (event: WheelEvent) => {
-            event.preventDefault();
-            const bounds = element.getBoundingClientRect();
-            zoom(event.deltaY < 0 ? 1.1 : 1 / 1.1, event.clientX - bounds.left, event.clientY - bounds.top);
-        };
-        element.addEventListener('wheel', wheel, { passive: false });
-        return () => element.removeEventListener('wheel', wheel);
-    }, [zoom, list]);
-
-    function select(node: ArchitectureNode) { onSelect(node.id); }
-    function focusNode(id: string) {
-        const point = layout.positions.get(id);
-        if (!point) return;
-        setView(previous => {
-            const x = point.x * previous.scale + previous.x, y = point.y * previous.scale + previous.y;
-            if (x >= 0 && y >= 0 && x + WIDTH * previous.scale <= size.width && y + HEIGHT * previous.scale <= size.height) return previous;
-            moved.current = true;
-            return { ...previous, x: size.width / 2 - (point.x + WIDTH / 2) * previous.scale,
-                y: size.height / 2 - (point.y + HEIGHT / 2) * previous.scale };
-        });
-    }
-    const nodeButton = (node: ArchitectureNode, inList: boolean) => {
-        const Icon = icons[node.id] || Network;
-        const active = selected === node.id || highlighted.includes(node.id);
-        const position = layout.positions.get(node.id);
-        const count = node.groups.reduce((sum, group) => sum + group.endpoints.length, 0);
-        return <button key={node.id} id={`architecture-node-${node.id}`} type="button"
-            aria-label={`${node.title}${count ? `, ${count} APIs` : ''}`} aria-pressed={selected === node.id}
-            onClick={() => select(node)} onFocus={() => { if (!inList) focusNode(node.id); }}
-            className={`${inList ? 'w-full min-h-[124px]' : 'absolute'} rounded-xl border p-4 text-left shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-color)] hover:bg-[var(--bg-tertiary)]`}
-            style={{ ...(inList ? {} : { left: position?.x, top: position?.y, width: WIDTH, height: HEIGHT }),
-                borderColor: active ? 'var(--accent-color)' : 'var(--border-color)', background: 'var(--bg-secondary)' }}>
-            <span className="flex items-center justify-between gap-3">
-                <Icon size={19} className="text-[var(--accent-color)] shrink-0" />
-                <span className="text-[10px] uppercase tracking-wide text-[var(--text-muted)]">{count ? `${count} APIs` : node.lane}</span>
-            </span>
-            <span className="mt-2 block text-sm font-semibold text-[var(--text-primary)]">{node.title}</span>
-            <span className="mt-1 block text-[11px] leading-4 text-[var(--text-secondary)] line-clamp-2 break-words">
-                {node.id === 'runtime' ? modelLabel : node.subtitle}
-            </span>
-        </button>;
-    };
-
-    return <section aria-label="Interactive API architecture" className="relative flex min-h-[340px] min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-[var(--border-color)] bg-[var(--bg-primary)]">
-        <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-[var(--border-color)] px-3 py-2">
-            <span className="text-xs text-[var(--text-secondary)]">{list ? 'Readable architecture list' : 'Client → Engine → model / saved state'}</span>
-            <Button variant="ghost" size="sm" onClick={() => setMode(list ? 'map' : 'list')}>
-                {list ? <MapIcon size={14} /> : <List size={14} />}{list ? 'Map view' : 'List view'}
-            </Button>
+export function ApiArchitectureCanvas({ view, highlighted, modelLabel, toolbar, selectedModel, model, connection, onNavigate, onOpen, navigationKey }: Props) {
+    const layout = useMemo(() => architectureLayout(view), [view]);
+    const scope = navigationKey + ':' + JSON.stringify(view.path) + ':' + (view.focusId || '');
+    const viewport = useArchitectureViewport(layout.bounds, layout.frame, scope, Boolean(view.path.length || view.matches !== undefined));
+    return <section ref={viewport.stage} aria-label="Interactive API architecture"
+        className="relative h-full min-h-0 w-full overflow-hidden bg-[var(--bg-primary)]"
+        style={{ touchAction: 'none', backgroundImage: 'radial-gradient(var(--border-color) 1px, transparent 1px)', backgroundSize: '24px 24px' }}>
+        <div ref={viewport.world} className="absolute left-0 top-0 origin-top-left" data-architecture-world
+            style={{ width: layout.bounds.width, height: layout.bounds.height, willChange: 'transform' }}>
+            <svg width={layout.bounds.width} height={layout.bounds.height} className="pointer-events-none absolute inset-0 overflow-visible" aria-hidden="true">
+                <defs><marker id="architecture-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0L8 4L0 8" fill="context-stroke" /></marker></defs>
+                {view.edges.map(edge => {
+                    const a = layout.positions.get(edge.from), b = layout.positions.get(edge.to); if (!a || !b) return null;
+                    return <g key={edge.from + ':' + edge.to}><title>{edge.label}</title><path d={architectureEdgePath(a, b)} fill="none"
+                        stroke="var(--text-muted)" strokeWidth="1.4" opacity="0.6" markerEnd="url(#architecture-arrow)" style={{ pointerEvents: 'stroke' }} />
+                        {view.path.length > 0 && a.x !== b.x && <text x={(a.x + a.width + b.x) / 2} y={(a.y + a.height / 2 + b.y + b.height / 2) / 2 - 10}
+                            fill="var(--text-secondary)" fontSize="10" textAnchor="middle">{edge.label.length > 22 ? edge.label.slice(0, 21) + '…' : edge.label}</text>}
+                    </g>;
+                })}
+            </svg>
+            {view.items.map(item => {
+                const box = layout.positions.get(item.id)!;
+                const Icon = icons[item.owner.id] || Network;
+                const active = highlighted.includes(item.owner.id), count = item.owner.groups.reduce((n, group) => n + group.endpoints.length, 0);
+                const title = item.title;
+                return <div key={item.id} data-architecture-item={item.id} className="absolute flex flex-col rounded-xl border bg-[var(--bg-secondary)] shadow-sm"
+                    style={{ left: box.x, top: box.y, width: box.width, height: box.height,
+                        borderColor: active ? 'var(--accent-color)' : 'var(--border-color)' }}>
+                    {item.kind === 'detail' ? <>
+                        <h3 className="px-4 pb-2 pt-3 text-sm font-semibold text-[var(--text-primary)]">{title}</h3>
+                        <ApiArchitectureInspector item={item} model={model} selectedModel={selectedModel} connection={connection} onOpen={onOpen} />
+                    </> : <button type="button" data-architecture-node={item.owner.id} data-architecture-kind={item.kind}
+                        aria-label={'Expand ' + title} onClick={() => onNavigate(item.path)}
+                        onFocus={event => { if (event.currentTarget.matches(':focus-visible')) viewport.reveal(box); }}
+                        className="flex h-full w-full flex-col rounded-xl p-4 text-left outline-none transition-colors hover:bg-[var(--bg-tertiary)] focus-visible:ring-2 focus-visible:ring-[var(--accent-color)]">
+                        <span className="mb-2 flex w-full items-center justify-between gap-2 text-[10px] uppercase tracking-wider text-[var(--text-muted)]">
+                            <Icon size={17} className="text-[var(--accent-color)]" />
+                            {item.endpoint ? architectureTransport(item.endpoint) : item.kind === 'group' ? 'API group' : count ? count + ' APIs' : item.owner.lane}
+                            <ChevronRight size={13} />
+                        </span>
+                        <span className={'block w-full truncate text-sm font-semibold text-[var(--text-primary)] ' + (item.kind === 'api' ? 'font-mono' : '')} title={title}>{title}</span>
+                        <span className="mt-1 line-clamp-2 text-xs leading-5 text-[var(--text-secondary)]">{item.owner.id === 'runtime' && item.kind === 'component' ? modelLabel : item.subtitle}</span>
+                    </button>}
+                </div>;
+            })}
         </div>
-        <div ref={stage} className={`relative min-h-0 flex-1 ${list ? 'overflow-y-auto p-3' : 'overflow-hidden cursor-grab active:cursor-grabbing'}`}
-            style={list ? undefined : { touchAction: 'none', backgroundImage: 'radial-gradient(var(--border-color) 1px, transparent 1px)', backgroundSize: '24px 24px' }}
-            onPointerDown={event => {
-                if (list || event.button !== 0 || (event.target as Element).closest('button, input, a, select, textarea')) return;
-                drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, left: view.x, top: view.y };
-                event.currentTarget.setPointerCapture(event.pointerId);
-            }}
-            onPointerMove={event => {
-                const start = drag.current;
-                if (!start || start.id !== event.pointerId) return;
-                moved.current = true;
-                setView(previous => ({ ...previous, x: start.left + event.clientX - start.x, y: start.top + event.clientY - start.y }));
-            }}
-            onPointerUp={event => {
-                if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
-                drag.current = null;
-            }} onPointerCancel={() => { drag.current = null; }} onLostPointerCapture={() => { drag.current = null; }}>
-            {list ? <div className="grid gap-3 sm:grid-cols-2">{graph.nodes.map(node => nodeButton(node, true))}</div>
-                : <div className="absolute left-0 top-0 origin-top-left" style={{ width: layout.width, height: layout.height,
-                    transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})` }}>
-                    <svg width={layout.width} height={layout.height} aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-visible">
-                        <defs><marker id="architecture-arrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto-start-reverse"><path d="M0 0L7 3.5L0 7" fill="context-stroke" /></marker></defs>
-                        {graph.edges.map(edge => {
-                            const a = layout.positions.get(edge.from), b = layout.positions.get(edge.to);
-                            if (!a || !b) return null;
-                            const vertical = a.x === b.x;
-                            const sx = a.x + (vertical ? WIDTH / 2 : WIDTH), sy = a.y + (vertical ? HEIGHT : HEIGHT / 2);
-                            const tx = b.x + (vertical ? WIDTH / 2 : 0), ty = b.y + (vertical ? 0 : HEIGHT / 2);
-                            const path = vertical ? `M${sx},${sy} C${sx},${(sy + ty) / 2} ${tx},${(sy + ty) / 2} ${tx},${ty}`
-                                : `M${sx},${sy} C${(sx + tx) / 2},${sy} ${(sx + tx) / 2},${ty} ${tx},${ty}`;
-                            const active = highlighted.includes(edge.from) && highlighted.includes(edge.to);
-                            return <g key={`${edge.from}-${edge.to}`}><title>{edge.label}</title><path d={path} fill="none"
-                                stroke={active ? 'var(--accent-color)' : 'var(--border-color)'} strokeWidth={active ? 2.5 : 1.5}
-                                markerStart="url(#architecture-arrow)" markerEnd="url(#architecture-arrow)" /></g>;
-                        })}
-                    </svg>
-                    <span className="absolute left-7 top-3 text-[11px] font-semibold tracking-widest text-[var(--text-muted)]">CLIENTS</span>
-                    <span className="absolute left-[620px] top-3 text-[11px] font-semibold tracking-widest text-[var(--text-muted)]">ENGINE DOMAINS</span>
-                    <span className="absolute left-[930px] top-3 text-[11px] font-semibold tracking-widest text-[var(--text-muted)]">RUNTIME / STATE</span>
-                    {graph.nodes.map(node => nodeButton(node, false))}
-                </div>}
+        <div className="absolute inset-x-0 top-0 z-10 flex flex-wrap items-center gap-1.5 border-b border-[var(--border-color)] bg-[var(--bg-primary)]/95 px-3 py-2 shadow-sm" data-architecture-interactive data-architecture-toolbar>
+            {toolbar}
         </div>
-        <div className="flex shrink-0 items-center justify-between gap-2 border-t border-[var(--border-color)] px-3 py-2">
-            <span className="text-[10px] text-[var(--text-muted)]">Explanation map · no requests executed</span>
-            {!list && <div className="flex items-center gap-1">
-                <Button variant="ghost" size="icon" aria-label="Zoom out" onClick={() => zoom(1 / 1.2)}><ZoomOut size={15} /></Button>
-                <span className="min-w-9 text-center text-[10px] tabular-nums text-[var(--text-muted)]">{Math.round(view.scale * 100)}%</span>
-                <Button variant="ghost" size="icon" aria-label="Zoom in" onClick={() => zoom(1.2)}><ZoomIn size={15} /></Button>
-                <Button variant="ghost" size="icon" aria-label="Fit architecture to view" onClick={fit}><Maximize2 size={15} /></Button>
-            </div>}
+        <div className="absolute bottom-3 right-3 z-10 flex items-center gap-0.5 rounded-lg border border-[var(--border-color)] bg-[var(--bg-primary)] p-1 shadow-sm" data-architecture-interactive>
+            <Button size="icon" variant="ghost" aria-label="Zoom out" onClick={() => viewport.zoom(1 / 1.2)}><ZoomOut size={15} /></Button>
+            <span ref={viewport.label} aria-label="Graph zoom" className="min-w-9 text-center text-[10px] text-[var(--text-secondary)]">100%</span>
+            <Button size="icon" variant="ghost" aria-label="Zoom in" onClick={() => viewport.zoom(1.2)}><ZoomIn size={15} /></Button>
+            <Button size="icon" variant="ghost" aria-label="Fit visible graph" onClick={() => viewport.fit(true)}><Maximize2 size={15} /></Button>
         </div>
+        {!view.items.length && <p role="status" className="absolute left-6 top-24 text-sm text-[var(--text-secondary)]">No APIs match this search.</p>}
+        <span className="pointer-events-none absolute bottom-3 left-3 max-w-[50%] text-[10px] text-[var(--text-muted)]">Click to expand · drag to move · explanation, not live activity</span>
     </section>;
 }
