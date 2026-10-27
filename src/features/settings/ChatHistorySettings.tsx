@@ -6,7 +6,8 @@ import { useChatStore } from '../../store/chat/useChatStore';
 import { ArchivedActivity, ChatPrefs, currentChatPrefs, useChatPrefsStore } from '../../store/chat/useChatPrefsStore';
 import { planRetention } from '../../services/storage/chatRetention';
 import { applyChatRetention } from '../../services/storage/chatRetentionRunner';
-import { chatMemoryApi, ChatMemoryStatus, ChatMemorySettings } from '../../api/engine/chat-memory';
+import type { ChatMemorySettings } from '../../api/engine/chat-memory';
+import { useSavedChatMemory } from './useSavedChatMemory';
 
 const PERIOD_LABELS: Record<number, string> = { 7: '7 days', 30: '30 days', 90: '3 months', 180: '6 months', 365: '1 year' };
 const days = (values: number[], never: string): SelectOption[] =>
@@ -44,25 +45,13 @@ export function ChatHistorySettings() {
     } | null>(null);
 
     // Model memory lives in the engine (its KV cache per chat), so it is read and changed over the API
-    const [memory, setMemory] = useState<ChatMemoryStatus | null>(null);
-    const [memoryError, setMemoryError] = useState<string | null>(null);
-    const [memoryBusy, setMemoryBusy] = useState(false);
-    const refreshMemory = () => chatMemoryApi.getStatus()
-        .then(status => { setMemory(status); setMemoryError(null); })
-        .catch(() => setMemoryError('Engine is offline: model memory settings are unavailable'));
-    useEffect(() => { refreshMemory(); }, []);
+    const modelMemory = useSavedChatMemory();
+    const { memory, error: memoryError, busy: memoryBusy } = modelMemory;
+    useEffect(() => { setConfirmModal(null); }, [modelMemory.scope]);
 
     const changeMemory = async (patch: Partial<ChatMemorySettings>) => {
         const executeChange = async () => {
-            setMemoryBusy(true);
-            try {
-                await chatMemoryApi.updateSettings(patch);
-                await refreshMemory();
-            } catch {
-                setMemoryError('The engine did not accept the change');
-            } finally {
-                setMemoryBusy(false);
-            }
+            await modelMemory.update(patch);
         };
 
         if (patch.max_disk_gb !== undefined && memory && patch.max_disk_gb * 1024 ** 3 < memory.bytes) {
@@ -90,13 +79,7 @@ export function ChatHistorySettings() {
             isDestructive: true,
             onConfirm: async () => {
                 setConfirmModal(null);
-                setMemoryBusy(true);
-                try {
-                    await chatMemoryApi.clear();
-                    await refreshMemory();
-                } finally {
-                    setMemoryBusy(false);
-                }
+                await modelMemory.clear();
             }
         });
     };
@@ -179,12 +162,12 @@ export function ChatHistorySettings() {
                 <SettingItem
                     icon={BrainCircuit}
                     label="Keep model memory on disk"
-                    description="After each answer the engine saves the chat's processed context, so continuing it later (after other chats, a model reload or a restart) starts at once instead of reading the whole history again."
+                    description="The Engine can save processed context for compatible models and settings. Reusing that cache can reduce the history it needs to process when a chat continues."
                     dynamicDescription={memoryError ?? (memory ? `${formatBytes(memory.bytes)} used by ${memory.chats.length} chats · ${memory.directory}` : 'Loading…')}
                     toggle
                     active={Boolean(memory?.settings.enabled)}
                     loading={memoryBusy}
-                    disabled={!memory}
+                    disabled={!memory || memoryBusy || Boolean(memoryError)}
                     onToggle={() => memory && changeMemory({ enabled: !memory.settings.enabled })}
                 />
                 <SettingItem
@@ -194,7 +177,7 @@ export function ChatHistorySettings() {
                     select={MEMORY_DISK}
                     value={memory ? String(memory.settings.max_disk_gb) : undefined}
                     loading={memoryBusy}
-                    disabled={!memory}
+                    disabled={!memory || memoryBusy || Boolean(memoryError)}
                     onChange={v => changeMemory({ max_disk_gb: Number(v) })}
                 />
                 <SettingItem
@@ -204,7 +187,7 @@ export function ChatHistorySettings() {
                     select={MEMORY_AGE}
                     value={memory ? String(memory.settings.max_age_days) : undefined}
                     loading={memoryBusy}
-                    disabled={!memory}
+                    disabled={!memory || memoryBusy || Boolean(memoryError)}
                     onChange={v => changeMemory({ max_age_days: Number(v) })}
                 />
                 <SettingItem
@@ -212,8 +195,16 @@ export function ChatHistorySettings() {
                     label="Clear model memory"
                     description="Deletes every saved chat memory now. No chat or message is deleted."
                     action="Clear"
-                    disabled={!memory || memory.chats.length === 0 || memoryBusy}
+                    disabled={!memory || memory.chats.length === 0 || memoryBusy || Boolean(memoryError)}
                     onClick={clearMemory}
+                />
+                <SettingItem
+                    icon={RotateCcw}
+                    label="Refresh model memory"
+                    description="Read the selected Engine's saved settings and current cache usage."
+                    action="Refresh"
+                    disabled={memoryBusy}
+                    onClick={() => void modelMemory.refresh()}
                 />
             </SettingSection>
 

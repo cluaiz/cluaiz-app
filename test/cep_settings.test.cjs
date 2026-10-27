@@ -161,7 +161,7 @@ test('saved KV settings and usage are joined; deletion uses CEP chat ids without
         body.method==='kv.delete'?{chat_id:body.params.chat_id,deleted:true}:
         body.method==='kv.clear'?{deleted:2}:{kv:settings}));
     const status=await h.chatMemoryApi.getStatus();assert.equal(status.settings,settings);assert.equal(status.bytes,15);
-    assert.equal((await h.chatMemoryApi.updateSettings({enabled:false})).bytes,15);
+    assert.equal((await h.chatMemoryApi.updateSettings({enabled:false})).settings,settings);
     const id='chat with/slash & text';assert.equal((await h.chatMemoryApi.deleteChat(id)).chat_id,id);
     assert.equal((await h.chatMemoryApi.clear()).deleted,2);
     assert.ok(h.requests.every(request=>request.url==='/v1/cep'));
