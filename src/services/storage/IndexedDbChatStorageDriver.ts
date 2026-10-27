@@ -1,4 +1,4 @@
-import { IChatStorageDriver, SessionsIndex, SessionMetadata, SessionIndexItem } from './types';
+import { IChatStorageDriver, SessionsIndex, SessionMetadata, SessionIndexItem, withoutSession } from './types';
 import { ChatMessage } from '../../store/chat/useChatStore';
 
 const DB_NAME = 'cluaiz_chat_storage';
@@ -258,22 +258,37 @@ export class IndexedDbChatStorageDriver implements IChatStorageDriver {
         }
     }
 
-    async deleteSession(sessionId: string): Promise<void> {
-        delete this.memoryFallback.meta[sessionId];
-        delete this.memoryFallback.messages[sessionId];
-
-        try {
+    async deleteSession(sessionId: string, assertCurrent = () => {}): Promise<void> {
+        assertCurrent();
+        if (typeof window !== 'undefined' && window.indexedDB) {
             const db = await this.getDb();
+            assertCurrent();
             await new Promise<void>((resolve, reject) => {
-                const tx = db.transaction(['session_meta', 'session_messages'], 'readwrite');
+                const tx = db.transaction(['sessions_index', 'session_meta', 'session_messages', 'session_assets'], 'readwrite');
                 tx.objectStore('session_meta').delete(sessionId);
                 tx.objectStore('session_messages').delete(sessionId);
+                const catalog = tx.objectStore('sessions_index');
+                const request = catalog.get('catalog');
+                request.onsuccess = () => {
+                    if (request.result) catalog.put(withoutSession(request.result, sessionId), 'catalog');
+                };
+                const assets = tx.objectStore('session_assets');
+                const keys = assets.openKeyCursor();
+                keys.onsuccess = () => {
+                    const cursor = keys.result;
+                    if (!cursor) return;
+                    if (typeof cursor.key === 'string' && cursor.key.startsWith(`${sessionId}:`)) assets.delete(cursor.primaryKey);
+                    cursor.continue();
+                };
                 tx.oncomplete = () => resolve();
                 tx.onerror = () => reject(tx.error);
+                tx.onabort = () => reject(tx.error || new Error('Chat deletion transaction aborted'));
             });
-        } catch (err) {
-            console.warn("[IDB] deleteSession error:", err);
         }
+        delete this.memoryFallback.meta[sessionId];
+        delete this.memoryFallback.messages[sessionId];
+        if (this.memoryFallback.index) this.memoryFallback.index = withoutSession(this.memoryFallback.index, sessionId);
+        for (const key of Object.keys(this.memoryFallback.assets)) if (key.startsWith(`${sessionId}:`)) delete this.memoryFallback.assets[key];
     }
 
     async saveAsset(sessionId: string, fileName: string, data: Uint8Array | Blob): Promise<string> {

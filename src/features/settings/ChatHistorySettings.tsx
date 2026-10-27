@@ -8,6 +8,9 @@ import { planRetention } from '../../services/storage/chatRetention';
 import { applyChatRetention } from '../../services/storage/chatRetentionRunner';
 import type { ChatMemorySettings } from '../../api/engine/chat-memory';
 import { useSavedChatMemory } from './useSavedChatMemory';
+import { deleteSessionBatch } from '../../store/chat/deletion';
+import { toast } from '../../components/ui/toast';
+import { errorMessage } from '../../api/client/errors';
 
 const PERIOD_LABELS: Record<number, string> = { 7: '7 days', 30: '30 days', 90: '3 months', 180: '6 months', 365: '1 year' };
 const days = (values: number[], never: string): SelectOption[] =>
@@ -119,9 +122,15 @@ export function ChatHistorySettings() {
             message: `Delete all ${targets.length} archived chat${targets.length === 1 ? '' : 's'}? This cannot be undone.`,
             confirmText: 'Delete All',
             isDestructive: true,
-            onConfirm: () => {
-                targets.forEach(s => deleteSession(s.id));
+            onConfirm: async () => {
                 setConfirmModal(null);
+                await deleteSessionBatch(targets.map(s => s.id), id => {
+                    const eligible = () => {
+                        const current = useChatStore.getState();
+                        return current.activeSessionId !== id && Boolean(current.sessions[id]?.archived);
+                    };
+                    return eligible() ? deleteSession(id, eligible) : Promise.resolve(false);
+                });
             }
         });
     };
@@ -258,7 +267,7 @@ export function ChatHistorySettings() {
                     label="Run cleanup now"
                     description="Cleanup also runs at startup and every hour. The open chat and private chats are never touched."
                     action="Run"
-                    onClick={() => applyChatRetention()}
+                    onClick={() => { void applyChatRetention().catch(error => toast.error(errorMessage(error))); }}
                 />
             </SettingSection>
 

@@ -411,10 +411,11 @@ main().catch(console.error);`);
                     <div className="absolute top-4 right-4 z-40">
                         <PrivateModeToggleButton
                             isIncognito={isIncognito}
-                            onClick={() => {
+                            onClick={async () => {
                                 if (isIncognito && activeSessionId) {
-                                    cluaizEngine.stop().catch(console.warn);
-                                    deleteSession(activeSessionId);
+                                    try { await cluaizEngine.stop(); }
+                                    catch (error) { toast.error(`Could not stop private chat: ${String(error)}`); return; }
+                                    if (!await deleteSession(activeSessionId)) return;
                                     switchSession(null);
                                 }
                                 setIsIncognito(!isIncognito);

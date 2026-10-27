@@ -35,22 +35,23 @@ flowchart TD
 - **Interrupted JSONL:** a malformed trailing line after at least one valid message is skipped. Interior corruption, wholly invalid history and non-UTF-8 history are errors. This is bounded recovery of an interrupted write, not silent recovery of arbitrary corruption.
 - **Write behavior:** existing JSON/JSONL encoding and locations remain. appendMessage updates an existing id or appends a new message after a successful read. It remains read/modify/write; concurrent independent clients are not an atomic append transaction.
 - **Assets:** saveAsset retains the relative assets/ reference. resolveAssetUrl now reads bytes through fsApi/authentication and returns an existing MIME-sniffed data URI instead of a retired unauthenticated GET URL. No new blob URL cache or lifetime owner is introduced; base64/data URIs still consume memory and are not zero-copy streams.
-- **Deletion:** one validated session directory is removed; missing is idempotent. Other errors propagate to the manager. Full Engine memory/events/grants deletion is a separate integration task from deleting App files or saved KV.
+- **Deletion:** each driver removes the session and prunes its catalog; missing is idempotent. Browser deletion pins absolute directory/catalog paths to the workspace returned at its start, rather than resolving later operations against a newly selected workspace. Scope guards stop later steps after connection invalidation. This cannot cancel a write already accepted or isolate independent clients changing the same catalog.
 
 ## File breakdown
 
-- **ChatStorageManager.ts:** existing primary/fallback routing and dual-write behavior; its error/fallback policy is not redesigned here. A manager method can still finish through fallback after a primary failure. It does not certify durable primary disk persistence.
+- **ChatStorageManager.ts:** existing primary/fallback routing with one in-process write queue. Mirror saves settle before the next write/delete. Saves can still succeed through fallback; deletion requires both drivers to acknowledge. Queued operations from an obsolete configured connection are refused. Completed deletions are remembered for this connection lifetime: late catalog saves are filtered and late session writes rejected. This is not a persistent tombstone database or inter-client lock.
 - **EngineFsChatStorageDriver.ts:** shared fsApi consumer; JSON/JSONL encoding, missing-file distinction and authenticated attachment resolution. No duplicate URL/auth/CEP implementation.
-- **TauriFsChatStorageDriver.ts / IndexedDbChatStorageDriver.ts:** existing native/browser implementations, unchanged by the CEP filesystem repair.
+- **TauriFsChatStorageDriver.ts:** existing App native commands; deletion strictly reads the catalog, removes the directory, then saves the surviving entries. Errors propagate. These are sequential operations, not one filesystem transaction.
+- **IndexedDbChatStorageDriver.ts:** deletion removes metadata, messages, matching session asset keys and the catalog entry in one IndexedDB transaction. It resolves on transaction completion and rejects abort/errors. Memory fallback is updated only after that completion; environments without IndexedDB prune memory directly. The database name/schema is unchanged.
 - **types.ts:** shared driver and catalog/metadata interfaces. Method comments describe intended caller semantics; current Engine writes do not provide atomic file replacement or inter-client transactions.
-- **chatRetention.ts / chatRetentionRunner.ts:** existing retention planning/application; no new pruning policy is introduced by migration.
+- **chatRetention.ts / chatRetentionRunner.ts:** existing policies; the runner awaits actual deletion results, reports successful removals separately from skipped/incomplete ones, protects the current/streaming chat and serializes overlapping sweeps. Settings bulk deletion uses the same store action; a connection change stops the remainder of a bulk action.
 
 ## Verification and remaining work
 
 ```text
-node --test test/cep_fs.test.cjs test/cep_history.test.cjs
+node --test test/chat_deletion.test.cjs test/cep_fs.test.cjs test/cep_history.test.cjs
 ```
 
 The shared extension-chat regression also executes the actual manager/store/drivers against a controlled CEP transport and checks shared catalog, ownership, restoration and failed-history refusal. Separate release-Engine acceptance seeds legacy-format files in its own workspace and verifies restore/append/assets/deletion there.
 
-Real user data is not used by the write/cleanup proof. Packaged desktop, other OSes, simultaneous-client writes, native storage commands and physical browser IndexedDB durability remain separate acceptance work. This repair does not claim that every App API or memory operation is migrated.
+The deletion proof additionally uses actual IndexedDB in a disposable browser profile: removal, catalog/attachment retention, restoration and transaction-abort refusal. No real user data is used. This establishes browser transaction behavior, not survival of power loss. Packaged desktop/native commands, other OSes, simultaneous-client writes and real Engine memory deletion remain separate acceptance work. A partial cross-store deletion can leave an entry whose files were partly removed; the App reports incomplete cleanup and allows an explicit retry. No rollback or all-API migration claim follows.

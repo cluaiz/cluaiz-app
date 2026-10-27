@@ -23,6 +23,12 @@ export interface SessionsIndex {
     sessions: SessionIndexItem[];
 }
 
+/** Preserve every surviving entry; deletion does not invent a replacement selection. */
+export function withoutSession(index: SessionsIndex, id: string): SessionsIndex {
+    return { ...index, sessions: index.sessions.filter(session => session.id !== id),
+        lastActiveSessionId: index.lastActiveSessionId === id ? null : index.lastActiveSessionId };
+}
+
 export interface SessionMetadata {
     id: string;
     extensionId?: string;
@@ -74,7 +80,7 @@ export interface IChatStorageDriver {
     /**
      * Completely removes a session folder and all its assets.
      */
-    deleteSession(sessionId: string): Promise<void>;
+    deleteSession(sessionId: string, assertCurrent?: () => void): Promise<void>;
 
     /**
      * Saves a binary asset (image, doc, audio) to the session's assets directory.

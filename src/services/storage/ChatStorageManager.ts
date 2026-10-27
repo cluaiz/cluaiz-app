@@ -1,9 +1,10 @@
 import { isTauri } from '../../core/tauri-api';
-import { IChatStorageDriver, SessionIndexItem, SessionsIndex, SessionMetadata } from './types';
+import { IChatStorageDriver, SessionsIndex, SessionMetadata, withoutSession } from './types';
 import { TauriFsChatStorageDriver } from './TauriFsChatStorageDriver';
 import { EngineFsChatStorageDriver } from './EngineFsChatStorageDriver';
 import { IndexedDbChatStorageDriver } from './IndexedDbChatStorageDriver';
 import { ChatMessage } from '../../store/chat/useChatStore';
+import { useConnectionStore } from '../../store/engine/useConnectionStore';
 
 /**
  * ChatStorageManager delegates storage operations dynamically based on runtime environment:
@@ -14,8 +15,39 @@ import { ChatMessage } from '../../store/chat/useChatStore';
 export class ChatStorageManager implements IChatStorageDriver {
     private primaryDriver: IChatStorageDriver;
     private fallbackDriver: IChatStorageDriver;
+    private writes: Promise<unknown> = Promise.resolve();
+    private generation = 0;
+    private deleted = new Set<string>();
+
+    private writable(id: string): void {
+        if (this.deleted.has(id)) throw new Error('Chat was deleted; stale save refused');
+    }
+
+    private ordered<T>(operation: () => Promise<T>): Promise<T> {
+        const started = this.generation;
+        const task = this.writes.then(() => {
+            if (started !== this.generation) throw new Error('Engine connection changed before queued chat storage operation');
+            return operation();
+        });
+        this.writes = task.catch(() => {});
+        return task;
+    }
+
+    private mirror(operation: (driver: IChatStorageDriver) => Promise<void>): Promise<void> {
+        return this.ordered(async () => {
+            const results = await Promise.allSettled([operation(this.primaryDriver), operation(this.fallbackDriver)]);
+            for (const result of results) if (result.status === 'rejected') console.warn('[ChatStorageManager] Save failed:', result.reason);
+            if (results.every(result => result.status === 'rejected')) throw new Error('Both chat storage saves failed');
+        });
+    }
 
     constructor() {
+        useConnectionStore.subscribe((next, previous) => {
+            if (next.protocol !== previous.protocol || next.host !== previous.host || next.port !== previous.port) {
+                ++this.generation;
+                this.deleted.clear();
+            }
+        });
         this.fallbackDriver = new IndexedDbChatStorageDriver();
         if (isTauri()) {
             this.primaryDriver = new TauriFsChatStorageDriver();
@@ -29,6 +61,7 @@ export class ChatStorageManager implements IChatStorageDriver {
     }
 
     async loadSessionsIndex(): Promise<SessionsIndex | null> {
+        await this.writes;
         try {
             const index = await this.primaryDriver.loadSessionsIndex();
             if (index && Array.isArray(index.sessions) && index.sessions.length > 0) {
@@ -41,16 +74,15 @@ export class ChatStorageManager implements IChatStorageDriver {
     }
 
     async saveSessionsIndex(index: SessionsIndex): Promise<void> {
-        // Dual-write: write to real disk files, and keep fallback in sync
-        this.fallbackDriver.saveSessionsIndex(index).catch(() => {});
-        try {
-            await this.primaryDriver.saveSessionsIndex(index);
-        } catch (e) {
-            console.warn('[ChatStorageManager] Primary saveSessionsIndex failed, saved to fallback:', e);
-        }
+        return this.mirror(driver => {
+            let current = index;
+            for (const id of this.deleted) current = withoutSession(current, id);
+            return driver.saveSessionsIndex(current);
+        });
     }
 
     async loadSessionMetadata(sessionId: string): Promise<SessionMetadata | null> {
+        await this.writes;
         try {
             const meta = await this.primaryDriver.loadSessionMetadata(sessionId);
             if (meta) return meta;
@@ -59,15 +91,11 @@ export class ChatStorageManager implements IChatStorageDriver {
     }
 
     async saveSessionMetadata(sessionId: string, meta: SessionMetadata): Promise<void> {
-        this.fallbackDriver.saveSessionMetadata(sessionId, meta).catch(() => {});
-        try {
-            await this.primaryDriver.saveSessionMetadata(sessionId, meta);
-        } catch (e) {
-            console.warn('[ChatStorageManager] Primary saveSessionMetadata failed:', e);
-        }
+        return this.mirror(driver => { this.writable(sessionId); return driver.saveSessionMetadata(sessionId, meta); });
     }
 
     async loadSessionMessages(sessionId: string, limit?: number, offset?: number): Promise<ChatMessage[]> {
+        await this.writes;
         try {
             const msgs = await this.primaryDriver.loadSessionMessages(sessionId, limit, offset);
             if (msgs && msgs.length > 0) return msgs;
@@ -76,38 +104,30 @@ export class ChatStorageManager implements IChatStorageDriver {
     }
 
     async appendMessage(sessionId: string, message: ChatMessage): Promise<void> {
-        this.fallbackDriver.appendMessage(sessionId, message).catch(() => {});
-        try {
-            await this.primaryDriver.appendMessage(sessionId, message);
-        } catch (e) {
-            console.warn('[ChatStorageManager] Primary appendMessage failed:', e);
-        }
+        return this.mirror(driver => { this.writable(sessionId); return driver.appendMessage(sessionId, message); });
     }
 
     async saveAllMessages(sessionId: string, messages: ChatMessage[]): Promise<void> {
-        this.fallbackDriver.saveAllMessages(sessionId, messages).catch(() => {});
-        try {
-            await this.primaryDriver.saveAllMessages(sessionId, messages);
-        } catch (e) {
-            console.warn('[ChatStorageManager] Primary saveAllMessages failed:', e);
-        }
+        return this.mirror(driver => { this.writable(sessionId); return driver.saveAllMessages(sessionId, messages); });
     }
 
-    async deleteSession(sessionId: string): Promise<void> {
-        this.fallbackDriver.deleteSession(sessionId).catch(() => {});
-        try {
-            await this.primaryDriver.deleteSession(sessionId);
-        } catch (e) {
-            console.warn('[ChatStorageManager] Primary deleteSession failed:', e);
-        }
+    async deleteSession(sessionId: string, assertCurrent = () => {}): Promise<void> {
+        return this.ordered(async () => {
+            assertCurrent();
+            await this.primaryDriver.deleteSession(sessionId, assertCurrent);
+            assertCurrent();
+            await this.fallbackDriver.deleteSession(sessionId, assertCurrent);
+            assertCurrent();
+            this.deleted.add(sessionId);
+        });
     }
 
     async saveAsset(sessionId: string, fileName: string, data: Uint8Array | Blob): Promise<string> {
-        try {
-            return await this.primaryDriver.saveAsset(sessionId, fileName, data);
-        } catch {
-            return this.fallbackDriver.saveAsset(sessionId, fileName, data);
-        }
+        return this.ordered(async () => {
+            this.writable(sessionId);
+            try { return await this.primaryDriver.saveAsset(sessionId, fileName, data); }
+            catch { return this.fallbackDriver.saveAsset(sessionId, fileName, data); }
+        });
     }
 
     async resolveAssetUrl(sessionId: string, relativePath: string): Promise<string> {

@@ -89,7 +89,8 @@ export interface ChatStore {
     createNewSession: (initialTitle?: string, options?: CreateChatSessionOptions) => string;
     switchSession: (sessionId: string | null, syncUrl?: boolean) => Promise<void>;
     loadMessages: (sessionId: string) => Promise<void>;
-    deleteSession: (sessionId: string) => void;
+    /** True only after acknowledged Engine and App storage cleanup; errors stay visible. */
+    deleteSession: (sessionId: string, eligible?: () => boolean) => Promise<boolean>;
     finalizeAssistantMessage: (sessionId: string) => Promise<void>;
 
     addMessage: (sessionId: string, message: Omit<ChatMessage, 'id'>) => void;

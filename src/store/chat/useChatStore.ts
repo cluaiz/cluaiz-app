@@ -4,6 +4,9 @@ import { chatStorageManager } from '../../services/storage/ChatStorageManager';
 import { SessionIndexItem, SessionsIndex } from '../../services/storage/types';
 import { inferChatTopicAndEmoji } from '../../utils/topicProber';
 import { parseCurrentRoute, pushChatRoute } from '../../core/router';
+import { createSessionDeleter } from './deletion';
+import { toast } from '../../components/ui/toast';
+import { errorMessage } from '../../api/client/errors';
 
 import type { ChatMessage, ChatSession, ChatStore, CreateChatSessionOptions } from './types';
 export type { ChatMessage, ChatSession } from './types';
@@ -258,33 +261,31 @@ export const useChatStore = create<ChatStore>()(
             }
         },
 
-        deleteSession: (sessionId) => {
-            // Delete physically from storage
-            chatStorageManager.deleteSession(sessionId).catch(err => {
-                console.error(`[ChatStore] Failed deleting session folder ${sessionId}:`, err);
-            });
-            // The engine's saved model memory (KV cache) of this chat goes with it
-            import('../../api/engine/chat-memory').then(({ chatMemoryApi }) => {
-                chatMemoryApi.deleteChat(sessionId).catch(() => {});
-            }).catch(() => {});
-
-            set((state) => {
+        deleteSession: createSessionDeleter({
+            session: id => get().sessions[id],
+            streaming: id => get().streamingSessionId === id,
+            beforeStorage: async id => {
+                if (!syncTimers[id]) return;
+                clearTimeout(syncTimers[id]);
+                delete syncTimers[id];
+                await chatStorageManager.saveAllMessages(id, get().sessions[id].messages);
+            },
+            failed: (id, error) => {
+                toast.error(`Chat deletion incomplete: ${errorMessage(error)}. The entry remains; retry when ready.`);
+            },
+            removed: sessionId => set((state) => {
                 const newSessions = { ...state.sessions };
                 delete newSessions[sessionId];
-                const remainingIds = Object.keys(newSessions);
                 const newActive = state.activeSessionId === sessionId
-                    ? (remainingIds[0] || null)
+                    ? null
                     : state.activeSessionId;
-
-                pushChatRoute(newActive);
-                syncIndexToStorage(newSessions, newActive);
-
+                if (state.activeSessionId === sessionId) pushChatRoute(null);
                 return {
                     sessions: newSessions,
                     activeSessionId: newActive
                 };
-            });
-        },
+            }),
+        }),
 
         addMessage: (sessionId, message) => {
             const newMessage: ChatMessage = {

@@ -1,4 +1,4 @@
-import { IChatStorageDriver, SessionsIndex, SessionMetadata } from './types';
+import { IChatStorageDriver, SessionsIndex, SessionMetadata, withoutSession } from './types';
 import { ChatMessage } from '../../store/chat/useChatStore';
 import { fsApi } from '../../api/engine/fs/fs.api';
 import { CepError } from '../../api/client/cep';
@@ -110,12 +110,24 @@ export class EngineFsChatStorageDriver implements IChatStorageDriver {
         });
     }
 
-    async deleteSession(sessionId: string): Promise<void> {
+    async deleteSession(sessionId: string, assertCurrent = () => {}): Promise<void> {
+        const relative = this.sessionPath(sessionId);
+        assertCurrent();
+        const { workspace } = await fsApi.getWorkspace();
+        assertCurrent();
+        const root = workspace.replace(/[\\/]+$/, '');
+        const catalogPath = `${root}/data/chats/sessions_index.json`;
+        const stored = await this.readHistory(catalogPath);
+        assertCurrent();
+        const index = stored ? JSON.parse(stored.content) as SessionsIndex : null;
+        if (index && !Array.isArray(index.sessions)) throw new Error('Stored chat catalog is invalid');
         try {
-            await fsApi.deletePath({ path: this.sessionPath(sessionId) });
+            await fsApi.deletePath({ path: `${root}/${relative}` });
         } catch (err) {
             if (!this.missing(err)) throw err;
         }
+        assertCurrent();
+        if (index) await fsApi.writeFile({ path: catalogPath, content: JSON.stringify(withoutSession(index, sessionId), null, 2) });
     }
 
     async saveAsset(sessionId: string, fileName: string, data: Uint8Array | Blob): Promise<string> {

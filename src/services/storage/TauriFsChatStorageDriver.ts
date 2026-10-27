@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import { IChatStorageDriver, SessionsIndex, SessionMetadata } from './types';
+import { IChatStorageDriver, SessionsIndex, SessionMetadata, withoutSession } from './types';
 import { ChatMessage } from '../../store/chat/useChatStore';
 
 export class TauriFsChatStorageDriver implements IChatStorageDriver {
@@ -90,9 +90,17 @@ export class TauriFsChatStorageDriver implements IChatStorageDriver {
         }
     }
 
-    async deleteSession(sessionId: string): Promise<void> {
+    async deleteSession(sessionId: string, assertCurrent = () => {}): Promise<void> {
         try {
+            assertCurrent();
+            // Read strictly here: a failed catalog read must not overwrite it with an empty one.
+            const raw = await invoke<string>('storage_load_sessions_index');
+            assertCurrent();
+            const index = raw?.trim() ? JSON.parse(raw) as SessionsIndex : null;
+            if (index && !Array.isArray(index.sessions)) throw new Error('Stored chat catalog is invalid');
             await invoke('storage_delete_session', { sessionId });
+            assertCurrent();
+            if (index) await this.saveSessionsIndex(withoutSession(index, sessionId));
         } catch (err) {
             console.error(`[TauriStorage] Failed to delete session ${sessionId}:`, err);
             throw err;

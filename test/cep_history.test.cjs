@@ -6,8 +6,11 @@ function historyHarness(handler){
     const files=new Map();
     const h=filesystemHarness((url,body)=>{
         assert.equal(url,'/v1/cep');
-        const {method,params:p}=body;
+        const {method,params}=body;
+        const p={...params};
+        if(p.path?.startsWith('/work/'))p.path=p.path.slice('/work/'.length);
         const result=value=>({jsonrpc:'2.0',id:body.id,result:value});
+        if(method==='workspace.get')return result({path:'/work'});
         if(handler){const override=handler(body);if(override!==undefined)return override;}
         if(method==='fs.read'){
             if(!files.has(p.path))return {jsonrpc:'2.0',id:body.id,error:{code:-32004,message:'Not found',data:{type:'file_not_found'}}};
@@ -28,6 +31,7 @@ function historyHarness(handler){
     const mime=load('src/utils/mimeSniffer.ts',{});
     const {EngineFsChatStorageDriver}=load('src/services/storage/EngineFsChatStorageDriver.ts',{
         '../../api/engine/fs/fs.api':h,'../../api/client/cep':h,'../../utils/mimeSniffer':mime,
+        './types':load('src/services/storage/types.ts',{}),
     });
     return {...h,files,driver:new EngineFsChatStorageDriver()};
 }
@@ -112,5 +116,5 @@ test('session deletion uses its existing folder, preserving other sessions',asyn
     const h=historyHarness();h.files.set('data/chats/one/messages.jsonl','');h.files.set('data/chats/two/messages.jsonl','');
     await h.driver.deleteSession('one');assert.equal(h.files.has('data/chats/one/messages.jsonl'),false);
     assert.equal(h.files.has('data/chats/two/messages.jsonl'),true);
-    assert.equal(h.requests[0].body.params.path,'data/chats/one');
+    assert.equal(h.requests.find(r=>r.body.method==='fs.delete').body.params.path,'/work/data/chats/one');
 });

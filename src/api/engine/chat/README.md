@@ -5,6 +5,7 @@
 - **Purpose:** one chat-domain adapter for existing App/extension consumers, sharing transport and SSE parser owners.
 - **Generation:** POST /v1/chat/completions retains its dedicated JSON/SSE API; it is not moved into CEP.
 - **Controls/context:** chat.cancel, chat.skip_reasoning and chat.telemetry use authenticated callCep. Features do not construct envelopes or retired URLs.
+- **Saved Engine history:** `history.ts` owns `chatHistoryApi.deleteChat(id, signal?)` via `memory.delete {chat_id}`. It checks matching id, nonnegative integer event counts, ledger acknowledgment and boolean saved-KV/folder fields. An outstanding folder reports incomplete cleanup. App files/fallback storage are separate stages coordinated by the App store; `kv.delete` remains the cache-only control.
 - **Transport:** explicit HTTP or desktop native IPC remains below this module. No speed, shared-memory or packaged-desktop claim follows from migration.
 
 ## Architectural flow
@@ -20,6 +21,8 @@ flowchart TD
     A --> T["Context response validation"]
     T --> P
     P --> E["Engine controls / tool context query"]
+    UI --> H["chatHistoryApi / memory.delete"]
+    H --> P
 ```
 
 ## API contract
@@ -50,12 +53,13 @@ flowchart TD
 - **chat.api.ts:** shared control validation, context projection and stream-id callback; original code/data errors propagate.
 - **chat.endpoints.ts:** dedicated generation URL only; retired control/context URLs removed.
 - **chat.store.ts:** domain stream/context state. Core/send hooks retain their existing session/message responsibilities; no new persistence system is introduced.
-- **Remaining:** session tool binding, model/permission/task lifecycle and full Engine history/grants integration. Pre-existing presentation heuristics/local estimates are not certified as exact tokenization. Not every App API is migrated by this change.
+- **History failure boundary:** deletion is sequential across Engine and App stores. A failed reply can follow partial Engine cleanup; do not replay automatically or claim rollback. Shared Engine blobs stay by contract. The adapter validates the Engine acknowledgment, not physical erasure of every underlying ledger/report file. Real Engine deletion acceptance remains separate from controlled adapter tests.
+- **Remaining:** packaged-native/other-OS acceptance and broader API acceptance. Pre-existing presentation heuristics/local estimates are not certified as exact tokenization. Not every App API is migrated by this change.
 
 ## Verification
 
 ```text
-node --test test/cep_chat.test.cjs test/cep_tools.test.cjs
+node --test test/chat_deletion.test.cjs test/cep_chat.test.cjs test/cep_tools.test.cjs
 ```
 
 Actual adapters/store tests cover dedicated generation, real ids, control acknowledgement/refusal, malformed/zero context, abort and supersession. Existing chat/send/extension-stream/native-transport regressions run through the documented test bundling workflow. An isolated browser exercises the real React hook with controlled transport.
