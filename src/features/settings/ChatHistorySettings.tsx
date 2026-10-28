@@ -86,6 +86,20 @@ export function ChatHistorySettings() {
             }
         });
     };
+
+    const deleteSingleCache = (chatId: string, model: string, bytes: number) => {
+        const title = sessions[chatId]?.title || chatId;
+        setConfirmModal({
+            title: 'Delete Saved Chat KV Cache',
+            message: `Remove the saved disk KV cache (${formatBytes(bytes)}, model ${model}) for "${title}"? Conversation messages, notes, and models loaded in RAM/VRAM are not deleted.`,
+            confirmText: 'Remove Cache',
+            isDestructive: true,
+            onConfirm: async () => {
+                setConfirmModal(null);
+                await modelMemory.deleteChat(chatId);
+            }
+        });
+    };
     const archived = saved.filter(s => s.archived);
 
     /** Changes one preference; asks first when it would delete chats right away. */
@@ -215,6 +229,57 @@ export function ChatHistorySettings() {
                     disabled={memoryBusy}
                     onClick={() => void modelMemory.refresh()}
                 />
+                <div className="px-4 py-3 border-t border-border/50 bg-muted/15 space-y-2.5" data-testid="saved-kv-details">
+                    <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-semibold text-foreground">Saved KV Caches by Chat</span>
+                        <span className="text-[11px] text-muted-foreground">
+                            {memory ? `${memory.chats.length} saved record${memory.chats.length === 1 ? '' : 's'}` : 'Unavailable'}
+                        </span>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground leading-relaxed">
+                        Saved disk KV caches are separate from chat transcripts, durable notes, and models currently loaded in RAM/VRAM. Not every ONNX model supports disk KV caching.
+                    </p>
+                    {memory && memory.chats.length > 0 ? (
+                        <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1" data-testid="saved-kv-record-list">
+                            {memory.chats.map(record => {
+                                const title = sessions[record.chat_id]?.title;
+                                const lastUsedDate = new Date(record.last_used * 1000).toLocaleString();
+                                return (
+                                    <div
+                                        key={record.chat_id}
+                                        data-testid={`saved-kv-row-${record.chat_id}`}
+                                        className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-background/80 px-3 py-2 text-xs"
+                                    >
+                                        <div className="min-w-0 flex-1 space-y-0.5">
+                                            <div className="flex items-center gap-2 truncate font-medium text-foreground">
+                                                <span className="truncate">{title ? `${title} (${record.chat_id})` : record.chat_id}</span>
+                                                <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground">
+                                                    {record.model}
+                                                </span>
+                                            </div>
+                                            <div className="text-[11px] text-muted-foreground truncate">
+                                                {formatBytes(record.bytes)} · {record.tokens.toLocaleString()} tokens · {record.positions.toLocaleString()} positions · Last used {lastUsedDate}
+                                            </div>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            data-testid={`saved-kv-delete-${record.chat_id}`}
+                                            disabled={memoryBusy || Boolean(memoryError)}
+                                            onClick={() => deleteSingleCache(record.chat_id, record.model, record.bytes)}
+                                            className="shrink-0 rounded-md border border-destructive/30 bg-destructive/10 px-2.5 py-1 text-[11px] font-medium text-destructive hover:bg-destructive/20 disabled:opacity-50"
+                                        >
+                                            Remove Cache
+                                        </button>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    ) : (
+                        <div className="text-[11px] text-muted-foreground italic" data-testid="saved-kv-empty">
+                            {memory ? 'No saved chat KV caches are stored on disk.' : 'Saved KV cache details are unavailable until status loads.'}
+                        </div>
+                    )}
+                </div>
             </SettingSection>
 
             <SettingSection title="Archive">

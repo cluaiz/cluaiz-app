@@ -58,11 +58,15 @@ the existing screen also closes its confirmation when the connection changes.
 
 A write acknowledgment and a subsequent usage refresh have different outcomes.
 Acknowledged settings remain applied if the read fails, and the UI says that the
-settings were saved but usage could not be refreshed. After an acknowledged clear,
-usage is unavailable until a real read returns; the App does not invent a zero-byte
-snapshot. Clear failure retains previous data and displays the actual error instead
-of treating every failure as offline. Refresh offers an explicit recovery path;
-stale/busy mutation controls stay disabled. No failed/unknown mutation is replayed.
+settings were saved but usage could not be refreshed. After an acknowledged clear
+or per-chat `deleteChat(chatId)` (`kv.delete`), usage is unavailable until a real
+read returns; the App does not invent a zero-byte snapshot. `ChatHistorySettings`
+displays the per-chat `memory.chats` records (model, tokens, positions, bytes,
+last_used) with per-record confirmation and explains that disk KV caches are
+separate from conversation deletion, durable notes, and RAM/VRAM loaded models.
+Clear or per-chat delete failure retains previous data and displays the actual error
+instead of treating every failure as offline. Refresh offers an explicit recovery
+path; stale/busy mutation controls stay disabled. No failed/unknown mutation is replayed.
 
 ## Validation and limits
 

@@ -5,7 +5,10 @@ import { useConnectionStore } from '../../store/engine/useConnectionStore';
 
 interface View { scope: string; memory: ChatMemoryStatus | null; busy: boolean; error: string | null; }
 interface Job { scope: string; controller: AbortController; }
-type Operation = { kind: 'refresh' | 'clear' } | { kind: 'update'; patch: Partial<ChatMemorySettings> };
+type Operation =
+    | { kind: 'refresh' | 'clear' }
+    | { kind: 'update'; patch: Partial<ChatMemorySettings> }
+    | { kind: 'delete'; chatId: string };
 
 /** Saved KV settings/usage for the selected Engine; local chat retention is a separate owner. */
 export function useSavedChatMemory() {
@@ -31,6 +34,13 @@ export function useSavedChatMemory() {
                 if (!alive()) return false;
                 acknowledgment = 'Settings saved';
                 setView(previous => ({ ...previous, memory: previous.memory ? { ...previous.memory, settings: saved.settings } : null }));
+            } else if (operation.kind === 'delete') {
+                const result = await chatMemoryApi.deleteChat(operation.chatId, signal);
+                if (!alive()) return false;
+                acknowledgment = result.deleted
+                    ? `Saved cache deleted for ${result.chat_id}`
+                    : `No saved cache remained for ${result.chat_id}`;
+                setView(previous => ({ ...previous, memory: null }));
             } else if (kind === 'clear') {
                 const result = await chatMemoryApi.clear(signal);
                 if (!alive()) return false;
@@ -65,5 +75,6 @@ export function useSavedChatMemory() {
 
     return { ...(view.scope === scope ? view : { scope, memory: null, busy: true, error: null }),
         refresh: () => operate({ kind: 'refresh' }), update: (patch: Partial<ChatMemorySettings>) => operate({ kind: 'update', patch }),
+        deleteChat: (chatId: string) => operate({ kind: 'delete', chatId }),
         clear: () => operate({ kind: 'clear' }) };
 }
