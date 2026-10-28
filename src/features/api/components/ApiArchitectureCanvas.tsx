@@ -38,7 +38,7 @@ export function ApiArchitectureCanvas({ view, highlighted, modelLabel, toolbar, 
         className="relative h-full min-h-0 w-full cursor-default overflow-hidden bg-[var(--bg-primary)]"
         style={{ touchAction: 'none', backgroundImage: 'radial-gradient(var(--border-color) 1px, transparent 1px)', backgroundSize: '24px 24px' }}>
         <div ref={viewport.world} className="absolute left-0 top-0 origin-top-left" data-architecture-world
-            style={{ width: layout.bounds.width, height: layout.bounds.height, willChange: 'transform' }}>
+            style={{ width: layout.bounds.width, height: layout.bounds.height }}>
             <svg width={layout.bounds.width} height={layout.bounds.height} className="pointer-events-none absolute inset-0 overflow-visible" aria-hidden="true">
                 <defs><marker id="architecture-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0L8 4L0 8" fill="context-stroke" /></marker></defs>
                 {view.edges.map(edge => {

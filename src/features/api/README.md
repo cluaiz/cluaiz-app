@@ -133,6 +133,8 @@ A growing graph is a larger canvas, not an automatic refit into unreadable text.
   Focus/Fit are explicit actions. Listeners/observers/frames are cleaned up.
 - `components/ApiArchitectureCanvas.tsx` draws nodes/edges and compact controls,
   uses stable keys and real buttons, and reveals keyboard-focused off-screen nodes.
+  The world has no persistent `will-change: transform` hint: Chromium must be able
+  to rasterize text and SVG at the current zoom instead of enlarging a cached layer.
   Selected processes have no enclosing card or fixed-height scroll area. Their
   natural rendered height updates graph bounds; explicit Focus fits the whole
   process on wide and narrow screens. Process diagrams sit beyond navigation,
