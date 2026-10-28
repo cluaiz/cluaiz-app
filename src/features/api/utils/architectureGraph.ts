@@ -185,78 +185,114 @@ export interface ArchitectureItem {
     id: string; title: string; subtitle: string; column: number;
     kind: 'component' | 'group' | 'api' | 'detail'; owner: ArchitectureNode;
     path: string[]; group?: ArchitectureGroup; endpoint?: ApiEndpoint; detail?: ArchitectureDetail;
+    parentId?: string; active?: boolean; matched?: boolean; matchCount?: number; exampleId?: string;
 }
 export interface ArchitectureView {
     items: ArchitectureItem[]; edges: ArchitectureEdge[]; path: string[];
+    placementItems?: ArchitectureItem[];
     breadcrumbs: { title: string; path: string[] }[]; focusId?: string; matches?: number;
+    matchPaths?: { title: string; path: string[] }[];
+}
+export interface ArchitectureReveal {
+    path: string[]; example?: { id: string; title: string; detail: string };
 }
 const itemId = (path: string[]) => JSON.stringify(path);
+export const architecturePathContains = (parent: string[], child: string[]) => parent.length <= child.length && parent.every((part, i) => part === child[i]);
 const componentItem = (owner: ArchitectureNode, column: number): ArchitectureItem => ({
     id: itemId([owner.id]), title: owner.title, subtitle: owner.subtitle,
     column, owner, kind: 'component', path: [owner.id],
 });
 
-/** Progressive projection only. Original endpoint payloads, examples and schemas stay owned by the catalog. */
-export function architectureView(graph: ArchitectureGraph, requested: string[], query = ''): ArchitectureView {
+/** Reveal order is append-only; selection and query never remove nodes from the scene. */
+export function appendArchitectureReveal(history: ArchitectureReveal[], path: string[], example?: ArchitectureReveal['example']): ArchitectureReveal[] {
+    const next = [...history];
+    for (let length = 1; length <= path.length; length++) {
+        const prefix = path.slice(0, length);
+        if (!next.some(entry => !entry.example && itemId(entry.path) === itemId(prefix))) next.push({ path: prefix });
+    }
+    if (example && !next.some(entry => entry.example?.id === example.id)) next.push({ path, example });
+    return next.length === history.length ? history : next;
+}
+
+/** Catalog objects are retained. Root/previously revealed nodes stay mounted when focus changes. */
+export function architectureView(graph: ArchitectureGraph, requested: string[], query = '', history: ArchitectureReveal[] = [], activeExample?: string,
+    closed: string[][] = [], detailPath: string[] | null = requested): ArchitectureView {
     const items: ArchitectureItem[] = [], edges: ArchitectureEdge[] = [];
+    const seen = new Set<string>();
     const breadcrumbs: ArchitectureView['breadcrumbs'] = [{ title: 'Overview', path: [] }];
-    const add = (item: ArchitectureItem, parent?: string, label = 'Contains') => {
-        items.push(item); if (parent) edges.push({ from: parent, to: item.id, label }); return item.id;
+    const add = (item: ArchitectureItem, parentId?: string, label = 'Contains') => {
+        if (!seen.has(item.id)) {
+            items.push({ ...item, parentId }); seen.add(item.id);
+            if (parentId && item.kind !== 'detail') edges.push({ from: parentId, to: item.id, label });
+            else if (parentId) edges.push(item.detail === 'input'
+                ? { from: item.id, to: parentId, label: 'Request input' }
+                : { from: parentId, to: item.id, label: item.title });
+        }
+        return item.id;
     };
-    const apiItem = (owner: ArchitectureNode, group: ArchitectureGroup, endpoint: ApiEndpoint, column: number): ArchitectureItem => {
-        const path = [owner.id, group.id, architectureEndpointKey(endpoint)];
-        return { id: itemId(path), title: endpoint.path, subtitle: endpoint.desc, column, kind: 'api', owner, group, endpoint, path };
+    const resolve = (path: string[]) => {
+        const owner = graph.nodes.find(node => node.id === path[0]);
+        const group = owner?.groups.find(value => value.id === path[1]);
+        const endpoint = group?.endpoints.find(value => architectureEndpointKey(value) === path[2]);
+        const valid = owner ? [owner.id, ...(group ? [group.id] : []), ...(endpoint ? [architectureEndpointKey(endpoint)] : [])] : [];
+        return { owner, group, endpoint, valid };
     };
-    if (query.trim()) {
-        let matches = 0;
-        for (const owner of graph.nodes) {
-            const found = architectureSearch(owner, query);
-            if (!found.length) continue;
-            const parent = add(componentItem(owner, 0));
-            for (const group of found) for (const endpoint of group.endpoints) {
-                add(apiItem(owner, group, endpoint, 1), parent, architectureTransport(endpoint)); matches++;
+    graph.nodes.forEach(owner => add(componentItem(owner, owner.id === 'client' ? 0
+        : ['transport', 'guard'].includes(owner.id) ? 1 : ['runtime', 'saved'].includes(owner.id) ? 3 : 2)));
+    edges.push(...graph.edges.map(edge => ({ ...edge, from: itemId([edge.from]), to: itemId([edge.to]) })));
+
+    const selected = resolve(requested), path = selected.valid;
+    if (selected.owner) breadcrumbs.push({ title: selected.owner.title, path: path.slice(0, 1) });
+    if (selected.group) breadcrumbs.push({ title: selected.group.title, path: path.slice(0, 2) });
+    if (selected.endpoint) breadcrumbs.push({ title: selected.endpoint.path, path });
+
+    const reveal = (entry: ArchitectureReveal) => {
+        const { owner, group, endpoint, valid } = resolve(entry.path);
+        if (!owner) return;
+        let parent = itemId([owner.id]);
+        const column = items.find(item => item.id === parent)!.column;
+        if (owner.groups.length) {
+            for (const value of owner.groups) {
+                const groupPath = [owner.id, value.id];
+                const id = add({ id: itemId(groupPath), title: value.title, subtitle: value.endpoints.length + ' documented APIs',
+                    kind: 'group', column: column + 1, owner, group: value, path: groupPath }, itemId([owner.id]));
+                if (value === group) parent = id;
             }
-        }
-        return { items, edges, breadcrumbs, path: [], matches, focusId: items[0]?.id };
-    }
-    const owner = graph.nodes.find(node => node.id === requested[0]);
-    if (!owner) {
-        graph.nodes.forEach(node => add(componentItem(node, node.id === 'client' ? 0
-            : ['transport', 'guard'].includes(node.id) ? 1 : ['runtime', 'saved'].includes(node.id) ? 3 : 2)));
-        edges.push(...graph.edges.map(edge => ({ ...edge, from: itemId([edge.from]), to: itemId([edge.to]) })));
-        return { items, edges, breadcrumbs, path: [] };
-    }
-    const ownerId = add(componentItem(owner, 0));
-    breadcrumbs.push({ title: owner.title, path: [owner.id] });
-    const group = owner.groups.find(value => value.id === requested[1]);
-    const endpoint = group?.endpoints.find(value => architectureEndpointKey(value) === requested[2]);
-    const path = [owner.id, ...(group ? [group.id] : []), ...(endpoint ? [architectureEndpointKey(endpoint)] : [])];
-    let parent = ownerId;
-    if (owner.groups.length) {
-        for (const value of group ? [group] : owner.groups) {
-            const groupPath = [owner.id, value.id];
-            const id = add({ id: itemId(groupPath), title: value.title, subtitle: `${value.endpoints.length} documented APIs`,
-                kind: 'group', column: 1, owner, group: value, path: groupPath }, ownerId);
-            if (value === group) parent = id;
-        }
-        if (group) {
-            breadcrumbs.push({ title: group.title, path: [owner.id, group.id] });
-            for (const value of endpoint ? [endpoint] : group.endpoints) {
-                const id = add(apiItem(owner, group, value, 2), parent, architectureTransport(value));
+            if (group) for (const value of group.endpoints) {
+                const apiPath = [owner.id, group.id, architectureEndpointKey(value)];
+                const id = add({ id: itemId(apiPath), title: value.path, subtitle: value.desc, column: column + 2,
+                    kind: 'api', owner, group, endpoint: value, path: apiPath }, itemId([owner.id, group.id]), architectureTransport(value));
                 if (value === endpoint) parent = id;
             }
         }
+        add({ id: itemId([...valid, 'process']), title: (endpoint?.path || group?.title || owner.title) + ' · process',
+            subtitle: '', kind: 'detail', column: column + valid.length, owner, endpoint, group, detail: 'processing', path: valid }, parent, 'Process');
+        if (entry.example) add({ id: 'example:' + entry.example.id, exampleId: entry.example.id,
+            title: entry.example.title, subtitle: '', kind: 'detail', detail: 'processing', column: column + 1,
+            owner: { ...owner, purpose: entry.example.detail }, path: valid }, parent, 'Example step');
+    };
+    // Each event appends once; later siblings do not get inserted before already visible descendants.
+    for (const entry of appendArchitectureReveal(history, path)) reveal(entry);
+    const matchPaths = graph.nodes.flatMap(owner => architectureSearch(owner, query).flatMap(group =>
+        group.endpoints.map(endpoint => ({ title: endpoint.path, path: [owner.id, group.id, architectureEndpointKey(endpoint)] }))));
+    const matches = query.trim() ? matchPaths : [];
+    const prefix = architecturePathContains;
+    for (const item of items) {
+        item.matchCount = matches.filter(match => prefix(item.path, match.path)).length;
+        item.matched = Boolean(query.trim() && item.kind === 'api' && matches.some(match => itemId(match.path) === item.id));
+        item.active = query.trim() ? item.matchCount > 0
+            : item.exampleId ? item.exampleId === activeExample : !path.length || prefix(item.path, path) || prefix(path, item.path);
+        if ((path.length || matches.length) && ['client', 'transport', 'guard'].includes(item.owner.id) && item.kind === 'component') item.active = true;
     }
-    if (endpoint || !owner.groups.length) {
-        if (endpoint) breadcrumbs.push({ title: endpoint.path, path });
-        const labels: Record<ArchitectureDetail, string> = { input: 'Input', processing: 'What happens', output: 'Output', state: 'Storage & lifetime', model: 'Model involvement' };
-        for (const detail of Object.keys(labels) as ArchitectureDetail[]) {
-            const id = itemId([...path, detail]);
-            add({ id, title: labels[detail], subtitle: '', kind: 'detail', column: endpoint ? 3 : 1,
-                owner, endpoint, group, detail, path });
-            edges.push(detail === 'input' ? { from: id, to: parent, label: 'Request input' }
-                : { from: parent, to: id, label: detail === 'output' ? 'Documented result' : labels[detail] });
-        }
-    }
-    return { items, edges, breadcrumbs, path, focusId: parent };
+    const detail = detailPath && resolve(detailPath).valid;
+    const detailId = activeExample ? 'example:' + activeExample : detail?.length ? itemId([...detail, 'process']) : undefined;
+    const visible = items.filter(item => {
+        if (item.kind === 'component') return true;
+        if (closed.some(branch => prefix(branch, item.path) && (branch.length < item.path.length || item.kind === 'detail'))) return false;
+        return item.kind !== 'detail' || item.id === detailId;
+    });
+    const visibleIds = new Set(visible.map(item => item.id));
+    return { items: visible, placementItems: items, edges: edges.filter(edge => visibleIds.has(edge.from) && visibleIds.has(edge.to)), breadcrumbs, path,
+        focusId: visibleIds.has(detailId || '') ? detailId : path.length ? itemId(path) : undefined,
+        matches: query.trim() ? matches.length : undefined, matchPaths: matches };
 }

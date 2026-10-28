@@ -1,6 +1,5 @@
-import React, { useEffect, useId, useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { MarkdownRenderer } from '../../../components/ui/MarkdownRenderer';
-import { useThemeStore } from '../../../store/ui/useThemeStore';
 
 /** Extract standalone Mermaid fences while preserving other fenced code verbatim. */
 export function documentationParts(content: string) {
@@ -28,36 +27,9 @@ export function documentationParts(content: string) {
     return parts;
 }
 
-function ApiDiagram({ content }: { content: string }) {
-    const id = 'api-diagram-' + useId().replace(/[^a-z0-9_-]/gi, '');
-    const theme = useThemeStore(state => state.theme);
-    const [result, setResult] = useState<{ svg?: string; error?: string }>({});
-    useEffect(() => {
-        let active = true;
-        setResult({});
-        void (async () => {
-            try {
-                const { default: mermaid } = await import('mermaid');
-                const css = getComputedStyle(document.documentElement);
-                const color = (name: string) => css.getPropertyValue(name).trim();
-                mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme: 'base',
-                    suppressErrorRendering: true,
-                    themeVariables: { primaryColor: color('--bg-secondary'),
-                        primaryTextColor: color('--text-primary'), primaryBorderColor: color('--border-color'),
-                        lineColor: color('--text-muted'), background: color('--bg-primary') } });
-                const { svg } = await mermaid.render(id, content);
-                if (active) setResult({ svg });
-            } catch (error) {
-                if (active) setResult({ error: error instanceof Error ? error.message : 'Diagram could not be rendered' });
-            }
-        })();
-        return () => { active = false; };
-    }, [content, id, theme]);
-    return <figure className="my-4 overflow-auto rounded-lg border border-[var(--border-color)] bg-[var(--bg-secondary)] p-3">
-        {result.svg ? <div role="img" aria-label="API processing flow" dangerouslySetInnerHTML={{ __html: result.svg }} />
-            : result.error ? <><p role="alert" className="text-[var(--text-muted)]">{result.error}</p><pre>{content}</pre></>
-                : <p className="text-[var(--text-muted)]">Loading diagram…</p>}
-    </figure>;
+/** API adapter uses the same Markdown/Mermaid renderer as ordinary App Markdown. */
+export function ApiDiagram({ content, compact = false }: { content: string; compact?: boolean }) {
+    return <MarkdownRenderer content={'```mermaid\n' + content + '\n```'} className={compact ? 'text-xs' : undefined} />;
 }
 
 /** API-only diagram support; ordinary documentation retains the shared renderer. */

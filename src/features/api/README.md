@@ -82,44 +82,70 @@ flowchart LR
     A --> S[Storage / model involvement]
 ```
 
-Click a domain, then a group, then a method to reveal connected Input, Processing,
-Output, Storage and Model nodes. For example, Memory & context -> notes ->
-notes.create opens the real accepted fields and response example. Back, Escape and
-breadcrumbs collapse the active branch. Only that branch expands deeply; the
-viewer does not shrink every API into one unreadable global diagram. Drag to
-explore it, zoom near the pointer, or deliberately Fit the visible graph.
+Click a domain, group or method to navigate its children and open one process
+diagram. Endpoints use their own documented Mermaid flow; components use an
+explanatory flow for their responsibility. There are no five generic detail cards.
+Click the same selected card again, or its process Close button, to fold that
+branch and close its diagram. Reopening shows that level rather than automatically
+opening every nested detail. Selecting another card shows its one process only.
+Existing root and unrelated navigation cards
+remain mounted at the same world coordinates as children are revealed ahead of
+their parent. Previously opened branches stay present; unrelated branches dim but
+remain clickable and readable on hover/focus. Explicit close folds descendants;
+other selection and search preserve navigation context. The current overview mount retains
+expansion history; a page reload can start a new overview.
 
-The compact canvas toolbar owns search, breadcrumbs and example controls. Search
-reveals matching API nodes connected to their domains; selecting one reveals its
-original group/API path. Examples highlight the relevant component and explain the
-step as a connected node. Missing groups remain unavailable. There is no separate
-inspector sidebar or List view.
+Search and clearly named Examples controls sit on the right of the compact canvas
+toolbar with inset spacing from its edge. Breadcrumbs remain on the left. Typing highlights matches and their owning paths in the existing scene;
+Next/Previous match or Enter/Shift+Enter reveals a matching API and missing ancestors.
+Clearing search or finding no matches never replaces the graph. Examples highlight
+and reveal the relevant component, retaining prior explanation nodes. Missing
+groups remain unavailable. There is no separate inspector sidebar or List view.
+
+Ordinary selection, search and example steps preserve camera pan/zoom. Use the
+explicit Focus selected control for an off-screen selected node/children, or Fit
+to deliberately frame the expanded scene. Drag/pinch/wheel remain available;
+keyboard focus minimally pans an off-screen card into view without changing scale.
+A growing graph is a larger canvas, not an automatic refit into unreadable text.
 
 ### Owners
 
 - `utils/architectureGraph.ts` projects the single existing catalog and produces
-  progressive visible component/group/API/detail nodes. It retains original endpoint
-  objects and distinct HTTP-method/logical-path identities. Shared CEP transport
-  URLs do not merge methods. Unknown catalog groups remain reachable.
+  cumulative component/group/API nodes and one selected process. Ordered reveal
+  history, folded paths, selected detail, matches and dimming are separate.
+  Placement reservations retain folded/previous process anchors without rendering
+  every reserved card. Original endpoint objects
+  and HTTP-method/logical-path identities remain intact. Shared CEP transport URLs
+  do not merge methods. Unknown catalog groups remain reachable.
 - `utils/architectureLayout.ts` owns deterministic geometry, bounds, directional
-  edge paths and pure wheel/viewport math. Only visible nodes enter layout.
+  edge paths and pure wheel/viewport math. Root anchors are seeded independently
+  of expansion. New descendants get deterministic nonoverlapping slots to the
+  right of their parent; only the new box moves past an occupied slot. Existing
+  boxes do not move on selection, branch expansion or explicit close. Reserved
+  placement slots prevent other cards shifting into space freed by folding. Explicit Fit
+  uses actual expanded bounds. Layout does not mutate a cache during React render.
 - `hooks/useArchitectureViewport.ts` owns transform refs, cursor anchoring,
   magnitude/unit-aware wheel input, bounded zoom and animation-frame painting.
   Zero movement does not zoom. Pointer drag paints directly; reduced motion skips
   interpolation. The graph does not rerender on every wheel animation frame.
-  Catalog bounds arriving after initial loading trigger reframing while the user
-  has not moved the view. Navigation frames the new branch; deliberate movement
-  is preserved during unrelated changes. Listeners/observers/frames are cleaned up.
+  The first real loaded catalog receives one automatic Fit. Selection and larger
+  expanded bounds do not reset the camera. Deliberate pan/zoom stays on resize;
+  Focus/Fit are explicit actions. Listeners/observers/frames are cleaned up.
 - `components/ApiArchitectureCanvas.tsx` draws nodes/edges and compact controls,
-  uses real buttons and reveals keyboard-focused off-screen nodes. Small screens
-  frame a readable detail instead of shrinking the entire branch. Inner detail
-  scrolling, buttons and links keep their own input rather than zooming the map.
-- `components/ApiArchitectureInspector.tsx` now renders content *inside connected
-  graph nodes*. It no longer owns an aside or separate endpoint list. Parameters,
-  required flags, request variants and response examples come from the endpoint
-  object. Large code previews are bounded; full language examples remain in Docs.
-- `components/ApiArchitectureLanding.tsx` owns expanded path, search and example
-  selection. Existing API/connection stores remain the data owners; no second
+  uses stable keys and real buttons, and reveals keyboard-focused off-screen nodes.
+  Selected processes have no enclosing card or fixed-height scroll area. Their
+  natural rendered height updates graph bounds; explicit Focus fits the whole
+  process on wide and narrow screens. Process diagrams sit beyond navigation,
+  so their measured size cannot move navigation cards. Diagram wheel input zooms
+  the graph; buttons, summaries and links retain their own input.
+- `components/ApiArchitectureInspector.tsx` renders one connected process. The
+  endpoint's own Mermaid fence uses the existing documentation extractor and
+  shared Markdown/Mermaid renderer. Missing diagrams show explicit status, not an
+  invented flow. Module/group flowcharts are labelled explanations, not live traces.
+  Optional original payload/response examples and Docs links remain in that block.
+- `components/ApiArchitectureLanding.tsx` owns ordered reveal events, selected path,
+  search/match navigation and example selection. Existing API/connection stores
+  remain the data owners; no second
   catalog/model loader or client is added. Original endpoint objects go through
   the existing selectEndpoint/docs-tab actions. Browsing never sends the selected
   API's request; execution remains an explicit action in the original editor.
@@ -138,3 +164,14 @@ The separate Notebook feature is unchanged. Browser tests do not certify package
 native desktop or other operating systems.
 
 Tests: `node --test test/api_architecture.test.cjs test/api_architecture_viewport.test.cjs`.
+
+### Shared Markdown and Mermaid rendering
+
+The installed Mermaid package is initialized/rendered only by
+`src/components/ui/MermaidDiagram.tsx`. Shared MarkdownRenderer routes Mermaid
+fences to it. Ordinary code fences use its existing CodeBlock, mechanically
+extracted into MarkdownCodeBlock.tsx to keep modules below 800 lines. ApiDocumentation
+and ApiDiagram adapt to the same shared rendering path. CSS Color 4 theme tokens
+such as color-mix are resolved by the browser and composited to hex before Mermaid
+initialization. Strict diagram security and visible loading/error states remain.
+No new library was installed.

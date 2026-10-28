@@ -23,34 +23,67 @@ export function fitViewport(box: GraphBox, width: number, height: number, readab
         y: height / 2 - (box.y + box.height / 2) * scale };
 }
 
-/** Columns contain only the visible branch. Detail blocks have bounded scrolling, not tiny global-fit text. */
-export function architectureLayout(view: ArchitectureView) {
+/** Keyboard access exposes an off-screen box with minimal translation, never a zoom reset. */
+export function revealViewport(view: Viewport, box: GraphBox, width: number, height: number, top = 72): Viewport {
+    const left = box.x * view.scale + view.x, right = left + box.width * view.scale;
+    const y = box.y * view.scale + view.y, bottom = y + box.height * view.scale;
+    const dx = left < 24 ? 24 - left : right > width - 24 ? width - 24 - right : 0;
+    const dy = y < top ? top - y : bottom > height - 24 ? height - 24 - bottom : 0;
+    return dx || dy ? { ...view, x: view.x + dx, y: view.y + dy } : view;
+}
+
+/** Root anchors are fixed; revealed children append in canonical reveal order without moving older boxes. */
+export function architectureLayout(view: ArchitectureView, processHeights: Record<string, number> = {}) {
+    const reserved = view.placementItems || view.items;
+    const roots = reserved.filter(item => !item.parentId);
     const columns = new Map<number, typeof view.items>();
-    for (const item of view.items) columns.set(item.column, [...(columns.get(item.column) || []), item]);
-    const positions = new Map<string, GraphBox>();
+    for (const item of roots) columns.set(item.column, [...(columns.get(item.column) || []), item]);
+    const nodeHeight = (item: typeof view.items[number]) => item.kind === 'detail' ? processHeights[item.id] || 520 : 118;
+    const nodeWidth = (item: typeof view.items[number]) => item.kind === 'detail' ? 560 : 280;
+    const pitch = Math.max(280, ...roots.map(nodeWidth)) + 100;
     const heights = new Map([...columns].map(([column, items]) => [column,
-        items.reduce((sum, item) => sum + (item.kind === 'detail' ? 278 : 118) + 50, 0) - 50]));
+        items.reduce((sum, item) => sum + nodeHeight(item) + 50, 0) - 50]));
     const height = Math.max(300, ...heights.values());
+    const positions = new Map<string, GraphBox>();
     for (const [column, items] of columns) {
-        let y = (view.path.length ? 0 : (height - (heights.get(column) || 0)) / 2) + 36;
+        let y = (height - (heights.get(column) || 0)) / 2 + 36;
         for (const item of items) {
-            const box = { x: column * 380 + 32, y, width: item.kind === 'detail' ? 340 : 280, height: item.kind === 'detail' ? 278 : 118 };
+            const box = { x: column * pitch + 32, y, width: nodeWidth(item), height: nodeHeight(item) };
             positions.set(item.id, box); y += box.height + 50;
         }
     }
-    const boxes = [...positions.values()];
-    const bounds = { x: 0, y: 0, width: Math.max(320, ...boxes.map(box => box.x + box.width + 32)), height: height + 72 };
-    const focus = positions.get(view.focusId || '');
-    // Frame the newly opened children at readable size; the overview remains reachable through Back/Fit.
-    const lastColumn = Math.max(0, ...columns.keys());
-    const firstChild = view.items.find(item => item.column === lastColumn);
-    const child = positions.get(firstChild?.id || '');
-    const frame = focus && child ? { x: Math.min(focus.x, child.x), y: Math.min(focus.y, child.y),
-        width: Math.max(focus.x + focus.width, child.x + child.width) - Math.min(focus.x, child.x),
-        height: Math.max(focus.height, child.height) } : bounds;
+    // Navigation anchors never depend on a diagram's asynchronously rendered height.
+    const ordered = [...reserved.filter(item => item.kind !== 'detail'), ...reserved.filter(item => item.kind === 'detail')];
+    for (const item of ordered) {
+        if (!item.parentId) continue;
+        const parent = positions.get(item.parentId);
+        if (!parent) continue; // Invalid external catalog relationships do not invent an anchor.
+        const navigationRight = item.kind === 'detail' ? Math.max(...reserved.filter(node => node.kind !== 'detail').map(node => {
+            const placed = positions.get(node.id); return placed ? placed.x + placed.width : 0;
+        })) : parent.x + parent.width;
+        const box = { x: navigationRight + 100, y: parent.y,
+            width: nodeWidth(item), height: nodeHeight(item) };
+        const occupied = [...positions.values()];
+        // Every collision moves downward past an existing box; at most one pass per occupied box.
+        for (let attempt = 0; attempt <= occupied.length; attempt++) {
+            const collision = occupied.find(other => box.x < other.x + other.width + 32 && box.x + box.width + 32 > other.x
+                && box.y < other.y + other.height + 50 && box.y + box.height + 50 > other.y);
+            if (!collision) break;
+            box.y = collision.y + collision.height + 50;
+        }
+        positions.set(item.id, box);
+    }
+    const boxes = view.items.map(item => positions.get(item.id)).filter((box): box is GraphBox => Boolean(box));
+    const bounds = { x: 0, y: 0, width: Math.max(320, ...boxes.map(box => box.x + box.width + 32)),
+        height: Math.max(height + 72, ...boxes.map(box => box.y + box.height + 36)) };
+    const selected = positions.get(view.focusId || '');
+    const children = view.items.filter(item => item.parentId === view.focusId).map(item => positions.get(item.id)).filter((box): box is GraphBox => Boolean(box));
+    const first = children[0];
+    const frame = selected && first ? { x: Math.min(selected.x, first.x), y: Math.min(selected.y, first.y),
+        width: Math.max(selected.x + selected.width, first.x + first.width) - Math.min(selected.x, first.x),
+        height: Math.max(selected.y + selected.height, first.y + first.height) - Math.min(selected.y, first.y) } : selected || bounds;
     return { positions, bounds, frame };
 }
-
 export function architectureEdgePath(a: GraphBox, b: GraphBox): string {
     const right = b.x > a.x, same = a.x === b.x;
     const sx = same ? a.x + a.width / 2 : right ? a.x + a.width : a.x;

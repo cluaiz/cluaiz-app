@@ -47,3 +47,25 @@ test('edges use actual box anchors in both directions and empty graph bounds sta
     const empty=m.architectureLayout({items:[],path:[],edges:[]});
     assert.ok(empty.bounds.width>0&&empty.bounds.height>0);
 });
+
+test('append-only children avoid occupied slots without moving any existing card',()=>{
+    const item=(id,column,parentId,kind='component')=>({id,column,parentId,kind});
+    const roots=[item('client',0),item('memory',2),item('files',2),item('runtime',3)];
+    const initial=m.architectureLayout({items:roots,path:[],edges:[]});
+    const first=m.architectureLayout({items:[...roots,item('notes',3,'memory','group')],path:['memory'],edges:[],focusId:'notes'});
+    const second=m.architectureLayout({items:[...roots,item('notes',3,'memory','group'),item('read',4,'notes','api'),item('file-child',3,'files','group')],path:['files'],edges:[]});
+    for(const [id,box]of initial.positions)assert.deepEqual(JSON.parse(JSON.stringify(first.positions.get(id))),JSON.parse(JSON.stringify(box)));
+    for(const [id,box]of first.positions)assert.deepEqual(JSON.parse(JSON.stringify(second.positions.get(id))),JSON.parse(JSON.stringify(box)));
+    const boxes=[...second.positions.values()];
+    for(let i=0;i<boxes.length;i++)for(let j=i+1;j<boxes.length;j++){
+        const a=boxes[i],b=boxes[j];assert.ok(a.x+a.width<=b.x||b.x+b.width<=a.x||a.y+a.height<=b.y||b.y+b.height<=a.y);
+    }
+    assert.ok(first.positions.get('notes').x>first.positions.get('memory').x);
+});
+
+test('keyboard reveal only pans and leaves already visible nodes unchanged',()=>{
+    const current={x:20,y:30,scale:0.7};
+    assert.equal(m.revealViewport(current,{x:100,y:100,width:100,height:100},1200,900),current);
+    const shifted=m.revealViewport(current,{x:2000,y:1800,width:280,height:118},1200,900);
+    assert.equal(shifted.scale,current.scale);assert.notEqual(shifted.x,current.x);
+});

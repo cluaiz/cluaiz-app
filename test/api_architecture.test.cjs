@@ -105,13 +105,13 @@ test('progressive graph reaches every real API and keeps original parameters, pa
     const graph=build(catalog), reached=new Set();
     for(const owner of graph.nodes)for(const group of owner.groups)for(const endpoint of group.endpoints){
         const view=architecture.architectureView(graph,[owner.id,group.id,key(endpoint)]);
-        const method=view.items.find(item=>item.kind==='api');
+        const method=view.items.find(item=>item.kind==='api'&&item.endpoint===endpoint);
         assert.equal(method.endpoint,endpoint);assert.equal(view.path.length,3);reached.add(key(method.endpoint));
-        assert.deepEqual(json(view.items.filter(item=>item.kind==='detail').map(item=>item.detail)),['input','processing','output','state','model']);
+        assert.deepEqual(json(view.items.filter(item=>item.kind==='detail').map(item=>item.detail)),['processing']);
         assert.ok(view.items.filter(item=>item.kind==='detail').every(item=>item.endpoint===endpoint));
         const ids=new Set(view.items.map(item=>item.id));assert.equal(ids.size,view.items.length);
         assert.ok(view.edges.every(edge=>ids.has(edge.from)&&ids.has(edge.to)));
-        assert.ok(view.edges.some(edge=>edge.to===method.id&&edge.label==='Request input'));
+        assert.ok(view.edges.some(edge=>edge.from===method.id&&edge.to===view.focusId));
     }
     assert.equal(reached.size,graph.count);
 });
@@ -129,9 +129,92 @@ test('expansion is bounded, supports back paths and recovers when a catalog entr
     assert.equal(architecture.architectureView(build([]),[]).items.some(item=>item.kind==='api'),false);
 });
 
-test('search reveals original methods as connected nodes and produces an honest empty result',()=>{
+test('search highlights context and explicit reveal opens the original matching method',()=>{
     const graph=build(fixture), view=architecture.architectureView(graph,[],'fs.write');
-    assert.equal(view.matches,1);assert.equal(view.items.filter(item=>item.kind==='api')[0].endpoint,fixture[5].endpoints[1]);
-    assert.equal(view.edges.length,1);
-    assert.equal(architecture.architectureView(graph,[],'no-such-owned-method').items.length,0);
+    assert.equal(view.matches,1);assert.equal(view.items.length,graph.nodes.length);
+    const match=view.matchPaths[0], revealed=architecture.architectureView(graph,match.path,'fs.write');
+    assert.equal(revealed.items.find(item=>item.matched).endpoint,fixture[5].endpoints[1]);
+    assert.equal(architecture.architectureView(graph,[],'no-such-owned-method').items.length,graph.nodes.length);
+});
+
+test('expanding keeps every original root and previously revealed branch',()=>{
+    const graph=build(fixture), roots=architecture.architectureView(graph,[]);
+    const memory=architecture.architectureView(graph,['memory']);
+    for(const item of roots.items)assert.ok(memory.items.some(next=>next.id===item.id),'missing root '+item.title);
+    const group=graph.nodes.find(node=>node.id==='memory').groups[1];
+    const notes=architecture.architectureView(graph,['memory',group.id]);
+    const switched=architecture.architectureView(graph,['files'],'',[{path:['memory']},{path:['memory',group.id]}]);
+    for(const item of notes.items.filter(item=>item.kind!=='detail'))assert.ok(switched.items.some(next=>next.id===item.id),'lost revealed '+item.title);
+});
+
+test('query and no-match states retain graph context instead of replacing the scene',()=>{
+    const graph=build(fixture), roots=architecture.architectureView(graph,[]);
+    for(const query of ['fs.write','no-such-owned-method']){
+        const result=architecture.architectureView(graph,[],query);
+        for(const item of roots.items)assert.ok(result.items.some(next=>next.id===item.id));
+    }
+});
+
+test('canonical reveal history is idempotent and preserves prior examples when focus changes',()=>{
+    const graph=build(fixture), group=graph.nodes.find(node=>node.id==='memory').groups[1];
+    const path=['memory',group.id,key(group.endpoints[0])];
+    const first=architecture.appendArchitectureReveal([],path);
+    assert.equal(architecture.appendArchitectureReveal(first,path),first);
+    const example={id:'owned-step',title:'Owned explanation',detail:'No execution'};
+    const annotated=architecture.appendArchitectureReveal(first,['memory'],example);
+    const view=architecture.architectureView(graph,['files'],'',annotated);
+    assert.ok(view.placementItems.find(item=>item.exampleId===example.id));
+    assert.equal(view.items.some(item=>item.exampleId===example.id),false);
+    const note=view.items.find(item=>item.kind==='api'&&item.endpoint===group.endpoints[0]);
+    assert.equal(note.active,false);
+    assert.equal(view.items.find(item=>item.owner.id==='files').active,true);
+    assert.equal(new Set(view.items.map(item=>item.id)).size,view.items.length);
+});
+
+test('explicit close folds only the chosen branch and retains placement reservations for others',()=>{
+    const graph=build(fixture), group=graph.nodes.find(node=>node.id==='memory').groups[1];
+    const path=['memory',group.id,key(group.endpoints[0])];
+    let history=architecture.appendArchitectureReveal([],path);
+    history=architecture.appendArchitectureReveal(history,['files']);
+    const full=architecture.architectureView(graph,path,'',history);
+    const folded=architecture.architectureView(graph,['memory'],'',history,undefined,[['memory']],null);
+    assert.equal(folded.items.some(item=>item.path.length>1&&item.owner.id==='memory'),false);
+    assert.equal(folded.items.filter(item=>item.kind==='detail').length,0);
+    assert.ok(folded.items.some(item=>item.owner.id==='files'&&item.kind==='group'));
+    const geometry=load('src/features/api/utils/architectureLayout.ts',{}),before=geometry.architectureLayout(full),after=geometry.architectureLayout(folded);
+    for(const item of folded.items)assert.deepEqual(json(after.positions.get(item.id)),json(before.positions.get(item.id)));
+    const reopened=architecture.architectureView(graph,['memory'],'',history,undefined,[['memory',group.id],path],['memory']);
+    assert.ok(reopened.items.some(item=>item.kind==='group'&&item.owner.id==='memory'));
+    assert.equal(reopened.items.some(item=>item.kind==='api'&&item.owner.id==='memory'),false);
+    assert.equal(reopened.items.filter(item=>item.kind==='detail').length,1);
+});
+
+test('all real catalog expansions fit nonoverlapping slots while keeping every original root anchor',()=>{
+    const catalog=JSON.parse(fs.readFileSync(path.join(__dirname,'../public/data/api-catalog.json'),'utf8'));
+    const graph=build(catalog), geometry=load('src/features/api/utils/architectureLayout.ts',{});
+    const roots=geometry.architectureLayout(architecture.architectureView(graph,[]));let history=[];
+    for(const owner of graph.nodes)for(const group of owner.groups)for(const endpoint of group.endpoints)
+        history=architecture.appendArchitectureReveal(history,[owner.id,group.id,key(endpoint)]);
+    const layout=geometry.architectureLayout(architecture.architectureView(graph,[],'',history));
+    for(const [id,box] of roots.positions)assert.deepEqual(json(layout.positions.get(id)),json(box));
+    const boxes=[...layout.positions.values()];
+    for(let i=0;i<boxes.length;i++)for(let j=i+1;j<boxes.length;j++){
+        const a=boxes[i],b=boxes[j];assert.ok(a.x+a.width<=b.x||b.x+b.width<=a.x||a.y+a.height<=b.y||b.y+b.height<=a.y);
+    }
+});
+
+test('natural process height expands graph bounds without moving navigation or boxing the diagram',()=>{
+    const graph=build(fixture), geometry=load('src/features/api/utils/architectureLayout.ts',{});
+    const view=architecture.architectureView(graph,['memory']);
+    const process=view.items.find(item=>item.kind==='detail');
+    const before=geometry.architectureLayout(view), after=geometry.architectureLayout(view,{[process.id]:1800});
+    for(const item of view.items.filter(item=>item.kind!=='detail'))
+        assert.deepEqual(json(after.positions.get(item.id)),json(before.positions.get(item.id)));
+    const box=after.positions.get(process.id);
+    assert.equal(box.height,1800);
+    assert.ok(after.bounds.height>=box.y+1800);
+    for(const item of view.items.filter(item=>item.kind!=='detail')){
+        const navigation=after.positions.get(item.id);
+        assert.ok(box.x>=navigation.x+navigation.width);
+    }
 });
