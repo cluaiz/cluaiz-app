@@ -7,7 +7,7 @@ import { useLayoutStore } from '../../../store/ui/useLayoutStore';
 import { useThemeStore } from '../../../store/ui/useThemeStore';
 import { useEngineStore } from '../../../store/engine/useEngineStore';
 import { useChatStore } from '../../../store/chat/useChatStore';
-import { ChevronDown, Copy, Trash2, X, FileText, WifiOff, ArrowLeftRight } from 'lucide-react';
+import { Brain, ChevronDown, Copy, Trash2, X, FileText, WifiOff, ArrowLeftRight } from 'lucide-react';
 import * as Icons from '../../../components/animate-ui/icons';
 import { useIconHover } from '../../../components/animate-ui/icons';
 import { toast } from '../../../components/ui/toast';
@@ -29,6 +29,9 @@ import { useChatSend } from '../hooks/useChatSend';
 import { cluaizEngine } from '../../../core/engine';
 import { PersistentAudioDeck } from '../../../components/ui/PersistentAudioPlayer';
 import { useSpeechHighlightStore } from '../../../store/chat/useSpeechHighlightStore';
+import { Button } from '../../../components/ui/Button';
+import { AiMemoryPanel } from './AiMemoryPanel';
+import { useProjectStore } from '../../../store/workspace/useProjectStore';
 
 const PrivateModeToggleButton: React.FC<{
     isIncognito: boolean;
@@ -42,6 +45,7 @@ const PrivateModeToggleButton: React.FC<{
         >
             <button
                 type="button"
+                aria-label={isIncognito ? 'Disable Private Mode' : 'Enable Private Mode'}
                 onClick={onClick}
                 onMouseEnter={triggerProps.onMouseEnter}
                 onMouseLeave={triggerProps.onMouseLeave}
@@ -72,6 +76,8 @@ export function ChatWorkspace({ workspace, chatBinding }: { workspace?: React.Re
     const [dateRange, setDateRange] = useState<DateRange | undefined>();
     // "Save chat history" off in Settings → Chats & History: new chats start in Private Mode
     const [isIncognito, setIsIncognito] = useState(() => !currentChatPrefs().saveHistory);
+    const [memoryOpen, setMemoryOpen] = useState(false);
+    const memoryWorkspace = useProjectStore(state => state.projects[state.activeProjectId || '']?.rootPath);
 
     const {
         activeSessionId: mainSessionId,
@@ -406,10 +412,10 @@ main().catch(console.error);`);
                 style={{ width: `${visibleSplitPaneWidth}%` }}
                 className="h-full flex flex-col bg-[var(--bg-primary)] overflow-hidden relative"
             >
-                {/* Top Right Incognito Toggle - Only on Landing Page */}
-                {!isBoundChat && messages.length === 0 && (
-                    <div className="absolute top-4 right-4 z-40">
-                        <PrivateModeToggleButton
+                {!isBoundChat && (
+                    <div className="absolute top-4 right-4 z-40 flex items-center gap-2">
+                        <Button type="button" variant="outline" size="icon" aria-label="Open AI memory" title="AI Memory" onClick={() => setMemoryOpen(true)}><Brain size={18} /></Button>
+                        {messages.length === 0 && <PrivateModeToggleButton
                             isIncognito={isIncognito}
                             onClick={async () => {
                                 if (isIncognito && activeSessionId) {
@@ -420,9 +426,11 @@ main().catch(console.error);`);
                                 }
                                 setIsIncognito(!isIncognito);
                             }}
-                        />
+                        />}
                     </div>
                 )}
+                {!isBoundChat && <AiMemoryPanel open={memoryOpen} onClose={() => setMemoryOpen(false)} chatId={activeSessionId}
+                    workspacePath={memoryWorkspace} privateChat={Boolean(activeSession?.isIncognito || isIncognito)} />}
 
 
                 {isBoundChat && !activeSession ? <div className="flex-1 flex items-center justify-center text-[var(--text-secondary)]" role="status">Open a extension chat to begin.</div> : messages.length === 0 ? (

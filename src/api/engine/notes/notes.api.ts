@@ -26,7 +26,8 @@ function change(value: unknown): NoteChange {
   if (!object(value)) throw invalid();
   const result = { note: note(value.note), superseded: value.superseded === null ? null : note(value.superseded) };
   if (result.superseded && (result.superseded.status !== 'superseded' || result.superseded.id === result.note.id
-    || result.note.supersedes !== result.superseded.id)) throw invalid();
+    || result.note.supersedes !== result.superseded.id || result.superseded.scope !== result.note.scope
+    || result.superseded.owner !== result.note.owner)) throw invalid();
   return result;
 }
 function id(value: string) { if (!text(value)) throw inputError('A note id is required'); }
@@ -51,7 +52,8 @@ export const notesApi = {
       || (params.pinned !== undefined && typeof params.pinned !== 'boolean')) throw inputError('Invalid note scope or pin state');
     const result = change(await callCep('notes.create', { ...params, text: trimmed }, { signal }));
     if (result.note.text !== trimmed || result.note.scope !== params.scope || result.note.status !== 'confirmed'
-      || result.note.by !== 'user' || (params.scope === 'chat' && result.note.owner !== params.chat_id)) throw invalid();
+      || result.note.by !== 'user' || (params.scope === 'chat' && result.note.owner !== params.chat_id)
+      || (params.pinned === true && !result.note.pinned)) throw invalid();
     // The Engine can carry an existing pin forward when superseding a live note.
     return result;
   },

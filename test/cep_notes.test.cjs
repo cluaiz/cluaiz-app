@@ -75,6 +75,10 @@ test('superseded records use the actual nullable-object contract and retain hist
   assert.equal(result.superseded.id,'n:1');assert.equal(result.note.pinned,true);
   const wrong=setup(body=>reply(body,{note:record(),superseded:[]}));
   await assert.rejects(wrong.notesApi.confirm('n:1'),{statusText:'INVALID_NOTES_RESPONSE'});
+  const foreign=setup(body=>reply(body,{note:record({id:'n:2',supersedes:'n:1'}),superseded:{...replaced,owner:'/other'}}));
+  await assert.rejects(foreign.notesApi.confirm('n:2'),{statusText:'INVALID_NOTES_RESPONSE'});
+  const unpinned=setup(body=>reply(body,{note:record(),superseded:null}));
+  await assert.rejects(unpinned.notesApi.create({text:record().text,scope:'workspace',pinned:true}),{statusText:'INVALID_NOTES_RESPONSE'});
 });
 
 test('RPC permission/not-found failures and unknown transport outcomes are preserved without mutation retries',async()=>{

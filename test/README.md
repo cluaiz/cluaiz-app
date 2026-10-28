@@ -420,3 +420,13 @@ Physical tray-menu mouse clicks, Linux/macOS desktop, OS sleep/power scheduling,
 startup registration and owned real Engine/model shutdown are not certified by
 this controlled fixture. A Chromium class-unregister diagnostic may appear at
 Windows shutdown; the runner still requires actual normal native exits.
+
+## AI Memory note contracts
+
+`node --test test/cep_notes.test.cjs` runs actual notes adapters through the shared
+CEP transport harness. It checks complete records, UTF-8 byte limits, exact
+mutation acknowledgments, pin versus confirmation, supersession scope, malformed
+lists, permission/not-found failures, AbortSignal forwarding and no adapter retry.
+Rendered lifecycle/race/private-mode and isolated Engine persistence evidence is
+recorded in the existing App integration proof; controlled records are not model
+behavior proof. Test fixtures never write the user's notes or chat history.
