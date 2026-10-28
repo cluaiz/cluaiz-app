@@ -25,7 +25,10 @@ flowchart LR
   the already installed package, strict security, unique render IDs and stale
   result guards. The browser resolves CSS variables/color-mix; a one-pixel canvas
   composites alpha against the App background and supplies hex to Mermaid's color
-  parser. Probes are removed, and loading/errors remain visible.
+  parser. Probes are removed, and loading/errors remain visible. Flowchart labels
+  use wrapped SVG text (`htmlLabels: false`), so fractional browser zoom cannot
+  leave a long HTML foreignObject label in a clipped single line. Node geometry
+  includes all wrapped lines rather than hiding overflow or truncating text.
 
 API adapters reuse these components; do not create another Mermaid runtime,
 fence parser or theme-color conversion in a feature. Diagram source remains data,

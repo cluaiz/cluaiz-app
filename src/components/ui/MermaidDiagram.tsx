@@ -37,7 +37,9 @@ export function MermaidDiagram({ content }: { content: string }) {
         void (async () => {
             try {
                 const { default: mermaid } = await import('mermaid');
-                mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme: 'base',
+                // HTML foreignObject labels mismeasure their nowrap width at fractional
+                // browser zoom. SVG text wraps before layout and grows the owning node.
+                mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme: 'base', htmlLabels: false,
                     suppressErrorRendering: true, themeVariables: themeColors() });
                 const { svg } = await mermaid.render(id, content);
                 if (active) setResult({ svg });
