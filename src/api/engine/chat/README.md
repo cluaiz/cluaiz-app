@@ -5,7 +5,8 @@
 - **Purpose:** one chat-domain adapter for existing App/extension consumers, sharing transport and SSE parser owners.
 - **Generation:** POST /v1/chat/completions retains its dedicated JSON/SSE API; it is not moved into CEP.
 - **Controls/context:** chat.cancel, chat.skip_reasoning and chat.telemetry use authenticated callCep. Features do not construct envelopes or retired URLs.
-- **Saved Engine history:** `history.ts` owns `chatHistoryApi.deleteChat(id, signal?)` via `memory.delete {chat_id}`. It checks matching id, nonnegative integer event counts, ledger acknowledgment and boolean saved-KV/folder fields. An outstanding folder reports incomplete cleanup. App files/fallback storage are separate stages coordinated by the App store; `kv.delete` remains the cache-only control.
+- **Saved Engine history & conversation memory:** `history.ts` and `history.types.ts` own `chatHistoryApi` over CEP `memory.*`: `getEvents` (`memory.events`), `getIndex` (`memory.index`), `search` (`memory.search`), `getItem` (`memory.item`), `exportChat` (`memory.export`), `getGrants` (`memory.grants`), `revokeGrants` (`memory.revoke_grants`), and `deleteChat` (`memory.delete`). `memory.search` normalizes both per-chat card hits (`scope: 'chat'`) and cross-chat formatted text (`scope: 'workspace' | 'all'`), while `memory.item` checks that `m:<position>` matches `card.pos`. App files/fallback storage remain separate stages coordinated by the App store; `kv.delete` remains the cache-only control in `chatMemoryApi`.
+- **Context inspection & idle jobs:** `context.api.ts` and `context.types.ts` own `contextApi` over CEP `context.*`: `preview` (`context.preview`), `listReports` (`context.reports`), `getReport` (`context.report`), and `getJobs` (`context.jobs`). `context.preview` is a deliberate dry-run preflight that can load the model for tokenization without generating a response; retained context reports (`context.reports` / `context.report`) live in Engine RAM (newest 20 per chat) until restart.
 - **Transport:** explicit HTTP or desktop native IPC remains below this module. No speed, shared-memory or packaged-desktop claim follows from migration.
 
 ## Architectural flow
@@ -21,8 +22,10 @@ flowchart TD
     A --> T["Context response validation"]
     T --> P
     P --> E["Engine controls / tool context query"]
-    UI --> H["chatHistoryApi / memory.delete"]
+    UI --> H["chatHistoryApi / memory.*"]
     H --> P
+    UI --> X["contextApi / context.*"]
+    X --> P
 ```
 
 ## API contract
@@ -34,6 +37,8 @@ flowchart TD
 | cancelStream | chat.cancel; validate matching id and cancelled acknowledgement |
 | skipReasoning | chat.skip_reasoning; matching id/skip_requested, or real refusal |
 | getContextTelemetry | chat.telemetry; App session_id maps once to chat_id; optional model/signal |
+| chatHistoryApi.getEvents / getIndex / search / getItem / exportChat / getGrants / revokeGrants / deleteChat | memory.events, memory.index, memory.search, memory.item, memory.export, memory.grants, memory.revoke_grants, memory.delete |
+| contextApi.preview / listReports / getReport / getJobs | context.preview, context.reports, context.report, context.jobs |
 
 - **Identity:** no active Engine id until one arrives. Earlier cancellation only aborts its owned local request; no timestamp-generated id is sent.
 - **Ownership:** superseded domain-store callbacks/finalizers cannot replace newer stream content/id/controller. Core uses the same decoder.
