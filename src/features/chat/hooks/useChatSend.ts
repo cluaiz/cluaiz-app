@@ -112,11 +112,14 @@ export function useChatSend({ inputValue, setInputValue, replyingTo, setReplying
             const contextMessages = selectChatContext(currentSession?.messages || []);
             const conversationMessages = buildChatHistory(contextMessages);
 
+            const isPrivateSession = Boolean(currentSession?.isIncognito);
             const chatOptions = {
                 ...options,
                 session_id: sessionId,
                 // Private chats: the engine saves no model memory of them either
-                temporary_chat: currentSession?.isIncognito ? 'lite' as const : undefined,
+                temporary_chat: isPrivateSession ? 'lite' as const : undefined,
+                // Saved chats use adaptive history so the Engine recalls older turns from its index and offers memory tools
+                history_mode: options?.history_mode ?? (isPrivateSession ? undefined : ('adaptive' as const)),
                 messages: conversationMessages
             };
 

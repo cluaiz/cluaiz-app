@@ -1,5 +1,5 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
-import { Download, History, RefreshCw, Search, ShieldAlert, X } from 'lucide-react';
+import { Cpu, Download, History, RefreshCw, Search, ShieldAlert, X } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../../components/ui/Dialog';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
@@ -14,12 +14,13 @@ interface Props {
   onClose: () => void;
   chatId?: string | null;
   privateChat?: boolean;
+  onOpenContextDiagnostics?: () => void;
 }
 
 type TabKey = 'search' | 'map' | 'events' | 'grants';
 
 /** Inspects Engine conversation memory (`memory.*`): search, source item, chat map, event log, tool grants, and export. */
-export function ConversationMemoryPanel({ open, onClose, chatId, privateChat = false }: Props) {
+export function ConversationMemoryPanel({ open, onClose, chatId, privateChat = false, onOpenContextDiagnostics }: Props) {
   const conv = useConversationMemory({ open, chatId, privateChat });
   const [tab, setTab] = useState<TabKey>('search');
   const [query, setQuery] = useState('');
@@ -113,6 +114,18 @@ export function ConversationMemoryPanel({ open, onClose, chatId, privateChat = f
               </span>
             </DialogTitle>
             <div className="flex items-center gap-1">
+              {onOpenContextDiagnostics && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  aria-label="Open context diagnostics"
+                  title="Context & Indexer Diagnostics"
+                  onClick={onOpenContextDiagnostics}
+                >
+                  <Cpu size={14} className="mr-1" /> Context
+                </Button>
+              )}
               <Button
                 type="button"
                 variant="ghost"
@@ -276,7 +289,7 @@ export function ConversationMemoryPanel({ open, onClose, chatId, privateChat = f
                       </div>
                     )}
 
-                    {conv.searchResult && (
+                    {conv.searchResult ? (
                       <div className="space-y-2" data-testid="conv-search-results">
                         {conv.searchResult.scope !== 'chat' ? (
                           <div className="rounded-lg border border-[var(--border-color)] bg-[var(--bg-secondary)] p-3">
@@ -317,6 +330,11 @@ export function ConversationMemoryPanel({ open, onClose, chatId, privateChat = f
                                     View message ({hit.ref})
                                   </Button>
                                 </div>
+                                {hit.card.keywords?.length ? (
+                                  <p className="text-xs font-medium text-[var(--text-primary)]">
+                                    Keywords: {hit.card.keywords.join(', ')}
+                                  </p>
+                                ) : null}
                                 {hit.card.enrichment?.title && (
                                   <p className="text-xs font-semibold">{hit.card.enrichment.title}</p>
                                 )}
@@ -333,7 +351,37 @@ export function ConversationMemoryPanel({ open, onClose, chatId, privateChat = f
                           </ul>
                         )}
                       </div>
-                    )}
+                    ) : conv.index && conv.index.cards.length > 0 ? (
+                      <div className="space-y-2" data-testid="conv-recent-cards">
+                        <h4 className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+                          Indexed Messages ({conv.index.cards.length})
+                        </h4>
+                        <ul className="space-y-1.5 max-h-60 overflow-y-auto pr-1">
+                          {conv.index.cards.map(card => {
+                            const ref = `m:${card.pos}`;
+                            return (
+                              <li key={ref} className="flex items-center justify-between gap-2 rounded border border-[var(--border-color)] bg-[var(--bg-secondary)] px-2.5 py-1.5 text-xs">
+                                <div className="min-w-0 flex-1 truncate">
+                                  <span className="font-mono font-semibold">{ref}</span> · <span className="capitalize">{card.role}</span>
+                                  {card.tokens !== undefined ? ` · ${card.tokens} tok` : ''}
+                                  {card.keywords?.length ? ` · ${card.keywords.join(', ')}` : ''}
+                                  {card.enrichment?.title ? ` (${card.enrichment.title})` : ''}
+                                </div>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="ghost"
+                                  disabled={conv.itemLoading}
+                                  onClick={() => void conv.inspectItem(ref)}
+                                >
+                                  View message
+                                </Button>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
+                    ) : null}
                   </div>
                 )}
 
@@ -412,8 +460,8 @@ export function ConversationMemoryPanel({ open, onClose, chatId, privateChat = f
                                     <div className="min-w-0 flex-1 truncate">
                                       <span className="font-mono font-semibold">{ref}</span> · <span className="capitalize">{card.role}</span>
                                       {card.tokens !== undefined ? ` · ${card.tokens} tok` : ''}
-                                      {card.enrichment?.title ? ` · ${card.enrichment.title}` : ''}
-                                      {card.keywords?.length ? ` (${card.keywords.slice(0, 4).join(', ')})` : ''}
+                                      {card.keywords?.length ? ` · ${card.keywords.join(', ')}` : ''}
+                                      {card.enrichment?.title ? ` (${card.enrichment.title})` : ''}
                                     </div>
                                     <Button
                                       type="button"

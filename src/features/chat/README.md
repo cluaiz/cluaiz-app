@@ -7,10 +7,14 @@
   the Conversation Memory dialog inspects per-chat recall, event log, tool grants,
   and export (`memory.*`), and the Context Diagnostics dialog inspects retained
   preflight reports, dry-run context previews, and idle indexer jobs (`context.*`).
-- **Entry:** the top-right controls in `ChatWorkspace` (`History` for Conversation
-  Memory, `Cpu` for Context Diagnostics, `Brain` for AI Memory) plus the
-  `Inspect Reports, Preview & Jobs` button inside `ContextWindowPopover`. The unused
-  `ChatHeader` is not a second entry or state owner.
+- **Entry:** the right-click context menu (`GlobalChatContextMenu` — `CHAT OPTIONS`
+  with `AI Memory`, `Conversation Memory`, `Context Diagnostics`, `Archive` /
+  `Unarchive`, `Close chat`, and `Delete Chat`) in `ChatWorkspace`, plus the
+  `Context` button inside `ConversationMemoryPanel` and the
+  `Inspect full context & tools report` button inside `ContextWindowPopover`.
+  In the top-right corner of `ChatWorkspace`, only `PrivateModeToggleButton` is
+  rendered on the empty New Chat screen (`messages.length === 0`), with no
+  floating memory buttons. The unused `ChatHeader` is not a second entry or state owner.
 - **Platform:** web and desktop use the same React UI and shared API client.
   Packaged desktop acceptance is separate from browser/adapter evidence.
 
@@ -55,9 +59,16 @@ flowchart LR
 - **components/ConversationMemoryPanel.tsx & hooks/useConversationMemory.ts:**
   scoped to connection, chat id, and private flag. Reads `memory.index`,
   `memory.events`, and `memory.grants` on open/refresh; runs `memory.search` only
-  on deliberate form submit; inspects `memory.item` by `m:<pos>` without equating
-  Engine message positions with local UI message ids; revokes tool grants via
-  `memory.revoke_grants`; exports `cluaiz-chat-export` v1 JSON via `memory.export`.
+  on deliberate form submit and supplements chat-scoped results with `matchCardsForQuery`
+  over loaded `index.cards` so single-word queries (such as a user's name) resolve
+  even when Engine recall requires 2+ shared terms; displays indexed messages with
+  their primary `card.keywords` on the default tab; inspects `memory.item` by `m:<pos>`
+  without equating Engine message positions with local UI message ids; revokes tool
+  grants via `memory.revoke_grants`; exports `cluaiz-chat-export` v1 JSON via `memory.export`.
+- **hooks/useChatSend.ts & core/engine.ts:** saved (non-private) chats pass
+  `history_mode: 'adaptive'` on `/v1/chat/completions` so the Engine retains recent
+  turns in the prompt, recalls older turns from its index, and offers memory tools
+  (`recall`, `open_memory`, `remember`).
 - **components/ContextDetailsPanel.tsx & hooks/useContextDetails.ts:**
   reads `context.jobs` and (when a non-private chat id exists) `context.reports` /
   `context.report` on open/refresh. Explains that retained reports live in Engine

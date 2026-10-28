@@ -22,6 +22,8 @@ export interface SendChatOptions {
     session_id?: string;
     /** 'lite' for a private chat: the engine keeps nothing of it on disk (no chat memory) */
     temporary_chat?: 'lite' | 'strict';
+    /** 'adaptive' keeps recent turns in the prompt and recalls older turns from the chat index */
+    history_mode?: 'recent' | 'adaptive' | 'none';
     messages?: Array<{ role: string; content: string | any[] }>;
     think_mode?: 'auto' | 'on' | 'off' | string;
     reasoning_effort?: 'auto' | 'low' | 'medium' | 'high' | 'max' | string | number;
@@ -164,6 +166,9 @@ export class cluaizEngine {
             }
             if (options?.temporary_chat) {
                 payload.temporary_chat = options.temporary_chat;
+            }
+            if (options?.history_mode) {
+                payload.history_mode = options.history_mode;
             }
             if (options?.think_mode) {
                 payload.think_mode = options.think_mode;

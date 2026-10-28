@@ -7,7 +7,7 @@ import { useLayoutStore } from '../../../store/ui/useLayoutStore';
 import { useThemeStore } from '../../../store/ui/useThemeStore';
 import { useEngineStore } from '../../../store/engine/useEngineStore';
 import { useChatStore } from '../../../store/chat/useChatStore';
-import { Brain, ChevronDown, Copy, Cpu, History, Trash2, X, FileText, WifiOff, ArrowLeftRight } from 'lucide-react';
+import { ChevronDown, Copy, Trash2, X, FileText, WifiOff, ArrowLeftRight } from 'lucide-react';
 import * as Icons from '../../../components/animate-ui/icons';
 import { useIconHover } from '../../../components/animate-ui/icons';
 import { toast } from '../../../components/ui/toast';
@@ -29,7 +29,6 @@ import { useChatSend } from '../hooks/useChatSend';
 import { cluaizEngine } from '../../../core/engine';
 import { PersistentAudioDeck } from '../../../components/ui/PersistentAudioPlayer';
 import { useSpeechHighlightStore } from '../../../store/chat/useSpeechHighlightStore';
-import { Button } from '../../../components/ui/Button';
 import { AiMemoryPanel } from './AiMemoryPanel';
 import { ConversationMemoryPanel } from './ConversationMemoryPanel';
 import { ContextDetailsPanel } from './ContextDetailsPanel';
@@ -88,6 +87,7 @@ export function ChatWorkspace({ workspace, chatBinding }: { workspace?: React.Re
         sessions,
         switchSession,
         deleteSession,
+        updateSession,
         updateMessage,
         deleteMessage
     } = useChatStore();
@@ -297,8 +297,36 @@ export function ChatWorkspace({ workspace, chatBinding }: { workspace?: React.Re
         });
     };
 
-    const handleGlobalAction = (action: string) => {
-        console.log('Global Action:', action);
+    const handleGlobalAction = async (action: string) => {
+        if (action === 'ai_memory') {
+            setMemoryOpen(true);
+            return;
+        }
+        if (action === 'conversation_memory') {
+            setConversationMemoryOpen(true);
+            return;
+        }
+        if (action === 'context_diagnostics') {
+            setContextDetailsOpen(true);
+            return;
+        }
+        if (action === 'archive') {
+            if (!activeSessionId || !activeSession || activeSession.isIncognito) return;
+            const nextArchived = !activeSession.archived;
+            updateSession(activeSessionId, s => ({ ...s, archived: nextArchived }));
+            toast.success(nextArchived ? 'Chat archived' : 'Chat unarchived');
+            if (nextArchived) {
+                await switchSession(null);
+            }
+            return;
+        }
+        if (action === 'close') {
+            if ((activeSession?.isIncognito || isIncognito) && activeSessionId) {
+                try { await cluaizEngine.stop(); } catch {}
+                if (!await deleteSession(activeSessionId)) return;
+            }
+            await switchSession(null);
+        }
     };
 
     const [activeTab, setActiveTab] = useState<'editor' | 'pdf'>('editor');
@@ -416,12 +444,9 @@ main().catch(console.error);`);
                 style={{ width: `${visibleSplitPaneWidth}%` }}
                 className="h-full flex flex-col bg-[var(--bg-primary)] overflow-hidden relative"
             >
-                {!isBoundChat && (
+                {!isBoundChat && messages.length === 0 && (
                     <div className="absolute top-4 right-4 z-40 flex items-center gap-2">
-                        <Button type="button" variant="outline" size="icon" aria-label="Open conversation memory" title="Conversation Memory" onClick={() => setConversationMemoryOpen(true)}><History size={18} /></Button>
-                        <Button type="button" variant="outline" size="icon" aria-label="Open context diagnostics" title="Context & Indexer Diagnostics" onClick={() => setContextDetailsOpen(true)}><Cpu size={18} /></Button>
-                        <Button type="button" variant="outline" size="icon" aria-label="Open AI memory" title="AI Memory" onClick={() => setMemoryOpen(true)}><Brain size={18} /></Button>
-                        {messages.length === 0 && <PrivateModeToggleButton
+                        <PrivateModeToggleButton
                             isIncognito={isIncognito}
                             onClick={async () => {
                                 if (isIncognito && activeSessionId) {
@@ -432,20 +457,24 @@ main().catch(console.error);`);
                                 }
                                 setIsIncognito(!isIncognito);
                             }}
-                        />}
+                        />
                     </div>
                 )}
                 {!isBoundChat && <AiMemoryPanel open={memoryOpen} onClose={() => setMemoryOpen(false)} chatId={activeSessionId}
                     workspacePath={memoryWorkspace} privateChat={Boolean(activeSession?.isIncognito || isIncognito)} />}
                 {!isBoundChat && <ConversationMemoryPanel open={conversationMemoryOpen} onClose={() => setConversationMemoryOpen(false)}
-                    chatId={activeSessionId} privateChat={Boolean(activeSession?.isIncognito || isIncognito)} />}
+                    chatId={activeSessionId} privateChat={Boolean(activeSession?.isIncognito || isIncognito)}
+                    onOpenContextDiagnostics={() => { setConversationMemoryOpen(false); setContextDetailsOpen(true); }} />}
                 {!isBoundChat && <ContextDetailsPanel open={contextDetailsOpen} onClose={() => setContextDetailsOpen(false)}
                     chatId={activeSessionId} privateChat={Boolean(activeSession?.isIncognito || isIncognito)}
                     messages={messages} draftText={inputValue} />}
 
 
                 {isBoundChat && !activeSession ? <div className="flex-1 flex items-center justify-center text-[var(--text-secondary)]" role="status">Open a extension chat to begin.</div> : messages.length === 0 ? (
-                    <div className="flex-1 flex flex-col items-center justify-center p-2 sm:p-4 md:p-8 z-20 relative">
+                    <div
+                        className="flex-1 flex flex-col items-center justify-center p-2 sm:p-4 md:p-8 z-20 relative"
+                        onContextMenu={!isBoundChat ? handleGlobalContextMenu : undefined}
+                    >
 
                         <DynamicGreeting />
 
@@ -721,6 +750,8 @@ main().catch(console.error);`);
                     isOpen={globalMenu.isOpen}
                     onClose={() => setGlobalMenu(null)}
                     onAction={handleGlobalAction}
+                    isArchived={Boolean(activeSession?.archived)}
+                    isPrivateChat={Boolean(activeSession?.isIncognito || isIncognito)}
                 />
             )}
         </div>

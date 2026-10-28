@@ -318,3 +318,85 @@ test('context.preview, context.reports, context.report and context.jobs validate
     );
   }
 });
+
+test('matchCardsForQuery resolves single-word queries (e.g. "aryan") from indexed cards when Engine recall returns empty', () => {
+  const { matchCardsForQuery } = load('src/features/chat/hooks/useConversationMemory.ts', {
+    react: { useCallback: fn => fn, useEffect: () => {}, useRef: v => ({ current: v }), useState: v => [typeof v === 'function' ? v() : v, () => {}] },
+    '../../../api/engine/chat': { chatHistoryApi: {} },
+    '../../../api/client/errors': { errorMessage: String },
+    '../../../store/engine/useConnectionStore': { useConnectionStore: () => 'http:http://127.0.0.1:8000' },
+  });
+
+  const cards = [
+    sampleCard({
+      id: 'ev_1',
+      pos: 8,
+      role: 'user',
+      keywords: ['my', 'name', 'aryan', 'is'],
+      importance: 0.2,
+      enrichment: {
+        by: 'model:Qwen3-4B-Q4_K_M.gguf',
+        title: 'AI vs Human',
+        summary: 'Discussed key differences between AI and human capabilities.',
+        motive: 'Understand differences between AI and humans',
+        keywords: ['AI', 'Human', 'Differences'],
+      },
+    }),
+    sampleCard({
+      id: 'ev_2',
+      pos: 9,
+      role: 'assistant',
+      keywords: ['meet', 'pleasure', 'you', 'aryan', 'assist', 'hello'],
+      importance: 0.2,
+      enrichment: {
+        by: 'model:Qwen3-4B-Q4_K_M.gguf',
+        title: 'AI vs Human',
+        summary: 'Discussed key differences between AI and human capabilities.',
+        motive: 'Understand differences between AI and humans',
+        keywords: ['AI', 'Human'],
+      },
+    }),
+  ];
+
+  const hits = matchCardsForQuery(cards, 'aryan', []);
+  assert.equal(hits.length, 2);
+  assert.equal(hits[0].ref, 'm:9');
+  assert.equal(hits[1].ref, 'm:8');
+  assert.deepEqual([...hits[0].why], ['aryan']);
+});
+
+test('cluaizEngine.send forwards history_mode adaptive for saved chats and omits it when absent', async () => {
+  const sentPayloads = [];
+  const { cluaizEngine } = load('src/core/engine.ts', {
+    '@tauri-apps/api/core': { invoke: async () => {} },
+    '../store/engine/useEngineStore': { useEngineStore: { getState: () => ({ setStatus: () => {} }) } },
+    '../store/engine/useConnectionStore': { useConnectionStore: { getState: () => ({ protocol: 'http' }) } },
+    '../api': {
+      client: { get: async () => ({}) },
+      chatApi: {
+        streamCompletion: async payload => {
+          sentPayloads.push(payload);
+        },
+        cancelStream: async () => {},
+        skipThinking: async () => {},
+      },
+    },
+    '../api/client/ipc': { isTauri: () => false },
+  });
+
+  await cluaizEngine.send('remember my name is aryan', {
+    session_id: 'chat-saved',
+    history_mode: 'adaptive',
+    messages: [{ role: 'user', content: 'remember my name is aryan' }],
+  });
+  assert.equal(sentPayloads[0].history_mode, 'adaptive');
+  assert.equal(sentPayloads[0].session_id, 'chat-saved');
+
+  await cluaizEngine.send('private question', {
+    session_id: 'chat-private',
+    temporary_chat: 'lite',
+    messages: [{ role: 'user', content: 'private question' }],
+  });
+  assert.equal(sentPayloads[1].temporary_chat, 'lite');
+  assert.equal(sentPayloads[1].history_mode, undefined);
+});

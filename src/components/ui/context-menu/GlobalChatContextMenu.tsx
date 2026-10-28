@@ -2,9 +2,9 @@ import React, { useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-    Info,
     Archive,
-    UserPlus,
+    Brain,
+    Cpu,
     History,
     Volume2,
     VolumeX,
@@ -23,6 +23,8 @@ interface GlobalChatContextMenuProps {
     viewMode?: 'widget' | 'dashboard';
     isMuted?: boolean;
     isDark?: boolean;
+    isArchived?: boolean;
+    isPrivateChat?: boolean;
 }
 
 function cn(...classes: (string | boolean | undefined | null)[]) {
@@ -37,7 +39,9 @@ export const GlobalChatContextMenu: React.FC<GlobalChatContextMenuProps> = ({
     onAction,
     viewMode = 'dashboard',
     isMuted = false,
-    isDark = false
+    isDark = false,
+    isArchived = false,
+    isPrivateChat = false
 }) => {
     const menuRef = useRef<HTMLDivElement>(null);
 
@@ -56,10 +60,10 @@ export const GlobalChatContextMenu: React.FC<GlobalChatContextMenuProps> = ({
     if (!isOpen) return null;
 
     const dashboardActions = [
-        { id: 'edit', label: 'Edit Info', icon: Info },
-        { id: 'archive', label: 'Archive', icon: Archive },
-        { id: 'group', label: 'Add to group', icon: UserPlus },
-        { id: 'history', label: 'View History', icon: History },
+        { id: 'ai_memory', label: 'AI Memory', icon: Brain },
+        { id: 'conversation_memory', label: 'Conversation Memory', icon: History },
+        { id: 'context_diagnostics', label: 'Context Diagnostics', icon: Cpu },
+        ...(!isPrivateChat ? [{ id: 'archive', label: isArchived ? 'Unarchive' : 'Archive', icon: Archive }] : []),
         { id: 'close', label: 'Close chat', icon: AnimatedX, color: 'text-red-500' },
     ];
 
@@ -107,7 +111,7 @@ export const GlobalChatContextMenu: React.FC<GlobalChatContextMenuProps> = ({
                 {actions.map((act, index) => (
                     <React.Fragment key={act.id}>
                         {/* Divider */}
-                        {(viewMode === 'dashboard' && index === 4) && <div className="h-[1px] bg-white/5 mx-3 my-1" />}
+                        {(viewMode === 'dashboard' && act.id === 'close') && <div className="h-[1px] bg-white/5 mx-3 my-1" />}
                         {(viewMode === 'widget' && index === 3) && <div className="h-[1px] bg-white/5 mx-3 my-1" />}
 
                         <button

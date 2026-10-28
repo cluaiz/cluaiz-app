@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   chatHistoryApi,
+  type ConversationCard,
   type ConversationEvent,
   type ConversationExportResponse,
   type ConversationIndexResponse,
   type ConversationItemResponse,
+  type ConversationSearchHit,
   type ConversationSearchResponse,
   type ConversationSearchScope,
   type ConversationToolGrant,
@@ -65,6 +67,66 @@ const empty = (key: string): State => ({
   searchError: null,
   message: null,
 });
+
+/** Supplements Engine `memory.search` with card keyword/entity matches so single-word queries (e.g. "aryan") resolve in-chat. */
+export function matchCardsForQuery(
+  cards: ConversationCard[],
+  query: string,
+  existingHits: ConversationSearchHit[],
+  withinHours?: number
+): ConversationSearchHit[] {
+  const terms = Array.from(new Set(query.toLowerCase().split(/[^\p{L}\p{N}_.-]+/u).filter(Boolean)));
+  if (terms.length === 0 || cards.length === 0) return existingHits;
+  const seen = new Set(existingHits.map(hit => hit.ref));
+  const cutoffMs = withinHours && withinHours > 0 ? Date.now() - withinHours * 3600 * 1000 : null;
+  const extras: ConversationSearchHit[] = [];
+
+  for (const card of cards) {
+    const ref = `m:${card.pos}`;
+    if (seen.has(ref) || card.trivial) continue;
+    if (cutoffMs !== null && card.ts) {
+      const tsMs = Date.parse(card.ts);
+      if (Number.isFinite(tsMs) && tsMs < cutoffMs) continue;
+    }
+    const ownTokens = [
+      ...(card.keywords ?? []),
+      ...(card.files ?? []),
+      ...(card.tools ?? []),
+      ...(card.entities?.files ?? []),
+      ...(card.entities?.numbers ?? []),
+      ...(card.entities?.quoted ?? []),
+      ...(card.entities?.urls ?? []),
+    ].map(item => String(item).toLowerCase());
+
+    const enrichText = [
+      ...(card.enrichment?.keywords ?? []),
+      card.enrichment?.title ?? '',
+      card.enrichment?.summary ?? '',
+      card.enrichment?.motive ?? '',
+    ]
+      .join(' ')
+      .toLowerCase();
+
+    const ownMatched: string[] = [];
+    const enrichMatched: string[] = [];
+    for (const term of terms) {
+      if (ownTokens.some(tok => tok === term || tok.includes(term))) {
+        ownMatched.push(term);
+      } else if (enrichText.includes(term)) {
+        enrichMatched.push(term);
+      }
+    }
+    const why = [...ownMatched, ...enrichMatched];
+    if (why.length === 0) continue;
+    const score = Number(
+      (ownMatched.length * 1.5 + enrichMatched.length * 0.8 + (card.importance ?? 0.2)).toFixed(2)
+    );
+    extras.push({ ref, score, why, card });
+  }
+
+  extras.sort((a, b) => b.score - a.score || b.card.pos - a.card.pos);
+  return [...existingHits, ...extras];
+}
 
 /** Scoped conversation memory (`memory.*`) for the active saved chat; switching chat or Engine aborts stale requests. */
 export function useConversationMemory({ open, chatId, privateChat = false }: Options) {
@@ -182,18 +244,28 @@ export function useConversationMemory({ open, chatId, privateChat = false }: Opt
     const valid = () => !controller.signal.aborted && live.current.enabled && live.current.key === key;
     setState(prev => ({ ...prev, searching: true, searchError: null, activeItem: null }));
     try {
+      const scope = filters.scope ?? 'chat';
       const result = await chatHistoryApi.search(
         {
           chat_id: chatId,
           query: trimmed,
-          scope: filters.scope ?? 'chat',
+          scope,
           ...(filters.within_hours ? { within_hours: filters.within_hours } : {}),
           ...(filters.from ? { from: filters.from } : {}),
           ...(filters.to ? { to: filters.to } : {}),
         },
         controller.signal
       );
-      if (valid()) setState(prev => ({ ...prev, searchResult: result, searching: false, searchError: null }));
+      if (!valid()) return;
+      const cards = currentRef.current.index?.cards ?? [];
+      const merged: ConversationSearchResponse =
+        result.scope === 'chat'
+          ? {
+              ...result,
+              results: matchCardsForQuery(cards, trimmed, result.results, filters.within_hours),
+            }
+          : result;
+      setState(prev => ({ ...prev, searchResult: merged, searching: false, searchError: null }));
     } catch (failure) {
       if (valid()) {
         setState(prev => ({

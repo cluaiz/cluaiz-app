@@ -37,6 +37,7 @@ export interface ChatCompletionRequest {
   return_progress?: boolean;
   temporary_chat?: TemporaryChatMode;
   session_id?: string;
+  history_mode?: 'recent' | 'adaptive' | 'none';
   think_mode?: boolean | string;
   /** Thinking budget: 'auto' | 'low' | 'medium' | 'high' | 'max' or a number of tokens */
   reasoning_effort?: 'auto' | 'low' | 'medium' | 'high' | 'max' | string | number;
