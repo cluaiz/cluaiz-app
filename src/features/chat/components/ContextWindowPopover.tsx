@@ -6,13 +6,15 @@ interface ContextWindowPopoverProps {
     onClose: () => void;
     breakdown: ContextBreakdown | null;
     isPinned?: boolean;
+    onInspectContext?: () => void;
 }
 
 export const ContextWindowPopover: React.FC<ContextWindowPopoverProps> = ({
     isOpen,
     onClose,
     breakdown,
-    isPinned = false
+    isPinned = false,
+    onInspectContext
 }) => {
     const [openCategory, setOpenCategory] = useState<'skills' | 'plugins' | 'mcp' | null>(null);
 
@@ -295,6 +297,20 @@ export const ContextWindowPopover: React.FC<ContextWindowPopoverProps> = ({
                             <span className="text-[var(--text-muted)] text-[9.5px]">{breakdown?.free_space_percentage || Math.max(0, 100 - activePct)}%</span>
                         </span>
                     </div>
+                    {onInspectContext && (
+                        <div className="border-t border-[var(--border-color)]/40 pt-1.5 mt-0.5">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    onClose();
+                                    onInspectContext();
+                                }}
+                                className="w-full rounded-md border border-[var(--border-color)] bg-[var(--bg-primary)] px-2 py-1 text-[10px] font-semibold text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-colors cursor-pointer"
+                            >
+                                Inspect Reports, Preview & Jobs
+                            </button>
+                        </div>
+                    )}
                 </div>
             </div>
         </>

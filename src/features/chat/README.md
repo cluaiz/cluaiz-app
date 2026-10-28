@@ -1,11 +1,16 @@
-# Component: chat workspace and AI Memory controls
+# Component: chat workspace, AI Memory, Conversation Memory, and Context Diagnostics
 
 ## Technical specification
 
 - **Purpose:** existing chat conversations, streaming and workspace split view;
-  the AI Memory dialog manages existing durable Engine facts/preferences.
-- **Entry:** the AI Memory brain button in ChatWorkspace's existing top-right
-  controls. The unused ChatHeader is not a second entry or state owner.
+  the AI Memory dialog manages durable Engine facts/preferences (`notes.*`),
+  the Conversation Memory dialog inspects per-chat recall, event log, tool grants,
+  and export (`memory.*`), and the Context Diagnostics dialog inspects retained
+  preflight reports, dry-run context previews, and idle indexer jobs (`context.*`).
+- **Entry:** the top-right controls in `ChatWorkspace` (`History` for Conversation
+  Memory, `Cpu` for Context Diagnostics, `Brain` for AI Memory) plus the
+  `Inspect Reports, Preview & Jobs` button inside `ContextWindowPopover`. The unused
+  `ChatHeader` is not a second entry or state owner.
 - **Platform:** web and desktop use the same React UI and shared API client.
   Packaged desktop acceptance is separate from browser/adapter evidence.
 
@@ -18,9 +23,14 @@ flowchart LR
   H --> A["Shared notesApi"]
   A --> C["Existing authenticated CEP client"]
   C --> N["Engine NoteStore"]
-  N --> C
-  C --> H
-  H --> P
+  W --> CM["ConversationMemoryPanel: search, source item, map, events, grants, export"]
+  CM --> CH["useConversationMemory"]
+  CH --> HA["chatHistoryApi / memory.*"]
+  HA --> C
+  W --> CD["ContextDetailsPanel: retained reports, explicit preview, idle jobs"]
+  CD --> CX["useContextDetails"]
+  CX --> CA["contextApi / context.*"]
+  CA --> C
 ```
 
 ## Owners and lifecycle
@@ -42,6 +52,18 @@ flowchart LR
   supersession history and checks returned ids/scopes/statuses. The UI uses actual
   acknowledgment before showing saved state.
 
+- **components/ConversationMemoryPanel.tsx & hooks/useConversationMemory.ts:**
+  scoped to connection, chat id, and private flag. Reads `memory.index`,
+  `memory.events`, and `memory.grants` on open/refresh; runs `memory.search` only
+  on deliberate form submit; inspects `memory.item` by `m:<pos>` without equating
+  Engine message positions with local UI message ids; revokes tool grants via
+  `memory.revoke_grants`; exports `cluaiz-chat-export` v1 JSON via `memory.export`.
+- **components/ContextDetailsPanel.tsx & hooks/useContextDetails.ts:**
+  reads `context.jobs` and (when a non-private chat id exists) `context.reports` /
+  `context.report` on open/refresh. Explains that retained reports live in Engine
+  RAM (newest 20 per chat) until restart. Runs `context.preview` only on explicit
+  user click with disclosure that it may load the model for tokenization.
+
 ## Scope and failure behavior
 
 - List applies only the current chat, actual returned Engine workspace and global
@@ -62,9 +84,11 @@ flowchart LR
 
 ## Boundaries and evidence
 
-- Conversation events/search, context reports and saved KV remain separate owners;
-  their future panels are Phase C. External-mode memory events and model tool-use
-  policy are Phase D. Opening this panel loads no model and adds no system prompt.
-- `test/cep_notes.test.cjs` covers actual adapter contracts. Integration proof
-  records controlled rendered-panel race/failure/private-mode checks and isolated
-  release-Engine read/write journeys; neither implies every model uses memory.
+- Saved disk KV caches remain in `Settings -> Chats & History -> Model Memory (Engine)`
+  via `chatMemoryApi`. External-mode memory import/events (`memory.import`) and
+  model tool-use policy remain Phase D. Opening `AiMemoryPanel`,
+  `ConversationMemoryPanel`, or `ContextDetailsPanel` loads no model automatically;
+  only clicking `Run Preview` inside `ContextDetailsPanel` invokes `context.preview`.
+- `test/cep_notes.test.cjs` and `test/cep_conversation_context.test.cjs` cover
+  actual adapter contracts. Integration proof records controlled rendered-panel
+  race/failure/private-mode checks and isolated release-Engine read/write journeys.

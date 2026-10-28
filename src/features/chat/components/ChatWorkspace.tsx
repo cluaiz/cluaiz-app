@@ -7,7 +7,7 @@ import { useLayoutStore } from '../../../store/ui/useLayoutStore';
 import { useThemeStore } from '../../../store/ui/useThemeStore';
 import { useEngineStore } from '../../../store/engine/useEngineStore';
 import { useChatStore } from '../../../store/chat/useChatStore';
-import { Brain, ChevronDown, Copy, Trash2, X, FileText, WifiOff, ArrowLeftRight } from 'lucide-react';
+import { Brain, ChevronDown, Copy, Cpu, History, Trash2, X, FileText, WifiOff, ArrowLeftRight } from 'lucide-react';
 import * as Icons from '../../../components/animate-ui/icons';
 import { useIconHover } from '../../../components/animate-ui/icons';
 import { toast } from '../../../components/ui/toast';
@@ -31,6 +31,8 @@ import { PersistentAudioDeck } from '../../../components/ui/PersistentAudioPlaye
 import { useSpeechHighlightStore } from '../../../store/chat/useSpeechHighlightStore';
 import { Button } from '../../../components/ui/Button';
 import { AiMemoryPanel } from './AiMemoryPanel';
+import { ConversationMemoryPanel } from './ConversationMemoryPanel';
+import { ContextDetailsPanel } from './ContextDetailsPanel';
 import { useProjectStore } from '../../../store/workspace/useProjectStore';
 
 const PrivateModeToggleButton: React.FC<{
@@ -77,6 +79,8 @@ export function ChatWorkspace({ workspace, chatBinding }: { workspace?: React.Re
     // "Save chat history" off in Settings → Chats & History: new chats start in Private Mode
     const [isIncognito, setIsIncognito] = useState(() => !currentChatPrefs().saveHistory);
     const [memoryOpen, setMemoryOpen] = useState(false);
+    const [conversationMemoryOpen, setConversationMemoryOpen] = useState(false);
+    const [contextDetailsOpen, setContextDetailsOpen] = useState(false);
     const memoryWorkspace = useProjectStore(state => state.projects[state.activeProjectId || '']?.rootPath);
 
     const {
@@ -414,6 +418,8 @@ main().catch(console.error);`);
             >
                 {!isBoundChat && (
                     <div className="absolute top-4 right-4 z-40 flex items-center gap-2">
+                        <Button type="button" variant="outline" size="icon" aria-label="Open conversation memory" title="Conversation Memory" onClick={() => setConversationMemoryOpen(true)}><History size={18} /></Button>
+                        <Button type="button" variant="outline" size="icon" aria-label="Open context diagnostics" title="Context & Indexer Diagnostics" onClick={() => setContextDetailsOpen(true)}><Cpu size={18} /></Button>
                         <Button type="button" variant="outline" size="icon" aria-label="Open AI memory" title="AI Memory" onClick={() => setMemoryOpen(true)}><Brain size={18} /></Button>
                         {messages.length === 0 && <PrivateModeToggleButton
                             isIncognito={isIncognito}
@@ -431,6 +437,11 @@ main().catch(console.error);`);
                 )}
                 {!isBoundChat && <AiMemoryPanel open={memoryOpen} onClose={() => setMemoryOpen(false)} chatId={activeSessionId}
                     workspacePath={memoryWorkspace} privateChat={Boolean(activeSession?.isIncognito || isIncognito)} />}
+                {!isBoundChat && <ConversationMemoryPanel open={conversationMemoryOpen} onClose={() => setConversationMemoryOpen(false)}
+                    chatId={activeSessionId} privateChat={Boolean(activeSession?.isIncognito || isIncognito)} />}
+                {!isBoundChat && <ContextDetailsPanel open={contextDetailsOpen} onClose={() => setContextDetailsOpen(false)}
+                    chatId={activeSessionId} privateChat={Boolean(activeSession?.isIncognito || isIncognito)}
+                    messages={messages} draftText={inputValue} />}
 
 
                 {isBoundChat && !activeSession ? <div className="flex-1 flex items-center justify-center text-[var(--text-secondary)]" role="status">Open a extension chat to begin.</div> : messages.length === 0 ? (
@@ -627,6 +638,7 @@ main().catch(console.error);`);
                                     <LiveTelemetryBar
                                         breakdown={breakdown}
                                         liveStats={liveStats}
+                                        onInspectContext={!isBoundChat ? () => setContextDetailsOpen(true) : undefined}
                                     />
                                 </motion.div>
                             )}

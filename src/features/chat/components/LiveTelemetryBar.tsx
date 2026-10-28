@@ -5,11 +5,13 @@ import { ContextBreakdown, LivePerformanceStats, formatTokensK } from '../hooks/
 interface LiveTelemetryBarProps {
     breakdown: ContextBreakdown | null;
     liveStats: LivePerformanceStats;
+    onInspectContext?: () => void;
 }
 
 export const LiveTelemetryBar: React.FC<LiveTelemetryBarProps> = ({
     breakdown,
-    liveStats
+    liveStats,
+    onInspectContext
 }) => {
     const [isPinned, setIsPinned] = useState(false);
     const [isHovered, setIsHovered] = useState(false);
@@ -91,6 +93,7 @@ export const LiveTelemetryBar: React.FC<LiveTelemetryBarProps> = ({
                     }}
                     breakdown={breakdown}
                     isPinned={isPinned}
+                    onInspectContext={onInspectContext}
                 />
             </div>
         </div>
