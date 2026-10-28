@@ -60,7 +60,8 @@ test('append-only children avoid occupied slots without moving any existing card
     for(let i=0;i<boxes.length;i++)for(let j=i+1;j<boxes.length;j++){
         const a=boxes[i],b=boxes[j];assert.ok(a.x+a.width<=b.x||b.x+b.width<=a.x||a.y+a.height<=b.y||b.y+b.height<=a.y);
     }
-    assert.ok(first.positions.get('notes').x>first.positions.get('memory').x);
+    const notes=first.positions.get('notes'),memory=first.positions.get('memory');
+    assert.ok(Math.hypot(notes.x-memory.x,notes.y-memory.y)<600,'new group stays near its parent');
 });
 
 test('keyboard reveal only pans and leaves already visible nodes unchanged',()=>{
@@ -68,4 +69,26 @@ test('keyboard reveal only pans and leaves already visible nodes unchanged',()=>
     assert.equal(m.revealViewport(current,{x:100,y:100,width:100,height:100},1200,900),current);
     const shifted=m.revealViewport(current,{x:2000,y:1800,width:280,height:118},1200,900);
     assert.equal(shifted.scale,current.scale);assert.notEqual(shifted.x,current.x);
+    const tall={x:300,y:500,width:560,height:1800},shown=m.revealViewport(current,tall,390,844);
+    near(tall.x*shown.scale+shown.x,24);near(tall.y*shown.scale+shown.y,72);
+    assert.equal(shown.scale,current.scale,'oversized process keeps zoom and exposes its heading');
+});
+
+test('new boxes use free space above, below, left and right of the parent',()=>{
+    const parent={x:0,y:0,width:280,height:118};
+    const sides=[{x:320,y:0},{x:-320,y:0},{x:0,y:-158},{x:0,y:158}];
+    for(let free=0;free<4;free++){
+        const blocked=sides.filter((_,index)=>index!==free).map(side=>({...side,width:280,height:118}));
+        const box=m.nearestFreeBox(parent,{width:280,height:118},[parent,...blocked]);
+        assert.deepEqual(JSON.parse(JSON.stringify(box)),{...sides[free],width:280,height:118});
+    }
+});
+
+test('vertical connectors leave the matching top/bottom edges and fit handles negative coordinates',()=>{
+    const parent={x:0,y:0,width:280,height:118};
+    assert.match(m.architectureEdgePath(parent,{...parent,y:-158}),/^M140,0 /);
+    assert.match(m.architectureEdgePath(parent,{...parent,y:158}),/^M140,118 /);
+    const box={x:-800,y:-600,width:500,height:400},fit=m.fitViewport(box,1400,900);
+    near((box.x+box.width/2)*fit.scale+fit.x,700);
+    near((box.y+box.height/2)*fit.scale+fit.y,450);
 });

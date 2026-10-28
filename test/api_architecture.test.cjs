@@ -215,6 +215,21 @@ test('natural process height expands graph bounds without moving navigation or b
     assert.ok(after.bounds.height>=box.y+1800);
     for(const item of view.items.filter(item=>item.kind!=='detail')){
         const navigation=after.positions.get(item.id);
-        assert.ok(box.x>=navigation.x+navigation.width);
+        assert.ok(box.x+box.width<=navigation.x||navigation.x+navigation.width<=box.x
+            ||box.y+box.height<=navigation.y||navigation.y+navigation.height<=box.y);
     }
+});
+
+test('previous process diagrams do not reserve a distant column or an invisible vertical stack',()=>{
+    const graph=build(fixture), geometry=load('src/features/api/utils/architectureLayout.ts',{});
+    let history=[];
+    for(const owner of graph.nodes)for(const group of owner.groups)for(const endpoint of group.endpoints)
+        history=architecture.appendArchitectureReveal(history,[owner.id,group.id,key(endpoint)]);
+    const view=architecture.architectureView(graph,['memory'],'',history);
+    const process=view.items.find(item=>item.kind==='detail'),layout=geometry.architectureLayout(view);
+    assert.equal([...layout.positions.keys()].filter(id=>view.placementItems.find(item=>item.id===id)?.kind==='detail').length,1);
+    const parent=layout.positions.get(process.parentId),box=layout.positions.get(process.id);
+    const dx=Math.max(parent.x-box.x-box.width,box.x-parent.x-parent.width,0);
+    const dy=Math.max(parent.y-box.y-box.height,box.y-parent.y-parent.height,0);
+    assert.ok(Math.hypot(dx,dy)<500,'one selected process stays in nearby available space');
 });

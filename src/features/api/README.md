@@ -113,23 +113,26 @@ A growing graph is a larger canvas, not an automatic refit into unreadable text.
 - `utils/architectureGraph.ts` projects the single existing catalog and produces
   cumulative component/group/API nodes and one selected process. Ordered reveal
   history, folded paths, selected detail, matches and dimming are separate.
-  Placement reservations retain folded/previous process anchors without rendering
-  every reserved card. Original endpoint objects
+  Placement reservations retain folded navigation anchors; inactive processes do
+  not occupy layout space. Original endpoint objects
   and HTTP-method/logical-path identities remain intact. Shared CEP transport URLs
   do not merge methods. Unknown catalog groups remain reachable.
 - `utils/architectureLayout.ts` owns deterministic geometry, bounds, directional
   edge paths and pure wheel/viewport math. Root anchors are seeded independently
-  of expansion. New descendants get deterministic nonoverlapping slots to the
-  right of their parent; only the new box moves past an occupied slot. Existing
-  boxes do not move on selection, branch expansion or explicit close. Reserved
-  placement slots prevent other cards shifting into space freed by folding. Explicit Fit
-  uses actual expanded bounds. Layout does not mutate a cache during React render.
+  of expansion. New descendants search nearby free space on all four sides of
+  their parent; obstacle boundaries provide candidates instead of a downward-only
+  stack. Navigation anchors do not move on selection, expansion or folding.
+  Only the visible process is placed, after navigation; historical process cards
+  cannot force it into a distant column or invisible stack. Negative coordinates
+  are included in bounds. Edge anchors support top/bottom as well as left/right.
+  Explicit Fit uses actual expanded bounds. Layout does not mutate a render cache.
 - `hooks/useArchitectureViewport.ts` owns transform refs, cursor anchoring,
   magnitude/unit-aware wheel input, bounded zoom and animation-frame painting.
   Zero movement does not zoom. Pointer drag paints directly; reduced motion skips
   interpolation. The graph does not rerender on every wheel animation frame.
-  The first real loaded catalog receives one automatic Fit. Selection and larger
-  expanded bounds do not reset the camera. Deliberate pan/zoom stays on resize;
+  The first real loaded catalog receives one automatic Fit. Opening a process
+  minimally pans its ready content into view without changing zoom. Search typing,
+  content resizing and folding do not refit the graph. Deliberate pan/zoom stays on resize;
   Focus/Fit are explicit actions. Listeners/observers/frames are cleaned up.
 - `components/ApiArchitectureCanvas.tsx` draws nodes/edges and compact controls,
   uses stable keys and real buttons, and reveals keyboard-focused off-screen nodes.
@@ -137,8 +140,9 @@ A growing graph is a larger canvas, not an automatic refit into unreadable text.
   to rasterize text and SVG at the current zoom instead of enlarging a cached layer.
   Selected processes have no enclosing card or fixed-height scroll area. Their
   natural rendered height updates graph bounds; explicit Focus fits the whole
-  process on wide and narrow screens. Process diagrams sit beyond navigation,
-  so their measured size cannot move navigation cards. Diagram wheel input zooms
+  process on wide and narrow screens. Process diagrams use nearby free space;
+  their measured size cannot move navigation cards. Oversized process reveal keeps
+  its heading visible without shrinking zoom. Diagram wheel input zooms
   the graph; buttons, summaries and links retain their own input.
 - `components/ApiArchitectureInspector.tsx` renders one connected process. The
   endpoint's own Mermaid fence uses the existing documentation extractor and

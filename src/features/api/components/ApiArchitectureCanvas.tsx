@@ -32,6 +32,14 @@ export function ApiArchitectureCanvas({ view, highlighted, modelLabel, toolbar, 
     }, [processId]);
     const layout = useMemo(() => architectureLayout(view, processHeights), [view, processHeights]);
     const viewport = useArchitectureViewport(layout.bounds, layout.frame, ready, Boolean(view.focusId));
+    const revealed = useRef<string | undefined>(undefined);
+    useEffect(() => {
+        if (!processId) { revealed.current = undefined; return; }
+        if (revealed.current === processId || !processHeights[processId]
+            || process.current?.querySelector('[data-mermaid-diagram] [role="status"]')) return;
+        const box = layout.positions.get(processId);
+        if (box) { viewport.reveal(box); revealed.current = processId; }
+    }, [processId, processHeights, layout, viewport.reveal]);
     const engaged = Boolean(view.path.length || view.matches !== undefined || highlighted.length);
     const byId = useMemo(() => new Map(view.items.map(item => [item.id, item])), [view]);
     return <section ref={viewport.stage} aria-label="Interactive API architecture"
