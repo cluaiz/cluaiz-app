@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Boxes, ChevronDown, ChevronRight, Cpu, Crosshair, Database, Folder, Layers, Maximize2, Network, ShieldCheck, SlidersHorizontal, Wrench, X, ZoomIn, ZoomOut } from 'lucide-react';
+import { Boxes, ChevronDown, ChevronRight, Cpu, Crosshair, Database, Folder, Layers, Maximize2, Network, RotateCcw, ShieldCheck, SlidersHorizontal, Wrench, X, ZoomIn, ZoomOut } from 'lucide-react';
 import { Button } from '../../../components/ui/Button';
 import { ApiArchitectureInspector } from './ApiArchitectureInspector';
 import { architectureEdgePath, architectureLayout } from '../utils/architectureLayout';
@@ -11,12 +11,12 @@ interface Props {
     view: ArchitectureView; highlighted: string[]; modelLabel: string; toolbar: React.ReactNode; ready: boolean;
     selectedModel: string; model?: InstalledModel; connection: string;
     onNavigate: (path: string[]) => void; onOpen: (endpoint: ApiEndpoint, docs: boolean) => void;
-    onCollapse: (path: string[]) => void;
+    onCollapse: (path: string[]) => void; onReset: () => void;
 }
 const icons: Record<string, typeof Network> = { transport: Network, guard: ShieldCheck, memory: Layers,
     tools: Wrench, files: Folder, models: Boxes, system: SlidersHorizontal, runtime: Cpu, saved: Database };
 
-export function ApiArchitectureCanvas({ view, highlighted, modelLabel, toolbar, selectedModel, model, connection, onNavigate, onOpen, onCollapse, ready }: Props) {
+export function ApiArchitectureCanvas({ view, highlighted, modelLabel, toolbar, selectedModel, model, connection, onNavigate, onOpen, onCollapse, onReset, ready }: Props) {
     const process = useRef<HTMLDivElement>(null);
     const [processHeights, setProcessHeights] = useState<Record<string, number>>({});
     const processId = view.items.find(item => item.kind === 'detail')?.id;
@@ -94,6 +94,7 @@ export function ApiArchitectureCanvas({ view, highlighted, modelLabel, toolbar, 
             {toolbar}
         </div>
         <div className="absolute bottom-3 right-3 z-10 flex items-center gap-0.5 rounded-lg border border-[var(--border-color)] bg-[var(--bg-primary)] p-1 shadow-sm" data-architecture-interactive>
+            <Button size="icon" variant="ghost" aria-label="Reset graph" title="Reset graph to initial overview" onClick={onReset}><RotateCcw size={15} /></Button>
             <Button size="icon" variant="ghost" aria-label="Zoom out" onClick={() => viewport.zoom(1 / 1.2)}><ZoomOut size={15} /></Button>
             <span ref={viewport.label} aria-label="Graph zoom" className="min-w-9 text-center text-[10px] text-[var(--text-secondary)]">100%</span>
             <Button size="icon" variant="ghost" aria-label="Zoom in" onClick={() => viewport.zoom(1.2)}><ZoomIn size={15} /></Button>

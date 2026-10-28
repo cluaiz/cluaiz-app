@@ -150,7 +150,9 @@ A growing graph is a larger canvas, not an automatic refit into unreadable text.
   invented flow. Module/group flowcharts are labelled explanations, not live traces.
   Optional original payload/response examples and Docs links remain in that block.
 - `components/ApiArchitectureLanding.tsx` owns ordered reveal events, selected path,
-  search/match navigation and example selection. Existing API/connection stores
+  search/match navigation and example selection. Bottom Reset clears exploration state and remounts the canvas
+  for its existing initial Fit. Catalog, connection and selected model are retained.
+  Existing API/connection stores
   remain the data owners; no second
   catalog/model loader or client is added. Original endpoint objects go through
   the existing selectEndpoint/docs-tab actions. Browsing never sends the selected

@@ -18,6 +18,7 @@ export const ApiArchitectureLanding: React.FC = () => {
     const [closed, setClosed] = useState<string[][]>([]), [detailPath, setDetailPath] = useState<string[] | null>(null);
     const [query, setQuery] = useState(''), [matchIndex, setMatchIndex] = useState(-1);
     const [scenarioId, setScenarioId] = useState(''), [stepIndex, setStepIndex] = useState(0);
+    const [resetKey, setResetKey] = useState(0);
     const graph = useMemo(() => buildArchitectureGraph(apiData), [apiData]);
     const scenarios = useMemo(() => availableArchitectureScenarios(graph), [graph]);
     const scenario = scenarios.find(value => value.id === scenarioId);
@@ -68,6 +69,11 @@ export const ApiArchitectureLanding: React.FC = () => {
         requestAnimationFrame(() => (document.querySelector('[aria-label="Graph breadcrumb"] button:last-child') as HTMLButtonElement)?.focus());
     }
     function openEndpoint(endpoint: ApiEndpoint, docs: boolean) { selectEndpoint(endpoint); if (docs) setActiveTab('docs'); }
+    function resetGraph() {
+        setPath([]); setHistory([]); setClosed([]); setDetailPath(null);
+        setQuery(''); setMatchIndex(-1); setScenarioId(''); setStepIndex(0);
+        setResetKey(previous => previous + 1);
+    }
     const toolbar = <>
         <Button variant="ghost" size="icon" aria-label="Back in graph" disabled={!view.path.length && !query} onClick={back}><ArrowLeft size={15} /></Button>
         <nav aria-label="Graph breadcrumb" className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto">
@@ -104,7 +110,7 @@ export const ApiArchitectureLanding: React.FC = () => {
     </>;
     return <div className="relative h-full min-h-0 w-full min-w-0 bg-[var(--bg-primary)]" data-testid="api-architecture"
         onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); back(); } }}>
-        <ApiArchitectureCanvas view={view} ready={graph.count > 0} highlighted={currentStep ? [currentStep.node] : []} modelLabel={modelLabel} toolbar={toolbar}
+        <ApiArchitectureCanvas key={resetKey} onReset={resetGraph} view={view} ready={graph.count > 0} highlighted={currentStep ? [currentStep.node] : []} modelLabel={modelLabel} toolbar={toolbar}
             model={model} selectedModel={selectedModel} connection={protocol === 'ffi' ? 'Native Engine transport (configured)' : connection}
             onNavigate={toggle} onCollapse={collapse} onOpen={openEndpoint} />
         {!isLoadingData && !graph.count && <div role="status" className="absolute left-4 top-24 flex items-center gap-2 bg-[var(--bg-primary)] p-2 text-xs text-[var(--text-secondary)]">
