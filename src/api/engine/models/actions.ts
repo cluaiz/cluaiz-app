@@ -1,5 +1,5 @@
 import { callCep } from '../../client/cep';
-import { callCepTask } from '../../client/cepTask';
+import { callCepTask, resumeCepTask, type TaskObserver } from '../../client/cepTask';
 import { ApiError } from '../../client/errors';
 import { isPackageRelativePath } from '../../../utils/filePath';
 import type { DownloadModelPayload, DownloadModelResponse, InspectHeaderResponse } from './models.types';
@@ -46,7 +46,7 @@ export async function inspectInstalledModel(model: string, file?: string, signal
 }
 
 /** Download and pull share one task start; only a validated final result resolves successfully. */
-export async function downloadInstalledModel(payload: DownloadModelPayload = {}, signal?: AbortSignal): Promise<DownloadModelResponse> {
+export async function downloadInstalledModel(payload: DownloadModelPayload = {}, signal?: AbortSignal, observer?: TaskObserver): Promise<DownloadModelResponse> {
   if (!object(payload) || Object.keys(payload).some(key => key !== 'model_id') || !text(payload.model_id)) {
     throw new ApiError('Provide model_id as a catalog id or Hugging Face repo/URL', 400, 'INVALID_MODEL_DOWNLOAD', 'models.download');
   }
@@ -54,7 +54,14 @@ export async function downloadInstalledModel(payload: DownloadModelPayload = {},
   if (new Blob([model]).size > 512 || /[\x00-\x1f\x7f-\x9f]/.test(model)) {
     throw new ApiError('The model reference is too long or contains control characters', 400, 'INVALID_MODEL_DOWNLOAD', 'models.download');
   }
-  const value = await callCepTask<unknown>('models.download', {model}, signal);
+  return downloadResult(await callCepTask<unknown>('models.download', {model}, signal, observer));
+}
+
+export async function resumeModelDownload(id: string, signal?: AbortSignal, observer?: TaskObserver): Promise<DownloadModelResponse> {
+  return downloadResult(await resumeCepTask<unknown>('models.download', id, signal, observer));
+}
+
+function downloadResult(value: unknown): DownloadModelResponse {
   if (!object(value) || value.status !== 'success' || !text(value.model) || typeof value.downloaded !== 'boolean'
     || (value.path !== null && !text(value.path)) || (value.downloaded && !text(value.path))) throw invalid('models.download');
   return value as unknown as DownloadModelResponse;

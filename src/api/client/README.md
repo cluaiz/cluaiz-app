@@ -27,6 +27,15 @@ HTTP/1 syntax is reused **inside the OS IPC connection**. Native-only mode does 
 
 - `cep.ts` validates JSON-RPC identity and preserves Engine domain errors through the existing authenticated client. `cepTask.ts` starts task methods once and waits for their actual result; it does not treat the initial task descriptor as success. Install callers share it. Aborting stops observation, not server work or package changes. Task state is Engine memory and may disappear after restart/expiry; that error propagates.
 
+`cepTask.ts` also exposes validated status/progress, resume and cooperative cancel.
+An optional observer switches waiting to Engine-paced status polling (bounded
+500–5000 ms); existing callers without an observer retain long-poll result waits.
+Resume reads the same task id and never dispatches the original method again.
+Cancel first verifies the task's method/id and active state, then requires a
+matching `cancelled` acknowledgement. It is not worker termination or file rollback.
+Model/tool adapters reuse their final result validators for both start and resume.
+Progress reflects the Engine's current transfer; missing totals stay unknown.
+
 - `engineFetch(input, init)` returns a normal `Response`. JSON, binary and existing SSE parsers consume the same body stream.
 - `createNativeFetch(invoke, engineBaseUrl)` accepts root-relative paths or URLs matching the configured Engine origin. Foreign origins, embedded credentials, fragments and ambiguous URL input reject before invocation.
 - The native host selects its endpoint and reads its Engine session token. Frontend headers cannot override native auth, host or transfer framing. No arbitrary socket/remote connector is exposed to the WebView.

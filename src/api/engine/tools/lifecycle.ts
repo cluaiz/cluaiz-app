@@ -1,5 +1,5 @@
 import { callCep } from '../../client/cep';
-import { callCepTask } from '../../client/cepTask';
+import { callCepTask, resumeCepTask, type TaskObserver } from '../../client/cepTask';
 import { ApiError } from '../../client/errors';
 import { isToolKind, type ToolKind } from './catalog';
 
@@ -14,8 +14,16 @@ export function toolTarget(kind: string | undefined, name: string | undefined) {
 }
 
 /** Existing action DTOs are returned only after an acknowledged matching package result. */
-export async function installTool(kind: ToolKind, name: string, signal?: AbortSignal) {
-  const value = await callCepTask<unknown>('tools.install', toolTarget(kind, name), signal);
+export async function installTool(kind: ToolKind, name: string, signal?: AbortSignal, observer?: TaskObserver) {
+  return installResult(await callCepTask<unknown>('tools.install', toolTarget(kind, name), signal, observer), kind, name);
+}
+
+export async function resumeToolInstall(kind: ToolKind, name: string, id: string, signal?: AbortSignal, observer?: TaskObserver) {
+  toolTarget(kind, name);
+  return installResult(await resumeCepTask<unknown>('tools.install', id, signal, observer), kind, name);
+}
+
+function installResult(value: unknown, kind: ToolKind, name: string) {
   if (!object(value) || value.id !== name || value.category !== kind || typeof value.enabled !== 'boolean') {
     throw new ApiError('Engine returned an invalid installed-tool result', 200, 'INVALID_TOOL_RESULT', 'tools.install');
   }
