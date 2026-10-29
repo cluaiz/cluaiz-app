@@ -8,25 +8,31 @@ import { Input } from '../../components/ui/Input';
 import { CustomDropdown } from '../../components/ui/dropdown/CustomDropdown';
 import { useCatalogue } from './useCatalogue';
 import { Tabs } from '../../components/ui/Tabs';
+import { resumeModelDownload } from '../../api/engine/models/actions';
+import { useCatalogueTask } from './useCatalogueTask';
+import { CatalogueTaskStatus } from './CatalogueTaskStatus';
+const resumeDownload: Parameters<typeof useCatalogueTask<Awaited<ReturnType<typeof resumeModelDownload>>>>[1] =
+  (_target, id, signal, observer) => resumeModelDownload(id, signal, observer);
 
 export function ModelCatalogue() {
   const catalogue = useCatalogue(modelCatalogue.list);
+  const download = useCatalogueTask('models.download', resumeDownload);
   const [query, setQuery] = useState(''), [task, setTask] = useState(''), [format, setFormat] = useState('');
   const [chosen, setChosen] = useState<Record<string, string>>({});
   const [installed, setInstalled] = useState<string[]>([]), [engineError, setEngineError] = useState('');
-  const [busy, setBusy] = useState(''), [notice, setNotice] = useState('');
+  const busy = download.busy || download.cancelling;
   const [limit, setLimit] = useState(24);
   const [view, setView] = useState<'families' | 'models'>('families'), [family, setFamily] = useState('');
-  const scope = useRef(0), operation = useRef<AbortController | null>(null);
+  const scope = useRef(0);
   const [connection, setConnection] = useState(0);
   useEffect(() => {
     const unsubscribe = useConnectionStore.subscribe((next, previous) => {
       if (next.host !== previous.host || next.port !== previous.port || next.protocol !== previous.protocol) {
-        ++scope.current; operation.current?.abort(); operation.current = null;
-        setInstalled([]); setEngineError(''); setBusy(''); setNotice(''); setConnection(value => value + 1);
+        ++scope.current;
+        setInstalled([]); setEngineError(''); setConnection(value => value + 1);
       }
     });
-    return () => { ++scope.current; operation.current?.abort(); unsubscribe(); };
+    return () => { ++scope.current; unsubscribe(); };
   }, []);
   useEffect(() => {
     const controller = new AbortController(), version = scope.current;
@@ -35,6 +41,7 @@ export function ModelCatalogue() {
     }).catch(error => { if (!controller.signal.aborted && scope.current === version) setEngineError(String(error)); });
     return () => controller.abort();
   }, [connection]);
+  useEffect(() => { if (download.result) setConnection(value => value + 1); }, [download.result]);
   const models = catalogue.reply?.data ?? [];
   const tasks = [...new Set(models.flatMap(model => model.tasks))].sort();
   const filtered = models.filter(model => (!task || model.tasks.includes(task))
@@ -43,22 +50,8 @@ export function ModelCatalogue() {
     && `${model.name} ${model.family} ${model.provider} ${model.repo}`.toLowerCase().includes(query.toLowerCase()));
 
   async function install(model: PublicModel, variant: PublicVariant) {
-    if (operation.current) return;
-    const controller = new AbortController(), version = scope.current;
-    operation.current = controller; setBusy(model.id); setNotice('');
-    try {
-      const reference = modelInstallReference(model, variant);
-      const result = await modelsApi.downloadModel({ model_id: reference }, controller.signal);
-      if (version !== scope.current || controller.signal.aborted) return;
-      setNotice(`${result.downloaded ? 'Downloaded' : 'Already available'}: ${result.model}`);
-      try {
-        const current = await modelsApi.getInstalled(controller.signal);
-        if (version === scope.current && !controller.signal.aborted) { setInstalled(current.installed.map(item => item.id)); setEngineError(''); }
-      } catch (error) {
-        if (version === scope.current && !controller.signal.aborted) setEngineError(`Download acknowledged; installed list could not refresh: ${String(error)}`);
-      }
-    } catch (error) { if (version === scope.current && !controller.signal.aborted) setNotice(`Download did not complete: ${String(error)}`); }
-    finally { if (operation.current === controller) { operation.current = null; setBusy(''); } }
+    const reference = modelInstallReference(model, variant);
+    await download.start(reference, (signal, observer) => modelsApi.downloadModel({ model_id: reference }, signal, observer));
   }
   return <div className="p-5 space-y-4">
     <div className="flex items-center justify-between gap-3">
@@ -75,8 +68,7 @@ export function ModelCatalogue() {
     {catalogue.busy && <p role="status">Loading catalogue…</p>}
     {(catalogue.error || catalogue.reply?.warning) && <p role="alert">{catalogue.error || catalogue.reply?.warning}</p>}
     {engineError && <p role="alert">Installed model status unavailable. {engineError}</p>}
-    {notice && <p role="status">{notice}</p>}
-    {busy && <p role="status">Downloading {busy}… Installation is confirmed only after the Engine finishes. Leaving this view stops waiting; it does not cancel the Engine download.</p>}
+    <CatalogueTaskStatus {...download} />
     {catalogue.reply && <p className="text-xs text-[var(--text-secondary)]">{filtered.length} models · Catalogue saved {new Date(catalogue.reply.saved).toLocaleString()} · Search and filters use the saved list.</p>}
     {view === 'families' && !family ? <div className="grid gap-3 lg:grid-cols-2">{[...new Set(filtered.map(model => model.family))].map(name => {
       const members = filtered.filter(model => model.family === name);
@@ -101,8 +93,8 @@ export function ModelCatalogue() {
           onChange={value => setChosen(previous => ({ ...previous, [model.id]: value }))} />
         {refusal && <p className="text-xs">{refusal}</p>}
         {variant && <p className="text-xs break-all">{variant.file}</p>}
-        <Button disabled={!reference || !!busy || !!engineError} onClick={() => { if (variant) void install(model, variant); }}>
-          {busy === model.id ? 'Downloading…' : installed.includes(reference) ? 'Check / install selected package' : 'Download selected package'}
+        <Button disabled={!reference || !download.canStart || !!engineError} onClick={() => { if (variant) void install(model, variant); }}>
+          {busy && download.receipt?.target === reference ? 'Downloading…' : installed.includes(reference) ? 'Check / install selected package' : 'Download selected package'}
         </Button>
       </CardContent></Card>;
     })}</div>}

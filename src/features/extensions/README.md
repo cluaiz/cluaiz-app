@@ -164,7 +164,28 @@ flowchart TD
 ```
 
 Catalogue availability is not runtime certification. Public signed distribution,
-legacy extension conversion, byte-progress/cancel controls and restoring an
-in-flight install after leaving/restarting remain separate work. The live website
+legacy extension conversion and Engine crash recovery remain separate work. The live website
 and repository may publish older data than local checkouts; the App displays the
 real source or its explicit failure instead of filling missing entries itself.
+
+## Download and install tracking
+
+`useCatalogueTask` and `CatalogueTaskStatus` share the existing CEP task owner.
+They keep one local receipt per Engine protocol/host/port and model/tool domain:
+target plus actual task id, never auth tokens or event logs. The in-memory scope
+cache is bounded to32 entries; browser storage remains subject to its quota.
+Closing the view aborts its reads, not the Engine task. Returning resumes the same
+id and validates the final model/package acknowledgement before showing success.
+The App never repeats a start request during recovery. An accepted start with no
+captured id remains uncertain; local forgetting requires explicit confirmation.
+
+Actual progress is labelled current transfer while running and last reported
+transfer afterward, rather than total-package completion. Unknown totals use an
+indeterminate meter. Cancel verifies method/id, then requests `tasks.cancel`;
+acknowledgement is cooperative and does not roll back downloaded/installed files.
+Expired/restarted/inaccessible tasks and storage corruption stay explicit errors.
+Storage failure retains session-only tracking with a warning. Receipt claims
+prevent duplicate starts within this JS context; they are not a cross-tab lock,
+server admission policy or publisher authentication. Missing receipts cannot
+recover tasks started by other clients. Engine TTL/crash recovery remains its own
+boundary; no background scheduler or worker is added to the App.

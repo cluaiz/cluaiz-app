@@ -430,3 +430,10 @@ lists, permission/not-found failures, AbortSignal forwarding and no adapter retr
 Rendered lifecycle/race/private-mode and isolated Engine persistence evidence is
 recorded in the existing App integration proof; controlled records are not model
 behavior proof. Test fixtures never write the user's notes or chat history.
+
+`node --test test/cep_task_tracking.test.cjs test/catalogue_task_lifecycle.test.cjs`
+covers observed start-once/progress, same-id resume, cancellation preflight and
+acknowledgement/refusal, wrong identities/results, expired tasks, stale Engine
+switches (including A→B→A), missing accepted ids, receipt reload/corruption and
+storage failure. Test receipt stores and Engine responses are controlled; actual
+isolated Engine and browser checks are recorded in the existing integration proof.

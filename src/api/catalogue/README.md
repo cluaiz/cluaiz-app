@@ -62,6 +62,8 @@ variant ambiguity and legacy/partial registry behavior. Actual themed React UI
 checks use controlled metadata/Engine boundaries; real public metadata reads are
 recorded separately in the integration proof. Neither is a real large download.
 Live published sources can lag local repository data; missing routes remain
-warnings rather than synthetic packages. Persistent task restoration, byte
-progress, real tasks.cancel, packaged WebView and other OS acceptance remain
-separate. Leaving a view stops observation, not accepted Engine work.
+warnings rather than synthetic packages. Catalogue task receipts now reattach to
+the same selected Engine task, display its actual progress and support cooperative
+cancel through the shared CEP owner. Missing totals remain unknown. A lost initial
+task id, Engine expiry/restart, packaged WebView, real large downloads and other OS
+acceptance remain separate. Leaving a view stops observation, not accepted work.
