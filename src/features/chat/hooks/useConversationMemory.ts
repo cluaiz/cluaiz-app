@@ -28,6 +28,9 @@ export interface SearchFilters {
   to?: string;
 }
 
+type SearchHit = ConversationSearchHit & { scoreKind?: 'keyword' };
+type SearchResult = Omit<ConversationSearchResponse, 'results'> & { results: SearchHit[] };
+
 interface State {
   key: string;
   index: ConversationIndexResponse | null;
@@ -36,7 +39,7 @@ interface State {
   skippedLines: number;
   nextFromSeq: number | null;
   grants: ConversationToolGrant[];
-  searchResult: ConversationSearchResponse | null;
+  searchResult: SearchResult | null;
   activeItem: ConversationItemResponse | null;
   lastExport: ConversationExportResponse | null;
   loading: boolean;
@@ -74,12 +77,12 @@ export function matchCardsForQuery(
   query: string,
   existingHits: ConversationSearchHit[],
   withinHours?: number
-): ConversationSearchHit[] {
+): SearchHit[] {
   const terms = Array.from(new Set(query.toLowerCase().split(/[^\p{L}\p{N}_.-]+/u).filter(Boolean)));
   if (terms.length === 0 || cards.length === 0) return existingHits;
   const seen = new Set(existingHits.map(hit => hit.ref));
   const cutoffMs = withinHours && withinHours > 0 ? Date.now() - withinHours * 3600 * 1000 : null;
-  const extras: ConversationSearchHit[] = [];
+  const extras: SearchHit[] = [];
 
   for (const card of cards) {
     const ref = `m:${card.pos}`;
@@ -121,7 +124,7 @@ export function matchCardsForQuery(
     const score = Number(
       (ownMatched.length * 1.5 + enrichMatched.length * 0.8 + (card.importance ?? 0.2)).toFixed(2)
     );
-    extras.push({ ref, score, why, card });
+    extras.push({ ref, score, why, card, scoreKind: 'keyword' });
   }
 
   extras.sort((a, b) => b.score - a.score || b.card.pos - a.card.pos);
@@ -242,7 +245,7 @@ export function useConversationMemory({ open, chatId, privateChat = false }: Opt
     const controller = new AbortController();
     searchCtrl.current = controller;
     const valid = () => !controller.signal.aborted && live.current.enabled && live.current.key === key;
-    setState(prev => ({ ...prev, searching: true, searchError: null, activeItem: null }));
+    setState(prev => ({ ...prev, searching: true, itemLoading: false, searchError: null, activeItem: null }));
     try {
       const scope = filters.scope ?? 'chat';
       const result = await chatHistoryApi.search(
@@ -258,7 +261,7 @@ export function useConversationMemory({ open, chatId, privateChat = false }: Opt
       );
       if (!valid()) return;
       const cards = currentRef.current.index?.cards ?? [];
-      const merged: ConversationSearchResponse =
+      const merged: SearchResult =
         result.scope === 'chat'
           ? {
               ...result,
@@ -284,7 +287,7 @@ export function useConversationMemory({ open, chatId, privateChat = false }: Opt
     const controller = new AbortController();
     searchCtrl.current = controller;
     const valid = () => !controller.signal.aborted && live.current.enabled && live.current.key === key;
-    setState(prev => ({ ...prev, itemLoading: true, searchError: null }));
+    setState(prev => ({ ...prev, itemLoading: true, searching: false, searchError: null }));
     try {
       const item = await chatHistoryApi.getItem(chatId, ref, controller.signal);
       if (valid()) setState(prev => ({ ...prev, activeItem: item, itemLoading: false }));

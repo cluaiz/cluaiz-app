@@ -259,7 +259,7 @@ export function ConversationMemoryPanel({ open, onClose, chatId, privateChat = f
                         </div>
                       </div>
                       <p className="text-[11px] text-[var(--text-muted)]">
-                        References like <code>m:0</code> are Engine message positions in this chat, not local UI message IDs. Scores are raw BM25 relevance scores, not percentages.
+                        References like <code>m:0</code> are Engine message positions in this chat, not local UI message IDs. Engine hits show BM25 scores; extra keyword matches show local scores. Neither is a confidence percentage.
                       </p>
                     </form>
 
@@ -317,7 +317,7 @@ export function ConversationMemoryPanel({ open, onClose, chatId, privateChat = f
                                     <Badge variant="secondary">{hit.ref}</Badge>
                                     <Badge variant="outline">{hit.card.role}</Badge>
                                     <span className="text-xs text-[var(--text-muted)]">
-                                      BM25 score: {hit.score.toFixed(2)}
+                                      {hit.scoreKind === 'keyword' ? 'Local keyword score' : 'BM25 score'}: {hit.score.toFixed(2)}
                                     </span>
                                   </div>
                                   <Button
