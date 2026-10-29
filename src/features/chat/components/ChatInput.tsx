@@ -16,6 +16,7 @@ import { InlinePromptInput, InlinePromptInputHandle } from '../../../components/
 import { VoiceInputControl, VoiceInputHandle, VoiceMode } from '../../../components/ui/VoiceInputControl';
 import { extractBaseName } from '../../../utils/filePath';
 import { AttachmentStagingDeck, StagedAttachment } from './AttachmentStagingDeck';
+import { EngineReconnectNotice } from './EngineReconnectNotice';
 import { serializeStagedAttachments } from '../utils/attachmentSerializer';
 import { chatComposerOptions } from '../utils/chatRequest';
 import { useChatPreviewOptions, type ChatPreviewOptionsRef } from '../hooks/useChatPreviewOptions';
@@ -1784,9 +1785,10 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 onInput={() => voiceInputRef.current?.cancel()}
                 onPaste={() => voiceInputRef.current?.cancel()}
             >
+                {!isEngineOnline && <EngineReconnectNotice />}
                 <InlinePromptInput
                     ref={inlineInputRef}
-                    placeholder={isEngineOnline ? (textOnly ? "Ask AI (text only)..." : "Ask AI...") : "Cluaiz Engine is offline..."}
+                    placeholder={isEngineOnline ? (textOnly ? "Ask AI (text only)..." : "Ask AI...") : ""}
                     onTextChange={(val) => {
                         setInputValue(val);
                         typingEnergyRef.current.energy = Math.min(1.6, typingEnergyRef.current.energy + 0.25);
@@ -1797,7 +1799,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                     onPasteLargeText={handlePasteLargeText}
                     onDropSnippet={(snippetId) => handleRemoveAttachment(snippetId)}
                     disabled={!isEngineOnline}
-                    minHeight="22px"
+                    minHeight={isEngineOnline ? '22px' : '0px'}
                     maxHeight="160px"
                 />
             </div>
