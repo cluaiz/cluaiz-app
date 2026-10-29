@@ -31,7 +31,11 @@ export function useCatalogueTask<T>(method: CatalogueTaskMethod, resume: Resume<
     if (saved.error) { setState({ scope, ...saved, busy: false, cancelling: false }); return; }
     let receipt = saved.receipt;
     if (operation) {
-      if (receipt && !(snapshot.current.scope === scope && snapshot.current.receipt === receipt && terminal(snapshot.current.task))) return;
+      if (receipt && !(snapshot.current.scope === scope && snapshot.current.receipt === receipt && terminal(snapshot.current.task))) {
+        setState({ scope, ...saved, busy: false, cancelling: false,
+          error: 'An operation is already tracked for this Engine. Recheck that task instead of starting it again.' });
+        return;
+      }
       const claimed = saveTaskReceipt(scope, method, receipt, { target });
       if (!claimed) return;
       receipt = claimed.receipt;
@@ -50,7 +54,12 @@ export function useCatalogueTask<T>(method: CatalogueTaskMethod, resume: Resume<
       if (!valid()) return;
       if (!receipt?.taskId) {
         const accepted = saveTaskReceipt(scope, method, receipt, { target, taskId: task.task_id });
-        if (!accepted) { active.controller.abort(); return; }
+        if (!accepted) {
+          active.controller.abort();
+          setState({ scope, ...readTaskReceipt(scope, method), busy: false, cancelling: false,
+            error: 'Task tracking changed in another view. Recheck the current reference; the old start may still be running.' });
+          return;
+        }
         receipt = accepted.receipt;
       }
       setState(previous => ({ ...previous, receipt, task, warning: readTaskReceipt(scope, method).warning }));

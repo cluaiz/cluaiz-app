@@ -131,3 +131,25 @@ test('a late cancel acknowledgement cannot replace another Engine view', async (
   assert.equal(h.render().task, undefined);
   waiting.resolve({}); await operation;
 });
+
+test('a stale view surfaces the existing receipt instead of silently starting a duplicate', async () => {
+  const h = setup(); h.render(); let starts = 0;
+  h.receipts.saveTaskReceipt(h.scope(), method, null, { target: 'other-target', taskId: 'other-task' });
+  await h.render().start('new-target', async () => { starts++; });
+  assert.equal(starts, 0);
+  assert.equal(h.render().receipt.taskId, 'other-task');
+  assert.match(h.render().error, /already tracked/);
+});
+
+test('receipt replacement while start is pending ends observation with an explicit error', async () => {
+  const h = setup(), waiting = deferred(); h.render(); let observe;
+  const starting = h.render().start('first-target', async (_, notify) => { observe = notify; return waiting.result; });
+  h.receipts.forgetTaskReceipt(h.scope(), method);
+  h.receipts.saveTaskReceipt(h.scope(), method, null, { target: 'second-target', taskId: 'newer-task' });
+  observe(task());
+  assert.equal(h.render().busy, false);
+  assert.match(h.render().error, /changed in another view/);
+  assert.equal(h.render().receipt.taskId, 'newer-task');
+  waiting.resolve({ model: 'old-result' }); await starting;
+  assert.equal(h.render().result, undefined);
+});
