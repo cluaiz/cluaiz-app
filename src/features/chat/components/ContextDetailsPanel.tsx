@@ -8,7 +8,8 @@ import { AlertBanner } from '../../../components/ui/AlertBanner';
 import { CustomDropdown, FLOATING_MENU_ATTR } from '../../../components/ui/dropdown/CustomDropdown';
 import type { ChatMessage as ApiChatMessage, ContextPlanReport, ContextToolsReport } from '../../../api/engine/chat';
 import type { ChatMessage } from '../../../store/chat/useChatStore';
-import { buildChatHistory } from '../utils/chatRequest';
+import { buildChatHistory, chatHistoryOptions } from '../utils/chatRequest';
+import type { SendChatOptions } from '../../../core/engine';
 import { useContextDetails } from '../hooks/useContextDetails';
 
 interface Props {
@@ -19,6 +20,7 @@ interface Props {
   messages?: ChatMessage[];
   draftText?: string;
   modelId?: string;
+  getRequestOptions?: () => SendChatOptions | undefined;
 }
 
 type SectionTab = 'reports' | 'preview' | 'jobs';
@@ -150,6 +152,7 @@ export function ContextDetailsPanel({
   messages = [],
   draftText = '',
   modelId,
+  getRequestOptions,
 }: Props) {
   const ctx = useContextDetails({ open, chatId, privateChat });
   const [tab, setTab] = useState<SectionTab>('reports');
@@ -209,19 +212,20 @@ export function ContextDetailsPanel({
     }
   };
 
+  const previewHistory = buildChatHistory(messages) as ApiChatMessage[];
   const handleRunPreview = () => {
     if (!chatId || privateChat) return;
-    const history = buildChatHistory(messages) as ApiChatMessage[];
     const trimmedPrompt = previewPrompt.trim();
     const previewMessages: ApiChatMessage[] = [
-      ...history,
+      ...previewHistory,
       ...(trimmedPrompt ? [{ role: 'user' as const, content: trimmedPrompt }] : []),
     ];
-    if (previewMessages.length === 0) {
-      previewMessages.push({ role: 'user', content: 'Inspect context window budget' });
-    }
+    if (previewMessages.length === 0) return;
+    const options = getRequestOptions?.();
     void ctx.runPreview({
       ...(modelId ? { model: modelId } : {}),
+      ...options,
+      ...chatHistoryOptions(options, false),
       messages: previewMessages,
     });
   };
@@ -340,7 +344,7 @@ export function ContextDetailsPanel({
                 <AlertBanner
                   variant="info"
                   title="Deliberate preflight dry-run (context.preview)"
-                  message="Running a preview prepares the prompt, recall, notes, and tool budget without generating an answer or saving events. If the selected model is not loaded yet, the Engine may load it to count tokens."
+                  message="This text preview uses current composer model, thinking and tool settings with saved chat history. Unsent attachments are not included. It generates no answer or saved events. The Engine may load the model to count tokens."
                 />
                 {privateChat || !chatId ? (
                   <p className="text-xs text-[var(--text-secondary)]">
@@ -364,7 +368,7 @@ export function ContextDetailsPanel({
                         type="button"
                         size="sm"
                         data-testid="ctx-run-preview-btn"
-                        disabled={ctx.previewLoading}
+                        disabled={ctx.previewLoading || (!previewPrompt.trim() && previewHistory.length === 0)}
                         onClick={handleRunPreview}
                       >
                         <Play size={14} className="mr-1" />

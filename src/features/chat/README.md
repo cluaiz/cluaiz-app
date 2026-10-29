@@ -95,6 +95,18 @@ flowchart LR
 
 ## Boundaries and evidence
 
+Memory inspection cancels the previous search/source request when the user changes
+operation, clearing the cancelled operation's loading flag. Local keyword matches
+are labelled separately from Engine BM25 hits. Both use the original Engine
+`m:<pos>` reference; no App message-id mapping is invented.
+
+The explicit text preview reads current model, thinking effort and tool chips
+from the mounted composer through `useChatPreviewOptions`. Send and Preview reuse
+`chatComposerOptions` and `chatHistoryOptions`; saved chats use adaptive history.
+Preview includes saved conversation media but excludes unsent attachments, as
+disclosed in its UI. Reading composer options does not issue requests or persist
+another settings copy. An empty preview sends no synthetic user prompt.
+
 - Saved disk KV caches remain in `Settings -> Chats & History -> Model Memory (Engine)`
   via `chatMemoryApi`. External-mode memory import/events (`memory.import`) and
   model tool-use policy remain Phase D. Opening `AiMemoryPanel`,

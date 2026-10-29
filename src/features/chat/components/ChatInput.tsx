@@ -17,6 +17,8 @@ import { VoiceInputControl, VoiceInputHandle, VoiceMode } from '../../../compone
 import { extractBaseName } from '../../../utils/filePath';
 import { AttachmentStagingDeck, StagedAttachment } from './AttachmentStagingDeck';
 import { serializeStagedAttachments } from '../utils/attachmentSerializer';
+import { chatComposerOptions } from '../utils/chatRequest';
+import { useChatPreviewOptions, type ChatPreviewOptionsRef } from '../hooks/useChatPreviewOptions';
 
 const DynamicToolIcon: React.FC<{ iconSvg?: string | null; fallback: React.ReactNode; className?: string }> = ({ iconSvg, fallback, className = "w-3.5 h-3.5" }) => {
     if (iconSvg) {
@@ -98,6 +100,7 @@ const checkModelVisionSupport = (modelId: string, map?: Record<string, any>): bo
 };
 
 interface ChatInputProps {
+    previewOptionsRef?: ChatPreviewOptionsRef;
     /** Owned SDK chat currently supports text with model defaults, not the main agent/tool path. */
     textOnly?: boolean;
     inputValue: string;
@@ -111,6 +114,7 @@ interface ChatInputProps {
 }
 
 export const ChatInput: React.FC<ChatInputProps> = ({
+    previewOptionsRef,
     textOnly = false,
     inputValue,
     setInputValue,
@@ -435,6 +439,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     const booster = useEngineStore(s => s.booster);
     const updateBooster = useEngineStore(s => s.updateBooster);
     const permissions = useEngineStore(s => s.permissions);
+    useChatPreviewOptions(previewOptionsRef, inlineInputRef, permissions?.chat_models?.text, thinkMode, effort);
     const installedModelsMap = useEngineStore(s => s.installedModelsMap);
     const fetchStatus = useEngineStore(s => s.fetchStatus);
     const initEngineSettings = useEngineStore(s => s.initEngineSettings);
@@ -603,15 +608,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             }
         }
 
-        const activeTools = contextData.skills
-            .filter(s => !['Think Deep', 'Think Lite', 'Long Answer', 'Short Answer'].includes(s))
-            .map(s => ({ name: s, id: s }));
-
         const options: import('../../../core/engine').SendChatOptions = {
-            think_mode: thinkMode,
-            reasoning_effort: effort,
-            model: permissions?.chat_models?.text || undefined,
-            tools: activeTools.length > 0 ? activeTools : undefined,
+            ...chatComposerOptions(permissions?.chat_models?.text, thinkMode, effort, contextData.skills),
             parts: finalParts,
             attachments: attachmentsMeta
         };

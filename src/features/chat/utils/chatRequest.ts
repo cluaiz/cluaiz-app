@@ -1,5 +1,20 @@
 import type { ChatMessage } from '../../../store/chat/useChatStore';
 import type { ProcessingEvent } from '../../../api/engine/chat/chat.types';
+import type { SendChatOptions } from '../../../core/engine';
+
+/** One owner for the composer settings used by Send and an explicit text preview. */
+export function chatComposerOptions(model: string | null | undefined, thinkMode: string, effort: string | number, skills: string[]): SendChatOptions {
+    const tools = skills.filter(name => !['Think Deep', 'Think Lite', 'Long Answer', 'Short Answer'].includes(name))
+        .map(name => ({ name, id: name }));
+    return { model: model || undefined, think_mode: thinkMode, reasoning_effort: effort,
+        tools: tools.length ? tools : undefined };
+}
+
+/** Saved chats use adaptive recall; private chats keep the existing temporary policy. */
+export function chatHistoryOptions(options: SendChatOptions | undefined, privateChat: boolean) {
+    return { temporary_chat: privateChat ? 'lite' as const : undefined,
+        history_mode: options?.history_mode ?? (privateChat ? undefined : 'adaptive' as const) };
+}
 
 /** Keep failed turns visible in the conversation, but never retry their attachments implicitly. */
 export function selectChatContext(messages: ChatMessage[]) {

@@ -80,6 +80,7 @@ export function ChatWorkspace({ workspace, chatBinding }: { workspace?: React.Re
     const [memoryOpen, setMemoryOpen] = useState(false);
     const [conversationMemoryOpen, setConversationMemoryOpen] = useState(false);
     const [contextDetailsOpen, setContextDetailsOpen] = useState(false);
+    const previewOptionsRef = useRef<(() => import('../../../core/engine').SendChatOptions) | null>(null);
     const memoryWorkspace = useProjectStore(state => state.projects[state.activeProjectId || '']?.rootPath);
 
     const {
@@ -467,7 +468,7 @@ main().catch(console.error);`);
                     onOpenContextDiagnostics={() => { setConversationMemoryOpen(false); setContextDetailsOpen(true); }} />}
                 {!isBoundChat && <ContextDetailsPanel open={contextDetailsOpen} onClose={() => setContextDetailsOpen(false)}
                     chatId={activeSessionId} privateChat={Boolean(activeSession?.isIncognito || isIncognito)}
-                    messages={messages} draftText={inputValue} />}
+                    messages={messages} draftText={inputValue} getRequestOptions={() => previewOptionsRef.current?.()} />}
 
 
                 {isBoundChat && !activeSession ? <div className="flex-1 flex items-center justify-center text-[var(--text-secondary)]" role="status">Open a extension chat to begin.</div> : messages.length === 0 ? (
@@ -486,6 +487,7 @@ main().catch(console.error);`);
                         )}
                         <motion.div layout layoutId="chat-input-wrapper" className="w-full max-w-2xl lg:max-w-3xl 2xl:max-w-4xl mx-auto z-10 px-2 sm:px-4 md:px-8">
                             <ChatInput
+                                previewOptionsRef={!isBoundChat ? previewOptionsRef : undefined}
                                 key={isBoundChat ? activeSessionId : undefined}
                                 textOnly={isBoundChat}
                                 inputValue={inputValue}
@@ -654,6 +656,7 @@ main().catch(console.error);`);
                             ) : (
                                 <motion.div layout layoutId="chat-input-wrapper" className="relative w-full max-w-2xl lg:max-w-3xl 2xl:max-w-4xl mx-auto z-10 px-2 sm:px-4 md:px-8 pb-1 sm:pb-2">
                                     <ChatInput
+                                        previewOptionsRef={!isBoundChat ? previewOptionsRef : undefined}
                                         key={isBoundChat ? activeSessionId : undefined}
                                         textOnly={isBoundChat}
                                         inputValue={inputValue}

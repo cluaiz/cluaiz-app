@@ -6,7 +6,7 @@ import type { ChatMessage } from '../../../store/chat/useChatStore';
 import { useEngineStore } from '../../../store/engine/useEngineStore';
 import { inferChatTopicAndEmoji } from '../../../utils/topicProber';
 import { errorMessage } from '../../../api/client/errors';
-import { buildChatHistory, processingLabel, selectChatContext } from '../utils/chatRequest';
+import { buildChatHistory, chatHistoryOptions, processingLabel, selectChatContext } from '../utils/chatRequest';
 import type { useChatTelemetry } from './useChatTelemetry';
 import { soundManager } from '../../../services/sound/soundManager';
 
@@ -116,10 +116,7 @@ export function useChatSend({ inputValue, setInputValue, replyingTo, setReplying
             const chatOptions = {
                 ...options,
                 session_id: sessionId,
-                // Private chats: the engine saves no model memory of them either
-                temporary_chat: isPrivateSession ? 'lite' as const : undefined,
-                // Saved chats use adaptive history so the Engine recalls older turns from its index and offers memory tools
-                history_mode: options?.history_mode ?? (isPrivateSession ? undefined : ('adaptive' as const)),
+                ...chatHistoryOptions(options, isPrivateSession),
                 messages: conversationMessages
             };
 
