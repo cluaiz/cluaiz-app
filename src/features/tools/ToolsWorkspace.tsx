@@ -7,7 +7,7 @@ import { EngineOfflineGuard } from '../settings/EngineOfflineGuard';
 import { Tabs } from '../../components/ui/Tabs';
 const AvailableTools = lazy(() => import('../extensions/ToolCatalogue').then(module => ({ default: module.ToolCatalogue })));
 
-export const ToolsWorkspace: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
+export const ToolsWorkspace: React.FC<{ embedded?: boolean; defaultKind?: string }> = ({ embedded = false, defaultKind }) => {
     const [section, setSection] = useState<'available' | 'installed'>('available');
     const handleBackToChat = () => {
         useLayoutStore.getState().setActiveView('chat');
@@ -67,7 +67,7 @@ export const ToolsWorkspace: React.FC<{ embedded?: boolean }> = ({ embedded = fa
             <main className={`flex-1 overflow-y-auto custom-scrollbar ${embedded ? 'p-5' : 'p-6'} bg-[var(--bg-primary)]`}>
                 <div className="max-w-7xl mx-auto">
                     <Tabs items={[{ id: 'available', label: 'Available' }, { id: 'installed', label: 'Installed' }]} value={section} onChange={setSection} />
-                    {section === 'available' ? <div className="py-4"><Suspense fallback={<p>Opening tool catalogue…</p>}><AvailableTools /></Suspense></div> :
+                    {section === 'available' ? <div className="py-4"><Suspense fallback={<p>Opening tool catalogue…</p>}><AvailableTools initialKind={defaultKind} /></Suspense></div> :
                     <EngineOfflineGuard>
                         <ToolsSettings />
                     </EngineOfflineGuard>}

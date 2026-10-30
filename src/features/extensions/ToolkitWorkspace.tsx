@@ -6,7 +6,6 @@ import { ToolsWorkspace } from '../tools';
 import { workspaceExtensions } from '../../extensions/bundled';
 import { openExtensionWorkspace } from '../../extensions/navigation';
 import { InstalledExtensions } from './InstalledExtensions';
-import { ToolkitLanding } from './ToolkitLanding';
 
 const DeveloperPreview = lazy(() => import('./DeveloperExtensionWorkspace'));
 const Models = lazy(() => import('./ModelCatalogue').then(module => ({ default: module.ModelCatalogue })));
@@ -14,7 +13,7 @@ const Models = lazy(() => import('./ModelCatalogue').then(module => ({ default: 
 import { TOOLKIT_SECTIONS, toolkitSection, type ToolkitSectionId, toolkitSectionUrl } from './toolkitNavigation';
 export { TOOLKIT_SECTIONS, toolkitSection, type ToolkitSectionId };
 
-/** Central Toolkit Hub; landing page first, contextual drill-down without tabs isolation. */
+/** Central Toolkit Hub; contextual drill-down without tabs isolation. */
 export function ToolkitWorkspace() {
     const [section, setSection] = useState<ToolkitSectionId>(() => toolkitSection(location.search));
     const [preview, setPreview] = useState(false);
@@ -35,11 +34,7 @@ export function ToolkitWorkspace() {
         const url = new URL(location.href);
         url.pathname = '/toolkit';
         url.hash = '';
-        if (value === 'landing') {
-            url.searchParams.delete('section');
-        } else {
-            url.searchParams.set('section', value);
-        }
+        url.searchParams.set('section', value);
         window.history.pushState(window.history.state, '', url);
         window.dispatchEvent(new CustomEvent('toolkit-section-change', { detail: { section: value } }));
     }
@@ -48,16 +43,19 @@ export function ToolkitWorkspace() {
         <section className="flex flex-col h-full min-h-0 bg-[var(--bg-primary)] text-[var(--text-primary)]">
             {/* Main Content Area — No rigid top header; navigation driven by primary Sidebar */}
             <div className="flex-1 min-h-0 overflow-auto">
-                {section === 'landing' && (
-                    <ToolkitLanding onSelectSection={(target) => select(target)} />
-                )}
                 {section === 'models' && (
                     <Suspense fallback={<p className="p-5 text-xs text-[var(--text-secondary)]">Opening models catalogue…</p>}>
                         <Models />
                     </Suspense>
                 )}
-                {section === 'tools' && (
-                    <ToolsWorkspace embedded />
+                {section === 'mcp' && (
+                    <ToolsWorkspace defaultKind="mcp" embedded />
+                )}
+                {section === 'skills' && (
+                    <ToolsWorkspace defaultKind="skill" embedded />
+                )}
+                {section === 'plugins' && (
+                    <ToolsWorkspace defaultKind="plugin" embedded />
                 )}
                 {section === 'components' && (
                     <ComponentShowcase />

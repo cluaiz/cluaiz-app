@@ -19,10 +19,16 @@ const resumeInstall: Parameters<typeof useCatalogueTask<Awaited<ReturnType<typeo
     return resumeToolInstall(target.slice(0, split) as ToolKind, target.slice(split + 1), id, signal, observer);
   };
 
-export function ToolCatalogue() {
+export function ToolCatalogue({ initialKind }: { initialKind?: string } = {}) {
   const catalogue = useCatalogue(toolCatalogue.list);
   const installation = useCatalogueTask('tools.install', resumeInstall);
-  const [kind, setKind] = useState(''), [query, setQuery] = useState('');
+  const [kind, setKind] = useState(initialKind ?? ''), [query, setQuery] = useState('');
+
+  useEffect(() => {
+    if (initialKind !== undefined) {
+      setKind(initialKind);
+    }
+  }, [initialKind]);
   const [selected, setSelected] = useState<RegistryTool | null>(null), [details, setDetails] = useState<RegistryDetails | null>(null);
   const [openedDetails, setOpenedDetails] = useState<Record<string, RegistryDetails>>({});
   const [message, setMessage] = useState(''), [installed, setInstalled] = useState<string[]>([]);

@@ -7,7 +7,7 @@ import {
   Boxes,
   Search,
   ChevronRight,
-  LayoutGrid,
+  Wrench,
 } from 'lucide-react';
 import { Input } from '../../components/ui/Input';
 import { useToolkitSummary } from './useToolkitSummary';
@@ -26,17 +26,6 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   {
-    id: 'landing',
-    title: 'Hub Overview',
-    subtitle: 'All tools, models & suites',
-    icon: LayoutGrid,
-    iconColor: 'text-[var(--accent-color)]',
-    getCount: summary => ({
-      label: 'all',
-      count: summary.models.totalCount + summary.mcp.totalCount + summary.skills.totalCount + summary.extensions.totalCount,
-    }),
-  },
-  {
     id: 'models',
     title: 'AI Models',
     subtitle: 'GGUF & ONNX weights',
@@ -48,8 +37,8 @@ const NAV_ITEMS: NavItem[] = [
     }),
   },
   {
-    id: 'tools',
-    title: 'Tools & MCP',
+    id: 'mcp',
+    title: 'MCP Servers',
     subtitle: 'MCP servers & bridges',
     icon: Cpu,
     iconColor: 'text-cyan-400',
@@ -59,7 +48,7 @@ const NAV_ITEMS: NavItem[] = [
     }),
   },
   {
-    id: 'tools', // Navigates to tools with skills filter
+    id: 'skills',
     title: 'Agent Skills',
     subtitle: 'Autonomous workflows',
     icon: Zap,
@@ -70,11 +59,22 @@ const NAV_ITEMS: NavItem[] = [
     }),
   },
   {
+    id: 'plugins',
+    title: 'Plugins & Tools',
+    subtitle: 'Runtime plugins & tools',
+    icon: Wrench,
+    iconColor: 'text-emerald-400',
+    getCount: summary => ({
+      label: 'plugins',
+      count: summary.plugins.totalCount,
+    }),
+  },
+  {
     id: 'extensions',
     title: 'App Extensions',
     subtitle: 'Bundled applications',
     icon: Blocks,
-    iconColor: 'text-emerald-400',
+    iconColor: 'text-blue-400',
     getCount: summary => ({
       label: 'ext',
       count: summary.extensions.totalCount,
@@ -96,7 +96,7 @@ const NAV_ITEMS: NavItem[] = [
 export const ToolkitSidebar: React.FC = () => {
   const summary = useToolkitSummary();
   const [activeSection, setActiveSection] = useState<ToolkitSectionId>(() =>
-    typeof window !== 'undefined' ? toolkitSection(window.location.search) : 'landing'
+    typeof window !== 'undefined' ? toolkitSection(window.location.search) : 'models'
   );
   const [search, setSearch] = useState('');
 
@@ -126,11 +126,7 @@ export const ToolkitSidebar: React.FC = () => {
     const url = new URL(window.location.href);
     url.pathname = '/toolkit';
     url.hash = '';
-    if (sectionId === 'landing') {
-      url.searchParams.delete('section');
-    } else {
-      url.searchParams.set('section', sectionId);
-    }
+    url.searchParams.set('section', sectionId);
     window.history.pushState(window.history.state, '', url);
 
     // 3. Dispatch notification event for ToolkitWorkspace
@@ -166,7 +162,7 @@ export const ToolkitSidebar: React.FC = () => {
         {filteredItems.map((item, idx) => {
           const Icon = item.icon;
           const { count, label } = item.getCount(summary);
-          const isActive = activeSection === item.id && (item.id !== 'landing' || idx === 0);
+          const isActive = activeSection === item.id;
 
           return (
             <button

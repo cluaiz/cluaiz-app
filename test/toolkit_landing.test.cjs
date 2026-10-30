@@ -8,31 +8,33 @@ const { toolkitSection, TOOLKIT_SECTIONS, toolkitSectionUrl } = load(
   { URLSearchParams, URL },
 );
 
-test('toolkitSection defaults to landing Hub when section parameter is absent or unknown', () => {
-  assert.equal(toolkitSection(''), 'landing');
-  assert.equal(toolkitSection('?'), 'landing');
-  assert.equal(toolkitSection('?section='), 'landing');
-  assert.equal(toolkitSection('?section=unknown_value'), 'landing');
-  assert.equal(toolkitSection('?other=1'), 'landing');
+test('toolkitSection defaults to models when section parameter is absent or unknown', () => {
+  assert.equal(toolkitSection(''), 'models');
+  assert.equal(toolkitSection('?'), 'models');
+  assert.equal(toolkitSection('?section='), 'models');
+  assert.equal(toolkitSection('?section=unknown_value'), 'models');
+  assert.equal(toolkitSection('?other=1'), 'models');
 });
 
 test('toolkitSection accurately parses specific category routes for 1-click drill down', () => {
   assert.equal(toolkitSection('?section=models'), 'models');
-  assert.equal(toolkitSection('?section=tools'), 'tools');
+  assert.equal(toolkitSection('?section=mcp'), 'mcp');
+  assert.equal(toolkitSection('?section=skills'), 'skills');
+  assert.equal(toolkitSection('?section=plugins'), 'plugins');
   assert.equal(toolkitSection('?section=extensions'), 'extensions');
   assert.equal(toolkitSection('?section=components'), 'components');
-  assert.equal(toolkitSection('?section=landing'), 'landing');
 });
 
-test('TOOLKIT_SECTIONS defines all 5 core unified hub categories', () => {
+test('TOOLKIT_SECTIONS defines all 6 dedicated categories without landing hub', () => {
   const ids = Array.from(TOOLKIT_SECTIONS).map(s => s.id);
-  assert.equal(ids.join(','), 'landing,models,tools,extensions,components');
+  assert.equal(ids.join(','), 'models,mcp,skills,plugins,extensions,components');
 });
 
-test('toolkitSectionUrl formats hub root and specific category URLs cleanly', () => {
-  assert.equal(toolkitSectionUrl('landing'), '/toolkit');
+test('toolkitSectionUrl formats specific category URLs cleanly', () => {
   assert.equal(toolkitSectionUrl('models'), '/toolkit?section=models');
-  assert.equal(toolkitSectionUrl('tools'), '/toolkit?section=tools');
+  assert.equal(toolkitSectionUrl('mcp'), '/toolkit?section=mcp');
+  assert.equal(toolkitSectionUrl('skills'), '/toolkit?section=skills');
+  assert.equal(toolkitSectionUrl('plugins'), '/toolkit?section=plugins');
   assert.equal(toolkitSectionUrl('extensions'), '/toolkit?section=extensions');
   assert.equal(toolkitSectionUrl('components'), '/toolkit?section=components');
 });
