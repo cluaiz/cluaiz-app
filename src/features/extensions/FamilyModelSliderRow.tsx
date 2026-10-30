@@ -10,7 +10,7 @@ import { cleanModelDescription, extractFamilyCapabilities } from './catalogueVie
 import { ModelSliderCard } from './ModelSliderCard';
 
 // -----------------------------------------------------------------------------
-// EXACT 1:1 SCRUBBER CODE FROM cluaiz.com/src/components/organisms/sections/integration-slider
+// EXACT 1:1 SCRUBBER CODE FROM cluaiz.com (RESPONSIVE DOT SCALING)
 // -----------------------------------------------------------------------------
 const ScrubberDot = ({ index, total, progress }: { index: number; total: number; progress: MotionValue<number> }) => {
   const center = index / (total - 1);
@@ -32,7 +32,7 @@ const ScrubberDot = ({ index, total, progress }: { index: number; total: number;
 
   return (
     <motion.span
-      className="inline-block w-1 h-4 sm:h-5 bg-zinc-400 dark:bg-zinc-600 rounded-[2px] flex-shrink-0 origin-center pointer-events-none"
+      className="inline-block w-[1.5px] sm:w-1 h-3 sm:h-5 bg-zinc-400 dark:bg-zinc-600 rounded-[1px] sm:rounded-[2px] shrink-0 origin-center pointer-events-none"
       style={{
         scale,
         opacity,
@@ -148,16 +148,16 @@ export const FamilyModelSliderRow: React.FC<FamilyModelSliderRowProps> = ({
   };
 
   return (
-    <div className="w-full rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-color)] p-5 space-y-4 text-left">
+    <div className="w-full rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-color)] p-3.5 sm:p-5 space-y-3.5 sm:space-y-4 text-left">
       {/* ------------------------------------------------------------------ */}
-      {/* SECTION 1: FAMILY HEADER                                           */}
+      {/* SECTION 1: FAMILY HEADER (RESPONSIVE STACK)                         */}
       {/* ------------------------------------------------------------------ */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-[var(--border-color)]">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 pb-3 border-b border-[var(--border-color)]">
         {/* Left Side: Logo, Name, Publisher, Description, Tags, Count */}
-        <div className="flex items-start gap-3.5 min-w-0">
+        <div className="flex items-start gap-3 min-w-0">
           <CatalogueLogo source={firstModel?.logo} name={family} large icon={Boxes} />
-          <div className="space-y-1 min-w-0">
-            <div className="flex items-center gap-2.5 flex-wrap">
+          <div className="space-y-1 min-w-0 flex-1">
+            <div className="flex items-center gap-2 flex-wrap">
               <h3 className="text-base sm:text-lg font-bold font-mono uppercase text-[var(--text-primary)] tracking-tight">
                 {family}
               </h3>
@@ -182,12 +182,12 @@ export const FamilyModelSliderRow: React.FC<FamilyModelSliderRowProps> = ({
         </div>
 
         {/* Right Side: View All Action */}
-        <div className="shrink-0 self-start sm:self-center">
+        <div className="shrink-0 w-full sm:w-auto">
           <Button
             variant="outline"
             size="sm"
             onClick={() => onViewAll(family)}
-            className="text-xs font-semibold font-mono gap-1.5 cursor-pointer hover:border-[var(--accent-color)]/60"
+            className="text-xs font-semibold font-mono gap-1.5 cursor-pointer hover:border-[var(--accent-color)]/60 w-full sm:w-auto justify-center"
           >
             View All Models <ArrowUpRight size={13} />
           </Button>
@@ -213,7 +213,7 @@ export const FamilyModelSliderRow: React.FC<FamilyModelSliderRowProps> = ({
         </div>
       ) : models.length === 2 ? (
         /* Case 2: Exactly 2 Models -> 50% - 50% Clean Grid (No empty gap) */
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 w-full">
           {models.map((model) => (
             <ModelSliderCard
               key={model.id}
@@ -229,13 +229,13 @@ export const FamilyModelSliderRow: React.FC<FamilyModelSliderRowProps> = ({
         </div>
       ) : (
         /* Case 3: 3+ Models -> Horizontal Slider Track + 60-Dot Scrubber */
-        <div className="flex flex-col gap-4 w-full select-none">
+        <div className="flex flex-col gap-3.5 sm:gap-4 w-full select-none">
           {/* Track Container with Left and Right Edge Fade Shadows */}
           <div className="relative w-full overflow-hidden">
             {/* Left Edge Fade Shadow */}
-            <div className="absolute top-0 left-0 w-8 sm:w-16 h-full bg-gradient-to-r from-[var(--bg-secondary)] to-transparent z-10 pointer-events-none" />
+            <div className="absolute top-0 left-0 w-6 sm:w-16 h-full bg-gradient-to-r from-[var(--bg-secondary)] to-transparent z-10 pointer-events-none" />
             {/* Right Edge Fade Shadow */}
-            <div className="absolute top-0 right-0 w-8 sm:w-16 h-full bg-gradient-to-l from-[var(--bg-secondary)] to-transparent z-10 pointer-events-none" />
+            <div className="absolute top-0 right-0 w-6 sm:w-16 h-full bg-gradient-to-l from-[var(--bg-secondary)] to-transparent z-10 pointer-events-none" />
 
             {/* Draggable Horizontal Models Track */}
             <div
@@ -245,10 +245,10 @@ export const FamilyModelSliderRow: React.FC<FamilyModelSliderRowProps> = ({
               onPointerMove={handleTrackPointerMove}
               onPointerUp={handleTrackPointerUp}
               onPointerCancel={handleTrackPointerUp}
-              className="flex w-full overflow-x-auto no-scrollbar py-2 cursor-grab active:cursor-grabbing"
+              className="flex w-full overflow-x-auto no-scrollbar py-1.5 sm:py-2 cursor-grab active:cursor-grabbing"
               style={{ scrollBehavior: 'auto' }}
             >
-              <div className="flex w-max px-2 sm:px-4">
+              <div className="flex w-max px-1.5 sm:px-4 gap-2.5 sm:gap-3.5">
                 {models.map((model) => (
                   <ModelSliderCard
                     key={model.id}
@@ -268,7 +268,7 @@ export const FamilyModelSliderRow: React.FC<FamilyModelSliderRowProps> = ({
           <div className="flex items-center justify-center w-full overflow-visible z-10">
             <div
               ref={scrubberRef}
-              className="flex items-center justify-between w-full max-w-4xl p-2 cursor-grab active:cursor-grabbing touch-none"
+              className="flex items-center justify-between w-full max-w-4xl px-2 sm:px-4 py-1.5 sm:py-2 cursor-grab active:cursor-grabbing touch-none"
               style={{
                 maskImage: 'linear-gradient(to right, transparent, black 15%, black 85%, transparent)',
                 WebkitMaskImage: 'linear-gradient(to right, transparent, black 15%, black 85%, transparent)',
