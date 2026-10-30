@@ -1,7 +1,8 @@
 import { readPublicCatalogue } from './public';
 export type RegistryKind = 'plugin' | 'skill' | 'mcp' | 'extension';
 export interface RegistryTool { id: string; kind: RegistryKind; manifest: string; }
-export interface RegistryDetails { name: string; description: string; version: string; build: string; }
+export interface RegistryDetails { name: string; description: string; version: string; build: string;
+  icon: string; tags: string[]; os: string[]; updated: string; author: string; }
 const ROOT = 'https://raw.githubusercontent.com/cluaiz/cluaiz-tools/main/';
 const categories = { plugins: 'plugin', skills: 'skill', mcp: 'mcp', extensions: 'extension' } as const;
 const object = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
@@ -49,6 +50,12 @@ export const toolCatalogue = {
   details: (tool: RegistryTool) => readPublicCatalogue(tool.manifest, value => {
     if (!object(value) || value.id !== tool.id
       || (value.hub_type !== tool.kind && !(tool.kind === 'extension' && value.hub_type === 'soul'))) throw new Error('Registry package identity does not match');
-    return { name: text(value.name) || tool.id, description: text(value.description), version: text(value.latest_version), build: text(value.build_type) };
+    const version = text(value.latest_version);
+    const release = object(value.versions) && object(value.versions[version]) ? value.versions[version] as Record<string, unknown> : {};
+    const strings = (v: unknown) => Array.isArray(v) ? v.filter((item): item is string => typeof item === 'string').slice(0, 64) : [];
+    return { name: text(value.name) || tool.id, description: text(value.description), version, build: text(value.build_type),
+      icon: text(value.icon) || text(value.logo), tags: strings(value.tags),
+      os: [...new Set([...strings(release.builds_os), ...(object(release.os) ? Object.keys(release.os) : [])])],
+      updated: text(release.updated_at), author: object(value.author) ? text(value.author.name) : text(value.author) };
   }),
 };

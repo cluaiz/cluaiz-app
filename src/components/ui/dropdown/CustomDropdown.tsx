@@ -25,6 +25,9 @@ export interface CustomDropdownProps {
     floating?: boolean;
     /** Render each option with its corresponding font family for typography preview */
     previewFont?: boolean;
+    /** Controlled opt-in multi-select; ordinary single-value callers remain unchanged. */
+    selectedValues?: string[];
+    onValuesChange?: (values: string[]) => void;
 }
 
 /** Marks a floating list so popovers treat clicks in it as inside themselves */
@@ -41,7 +44,9 @@ export function CustomDropdown({
     allowCustomInput = false,
     customInputPlaceholder = 'Type custom...',
     floating = false,
-    previewFont = false
+    previewFont = false,
+    selectedValues,
+    onValuesChange
 }: CustomDropdownProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [customInputVal, setCustomInputVal] = useState('');
@@ -97,13 +102,13 @@ export function CustomDropdown({
 
     // Auto-focus search input when opening with 10+ options
     useEffect(() => {
-        if (isOpen && normalizedOptions.length >= 10) {
+        if (isOpen && (normalizedOptions.length >= 10 || selectedValues)) {
             const timer = setTimeout(() => searchInputRef.current?.focus(), 60);
             return () => clearTimeout(timer);
         } else if (!isOpen) {
             setSearchQuery('');
         }
-    }, [isOpen, normalizedOptions.length]);
+    }, [isOpen, normalizedOptions.length, Boolean(selectedValues)]);
 
     // Close on click outside
     useEffect(() => {
@@ -139,6 +144,10 @@ export function CustomDropdown({
     }, [isOpen]);
 
     const handleSelect = (val: string) => {
+        if (selectedValues) {
+            onValuesChange?.(selectedValues.includes(val) ? selectedValues.filter(value => value !== val) : [...selectedValues, val]);
+            return;
+        }
         onChange?.(val);
         setSearchQuery('');
         setIsOpen(false);
@@ -154,6 +163,8 @@ export function CustomDropdown({
             <button
                 type="button"
                 disabled={disabled || loading}
+                aria-expanded={isOpen}
+                aria-haspopup="listbox"
                 onClick={() => setIsOpen((prev) => !prev)}
                 className={`w-full flex items-center justify-between gap-3 px-3.5 py-2 rounded-xl text-xs font-semibold bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] hover:border-[var(--accent-color)]/40 transition-all cursor-pointer focus:outline-none focus:ring-1 focus:ring-[var(--accent-color)]/40 min-w-[180px] ${
                     isOpen ? 'border-[var(--accent-color)] ring-1 ring-[var(--accent-color)]/30' : ''
@@ -163,7 +174,8 @@ export function CustomDropdown({
                     className="truncate"
                     style={(previewFont || selectedOption?.fontFamily) && selectedOption ? { fontFamily: selectedOption.fontFamily || selectedOption.value } : undefined}
                 >
-                    {selectedOption ? selectedOption.label : (value !== undefined && value !== '' ? String(value) : placeholder)}
+                    {selectedValues ? (selectedValues.length ? `${selectedValues.length} selected` : placeholder)
+                        : selectedOption ? selectedOption.label : (value !== undefined && value !== '' ? String(value) : placeholder)}
                 </span>
                 {loading ? (
                     <Loader2 size={14} className="text-[var(--accent-color)] animate-spin shrink-0" />
@@ -193,7 +205,7 @@ export function CustomDropdown({
                         style={floating ? menuStyle : undefined}
                         className={`${floating ? 'z-[1000] max-w-xs' : 'absolute right-0 top-full mt-1.5 z-[300] min-w-[240px] max-w-md'} w-max origin-top-right bg-[var(--bg-secondary)]/95 backdrop-blur-xl border border-[var(--border-color)] rounded-[var(--radius-card)] shadow-2xl p-1.5 overflow-hidden flex flex-col gap-1`}
                     >
-                        {normalizedOptions.length >= 10 && (
+                        {(normalizedOptions.length >= 10 || selectedValues) && (
                             <div className="p-1 pb-1.5 border-b border-[var(--border-color)]/60">
                                 <Input
                                     ref={searchInputRef}
@@ -221,14 +233,16 @@ export function CustomDropdown({
                             </div>
                         )}
 
-                        <div className="max-h-60 overflow-y-auto space-y-0.5 custom-scrollbar">
+                        <div role="listbox" aria-multiselectable={selectedValues ? true : undefined} className="max-h-60 overflow-y-auto space-y-0.5 custom-scrollbar">
                             {filteredOptions.length > 0 ? (
                                 filteredOptions.map((opt) => {
-                                    const isSelected = String(opt.value) === String(value);
+                                    const isSelected = selectedValues ? selectedValues.includes(opt.value) : String(opt.value) === String(value);
                                     return (
                                         <button
                                             key={opt.value}
                                             type="button"
+                                            role="option"
+                                            aria-selected={isSelected}
                                             onClick={() => handleSelect(opt.value)}
                                             className={`w-full flex items-center justify-between gap-3 px-3 py-2 rounded-xl text-xs font-medium text-left transition-colors cursor-pointer group ${
                                                 isSelected

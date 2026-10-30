@@ -168,6 +168,30 @@ legacy extension conversion and Engine crash recovery remain separate work. The 
 and repository may publish older data than local checkouts; the App displays the
 real source or its explicit failure instead of filling missing entries itself.
 
+Models now compose the existing `CatalogueUI` logo/card/search/filter controls and
+`catalogueView` filtering: family/model views, provider multi-select, capability,
+format and popularity/date/name sorting. Missing popularity/date stays unknown,
+after known values. Tool cards use the same themed presentation. Their root list
+supplies IDs and kinds; full names, icons and tags appear after deliberately
+opening a package. Search includes those opened details without fetching every
+manifest. Global tool metadata/OS filters therefore remain separate from the
+currently available root metadata; no synthetic package details are filled in.
+The initial quantization choice prefers the first package accepted by the shared
+install-reference validator, rather than an UNKNOWN/imatrix or incomplete entry.
+An explicit user choice keeps its own refusal; format filtering never invents a
+different file or bypasses ambiguous quantizations.
+Download source is an explicit choice: catalogue ID (default) or the published
+Hugging Face `owner/repo:quant`, both through the same Engine task adapter and
+package validator. Registry failures are never retried automatically or silently
+converted into a direct download. A tracked failed task must be deliberately
+forgotten before a new start; changing the source alone sends no request.
+Installed badges match the Engine's actual repository, format and primary file;
+catalogue references are not compared with Engine-generated installed IDs. An
+acknowledged inventory match disables duplicate installation of that package.
+Model/tool install actions wait for successful inventory discovery. Opening a
+tool's public details cannot clear an Engine-connection error or enable an
+offline install; metadata and installed-inventory errors have separate owners.
+
 ## Download and install tracking
 
 `useCatalogueTask` and `CatalogueTaskStatus` share the existing CEP task owner.

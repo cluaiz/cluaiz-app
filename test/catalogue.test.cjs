@@ -59,6 +59,18 @@ test('model metadata preserves actual variant bytes/status and uses a unique cat
  assert.equal(models.modelInstallReference(m,m.variants[0]),'catalog-model:Q4_K_M');
  assert.equal(m.repo,'owner/repo');assert.equal(m.support,'unknown');
 });
+
+test('direct Hugging Face choice reuses package checks without needing the catalogue resolver',()=>{
+ const [m]=models.parseModels(catalogue());
+ assert.equal(models.modelInstallReference(m,m.variants[0],'huggingface'),'owner/repo:Q4_K_M');
+ for(const repo of ['../private','owner/..','https://evil.invalid/model','owner/repo?bypass=1']){
+  assert.throws(()=>models.modelInstallReference({...m,repo},m.variants[0],'huggingface'),/repository reference/);
+ }
+ const [ambiguous]=models.parseModels(catalogue([variant('a'),variant('b')]));
+ assert.throws(()=>models.modelInstallReference(ambiguous,ambiguous.variants[0],'huggingface'),/Multiple/);
+ const [incomplete]=models.parseModels(catalogue([{...variant(),packageStatus:'incomplete'}]));
+ assert.throws(()=>models.modelInstallReference(incomplete,incomplete.variants[0],'huggingface'),/missing/);
+});
 test('ambiguous, incomplete, forged or unknown quant variants never get a guessed install target',()=>{
  const [m]=models.parseModels(catalogue([variant('a'),{...variant('b'),format:'onnx'}]));
  assert.throws(()=>models.modelInstallReference(m,m.variants[0]),/Multiple/);
