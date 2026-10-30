@@ -64,13 +64,17 @@ export const FamilyModelSliderRow: React.FC<FamilyModelSliderRowProps> = ({
 }) => {
   const scrubberRef = useRef<HTMLDivElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
-  const isDragging = useRef(false);
+  const isScrubberDragging = useRef(false);
+  const isTrackDragging = useRef(false);
+  const trackStartX = useRef(0);
+  const trackStartScrollLeft = useRef(0);
   const localProgress = useMotionValue(0);
 
   const firstModel = models[0];
   const distinctCapabilities = extractFamilyCapabilities(models);
   const cleanDesc = cleanModelDescription(firstModel?.familyDescription || firstModel?.description);
 
+  // Direct 1:1 instantaneous scroll assignment without lag
   const updateScroll = (prog: number) => {
     if (trackRef.current) {
       const maxScroll = trackRef.current.scrollWidth - trackRef.current.clientWidth;
@@ -80,8 +84,9 @@ export const FamilyModelSliderRow: React.FC<FamilyModelSliderRowProps> = ({
     }
   };
 
+  // Synchronize scrubber dots when track scrolls physically
   const handleTrackScroll = () => {
-    if (isDragging.current || !trackRef.current) return;
+    if (isScrubberDragging.current || !trackRef.current) return;
     const maxScroll = trackRef.current.scrollWidth - trackRef.current.clientWidth;
     if (maxScroll > 0) {
       const currentProg = Math.max(0, Math.min(1, trackRef.current.scrollLeft / maxScroll));
@@ -89,7 +94,8 @@ export const FamilyModelSliderRow: React.FC<FamilyModelSliderRowProps> = ({
     }
   };
 
-  const updateProgressFromDrag = (e: React.PointerEvent) => {
+  // Scrubber drag handlers (live real-time update)
+  const updateProgressFromScrubber = (e: React.PointerEvent) => {
     if (!scrubberRef.current) return;
     const rect = scrubberRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
@@ -98,20 +104,48 @@ export const FamilyModelSliderRow: React.FC<FamilyModelSliderRowProps> = ({
     updateScroll(newProgress);
   };
 
-  const handlePointerDown = (e: React.PointerEvent) => {
-    isDragging.current = true;
+  const handleScrubberDown = (e: React.PointerEvent) => {
+    isScrubberDragging.current = true;
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
-    updateProgressFromDrag(e);
+    updateProgressFromScrubber(e);
   };
 
-  const handlePointerMove = (e: React.PointerEvent) => {
-    if (!isDragging.current) return;
-    updateProgressFromDrag(e);
+  const handleScrubberMove = (e: React.PointerEvent) => {
+    if (!isScrubberDragging.current) return;
+    updateProgressFromScrubber(e);
   };
 
-  const handlePointerUp = (e: React.PointerEvent) => {
-    isDragging.current = false;
-    (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+  const handleScrubberUp = (e: React.PointerEvent) => {
+    isScrubberDragging.current = false;
+    try {
+      (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+    } catch { /* ignore */ }
+  };
+
+  // Cards Track direct mouse drag-to-scroll handlers
+  const handleTrackPointerDown = (e: React.PointerEvent) => {
+    // If user clicks a button or link, let the button handle it
+    if ((e.target as HTMLElement).closest('button, a')) return;
+    if (!trackRef.current) return;
+
+    isTrackDragging.current = true;
+    trackStartX.current = e.clientX;
+    trackStartScrollLeft.current = trackRef.current.scrollLeft;
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  };
+
+  const handleTrackPointerMove = (e: React.PointerEvent) => {
+    if (!isTrackDragging.current || !trackRef.current) return;
+    const dx = e.clientX - trackStartX.current;
+    trackRef.current.scrollLeft = trackStartScrollLeft.current - dx;
+    handleTrackScroll();
+  };
+
+  const handleTrackPointerUp = (e: React.PointerEvent) => {
+    isTrackDragging.current = false;
+    try {
+      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+    } catch { /* ignore */ }
   };
 
   return (
@@ -154,7 +188,7 @@ export const FamilyModelSliderRow: React.FC<FamilyModelSliderRowProps> = ({
             variant="outline"
             size="sm"
             onClick={() => onViewAll(family)}
-            className="text-xs font-semibold font-mono gap-1.5 cursor-pointer"
+            className="text-xs font-semibold font-mono gap-1.5 cursor-pointer hover:border-[var(--accent-color)]/60"
           >
             View All Models <ArrowUpRight size={13} />
           </Button>
@@ -162,27 +196,40 @@ export const FamilyModelSliderRow: React.FC<FamilyModelSliderRowProps> = ({
       </div>
 
       {/* ------------------------------------------------------------------ */}
-      {/* SECTION 2: FAMILY BODY (MODELS SLIDER + EXACT WAVE SCRUBBER)       */}
+      {/* SECTION 2: FAMILY BODY (MODELS SLIDER + WAVE SCRUBBER + EDGE FADES)*/}
       {/* ------------------------------------------------------------------ */}
-      <div className="flex flex-col gap-4 w-full overflow-hidden select-none">
-        {/* Horizontal Models Track */}
-        <div
-          ref={trackRef}
-          onScroll={handleTrackScroll}
-          className="flex w-full overflow-x-auto no-scrollbar py-2 cursor-grab active:cursor-grabbing scroll-smooth"
-        >
-          <div className="flex w-max px-2 sm:px-4">
-            {models.map((model) => (
-              <ModelSliderCard
-                key={model.id}
-                model={model}
-                installed={installed}
-                isBusy={isBusy}
-                downloadingTarget={downloadingTarget}
-                onDownload={onDownload}
-                onSelectModel={onSelectModel}
-              />
-            ))}
+      <div className="flex flex-col gap-4 w-full select-none">
+        {/* Track Container with Left and Right Edge Fade Shadows */}
+        <div className="relative w-full overflow-hidden">
+          {/* Left Edge Fade Shadow */}
+          <div className="absolute top-0 left-0 w-8 sm:w-16 h-full bg-gradient-to-r from-[var(--bg-secondary)] to-transparent z-10 pointer-events-none" />
+          {/* Right Edge Fade Shadow */}
+          <div className="absolute top-0 right-0 w-8 sm:w-16 h-full bg-gradient-to-l from-[var(--bg-secondary)] to-transparent z-10 pointer-events-none" />
+
+          {/* Draggable Horizontal Models Track */}
+          <div
+            ref={trackRef}
+            onScroll={handleTrackScroll}
+            onPointerDown={handleTrackPointerDown}
+            onPointerMove={handleTrackPointerMove}
+            onPointerUp={handleTrackPointerUp}
+            onPointerCancel={handleTrackPointerUp}
+            className="flex w-full overflow-x-auto no-scrollbar py-2 cursor-grab active:cursor-grabbing"
+            style={{ scrollBehavior: 'auto' }}
+          >
+            <div className="flex w-max px-2 sm:px-4">
+              {models.map((model) => (
+                <ModelSliderCard
+                  key={model.id}
+                  model={model}
+                  installed={installed}
+                  isBusy={isBusy}
+                  downloadingTarget={downloadingTarget}
+                  onDownload={onDownload}
+                  onSelectModel={onSelectModel}
+                />
+              ))}
+            </div>
           </div>
         </div>
 
@@ -196,10 +243,10 @@ export const FamilyModelSliderRow: React.FC<FamilyModelSliderRowProps> = ({
                 maskImage: 'linear-gradient(to right, transparent, black 15%, black 85%, transparent)',
                 WebkitMaskImage: 'linear-gradient(to right, transparent, black 15%, black 85%, transparent)',
               }}
-              onPointerDown={handlePointerDown}
-              onPointerMove={handlePointerMove}
-              onPointerUp={handlePointerUp}
-              onPointerCancel={handlePointerUp}
+              onPointerDown={handleScrubberDown}
+              onPointerMove={handleScrubberMove}
+              onPointerUp={handleScrubberUp}
+              onPointerCancel={handleScrubberUp}
             >
               {Array.from({ length: 60 }).map((_, i) => (
                 <ScrubberDot key={i} index={i} total={60} progress={localProgress} />

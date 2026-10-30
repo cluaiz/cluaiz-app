@@ -42,9 +42,9 @@ export const ModelSliderCard: React.FC<ModelSliderCardProps> = ({
     : `${model.id.toLowerCase()}:latest:gguf:q4_k_m`;
 
   return (
-    <div className="group relative flex flex-col justify-between gap-4 p-4 sm:p-5 mx-2 border-2 border-[var(--border-color)] bg-[var(--bg-secondary)] transition-all min-w-[340px] sm:min-w-[420px] text-left rounded-xl select-none">
-      {/* Top Section: Logo + Details (Exact cluaiz.com style) */}
-      <div className="flex flex-row items-start sm:items-center gap-4 w-full">
+    <div className="group relative flex flex-col justify-between gap-3.5 p-4 sm:p-5 mx-1.5 border-2 border-[var(--border-color)] bg-[var(--bg-secondary)] transition-all min-w-[340px] sm:min-w-[420px] text-left rounded-xl select-none">
+      {/* Top Section: Logo + Header Details */}
+      <div className="flex flex-row items-start sm:items-center gap-3.5 w-full">
         <div className="relative w-14 h-14 sm:w-16 sm:h-16 border-2 border-[var(--border-color)] bg-[var(--bg-tertiary)] overflow-hidden shrink-0 flex items-center justify-center rounded-lg">
           <CatalogueLogo source={model.logo} name={model.name || model.id} large />
         </div>
@@ -84,13 +84,27 @@ export const ModelSliderCard: React.FC<ModelSliderCardProps> = ({
         </div>
       </div>
 
-      {/* Quantizations Selector Pills */}
-      <div className="space-y-1.5 pt-1">
-        <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] font-mono">
-          <span>Select Quantization:</span>
-          <span>{variants.length} packages</span>
+      {/* Stepped Square-Dots Quantization Slider */}
+      <div className="space-y-1.5 pt-2 border-t border-[var(--border-color)]/60">
+        <div className="flex items-center justify-between text-xs font-mono">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className="text-[10px] uppercase font-bold tracking-wider text-[var(--text-muted)]">Quant:</span>
+            <span className="font-bold text-[var(--text-primary)] bg-[var(--bg-tertiary)] px-1.5 py-0.5 rounded border border-[var(--border-color)] truncate">
+              {currentVariant?.quant || 'Default'}
+            </span>
+            <span className="text-[10px] text-[var(--text-muted)] uppercase">
+              {currentVariant?.format}
+            </span>
+          </div>
+          <div className="text-right shrink-0">
+            <span className="font-bold text-[var(--accent-color)] font-mono text-xs">
+              {currentVariant ? `${(currentVariant.bytes / 1024 ** 3).toFixed(2)} GiB` : ''}
+            </span>
+          </div>
         </div>
-        <div className="flex flex-wrap gap-1.5 max-h-18 overflow-y-auto custom-scrollbar">
+
+        {/* Square Dots Stepper Track */}
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1">
           {variants.map((v) => {
             const isSelected = currentVariant?.id === v.id;
             const isInstalled = !!installedModelForVariant(installed, model, v);
@@ -99,16 +113,21 @@ export const ModelSliderCard: React.FC<ModelSliderCardProps> = ({
               <button
                 key={v.id}
                 type="button"
+                title={`${v.quant} · ${(v.bytes / 1024 ** 3).toFixed(1)} GiB`}
                 onClick={() => setSelectedVariant(v)}
-                className={`px-2 py-0.5 rounded text-[11px] font-mono transition-all cursor-pointer flex items-center gap-1 border ${
+                className={`h-7 px-2 rounded-[5px] text-[11px] font-mono font-bold transition-all cursor-pointer flex items-center justify-center gap-1 shrink-0 border ${
                   isSelected
-                    ? 'bg-[var(--accent-color)] text-[var(--bg-primary)] border-[var(--accent-color)] font-bold shadow-xs'
-                    : 'bg-[var(--bg-tertiary)] text-[var(--text-secondary)] border-[var(--border-color)] hover:text-[var(--text-primary)] hover:border-[var(--accent-color)]/40'
+                    ? 'bg-[var(--accent-color)] text-[var(--bg-primary)] border-[var(--accent-color)] shadow-xs scale-105 z-10'
+                    : 'bg-[var(--bg-tertiary)] text-[var(--text-secondary)] border-[var(--border-color)] hover:text-[var(--text-primary)] hover:border-[var(--accent-color)]/50'
                 }`}
               >
                 <span>{v.quant}</span>
-                <span className="text-[10px] opacity-75">· {(v.bytes / 1024 ** 3).toFixed(1)}G</span>
-                {isInstalled && <CheckCircle2 size={10} className="text-[var(--status-success)]" />}
+                {isInstalled && (
+                  <CheckCircle2
+                    size={10}
+                    className={isSelected ? 'text-[var(--bg-primary)]' : 'text-[var(--status-success)]'}
+                  />
+                )}
               </button>
             );
           })}
@@ -142,7 +161,7 @@ export const ModelSliderCard: React.FC<ModelSliderCardProps> = ({
                 size="sm"
                 disabled={isDownloadingCurrent}
                 onClick={() => onDownload(model, currentVariant)}
-                className="text-xs font-semibold gap-1.5 py-1 px-3 h-7"
+                className="text-xs font-semibold gap-1.5 py-1 px-3 h-7 cursor-pointer"
               >
                 <Download size={12} />
                 {isDownloadingCurrent ? 'Downloading…' : 'Download'}
