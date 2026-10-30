@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { motion, PanInfo, useMotionValue, animate } from 'framer-motion';
+import { motion, PanInfo, useMotionValue, useReducedMotion, animate } from 'framer-motion';
 import { Icons } from '../animate-ui/icons';
 import { HoldButton } from '../HoldButton/HoldButton';
 import { ChatRibbon } from '../ui/ChatRibbon';
@@ -46,6 +46,7 @@ export const SwipeableChatCard: React.FC<SwipeableChatCardProps> = ({
 }) => {
     // Real-time Motion Value & Guaranteed Spring Snapping
     const x = useMotionValue(0);
+    const reduceMotion = useReducedMotion();
     const [isOpened, setIsOpened] = useState<boolean>(false);
     const [isDragging, setIsDragging] = useState<boolean>(false);
 
@@ -102,7 +103,14 @@ export const SwipeableChatCard: React.FC<SwipeableChatCardProps> = ({
     const isDrawerVisible = isOpened || isDragging;
 
     return (
-        <div className="relative overflow-hidden rounded-xl my-1 select-none bg-transparent">
+        <motion.div
+            className="relative overflow-hidden rounded-xl my-1 select-none bg-transparent"
+            initial={false}
+            animate={reduceMotion ? { scale: 1, y: 0, opacity: 1 } : { scale: 0.8, y: 12, opacity: 0 }}
+            whileInView={{ scale: 1, y: 0, opacity: 1 }}
+            viewport={{ amount: 0.5, once: false }}
+            transition={{ type: 'spring', stiffness: 320, damping: 24, opacity: { duration: 0.18 } }}
+        >
             {/* Left Drawer (Revealed on Right Swipe): Pin / Unpin (Icon Only, Compact 42px, Dim Theme Accent) */}
             <div
                 className={`absolute inset-y-0 left-0 flex items-stretch z-0 transition-opacity duration-150 ${
@@ -241,7 +249,7 @@ export const SwipeableChatCard: React.FC<SwipeableChatCardProps> = ({
                     </span>
                 </div>
             </motion.div>
-        </div>
+        </motion.div>
     );
 };
 
