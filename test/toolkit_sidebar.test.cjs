@@ -33,3 +33,18 @@ test('TOOLKIT_SECTIONS has 5 core sections covering models, tools, extensions, a
   assert.equal(sections[3].id, 'extensions');
   assert.equal(sections[4].id, 'components');
 });
+
+test('dock search tooltip accurately reflects activeView', () => {
+  function getSearchTooltip(activeView, isFlyoutOpen) {
+    if (isFlyoutOpen) return '';
+    if (activeView === 'apis') return 'Search Endpoints';
+    if (activeView === 'toolkit') return 'Search Toolkit';
+    return 'Search & Chats';
+  }
+
+  assert.equal(getSearchTooltip('chat', false), 'Search & Chats');
+  assert.equal(getSearchTooltip('apis', false), 'Search Endpoints');
+  assert.equal(getSearchTooltip('toolkit', false), 'Search Toolkit');
+  assert.equal(getSearchTooltip('toolkit', true), '');
+  assert.equal(getSearchTooltip('apis', true), '');
+});

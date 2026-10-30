@@ -891,7 +891,7 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                                 className="relative flex items-center justify-center"
                             >
                                 <DockIconButton
-                                    tooltip={isFlyoutOpen ? "" : (activeView === 'apis' ? "Search Endpoints" : "Search & Chats")}
+                                    tooltip={isFlyoutOpen ? "" : (activeView === 'apis' ? "Search Endpoints" : activeView === 'toolkit' ? "Search Toolkit" : "Search & Chats")}
                                     icon={Icons.Search}
                                     isActive={isFlyoutOpen}
                                     onClick={() => setIsFlyoutOpen(prev => !prev)}
@@ -951,29 +951,59 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                             />
 
                             {/* 6. APIs */}
-                            <DockIconButton
-                                tooltip="APIs"
-                                icon={Icons.Code2}
-                                isActive={activeView === 'apis'}
-                                onClick={() => {
-                                    useLayoutStore.getState().setActiveView('apis');
-                                    document.dispatchEvent(new CustomEvent('open-apis'));
-                                    setIsFlyoutOpen(false);
+                            <div
+                                onMouseEnter={() => {
+                                    if (activeView === 'apis') {
+                                        handleFlyoutOpen();
+                                    }
                                 }}
-                            />
+                                onMouseLeave={handleFlyoutLeave}
+                                className="relative flex items-center justify-center"
+                            >
+                                <DockIconButton
+                                    tooltip={isFlyoutOpen && activeView === 'apis' ? "" : "APIs"}
+                                    icon={Icons.Code2}
+                                    isActive={activeView === 'apis'}
+                                    onClick={() => {
+                                        const isCurrent = activeView === 'apis';
+                                        useLayoutStore.getState().setActiveView('apis');
+                                        document.dispatchEvent(new CustomEvent('open-apis'));
+                                        if (isCurrent) {
+                                            setIsFlyoutOpen(prev => !prev);
+                                        } else {
+                                            setIsFlyoutOpen(true);
+                                        }
+                                    }}
+                                />
+                            </div>
 
                             {/* 7. Toolkit */}
-                            <DockIconButton
-                                tooltip="Toolkit"
-                                icon={Icons.Boxes}
-                                isActive={activeView === 'toolkit'}
-                                onClick={() => {
-                                    useLayoutStore.getState().setActiveView('toolkit');
-                                    pushViewRoute('toolkit');
-                                    document.dispatchEvent(new CustomEvent('open-toolkit'));
-                                    setIsFlyoutOpen(false);
+                            <div
+                                onMouseEnter={() => {
+                                    if (activeView === 'toolkit') {
+                                        handleFlyoutOpen();
+                                    }
                                 }}
-                            />
+                                onMouseLeave={handleFlyoutLeave}
+                                className="relative flex items-center justify-center"
+                            >
+                                <DockIconButton
+                                    tooltip={isFlyoutOpen && activeView === 'toolkit' ? "" : "Toolkit"}
+                                    icon={Icons.Boxes}
+                                    isActive={activeView === 'toolkit'}
+                                    onClick={() => {
+                                        const isCurrent = activeView === 'toolkit';
+                                        useLayoutStore.getState().setActiveView('toolkit');
+                                        pushViewRoute('toolkit');
+                                        document.dispatchEvent(new CustomEvent('open-toolkit'));
+                                        if (isCurrent) {
+                                            setIsFlyoutOpen(prev => !prev);
+                                        } else {
+                                            setIsFlyoutOpen(true);
+                                        }
+                                    }}
+                                />
+                            </div>
 
                             {/* 8. UI Components Showroom */}
                             <DockIconButton
