@@ -68,21 +68,20 @@ export function ToolCatalogue() {
   const rows = filterTools((catalogue.reply?.data ?? []).map(tool => ({ tool, details: openedDetails[`${tool.kind}:${tool.id}`] })),
     { query, kind, build: '', os: '', sort: 'name' });
   return <div className="space-y-4">
-    <div className="flex items-center justify-between gap-3"><p className="text-sm">Available packages from the Cluaiz Tools repository.</p>
-      <Button variant="outline" disabled={catalogue.busy || busy} onClick={() => { void catalogue.refresh(); setConnection(v => v + 1); }}>Refresh</Button></div>
-    <div className="flex flex-col sm:flex-row sm:items-end gap-4"><CatalogueSearch value={query} onChange={value => { setQuery(value); setLimit(24); }} placeholder="Search package IDs or opened details" />
+    <div><h2 className="text-base font-semibold">Available tools</h2><p className="mt-1 text-xs text-[var(--text-secondary)]">Plugins, MCP servers and skills for your workspace.</p></div>
+    <div className="flex flex-col sm:flex-row sm:items-end gap-3"><CatalogueSearch value={query} onChange={value => { setQuery(value); setLimit(24); }} placeholder="Search package IDs or opened details" />
       <div className="sm:w-64"><CatalogueFilter label="Package type" icon={Boxes}><CustomDropdown value={kind} options={[{ value: '', label: 'All types' }, ...['plugin', 'skill', 'mcp', 'extension'].map(value => ({ value, label: value }))]} onChange={value => { setKind(value); setLimit(24); }} /></CatalogueFilter></div></div>
+    <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-xs text-[var(--text-muted)]">{rows.length} packages · Open a package for details</p>
+      <Button variant="outline" size="sm" disabled={catalogue.busy || busy} onClick={() => { void catalogue.refresh(); setConnection(v => v + 1); }}>Refresh</Button></div>
     {catalogue.busy && <p role="status">Loading available packages…</p>}
     {(catalogue.error || catalogue.reply?.warning) && <p role="alert">{catalogue.error || catalogue.reply?.warning}</p>}
     {engineError && <p role="alert">{engineError}</p>}
     {message && <p role="status">{message}</p>}
     <CatalogueTaskStatus {...installation} />
-    <p className="text-xs text-[var(--text-secondary)]">Catalogue metadata is untrusted text. A listing does not grant permissions or prove runtime compatibility. Package details load only when opened.</p>
-    <p className="text-xs text-[var(--text-muted)]">{rows.length} packages · Full names, icons and tags load when you open a package; filtering does not fetch every manifest.</p>
-    <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">{rows.slice(0, limit).map(({ tool, details: metadata }) => <CatalogueCard key={`${tool.kind}:${tool.id}`}
-      title={metadata?.name || tool.id} subtitle={metadata?.author || tool.kind} source={metadata?.icon} imageBase={tool.manifest}
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{rows.slice(0, limit).map(({ tool, details: metadata }) => <CatalogueCard key={`${tool.kind}:${tool.id}`}
+      title={metadata?.name || tool.id} subtitle={metadata?.author || ''} source={metadata?.icon} imageBase={tool.manifest}
       marker={installed.includes(`${tool.kind}:${tool.id}`) ? 'Installed' : tool.kind} description={metadata?.description || 'Open this package to load its published details.'}
-      tags={metadata?.tags || [tool.kind]} identity={tool.id} meta={metadata?.version}
+      tags={metadata?.tags || []} identity={tool.id} meta={metadata?.version}
       onOpen={() => { if (!busy) void inspect(tool); }} />)}</div>
     {rows.length > limit && <Button variant="outline" onClick={() => setLimit(value => value + 24)}>Show more packages</Button>}
     {!catalogue.busy && catalogue.reply && !rows.length && <p>No packages match these filters.</p>}

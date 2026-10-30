@@ -7,7 +7,7 @@ import { EngineOfflineGuard } from '../settings/EngineOfflineGuard';
 import { Tabs } from '../../components/ui/Tabs';
 const AvailableTools = lazy(() => import('../extensions/ToolCatalogue').then(module => ({ default: module.ToolCatalogue })));
 
-export const ToolsWorkspace: React.FC = () => {
+export const ToolsWorkspace: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
     const [section, setSection] = useState<'available' | 'installed'>('available');
     const handleBackToChat = () => {
         useLayoutStore.getState().setActiveView('chat');
@@ -17,7 +17,7 @@ export const ToolsWorkspace: React.FC = () => {
     return (
         <div className="flex flex-col h-full w-full min-w-0 overflow-hidden bg-[var(--bg-primary)] font-sans">
             {/* Top Workspace Header Bar */}
-            <header className="h-14 border-b border-[var(--border-color)]/80 bg-[var(--bg-secondary)]/60 backdrop-blur-md px-6 flex items-center justify-between flex-shrink-0 z-10">
+            {!embedded && <header className="h-14 border-b border-[var(--border-color)]/80 bg-[var(--bg-secondary)]/60 backdrop-blur-md px-6 flex items-center justify-between flex-shrink-0 z-10">
                 <div className="flex items-center gap-3">
                     <button
                         type="button"
@@ -61,10 +61,10 @@ export const ToolsWorkspace: React.FC = () => {
                         <span className="hidden sm:inline">Settings</span>
                     </button>
                 </div>
-            </header>
+            </header>}
 
             {/* Main Content Area */}
-            <main className="flex-1 overflow-y-auto custom-scrollbar p-6 bg-[var(--bg-primary)]">
+            <main className={`flex-1 overflow-y-auto custom-scrollbar ${embedded ? 'p-5' : 'p-6'} bg-[var(--bg-primary)]`}>
                 <div className="max-w-7xl mx-auto">
                     <Tabs items={[{ id: 'available', label: 'Available' }, { id: 'installed', label: 'Installed' }]} value={section} onChange={setSection} />
                     {section === 'available' ? <div className="py-4"><Suspense fallback={<p>Opening tool catalogue…</p>}><AvailableTools /></Suspense></div> :

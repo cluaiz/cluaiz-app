@@ -59,15 +59,17 @@ export function ModelCatalogue() {
     const reference = modelInstallReference(model, variant, source);
     await download.start(reference, (signal, observer) => modelsApi.downloadModel({ model_id: reference }, signal, observer));
   }
-  return <div className="p-5 space-y-4">
-    <div className="flex items-center justify-between gap-3">
-      <div><h2 className="font-semibold">Models</h2><p className="text-sm text-[var(--text-secondary)]">Browse the Cluaiz website catalogue. Downloads run in your selected Engine.</p></div>
-      <Button variant="outline" disabled={catalogue.busy} onClick={() => { void catalogue.refresh(); setConnection(value => value + 1); }}>Refresh</Button>
+  return <div className="mx-auto w-full max-w-7xl p-5 space-y-4">
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <div><h2 className="text-base font-semibold">Models</h2><p className="mt-1 text-xs text-[var(--text-secondary)]">Find a model and choose a package for your Engine.</p></div>
+      <Tabs items={[{ id: 'families', label: 'Families' }, { id: 'models', label: 'All models' }]} value={view} onChange={value => { setView(value); setFamily(''); setLimit(24); }} />
     </div>
-    <Tabs items={[{ id: 'families', label: 'Family cards' }, { id: 'models', label: 'Single models' }]} value={view} onChange={value => { setView(value); setFamily(''); setLimit(24); }} />
     {family && <Button variant="ghost" onClick={() => { setFamily(''); setLimit(24); }}>All families · {family}</Button>}
-    <CatalogueSearch value={query} onChange={value => { setQuery(value); setLimit(24); }} placeholder="Search models, families, architectures or providers" />
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 rounded-xl border border-[var(--border-color)] p-4">
+    <div className="flex items-center gap-3">
+      <CatalogueSearch value={query} onChange={value => { setQuery(value); setLimit(24); }} placeholder="Search models, families, architectures or providers" />
+      <Button variant="outline" size="sm" disabled={catalogue.busy} onClick={() => { void catalogue.refresh(); setConnection(value => value + 1); }}>Refresh</Button>
+    </div>
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       <CatalogueFilter label="Model format" icon={Layers}><CustomDropdown value={format} options={[{ value: '', label: 'All formats' }, { value: 'gguf', label: 'GGUF' }, { value: 'onnx', label: 'ONNX' }]} onChange={value => { setFormat(value); setLimit(24); }} /></CatalogueFilter>
       <CatalogueFilter label="Capabilities" icon={Sparkles}><CustomDropdown value={task} options={[{ value: '', label: 'All capabilities' }, ...tasks.map(value => ({ value, label: value }))]} onChange={value => { setTask(value); setLimit(24); }} /></CatalogueFilter>
       <CatalogueFilter label="Providers" icon={Globe}><CustomDropdown selectedValues={providers} onValuesChange={values => { setProviders(values); setLimit(24); }} placeholder="All providers" options={[...new Set(models.map(model => model.provider).filter(Boolean))].sort().map(value => ({ value, label: value }))} /></CatalogueFilter>
@@ -82,40 +84,42 @@ export function ModelCatalogue() {
     {(catalogue.error || catalogue.reply?.warning) && <p role="alert">{catalogue.error || catalogue.reply?.warning}</p>}
     {engineError && <p role="alert">Installed model status unavailable. {engineError}</p>}
     <CatalogueTaskStatus {...download} />
-    <div className="space-y-2 sm:max-w-sm">
-      <p className="text-xs text-[var(--text-secondary)]">Download source</p>
+    {(view === 'models' || family) && <div className="flex flex-wrap items-center gap-3">
+      <p className="text-xs text-[var(--text-secondary)]">Download source</p><div className="w-full sm:w-64">
       <CustomDropdown disabled={busy} value={source} onChange={value => setSource(value as ModelInstallSource)} options={[
         { value: 'catalogue', label: 'Cluaiz catalogue' },
         { value: 'huggingface', label: 'Hugging Face · direct repository' },
-      ]} />
-    </div>
-    <p className="text-xs text-[var(--text-muted)]">If the Cluaiz registry is unavailable, select Hugging Face to use the published repository directly. No automatic retry. Forget any failed task tracking before starting another download.</p>
-    {catalogue.reply && <p className="text-xs text-[var(--text-secondary)]">{filtered.length} models · Catalogue saved {new Date(catalogue.reply.saved).toLocaleString()} · Search and filters use the saved list.</p>}
-    {view === 'families' && !family ? <div className="grid gap-3 lg:grid-cols-2">{[...new Set(filtered.map(model => model.family))].map(name => {
+      ]} /></div>
+    </div>}
+    {download.error && <p className="text-xs text-[var(--text-muted)]">If the registry is unavailable, choose Hugging Face after forgetting the failed task reference. Downloads are never retried automatically.</p>}
+    {catalogue.reply && <p className="text-xs text-[var(--text-muted)]">{filtered.length} models · Saved {new Date(catalogue.reply.saved).toLocaleString()}</p>}
+    {view === 'families' && !family ? <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{[...new Set(filtered.map(model => model.family))].map(name => {
       const members = filtered.filter(model => model.family === name);
       return <CatalogueCard key={name} title={name} subtitle={members[0]?.provider} source={members[0]?.logo} icon={Boxes}
         marker={`${members.length} models`} description={members[0]?.familyDescription || members[0]?.description}
         tags={members.flatMap(model => model.tasks)} identity={name}
         onOpen={() => { setFamily(name); setLimit(24); }} />;
-    })}</div> : <div className="grid gap-3 lg:grid-cols-2">{filtered.slice(0, limit).map(model => {
+    })}</div> : <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{filtered.slice(0, limit).map(model => {
       const variants = model.variants.filter(v => !format || v.format === format);
       const variant = chooseModelVariant(model, variants, chosen[model.id]);
       const installedModel = installedModelForVariant(installed, model, variant);
       let reference = '', refusal = '';
       try { if (variant) reference = modelInstallReference(model, variant, source); else refusal = 'No downloadable package is available.'; }
       catch (error) { refusal = String(error); }
-      return <Card key={model.id}><CardHeader><div className="flex items-center gap-4"><CatalogueLogo source={model.logo} name={model.name || model.id} /><CardTitle>{model.name || model.id}</CardTitle></div></CardHeader><CardContent className="space-y-3">
-        <p className="text-xs text-[var(--text-secondary)]">{model.family} · {model.provider} · {model.repo}</p>
-        <p className="text-sm">{model.description}</p>
+      return <Card key={model.id} className="min-w-0" style={{ padding: 16 }}><CardHeader><div className="flex items-center gap-3"><CatalogueLogo source={model.logo} name={model.name || model.id} /><div className="min-w-0"><CardTitle>{model.name || model.id}</CardTitle><p className="mt-1 text-xs text-[var(--text-muted)]">{model.provider}</p></div></div></CardHeader><CardContent className="space-y-3">
+        <p className="text-xs leading-5 text-[var(--text-secondary)] line-clamp-2">{model.description || model.familyDescription}</p>
         <CatalogueTags values={model.tasks} /><p className="text-xs">Runtime: {model.support}</p>
-        <p className="text-xs text-[var(--text-secondary)]">{[model.architecture, model.parameters, model.context].filter(Boolean).join(' · ')}</p>
-        {model.note && <p className="text-xs text-[var(--text-secondary)]">{model.note}</p>}
         <CustomDropdown disabled={!variants.length || !!busy} value={variant?.id} placeholder="No package available"
           options={variants.map(v => ({ value: v.id, label: `${v.format.toUpperCase()} · ${v.quant} · ${(v.bytes / 1024 ** 3).toFixed(2)} GiB`, description: `${v.file} · ${v.readiness}` }))}
           onChange={value => setChosen(previous => ({ ...previous, [model.id]: value }))} />
-        {refusal && <p className="text-xs">{refusal}</p>}
-        {variant && <p className="text-xs break-all">{variant.file}</p>}
-        {reference && <p className="text-xs break-all text-[var(--text-muted)]">Download reference: {reference}</p>}
+        {refusal && <p className="text-xs break-words">{refusal}</p>}
+        <details className="text-xs text-[var(--text-secondary)]"><summary className="cursor-pointer">Package details</summary><div className="mt-2 space-y-2 break-words">
+          <p>{model.family} · {model.repo}</p>
+          <p>{[model.architecture, model.parameters, model.context].filter(Boolean).join(' · ')}</p>
+          {model.note && <p>{model.note}</p>}
+          {variant && <p className="break-all">{variant.file}</p>}
+          {reference && <p className="break-all">Download reference: {reference}</p>}
+        </div></details>
         <Button disabled={!reference || !download.canStart || !inventoryReady || !!engineError || !!installedModel} onClick={() => { if (variant) void install(model, variant); }}>
           {installedModel ? 'Installed' : busy && download.receipt?.target === reference ? 'Downloading…' : 'Download selected package'}
         </Button>

@@ -12,8 +12,8 @@ const DeveloperPreview = lazy(() => import('./DeveloperExtensionWorkspace'));
 const Models = lazy(() => import('./ModelCatalogue').then(module => ({ default: module.ModelCatalogue })));
 export const TOOLKIT_SECTIONS = [
     { id: 'models', label: 'Models' },
+    { id: 'tools', label: 'Tools' },
     { id: 'extensions', label: 'Extensions' },
-    { id: 'tools', label: 'Plugins, MCP & skills' },
     { id: 'components', label: 'UI components & SDK' },
 ] as const;
 type Section = typeof TOOLKIT_SECTIONS[number]['id'];
@@ -38,13 +38,15 @@ export function ToolkitWorkspace() {
         window.history.pushState(window.history.state, '', url);
     }
     return <section className="flex flex-col h-full min-h-0 bg-[var(--bg-primary)] text-[var(--text-primary)]">
-        <header className="shrink-0 border-b border-[var(--border-color)] p-3 space-y-2">
-            <h1 className="font-semibold">Toolkit</h1>
-            <Tabs items={[...TOOLKIT_SECTIONS]} value={section} onChange={select} />
+        <header className="shrink-0 border-b border-[var(--border-color)]">
+            <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-6 gap-y-1 px-5 py-2">
+                <h1 className="text-sm font-semibold">Toolkit</h1>
+                <Tabs variant="underline" className="!border-0" items={[...TOOLKIT_SECTIONS]} value={section} onChange={select} />
+            </div>
         </header>
         <div className="flex-1 min-h-0 overflow-auto">
             {section === 'models' && <Suspense fallback={<p className="p-4">Opening models…</p>}><Models /></Suspense>}
-            {section === 'tools' && <ToolsWorkspace />}
+            {section === 'tools' && <ToolsWorkspace embedded />}
             {section === 'components' && <ComponentShowcase />}
             {section === 'extensions' && (preview && import.meta.env.DEV ? <div className="flex flex-col h-full min-h-0">
                 <div className="shrink-0"><Button variant="ghost" className="m-3" onClick={() => setPreview(false)}>Back to Extensions</Button></div>
