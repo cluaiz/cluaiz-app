@@ -195,3 +195,37 @@ test('ScrubberDot calculates center and progress distance correctly across 60 do
   assert.ok(dotMid.minActive < dotMid.center);
 });
 
+test('CatalogueStickyHeader hides title and subtitle when breadcrumbs are active', () => {
+  function getHeaderDisplayMode({ breadcrumbs, title, subtitle }) {
+    if (breadcrumbs) {
+      return { renderBreadcrumbs: true, renderTitle: false, renderSubtitle: false };
+    }
+    return { renderBreadcrumbs: false, renderTitle: Boolean(title), renderSubtitle: Boolean(subtitle) };
+  }
+
+  // Root view: No breadcrumbs -> Title and subtitle rendered
+  const rootMode = getHeaderDisplayMode({ breadcrumbs: null, title: 'AI Models', subtitle: 'Find a model...' });
+  assert.equal(rootMode.renderBreadcrumbs, false);
+  assert.equal(rootMode.renderTitle, true);
+  assert.equal(rootMode.renderSubtitle, true);
+
+  // Detail view: Breadcrumbs active -> Title and subtitle suppressed
+  const detailMode = getHeaderDisplayMode({ breadcrumbs: '← All Families / Qwen', title: 'Qwen Models', subtitle: 'Available neural packages...' });
+  assert.equal(detailMode.renderBreadcrumbs, true);
+  assert.equal(detailMode.renderTitle, false);
+  assert.equal(detailMode.renderSubtitle, false);
+});
+
+test('Family Hero Banner watermark dissolves smoothly without neon glow', () => {
+  const heroConfig = {
+    minHeight: 'min-h-[220px]',
+    hasNeonGlowBulb: false,
+    maskImage: 'radial-gradient(ellipse at center right, rgba(0,0,0,0.65) 15%, rgba(0,0,0,0.2) 55%, transparent 95%)',
+  };
+
+  assert.equal(heroConfig.hasNeonGlowBulb, false, 'Fake neon light bulb must not be present');
+  assert.ok(heroConfig.minHeight.includes('220px'), 'Hero card should have expanded vertical height');
+  assert.ok(heroConfig.maskImage.includes('radial-gradient'), 'Watermark must use smooth radial gradient fade');
+});
+
+

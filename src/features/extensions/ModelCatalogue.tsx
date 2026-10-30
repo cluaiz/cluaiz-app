@@ -186,21 +186,21 @@ export function ModelCatalogue() {
         subtitle={pageSubtitle}
         breadcrumbs={
           (selectedModel || family) ? (
-            <div className="flex items-center gap-1.5 text-xs text-[var(--text-muted)]">
+            <div className="flex items-center gap-2 text-xs sm:text-sm text-[var(--text-muted)] font-mono">
               <button
                 type="button"
                 onClick={() => { setFamily(''); setSelectedModel(null); }}
-                className="hover:text-[var(--text-primary)] cursor-pointer flex items-center gap-1 font-medium transition-colors"
+                className="hover:text-[var(--text-primary)] cursor-pointer flex items-center gap-1.5 font-medium transition-colors"
               >
-                <ArrowLeft size={12} /> All Families
+                <ArrowLeft size={14} /> All Families
               </button>
               {family && (
                 <>
-                  <span>/</span>
+                  <span className="text-[var(--border-color)]">/</span>
                   <button
                     type="button"
                     onClick={() => setSelectedModel(null)}
-                    className={`hover:text-[var(--text-primary)] cursor-pointer font-medium transition-colors ${!selectedModel ? 'text-[var(--accent-color)] font-semibold' : ''}`}
+                    className={`hover:text-[var(--text-primary)] cursor-pointer font-bold tracking-tight transition-colors ${!selectedModel ? 'text-[var(--text-primary)]' : ''}`}
                   >
                     {family}
                   </button>
@@ -208,8 +208,8 @@ export function ModelCatalogue() {
               )}
               {selectedModel && (
                 <>
-                  <span>/</span>
-                  <span className="text-[var(--accent-color)] font-semibold truncate max-w-[150px]">
+                  <span className="text-[var(--border-color)]">/</span>
+                  <span className="text-[var(--accent-color)] font-bold truncate max-w-[200px]">
                     {selectedModel.name || selectedModel.id}
                   </span>
                 </>
@@ -368,17 +368,19 @@ export function ModelCatalogue() {
               const cleanDesc = cleanModelDescription(first?.familyDescription || first?.description);
 
               return (
-                <div className="relative overflow-hidden rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-color)] p-6 sm:p-8 text-left">
-                  {/* Right Side: Atmospheric Ambient Smoke / Glow Watermark Graphic */}
+                <div className="relative overflow-hidden rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-color)] p-6 sm:px-10 sm:py-12 min-h-[220px] flex items-center text-left">
+                  {/* Right Side: Family Logo Watermark seamlessly dissolved into card background */}
                   {first?.logo && (
-                    <div className="absolute -right-6 -bottom-6 sm:right-6 sm:top-1/2 sm:-translate-y-1/2 pointer-events-none select-none z-0">
-                      {/* Ambient Glowing Smoke / Aura Blur */}
-                      <div className="absolute inset-0 bg-[var(--accent-color)]/15 rounded-full filter blur-3xl transform scale-150" />
+                    <div className="absolute right-0 top-0 bottom-0 w-2/5 sm:w-1/3 flex items-center justify-end pointer-events-none select-none overflow-hidden z-0 pr-4 sm:pr-8">
                       <img
                         src={first.logo}
                         alt=""
                         aria-hidden="true"
-                        className="w-36 h-36 sm:w-52 sm:h-52 object-contain opacity-20 filter grayscale contrast-125 [mask-image:radial-gradient(ellipse_at_center,black_40%,transparent_80%)]"
+                        className="w-48 h-48 sm:w-64 sm:h-64 object-contain opacity-25 filter contrast-125"
+                        style={{
+                          maskImage: 'radial-gradient(ellipse at center right, rgba(0,0,0,0.65) 15%, rgba(0,0,0,0.2) 55%, transparent 95%)',
+                          WebkitMaskImage: 'radial-gradient(ellipse at center right, rgba(0,0,0,0.65) 15%, rgba(0,0,0,0.2) 55%, transparent 95%)',
+                        }}
                       />
                     </div>
                   )}
