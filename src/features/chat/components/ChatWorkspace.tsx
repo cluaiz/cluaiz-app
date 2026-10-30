@@ -20,6 +20,7 @@ import { ChatScrollbarMinimap } from './ChatScrollbarMinimap';
 import { DateRange } from '../../../components/ui/dropdown/CalendarDropdown';
 import { useChatScroll } from '../hooks/useChatScroll';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useScrollReveal } from '../../../hooks/useScrollReveal';
 import { Tooltip } from '../../../components/ui/tooltip';
 import { LiveTelemetryBar } from './LiveTelemetryBar';
 import { useChatTelemetry } from '../hooks/useChatTelemetry';
@@ -357,6 +358,8 @@ main().catch(console.error);`);
     const boundChat = useExtensionChat(chatBinding ?? undefined, telemetry,
         () => { setInputValue(''); setReplyingTo(null); }, inputValue, replyingTo?.text);
     const streamingHere = (isBoundChat ? boundChat.running : liveStats.isStreaming) && streamingSessionId === activeSessionId;
+    // A long reply can exceed the viewport; reveal on any overlap, without animating live text.
+    const messageReveal = useScrollReveal({ amount: 'some', scale: 0.98, disabled: streamingHere || isSelectionMode });
 
     const { handleSendMessage: sendMainMessage, handleRetryMessage, processing } = useChatSend({
         inputValue, setInputValue, replyingTo, setReplyingTo, isIncognito, messages, telemetry
@@ -555,23 +558,24 @@ main().catch(console.error);`);
                                                         const currentIndex = absoluteIndex++;
                                                         const isLatestMessage = currentIndex === messages.length - 1;
                                                         return (
-                                                            <MessageBubble
-                                                                sessionId={activeSessionId ?? undefined}
-                                                                autoSpeech={!isBoundChat}
-                                                                key={msg.id || currentIndex}
-                                                                msg={msg}
-                                                                index={currentIndex}
-                                                                handleMessageContextMenu={handleMessageContextMenu}
-                                                                onTextSelect={setSelectionMenu}
-                                                                onHighlightClick={setUnhighlightMenu}
-                                                                isSelectionMode={isSelectionMode}
-                                                                isSelected={selectedMessageIndices.includes(currentIndex)}
-                                                                onToggleSelect={() => handleToggleSelect(currentIndex)}
-                                                                onSkipThinking={isBoundChat ? undefined : handleSkipThinking}
-                                                                isStreaming={streamingHere && msg.id === messages[messages.length - 1]?.id}
-                                                                processingLabel={processing?.sessionId === activeSessionId ? processing.label : undefined}
-                                                                onRetry={isBoundChat || !isLatestMessage ? undefined : handleRetryMessage}
-                                                            />
+                                                            <motion.div key={msg.id || currentIndex} {...messageReveal}>
+                                                                <MessageBubble
+                                                                    sessionId={activeSessionId ?? undefined}
+                                                                    autoSpeech={!isBoundChat}
+                                                                    msg={msg}
+                                                                    index={currentIndex}
+                                                                    handleMessageContextMenu={handleMessageContextMenu}
+                                                                    onTextSelect={setSelectionMenu}
+                                                                    onHighlightClick={setUnhighlightMenu}
+                                                                    isSelectionMode={isSelectionMode}
+                                                                    isSelected={selectedMessageIndices.includes(currentIndex)}
+                                                                    onToggleSelect={() => handleToggleSelect(currentIndex)}
+                                                                    onSkipThinking={isBoundChat ? undefined : handleSkipThinking}
+                                                                    isStreaming={streamingHere && msg.id === messages[messages.length - 1]?.id}
+                                                                    processingLabel={processing?.sessionId === activeSessionId ? processing.label : undefined}
+                                                                    onRetry={isBoundChat || !isLatestMessage ? undefined : handleRetryMessage}
+                                                                />
+                                                            </motion.div>
                                                         );
                                                     })}
                                                 </div>

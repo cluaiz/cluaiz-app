@@ -11,6 +11,8 @@ import {
     ChevronsUpDown
 } from 'lucide-react';
 import { Input } from '../../../components/ui/Input';
+import { motion } from 'framer-motion';
+import { useScrollReveal } from '../../../hooks/useScrollReveal';
 
 // Storage keys for persistent state across page reloads
 const LS_PILLARS_COLLAPSED = 'cluaiz_api_collapsed_pillars';
@@ -36,6 +38,7 @@ interface PillarGroup {
 }
 
 export const ApiSidebar: React.FC = () => {
+    const scrollReveal = useScrollReveal();
     const {
         apiData,
         isLoadingData,
@@ -379,8 +382,9 @@ export const ApiSidebar: React.FC = () => {
                                                                 activeEndpoint?.method === ep.method;
 
                                                             return (
-                                                                <button
+                                                                <motion.button
                                                                     key={`${ep.method}-${ep.path}`}
+                                                                    {...scrollReveal}
                                                                     type="button"
                                                                     onClick={() => handleSelectEndpoint(ep)}
                                                                     className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-left text-xs transition-all cursor-pointer ${
@@ -400,7 +404,7 @@ export const ApiSidebar: React.FC = () => {
                                                                     <span className="truncate font-mono text-[11px] leading-tight">
                                                                         {ep.path}
                                                                     </span>
-                                                                </button>
+                                                                </motion.button>
                                                             );
                                                         })}
                                                     </div>
