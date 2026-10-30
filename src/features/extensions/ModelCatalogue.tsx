@@ -184,6 +184,39 @@ export function ModelCatalogue() {
       <CatalogueStickyHeader
         title={pageTitle}
         subtitle={pageSubtitle}
+        breadcrumbs={
+          (selectedModel || family) ? (
+            <div className="flex items-center gap-1.5 text-xs text-[var(--text-muted)]">
+              <button
+                type="button"
+                onClick={() => { setFamily(''); setSelectedModel(null); }}
+                className="hover:text-[var(--text-primary)] cursor-pointer flex items-center gap-1 font-medium transition-colors"
+              >
+                <ArrowLeft size={12} /> All Families
+              </button>
+              {family && (
+                <>
+                  <span>/</span>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedModel(null)}
+                    className={`hover:text-[var(--text-primary)] cursor-pointer font-medium transition-colors ${!selectedModel ? 'text-[var(--accent-color)] font-semibold' : ''}`}
+                  >
+                    {family}
+                  </button>
+                </>
+              )}
+              {selectedModel && (
+                <>
+                  <span>/</span>
+                  <span className="text-[var(--accent-color)] font-semibold truncate max-w-[150px]">
+                    {selectedModel.name || selectedModel.id}
+                  </span>
+                </>
+              )}
+            </div>
+          ) : null
+        }
         searchQuery={query}
         onSearchChange={value => { setQuery(value); setLimit(24); }}
         searchPlaceholder="Search models, families, architectures or tasks…"
@@ -213,28 +246,6 @@ export function ModelCatalogue() {
         {/* ------------------------------------------------------------------ */}
         {selectedModel ? (
           <div className="space-y-6">
-            {/* Breadcrumb Navigation */}
-            <div className="flex items-center gap-2 text-xs text-[var(--text-muted)] select-none">
-              <button
-                type="button"
-                onClick={() => { setFamily(''); setSelectedModel(null); }}
-                className="hover:text-[var(--text-primary)] cursor-pointer flex items-center gap-1 font-medium"
-              >
-                <ArrowLeft size={13} /> All Families
-              </button>
-              <span>/</span>
-              <button
-                type="button"
-                onClick={() => setSelectedModel(null)}
-                className="hover:text-[var(--text-primary)] cursor-pointer font-medium"
-              >
-                {selectedModel.family}
-              </button>
-              <span>/</span>
-              <span className="text-[var(--text-primary)] font-semibold truncate">
-                {selectedModel.name || selectedModel.id}
-              </span>
-            </div>
 
             {/* Model Hero Info Card */}
             <Card className="p-6">
@@ -349,20 +360,7 @@ export function ModelCatalogue() {
           /* LEVEL 2: Family Overview & Models Explorer                         */
           /* ------------------------------------------------------------------ */
           <div className="space-y-6">
-            {/* Breadcrumb Navigation */}
-            <div className="flex items-center gap-2 text-xs text-[var(--text-muted)] select-none">
-              <button
-                type="button"
-                onClick={() => { setFamily(''); setSelectedModel(null); }}
-                className="hover:text-[var(--text-primary)] cursor-pointer flex items-center gap-1 font-medium"
-              >
-                <ArrowLeft size={13} /> All Families
-              </button>
-              <span>/</span>
-              <span className="text-[var(--text-primary)] font-semibold">{family}</span>
-            </div>
-
-            {/* Family Hero Header */}
+            {/* Family Hero Header with Atmospheric Ambient Smoke Logo Watermark */}
             {(() => {
               const familyModels = filtered.filter(m => m.family === family);
               const first = familyModels[0];
@@ -370,36 +368,47 @@ export function ModelCatalogue() {
               const cleanDesc = cleanModelDescription(first?.familyDescription || first?.description);
 
               return (
-                <Card className="p-6 space-y-4">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div className="flex items-center gap-4">
-                      <CatalogueLogo source={first?.logo} name={family} large icon={Boxes} />
-                      <div>
-                        <div className="flex items-center gap-2.5">
-                          <h2 className="text-xl font-bold text-[var(--text-primary)] tracking-tight">
-                            {family}
-                          </h2>
-                          <Badge variant="outline" className="text-[10px] font-bold uppercase tracking-wider">
-                            {familyModels.length} {familyModels.length === 1 ? 'Model' : 'Models'}
-                          </Badge>
-                        </div>
-                        <p className="text-xs text-[var(--text-muted)] mt-1">
-                          Published by <span className="text-[var(--text-secondary)] font-medium">{first?.provider || 'Open Source'}</span>
-                        </p>
-                      </div>
+                <div className="relative overflow-hidden rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-color)] p-6 sm:p-8 text-left">
+                  {/* Right Side: Atmospheric Ambient Smoke / Glow Watermark Graphic */}
+                  {first?.logo && (
+                    <div className="absolute -right-6 -bottom-6 sm:right-6 sm:top-1/2 sm:-translate-y-1/2 pointer-events-none select-none z-0">
+                      {/* Ambient Glowing Smoke / Aura Blur */}
+                      <div className="absolute inset-0 bg-[var(--accent-color)]/15 rounded-full filter blur-3xl transform scale-150" />
+                      <img
+                        src={first.logo}
+                        alt=""
+                        aria-hidden="true"
+                        className="w-36 h-36 sm:w-52 sm:h-52 object-contain opacity-20 filter grayscale contrast-125 [mask-image:radial-gradient(ellipse_at_center,black_40%,transparent_80%)]"
+                      />
+                    </div>
+                  )}
+
+                  {/* Left Side: Family Title, Publisher, Tags, Count, Description */}
+                  <div className="relative z-10 space-y-3 max-w-2xl text-left">
+                    <div className="flex items-center gap-2.5 flex-wrap">
+                      <h2 className="text-2xl sm:text-3xl font-bold font-mono uppercase text-[var(--text-primary)] tracking-tight">
+                        {family}
+                      </h2>
+                      <Badge variant="outline" className="text-xs font-mono font-bold uppercase tracking-wider">
+                        {familyModels.length} {familyModels.length === 1 ? 'Model' : 'Models'}
+                      </Badge>
                     </div>
 
-                    <div className="flex items-center gap-1.5 flex-wrap">
+                    <p className="text-xs sm:text-sm text-[var(--text-muted)] font-mono">
+                      Published by <span className="text-[var(--text-secondary)] font-bold">{first?.provider || 'Open Source'}</span>
+                    </p>
+
+                    <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
                       <CatalogueTags values={capabilities} />
                     </div>
-                  </div>
 
-                  {cleanDesc && (
-                    <p className="text-xs leading-5 text-[var(--text-secondary)] border-t border-[var(--border-color)]/60 pt-3">
-                      {cleanDesc}
-                    </p>
-                  )}
-                </Card>
+                    {cleanDesc && (
+                      <p className="text-xs sm:text-sm leading-relaxed text-[var(--text-secondary)] pt-1 max-w-xl">
+                        {cleanDesc}
+                      </p>
+                    )}
+                  </div>
+                </div>
               );
             })()}
 
@@ -410,7 +419,7 @@ export function ModelCatalogue() {
               return (
                 <div className="space-y-4">
                   <div className="flex items-center justify-between gap-3">
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)] font-mono">
                       Models in {family} ({familyModels.length})
                     </h3>
 
@@ -447,9 +456,9 @@ export function ModelCatalogue() {
                     <p className="text-xs text-[var(--text-secondary)]">No models match current filters in this family.</p>
                   ) : familyViewLayout === 'list' ? (
                     /* -------------------------------------------------------- */
-                    /* LIST VIEW: Clean rows with specs and quantizations       */
+                    /* LIST VIEW: Detailed rows with specs & direct quants pills*/
                     /* -------------------------------------------------------- */
-                    <div className="border border-[var(--border-color)]/80 rounded-2xl overflow-hidden bg-[var(--bg-secondary)]/40 divide-y divide-[var(--border-color)]/60">
+                    <div className="border border-[var(--border-color)] rounded-2xl overflow-hidden bg-[var(--bg-secondary)]/50 divide-y divide-[var(--border-color)]">
                       {familyModels.map(model => {
                         const distinctQuants = [...new Set(model.variants.map(v => v.quant))];
 
@@ -457,17 +466,18 @@ export function ModelCatalogue() {
                           <div
                             key={model.id}
                             onClick={() => setSelectedModel(model)}
-                            className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-[var(--bg-secondary)]/80 transition-colors cursor-pointer group"
+                            className="p-4 sm:p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4 hover:bg-[var(--bg-secondary)]/90 transition-colors cursor-pointer group text-left"
                           >
-                            <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                            {/* Left: Model Logo, Name & Specs */}
+                            <div className="flex items-start gap-3.5 min-w-0 flex-1">
                               <CatalogueLogo source={model.logo} name={model.name || model.id} />
-                              <div className="min-w-0">
-                                <h4 className="text-sm font-bold text-[var(--text-primary)] group-hover:text-[var(--accent-color)] transition-colors truncate">
+                              <div className="min-w-0 space-y-1">
+                                <h4 className="text-sm sm:text-base font-bold font-mono uppercase text-[var(--text-primary)] group-hover:text-[var(--accent-color)] transition-colors truncate">
                                   {model.name || model.id}
                                 </h4>
-                                <div className="flex items-center gap-2 mt-1 text-xs text-[var(--text-muted)] flex-wrap">
+                                <div className="flex items-center gap-2 text-xs text-[var(--text-muted)] font-mono flex-wrap">
                                   {model.parameters && (
-                                    <span className="font-semibold text-[var(--text-secondary)]">
+                                    <span className="font-bold text-[var(--text-secondary)] bg-[var(--bg-tertiary)] px-1.5 py-0.5 rounded border border-[var(--border-color)]">
                                       {model.parameters}
                                     </span>
                                   )}
@@ -477,13 +487,34 @@ export function ModelCatalogue() {
                               </div>
                             </div>
 
-                            <div className="flex items-center gap-3 shrink-0 flex-wrap sm:flex-nowrap">
-                              <CatalogueTags values={model.tasks} />
-                              <span className="text-xs font-mono text-[var(--text-muted)] bg-[var(--bg-tertiary)] px-2.5 py-1 rounded-lg border border-[var(--border-color)]/50">
-                                {distinctQuants.length} {distinctQuants.length === 1 ? 'quant' : 'quants'}
+                            {/* Middle: Quantization Variants Pills Preview */}
+                            <div className="flex items-center gap-1.5 flex-wrap min-w-0 max-w-md">
+                              <span className="text-[10px] font-mono uppercase font-bold text-[var(--text-muted)] mr-1">
+                                Quants:
                               </span>
-                              <Button variant="outline" size="sm" className="text-xs font-semibold gap-1">
-                                View Packages <ArrowUpRight size={12} />
+                              {distinctQuants.slice(0, 5).map(q => {
+                                const v = model.variants.find(item => item.quant === q);
+                                return (
+                                  <span
+                                    key={q}
+                                    className="px-2 py-0.5 rounded text-[11px] font-mono bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-[var(--text-secondary)] font-medium flex items-center gap-1"
+                                  >
+                                    <span>{q}</span>
+                                    {v && <span className="text-[10px] opacity-70">· {(v.bytes / 1024 ** 3).toFixed(1)}G</span>}
+                                  </span>
+                                );
+                              })}
+                              {distinctQuants.length > 5 && (
+                                <span className="text-[10px] font-mono text-[var(--text-muted)] px-1 font-semibold">
+                                  +{distinctQuants.length - 5} more
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Right: Action Button */}
+                            <div className="flex items-center gap-2.5 shrink-0 self-end lg:self-center">
+                              <Button variant="outline" size="sm" className="text-xs font-semibold font-mono gap-1.5 group-hover:border-[var(--accent-color)]/60 cursor-pointer">
+                                View Packages <ArrowUpRight size={13} />
                               </Button>
                             </div>
                           </div>

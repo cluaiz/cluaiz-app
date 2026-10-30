@@ -5,6 +5,7 @@ import { Input } from '../../components/ui/Input';
 export interface CatalogueStickyHeaderProps {
   title: string;
   subtitle?: string;
+  breadcrumbs?: React.ReactNode;
   searchQuery: string;
   onSearchChange: (query: string) => void;
   searchPlaceholder?: string;
@@ -17,6 +18,7 @@ export interface CatalogueStickyHeaderProps {
 export const CatalogueStickyHeader: React.FC<CatalogueStickyHeaderProps> = ({
   title,
   subtitle,
+  breadcrumbs,
   searchQuery,
   onSearchChange,
   searchPlaceholder = 'Search…',
@@ -28,8 +30,13 @@ export const CatalogueStickyHeader: React.FC<CatalogueStickyHeaderProps> = ({
   return (
     <header className="sticky top-0 z-20 w-full px-6 py-3.5 bg-[var(--bg-primary)]/95 backdrop-blur-md border-b border-[var(--border-color)] transition-all">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 max-w-7xl mx-auto">
-        {/* Left: Dynamic Title & Subtitle */}
+        {/* Left: Dynamic Title & Subtitle + Breadcrumbs */}
         <div className="min-w-0 flex-1">
+          {breadcrumbs && (
+            <div className="mb-1 flex items-center gap-1.5 text-xs text-[var(--text-muted)] select-none">
+              {breadcrumbs}
+            </div>
+          )}
           <h1 className="text-base font-bold text-[var(--text-primary)] tracking-tight truncate">
             {title}
           </h1>
