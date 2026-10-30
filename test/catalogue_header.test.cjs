@@ -170,8 +170,8 @@ test('ModelSliderCard resolves default variant and allows instant quantization s
   assert.equal((selected.bytes / 1024 ** 3).toFixed(1), '7.8');
 });
 
-test('ScrubberDot calculates center and progress distance correctly across 48 dots', () => {
-  const total = 48;
+test('ScrubberDot calculates center and progress distance correctly across 60 dots', () => {
+  const total = 60;
   const distance = 1 / total;
 
   function calculateDotBounds(index) {
@@ -186,10 +186,10 @@ test('ScrubberDot calculates center and progress distance correctly across 48 do
   const dot0 = calculateDotBounds(0);
   assert.equal(dot0.center, 0);
 
-  const dotLast = calculateDotBounds(47);
+  const dotLast = calculateDotBounds(59);
   assert.equal(dotLast.center, 1);
 
-  const dotMid = calculateDotBounds(24);
+  const dotMid = calculateDotBounds(30);
   assert.ok(dotMid.center > 0.49 && dotMid.center < 0.52);
   assert.ok(dotMid.maxActive > dotMid.center);
   assert.ok(dotMid.minActive < dotMid.center);

@@ -9,6 +9,9 @@ import { CatalogueLogo, CatalogueTags } from './CatalogueUI';
 import { cleanModelDescription, extractFamilyCapabilities } from './catalogueView';
 import { ModelSliderCard } from './ModelSliderCard';
 
+// -----------------------------------------------------------------------------
+// EXACT 1:1 SCRUBBER CODE FROM cluaiz.com/src/components/organisms/sections/integration-slider
+// -----------------------------------------------------------------------------
 const ScrubberDot = ({ index, total, progress }: { index: number; total: number; progress: MotionValue<number> }) => {
   const center = index / (total - 1);
   const distance = 1 / total;
@@ -20,17 +23,20 @@ const ScrubberDot = ({ index, total, progress }: { index: number; total: number;
     [1, 1.8, 1]
   );
 
-  // Active is bright accent, inactive is subtle
+  // Active is full theme-dependent, inactive is very dim
   const opacity = useTransform(
     progress,
     [center - distance * 3, center, center + distance * 3],
-    [0.18, 1, 0.18]
+    [0.15, 1, 0.15]
   );
 
   return (
     <motion.span
-      className="inline-block w-1 h-3.5 sm:h-4 bg-[var(--accent-color)] rounded-[2px] shrink-0 origin-center pointer-events-none"
-      style={{ scale, opacity }}
+      className="inline-block w-1 h-4 sm:h-5 bg-zinc-400 dark:bg-zinc-600 rounded-[2px] flex-shrink-0 origin-center pointer-events-none"
+      style={{
+        scale,
+        opacity,
+      }}
     />
   );
 };
@@ -109,24 +115,24 @@ export const FamilyModelSliderRow: React.FC<FamilyModelSliderRowProps> = ({
   };
 
   return (
-    <div className="w-full rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-color)]/80 p-5 space-y-4 text-left transition-colors">
+    <div className="w-full rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-color)] p-5 space-y-4 text-left">
       {/* ------------------------------------------------------------------ */}
       {/* SECTION 1: FAMILY HEADER                                           */}
       {/* ------------------------------------------------------------------ */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-[var(--border-color)]/60">
-        {/* Left Side: Logo, Name, Publisher, Tags, Count */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-[var(--border-color)]">
+        {/* Left Side: Logo, Name, Publisher, Description, Tags, Count */}
         <div className="flex items-start gap-3.5 min-w-0">
           <CatalogueLogo source={firstModel?.logo} name={family} large icon={Boxes} />
           <div className="space-y-1 min-w-0">
             <div className="flex items-center gap-2.5 flex-wrap">
-              <h3 className="text-base sm:text-lg font-bold text-[var(--text-primary)] tracking-tight">
+              <h3 className="text-base sm:text-lg font-bold font-mono uppercase text-[var(--text-primary)] tracking-tight">
                 {family}
               </h3>
-              <Badge variant="outline" className="text-[10px] font-bold uppercase tracking-wider">
+              <Badge variant="outline" className="text-[10px] font-mono font-bold uppercase tracking-wider">
                 {models.length} {models.length === 1 ? 'Model' : 'Models'}
               </Badge>
-              <span className="text-xs text-[var(--text-muted)]">
-                by <span className="text-[var(--text-secondary)] font-medium">{firstModel?.provider || 'Open Source'}</span>
+              <span className="text-xs text-[var(--text-muted)] font-mono">
+                by <span className="text-[var(--text-secondary)] font-bold">{firstModel?.provider || 'Open Source'}</span>
               </span>
             </div>
 
@@ -148,7 +154,7 @@ export const FamilyModelSliderRow: React.FC<FamilyModelSliderRowProps> = ({
             variant="outline"
             size="sm"
             onClick={() => onViewAll(family)}
-            className="text-xs font-semibold gap-1.5 hover:border-[var(--accent-color)]/60 cursor-pointer"
+            className="text-xs font-semibold font-mono gap-1.5 cursor-pointer"
           >
             View All Models <ArrowUpRight size={13} />
           </Button>
@@ -156,16 +162,16 @@ export const FamilyModelSliderRow: React.FC<FamilyModelSliderRowProps> = ({
       </div>
 
       {/* ------------------------------------------------------------------ */}
-      {/* SECTION 2: FAMILY BODY (MODELS SLIDER + WAVE SCRUBBER)             */}
+      {/* SECTION 2: FAMILY BODY (MODELS SLIDER + EXACT WAVE SCRUBBER)       */}
       {/* ------------------------------------------------------------------ */}
-      <div className="flex flex-col gap-3 w-full overflow-hidden select-none">
+      <div className="flex flex-col gap-4 w-full overflow-hidden select-none">
         {/* Horizontal Models Track */}
         <div
           ref={trackRef}
           onScroll={handleTrackScroll}
           className="flex w-full overflow-x-auto no-scrollbar py-2 cursor-grab active:cursor-grabbing scroll-smooth"
         >
-          <div className="flex w-max gap-3.5 px-1">
+          <div className="flex w-max px-2 sm:px-4">
             {models.map((model) => (
               <ModelSliderCard
                 key={model.id}
@@ -180,23 +186,23 @@ export const FamilyModelSliderRow: React.FC<FamilyModelSliderRowProps> = ({
           </div>
         </div>
 
-        {/* 48-Dot Wave Scrubber Track */}
+        {/* EXACT 60-DOT WAVE SCRUBBER TRACK (ZERO BOX, ZERO BORDER) */}
         {models.length > 1 && (
-          <div className="flex items-center justify-center w-full overflow-visible z-10 pt-1 pb-1">
+          <div className="flex items-center justify-center w-full overflow-visible z-10">
             <div
               ref={scrubberRef}
-              className="flex items-center justify-between w-full max-w-md px-3.5 py-1.5 cursor-grab active:cursor-grabbing touch-none select-none bg-[var(--bg-tertiary)]/50 border border-[var(--border-color)]/60 rounded-xl"
+              className="flex items-center justify-between w-full max-w-4xl p-2 cursor-grab active:cursor-grabbing touch-none"
               style={{
-                maskImage: 'linear-gradient(to right, transparent, black 10%, black 90%, transparent)',
-                WebkitMaskImage: 'linear-gradient(to right, transparent, black 10%, black 90%, transparent)',
+                maskImage: 'linear-gradient(to right, transparent, black 15%, black 85%, transparent)',
+                WebkitMaskImage: 'linear-gradient(to right, transparent, black 15%, black 85%, transparent)',
               }}
               onPointerDown={handlePointerDown}
               onPointerMove={handlePointerMove}
               onPointerUp={handlePointerUp}
               onPointerCancel={handlePointerUp}
             >
-              {Array.from({ length: 48 }).map((_, i) => (
-                <ScrubberDot key={i} index={i} total={48} progress={localProgress} />
+              {Array.from({ length: 60 }).map((_, i) => (
+                <ScrubberDot key={i} index={i} total={60} progress={localProgress} />
               ))}
             </div>
           </div>

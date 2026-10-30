@@ -4,8 +4,8 @@ import type { PublicModel, PublicVariant } from '../../api/catalogue/models';
 import type { ModelRegistryEntry } from '../../api/engine/models/models.types';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
-import { CatalogueLogo, CatalogueTags } from './CatalogueUI';
-import { cleanModelDescription, installedModelForVariant } from './catalogueView';
+import { CatalogueLogo } from './CatalogueUI';
+import { installedModelForVariant } from './catalogueView';
 
 export interface ModelSliderCardProps {
   model: PublicModel;
@@ -37,49 +37,60 @@ export const ModelSliderCard: React.FC<ModelSliderCardProps> = ({
     isBusy && downloadingTarget && currentVariant && downloadingTarget.includes(currentVariant.quant)
   );
 
-  const cleanDesc = cleanModelDescription(model.description);
+  const deploySpec = currentVariant
+    ? `${model.id.toLowerCase()}:latest:${currentVariant.format.toLowerCase()}:${currentVariant.quant.toLowerCase()}`
+    : `${model.id.toLowerCase()}:latest:gguf:q4_k_m`;
 
   return (
-    <div className="w-[300px] sm:w-[350px] shrink-0 rounded-xl bg-[var(--bg-tertiary)]/50 border border-[var(--border-color)]/70 p-4 flex flex-col justify-between gap-3 text-left transition-colors duration-150 hover:border-[var(--accent-color)]/50 group select-none">
-      {/* Model Header */}
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <CatalogueLogo source={model.logo} name={model.name || model.id} />
-          <div className="min-w-0">
-            <h4 className="text-sm font-bold text-[var(--text-primary)] truncate">
-              {model.name || model.id}
-            </h4>
-            <p className="text-[11px] text-[var(--text-muted)] truncate">
-              {[model.parameters, model.architecture, model.context ? `${model.context} ctx` : ''].filter(Boolean).join(' · ')}
-            </p>
+    <div className="group relative flex flex-col justify-between gap-4 p-4 sm:p-5 mx-2 border-2 border-[var(--border-color)] bg-[var(--bg-secondary)] transition-all min-w-[340px] sm:min-w-[420px] text-left rounded-xl select-none">
+      {/* Top Section: Logo + Details (Exact cluaiz.com style) */}
+      <div className="flex flex-row items-start sm:items-center gap-4 w-full">
+        <div className="relative w-14 h-14 sm:w-16 sm:h-16 border-2 border-[var(--border-color)] bg-[var(--bg-tertiary)] overflow-hidden shrink-0 flex items-center justify-center rounded-lg">
+          <CatalogueLogo source={model.logo} name={model.name || model.id} large />
+        </div>
+
+        <div className="flex flex-col gap-1 w-full overflow-hidden">
+          {/* Top Header Badge & Provider */}
+          <div className="flex items-center gap-2">
+            <span className="bg-[var(--bg-tertiary)] text-[var(--text-primary)] border border-[var(--border-color)] font-bold text-[11px] px-1.5 py-0.5 tracking-wider uppercase font-mono rounded">
+              {model.parameters || model.id}
+            </span>
+            <span className="text-[10px] sm:text-[11px] font-mono text-[var(--text-muted)] font-bold uppercase tracking-wider truncate">
+              {model.provider || 'CLUAIZ'}
+            </span>
+          </div>
+
+          {/* Title */}
+          <span className="font-bold text-lg sm:text-xl font-mono uppercase text-[var(--text-primary)] leading-tight tracking-tight truncate">
+            {model.name || model.id}
+          </span>
+
+          {/* Capabilities Tags */}
+          <div className="flex flex-wrap items-center gap-1.5 mt-0.5 overflow-hidden">
+            {model.tasks?.slice(0, 3).map((cap: string, i: number) => (
+              <span
+                key={i}
+                className="text-[9px] font-mono font-bold border border-[var(--border-color)] bg-[var(--bg-tertiary)] text-[var(--text-secondary)] px-1.5 py-0.5 uppercase whitespace-nowrap rounded"
+              >
+                {cap}
+              </span>
+            ))}
+            {model.context && (
+              <span className="text-[9px] font-mono font-bold border border-[var(--border-color)] bg-[var(--bg-tertiary)] text-[var(--text-secondary)] px-1.5 py-0.5 uppercase whitespace-nowrap rounded">
+                {model.context} ctx
+              </span>
+            )}
           </div>
         </div>
-        {model.parameters && (
-          <Badge variant="outline" className="text-[10px] font-mono font-bold shrink-0">
-            {model.parameters}
-          </Badge>
-        )}
       </div>
 
-      {/* Capability Tags */}
-      {model.tasks && model.tasks.length > 0 && (
-        <CatalogueTags values={model.tasks} />
-      )}
-
-      {/* Short Description */}
-      {cleanDesc && (
-        <p className="text-xs leading-4.5 text-[var(--text-secondary)] line-clamp-2 min-h-9">
-          {cleanDesc}
-        </p>
-      )}
-
-      {/* Quantization Variants Selector */}
+      {/* Quantizations Selector Pills */}
       <div className="space-y-1.5 pt-1">
-        <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
-          <span>Quantization:</span>
-          <span className="font-mono">{variants.length} packages</span>
+        <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] font-mono">
+          <span>Select Quantization:</span>
+          <span>{variants.length} packages</span>
         </div>
-        <div className="flex flex-wrap gap-1.5 max-h-20 overflow-y-auto custom-scrollbar">
+        <div className="flex flex-wrap gap-1.5 max-h-18 overflow-y-auto custom-scrollbar">
           {variants.map((v) => {
             const isSelected = currentVariant?.id === v.id;
             const isInstalled = !!installedModelForVariant(installed, model, v);
@@ -92,7 +103,7 @@ export const ModelSliderCard: React.FC<ModelSliderCardProps> = ({
                 className={`px-2 py-0.5 rounded text-[11px] font-mono transition-all cursor-pointer flex items-center gap-1 border ${
                   isSelected
                     ? 'bg-[var(--accent-color)] text-[var(--bg-primary)] border-[var(--accent-color)] font-bold shadow-xs'
-                    : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)] border-[var(--border-color)]/60 hover:text-[var(--text-primary)] hover:border-[var(--accent-color)]/40'
+                    : 'bg-[var(--bg-tertiary)] text-[var(--text-secondary)] border-[var(--border-color)] hover:text-[var(--text-primary)] hover:border-[var(--accent-color)]/40'
                 }`}
               >
                 <span>{v.quant}</span>
@@ -104,33 +115,41 @@ export const ModelSliderCard: React.FC<ModelSliderCardProps> = ({
         </div>
       </div>
 
-      {/* Bottom Download & Details Bar */}
-      <div className="pt-2.5 border-t border-[var(--border-color)]/60 flex items-center justify-between gap-2 mt-auto">
-        <button
-          type="button"
-          onClick={() => onSelectModel(model)}
-          className="text-[11px] text-[var(--accent-color)] hover:underline flex items-center gap-1 cursor-pointer font-medium"
-        >
-          Details <ArrowUpRight size={11} />
-        </button>
+      {/* Bottom Section: Deploy Spec & Download Action */}
+      <div className="pt-2.5 border-t border-[var(--border-color)] flex items-center justify-between gap-2 mt-auto">
+        <div className="min-w-0">
+          <span className="text-[10px] font-mono font-bold text-[var(--text-muted)] tracking-wider uppercase block truncate max-w-[200px]">
+            {deploySpec}
+          </span>
+        </div>
 
-        {currentVariant && (
-          isCurrentInstalled ? (
-            <Badge variant="outline" className="text-xs text-[var(--status-success)] border-[var(--status-success)]/40 flex items-center gap-1 font-semibold py-1">
-              <CheckCircle2 size={12} /> Installed
-            </Badge>
-          ) : (
-            <Button
-              size="sm"
-              disabled={isDownloadingCurrent}
-              onClick={() => onDownload(model, currentVariant)}
-              className="text-xs font-semibold gap-1.5 py-1 px-2.5 h-7"
-            >
-              <Download size={12} />
-              {isDownloadingCurrent ? 'Downloading…' : 'Download'}
-            </Button>
-          )
-        )}
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => onSelectModel(model)}
+            className="text-[11px] text-[var(--accent-color)] hover:underline flex items-center gap-0.5 cursor-pointer font-medium"
+          >
+            Details <ArrowUpRight size={11} />
+          </button>
+
+          {currentVariant && (
+            isCurrentInstalled ? (
+              <Badge variant="outline" className="text-xs text-[var(--status-success)] border-[var(--status-success)]/40 flex items-center gap-1 font-semibold py-1">
+                <CheckCircle2 size={12} /> Installed
+              </Badge>
+            ) : (
+              <Button
+                size="sm"
+                disabled={isDownloadingCurrent}
+                onClick={() => onDownload(model, currentVariant)}
+                className="text-xs font-semibold gap-1.5 py-1 px-3 h-7"
+              >
+                <Download size={12} />
+                {isDownloadingCurrent ? 'Downloading…' : 'Download'}
+              </Button>
+            )
+          )}
+        </div>
       </div>
     </div>
   );
