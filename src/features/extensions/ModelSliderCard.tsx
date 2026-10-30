@@ -12,6 +12,7 @@ export interface ModelSliderCardProps {
   installed: ModelRegistryEntry[];
   isBusy: boolean;
   downloadingTarget?: string;
+  className?: string;
   onDownload: (model: PublicModel, variant: PublicVariant) => void;
   onSelectModel: (model: PublicModel) => void;
 }
@@ -21,6 +22,7 @@ export const ModelSliderCard: React.FC<ModelSliderCardProps> = ({
   installed,
   isBusy,
   downloadingTarget,
+  className,
   onDownload,
   onSelectModel,
 }) => {
@@ -43,8 +45,12 @@ export const ModelSliderCard: React.FC<ModelSliderCardProps> = ({
     ? `${model.id.toLowerCase()}:latest:${currentVariant.format.toLowerCase()}:${currentVariant.quant.toLowerCase()}`
     : `${model.id.toLowerCase()}:latest:gguf:q4_k_m`;
 
+  const containerClasses = className
+    ? `group relative flex flex-col justify-between gap-3 p-4 sm:p-5 border-2 border-[var(--border-color)] bg-[var(--bg-secondary)] transition-colors text-left rounded-xl select-none overflow-hidden ${className}`
+    : `group relative flex flex-col justify-between gap-3 p-4 sm:p-5 mx-1 border-2 border-[var(--border-color)] bg-[var(--bg-secondary)] transition-colors w-[340px] sm:w-[380px] max-w-[380px] shrink-0 text-left rounded-xl select-none overflow-hidden`;
+
   return (
-    <div className="group relative flex flex-col justify-between gap-3 p-4 sm:p-5 mx-1 border-2 border-[var(--border-color)] bg-[var(--bg-secondary)] transition-colors w-[340px] sm:w-[380px] max-w-[380px] shrink-0 text-left rounded-xl select-none overflow-hidden">
+    <div className={containerClasses}>
       {/* Top Section: Logo + Header Details */}
       <div className="flex flex-row items-start sm:items-center gap-3.5 w-full overflow-hidden">
         <div className="relative w-14 h-14 sm:w-16 sm:h-16 border-2 border-[var(--border-color)] bg-[var(--bg-tertiary)] overflow-hidden shrink-0 flex items-center justify-center rounded-lg">
@@ -165,7 +171,7 @@ export const ModelSliderCard: React.FC<ModelSliderCardProps> = ({
       {/* Bottom Section: Deploy Spec & Download Action */}
       <div className="pt-2.5 border-t border-[var(--border-color)] flex items-center justify-between gap-2 mt-auto w-full">
         <div className="min-w-0 overflow-hidden">
-          <span className="text-[10px] font-mono font-bold text-[var(--text-muted)] tracking-wider uppercase block truncate max-w-[170px]">
+          <span className="text-[10px] font-mono font-bold text-[var(--text-muted)] tracking-wider uppercase block truncate max-w-[200px] sm:max-w-xs">
             {deploySpec}
           </span>
         </div>

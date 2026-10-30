@@ -124,7 +124,6 @@ export const FamilyModelSliderRow: React.FC<FamilyModelSliderRowProps> = ({
 
   // Cards Track direct mouse drag-to-scroll handlers
   const handleTrackPointerDown = (e: React.PointerEvent) => {
-    // If user clicks a button or link, let the button handle it
     if ((e.target as HTMLElement).closest('button, a')) return;
     if (!trackRef.current) return;
 
@@ -196,45 +195,76 @@ export const FamilyModelSliderRow: React.FC<FamilyModelSliderRowProps> = ({
       </div>
 
       {/* ------------------------------------------------------------------ */}
-      {/* SECTION 2: FAMILY BODY (MODELS SLIDER + WAVE SCRUBBER + EDGE FADES)*/}
+      {/* SECTION 2: ADAPTIVE FAMILY BODY                                    */}
+      {/* 1 Model: 100% Full-Width | 2 Models: 50%-50% Grid | 3+ : Slider   */}
       {/* ------------------------------------------------------------------ */}
-      <div className="flex flex-col gap-4 w-full select-none">
-        {/* Track Container with Left and Right Edge Fade Shadows */}
-        <div className="relative w-full overflow-hidden">
-          {/* Left Edge Fade Shadow */}
-          <div className="absolute top-0 left-0 w-8 sm:w-16 h-full bg-gradient-to-r from-[var(--bg-secondary)] to-transparent z-10 pointer-events-none" />
-          {/* Right Edge Fade Shadow */}
-          <div className="absolute top-0 right-0 w-8 sm:w-16 h-full bg-gradient-to-l from-[var(--bg-secondary)] to-transparent z-10 pointer-events-none" />
+      {models.length === 1 ? (
+        /* Case 1: Exactly 1 Model -> 100% Full Width (No empty gap) */
+        <div className="w-full">
+          <ModelSliderCard
+            model={models[0]}
+            installed={installed}
+            isBusy={isBusy}
+            downloadingTarget={downloadingTarget}
+            className="w-full"
+            onDownload={onDownload}
+            onSelectModel={onSelectModel}
+          />
+        </div>
+      ) : models.length === 2 ? (
+        /* Case 2: Exactly 2 Models -> 50% - 50% Clean Grid (No empty gap) */
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
+          {models.map((model) => (
+            <ModelSliderCard
+              key={model.id}
+              model={model}
+              installed={installed}
+              isBusy={isBusy}
+              downloadingTarget={downloadingTarget}
+              className="w-full"
+              onDownload={onDownload}
+              onSelectModel={onSelectModel}
+            />
+          ))}
+        </div>
+      ) : (
+        /* Case 3: 3+ Models -> Horizontal Slider Track + 60-Dot Scrubber */
+        <div className="flex flex-col gap-4 w-full select-none">
+          {/* Track Container with Left and Right Edge Fade Shadows */}
+          <div className="relative w-full overflow-hidden">
+            {/* Left Edge Fade Shadow */}
+            <div className="absolute top-0 left-0 w-8 sm:w-16 h-full bg-gradient-to-r from-[var(--bg-secondary)] to-transparent z-10 pointer-events-none" />
+            {/* Right Edge Fade Shadow */}
+            <div className="absolute top-0 right-0 w-8 sm:w-16 h-full bg-gradient-to-l from-[var(--bg-secondary)] to-transparent z-10 pointer-events-none" />
 
-          {/* Draggable Horizontal Models Track */}
-          <div
-            ref={trackRef}
-            onScroll={handleTrackScroll}
-            onPointerDown={handleTrackPointerDown}
-            onPointerMove={handleTrackPointerMove}
-            onPointerUp={handleTrackPointerUp}
-            onPointerCancel={handleTrackPointerUp}
-            className="flex w-full overflow-x-auto no-scrollbar py-2 cursor-grab active:cursor-grabbing"
-            style={{ scrollBehavior: 'auto' }}
-          >
-            <div className="flex w-max px-2 sm:px-4">
-              {models.map((model) => (
-                <ModelSliderCard
-                  key={model.id}
-                  model={model}
-                  installed={installed}
-                  isBusy={isBusy}
-                  downloadingTarget={downloadingTarget}
-                  onDownload={onDownload}
-                  onSelectModel={onSelectModel}
-                />
-              ))}
+            {/* Draggable Horizontal Models Track */}
+            <div
+              ref={trackRef}
+              onScroll={handleTrackScroll}
+              onPointerDown={handleTrackPointerDown}
+              onPointerMove={handleTrackPointerMove}
+              onPointerUp={handleTrackPointerUp}
+              onPointerCancel={handleTrackPointerUp}
+              className="flex w-full overflow-x-auto no-scrollbar py-2 cursor-grab active:cursor-grabbing"
+              style={{ scrollBehavior: 'auto' }}
+            >
+              <div className="flex w-max px-2 sm:px-4">
+                {models.map((model) => (
+                  <ModelSliderCard
+                    key={model.id}
+                    model={model}
+                    installed={installed}
+                    isBusy={isBusy}
+                    downloadingTarget={downloadingTarget}
+                    onDownload={onDownload}
+                    onSelectModel={onSelectModel}
+                  />
+                ))}
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* EXACT 60-DOT WAVE SCRUBBER TRACK (ZERO BOX, ZERO BORDER) */}
-        {models.length > 1 && (
+          {/* EXACT 60-DOT WAVE SCRUBBER TRACK */}
           <div className="flex items-center justify-center w-full overflow-visible z-10">
             <div
               ref={scrubberRef}
@@ -253,8 +283,8 @@ export const FamilyModelSliderRow: React.FC<FamilyModelSliderRowProps> = ({
               ))}
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 };
