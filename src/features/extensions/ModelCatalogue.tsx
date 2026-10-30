@@ -9,7 +9,7 @@ import { CustomDropdown } from '../../components/ui/dropdown/CustomDropdown';
 import { useCatalogue } from './useCatalogue';
 import { Tabs } from '../../components/ui/Tabs';
 import { ArrowDownWideNarrow, Boxes, Globe, Layers, Sparkles } from 'lucide-react';
-import { CatalogueCard, CatalogueChips, CatalogueFilter, CatalogueLogo, CatalogueSearch, CatalogueTags } from './CatalogueUI';
+import { CatalogueCard, CatalogueChips, CatalogueFilter, CatalogueLogo, CatalogueStickyHeader, CatalogueTags } from './CatalogueUI';
 import { chooseModelVariant, filterModels, installedModelForVariant, type CatalogueSort } from './catalogueView';
 import { resumeModelDownload } from '../../api/engine/models/actions';
 import { useCatalogueTask } from './useCatalogueTask';
@@ -59,27 +59,39 @@ export function ModelCatalogue() {
     const reference = modelInstallReference(model, variant, source);
     await download.start(reference, (signal, observer) => modelsApi.downloadModel({ model_id: reference }, signal, observer));
   }
+  const activeFilterCount = (format ? 1 : 0) + (task ? 1 : 0) + providers.length + (sort !== 'popular' ? 1 : 0);
+
   return <div className="mx-auto w-full max-w-7xl p-5 space-y-4">
-    <div className="flex flex-wrap items-center justify-between gap-3">
-      <div><h2 className="text-base font-semibold">Models</h2><p className="mt-1 text-xs text-[var(--text-secondary)]">Find a model and choose a package for your Engine.</p></div>
-      <Tabs items={[{ id: 'families', label: 'Families' }, { id: 'models', label: 'All models' }]} value={view} onChange={value => { setView(value); setFamily(''); setLimit(24); }} />
-    </div>
+    <CatalogueStickyHeader
+      title="Models"
+      subtitle="Find a model and choose a package for your Engine."
+      searchQuery={query}
+      onSearchChange={value => { setQuery(value); setLimit(24); }}
+      searchPlaceholder="Search models, families, architectures or providers"
+      activeFilterCount={activeFilterCount}
+      actions={
+        <div className="flex items-center gap-2">
+          <Tabs items={[{ id: 'families', label: 'Families' }, { id: 'models', label: 'All models' }]} value={view} onChange={value => { setView(value); setFamily(''); setLimit(24); }} />
+          <Button variant="outline" size="sm" className="h-8 text-xs cursor-pointer" disabled={catalogue.busy} onClick={() => { void catalogue.refresh(); setConnection(value => value + 1); }}>Refresh</Button>
+        </div>
+      }
+      filterContent={
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <CatalogueFilter label="Model format" icon={Layers}><CustomDropdown value={format} options={[{ value: '', label: 'All formats' }, { value: 'gguf', label: 'GGUF' }, { value: 'onnx', label: 'ONNX' }]} onChange={value => { setFormat(value); setLimit(24); }} /></CatalogueFilter>
+          <CatalogueFilter label="Capabilities" icon={Sparkles}><CustomDropdown value={task} options={[{ value: '', label: 'All capabilities' }, ...tasks.map(value => ({ value, label: value }))]} onChange={value => { setTask(value); setLimit(24); }} /></CatalogueFilter>
+          <CatalogueFilter label="Providers" icon={Globe}><CustomDropdown selectedValues={providers} onValuesChange={values => { setProviders(values); setLimit(24); }} placeholder="All providers" options={[...new Set(models.map(model => model.provider).filter(Boolean))].sort().map(value => ({ value, label: value }))} /></CatalogueFilter>
+          <CatalogueFilter label="Sort" icon={ArrowDownWideNarrow}><CustomDropdown value={sort} options={[{ value: 'popular', label: 'Popular' }, { value: 'newest', label: 'Newest' }, { value: 'oldest', label: 'Oldest' }, { value: 'name', label: 'Name' }]} onChange={value => { setSort(value as CatalogueSort); setLimit(24); }} /></CatalogueFilter>
+        </div>
+      }
+      chips={
+        <CatalogueChips clear={clearFilters} values={[
+          ...providers.map(provider => ({ key: `provider:${provider}`, label: provider, remove: () => { setProviders(values => values.filter(value => value !== provider)); setLimit(24); } })),
+          ...(task ? [{ key: 'task', label: task, remove: () => { setTask(''); setLimit(24); } }] : []),
+          ...(format ? [{ key: 'format', label: format.toUpperCase(), remove: () => { setFormat(''); setLimit(24); } }] : []),
+        ]} />
+      }
+    />
     {family && <Button variant="ghost" onClick={() => { setFamily(''); setLimit(24); }}>All families · {family}</Button>}
-    <div className="flex items-center gap-3">
-      <CatalogueSearch value={query} onChange={value => { setQuery(value); setLimit(24); }} placeholder="Search models, families, architectures or providers" />
-      <Button variant="outline" size="sm" disabled={catalogue.busy} onClick={() => { void catalogue.refresh(); setConnection(value => value + 1); }}>Refresh</Button>
-    </div>
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      <CatalogueFilter label="Model format" icon={Layers}><CustomDropdown value={format} options={[{ value: '', label: 'All formats' }, { value: 'gguf', label: 'GGUF' }, { value: 'onnx', label: 'ONNX' }]} onChange={value => { setFormat(value); setLimit(24); }} /></CatalogueFilter>
-      <CatalogueFilter label="Capabilities" icon={Sparkles}><CustomDropdown value={task} options={[{ value: '', label: 'All capabilities' }, ...tasks.map(value => ({ value, label: value }))]} onChange={value => { setTask(value); setLimit(24); }} /></CatalogueFilter>
-      <CatalogueFilter label="Providers" icon={Globe}><CustomDropdown selectedValues={providers} onValuesChange={values => { setProviders(values); setLimit(24); }} placeholder="All providers" options={[...new Set(models.map(model => model.provider).filter(Boolean))].sort().map(value => ({ value, label: value }))} /></CatalogueFilter>
-      <CatalogueFilter label="Sort" icon={ArrowDownWideNarrow}><CustomDropdown value={sort} options={[{ value: 'popular', label: 'Popular' }, { value: 'newest', label: 'Newest' }, { value: 'oldest', label: 'Oldest' }, { value: 'name', label: 'Name' }]} onChange={value => { setSort(value as CatalogueSort); setLimit(24); }} /></CatalogueFilter>
-    </div>
-    <CatalogueChips clear={clearFilters} values={[
-      ...providers.map(provider => ({ key: `provider:${provider}`, label: provider, remove: () => { setProviders(values => values.filter(value => value !== provider)); setLimit(24); } })),
-      ...(task ? [{ key: 'task', label: task, remove: () => { setTask(''); setLimit(24); } }] : []),
-      ...(format ? [{ key: 'format', label: format.toUpperCase(), remove: () => { setFormat(''); setLimit(24); } }] : []),
-    ]} />
     {catalogue.busy && <p role="status">Loading catalogue…</p>}
     {(catalogue.error || catalogue.reply?.warning) && <p role="alert">{catalogue.error || catalogue.reply?.warning}</p>}
     {engineError && <p role="alert">Installed model status unavailable. {engineError}</p>}

@@ -50,3 +50,5 @@ export function CatalogueChips({ values, clear }: { values: { key: string; label
   return <div className="flex flex-wrap gap-2 items-center">{values.map(item => <Button key={item.key} variant="secondary" size="sm" onClick={item.remove}>{item.label}<X size={11} /></Button>)}
     <Button variant="ghost" size="sm" onClick={clear}>Clear filters</Button></div>;
 }
+
+export { CatalogueStickyHeader, type CatalogueStickyHeaderProps } from './CatalogueStickyHeader';

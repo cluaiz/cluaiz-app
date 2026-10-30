@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Ca
 import { CustomDropdown } from '../../components/ui/dropdown/CustomDropdown';
 import { useCatalogue } from './useCatalogue';
 import { Boxes } from 'lucide-react';
-import { CatalogueCard, CatalogueFilter, CatalogueLogo, CatalogueSearch, CatalogueTags } from './CatalogueUI';
+import { CatalogueCard, CatalogueFilter, CatalogueLogo, CatalogueStickyHeader, CatalogueTags } from './CatalogueUI';
 import { filterTools } from './catalogueView';
 import { useCatalogueTask } from './useCatalogueTask';
 import { CatalogueTaskStatus } from './CatalogueTaskStatus';
@@ -73,12 +73,46 @@ export function ToolCatalogue({ initialKind }: { initialKind?: string } = {}) {
   }
   const rows = filterTools((catalogue.reply?.data ?? []).map(tool => ({ tool, details: openedDetails[`${tool.kind}:${tool.id}`] })),
     { query, kind, build: '', os: '', sort: 'name' });
+  const pageTitle = initialKind === 'mcp'
+    ? 'MCP Servers'
+    : initialKind === 'skill'
+    ? 'Agent Skills'
+    : initialKind === 'plugin'
+    ? 'Plugins & Tools'
+    : 'Available Tools';
+
+  const pageSubtitle = initialKind === 'mcp'
+    ? 'Standard protocol bridging your engine to external databases, APIs and environments.'
+    : initialKind === 'skill'
+    ? 'Modular agentic capabilities and workflows for tasks.'
+    : initialKind === 'plugin'
+    ? 'Native and community runtime plugins for your workspace.'
+    : 'Plugins, MCP servers and skills for your workspace.';
+
   return <div className="space-y-4">
-    <div><h2 className="text-base font-semibold">Available tools</h2><p className="mt-1 text-xs text-[var(--text-secondary)]">Plugins, MCP servers and skills for your workspace.</p></div>
-    <div className="flex flex-col sm:flex-row sm:items-end gap-3"><CatalogueSearch value={query} onChange={value => { setQuery(value); setLimit(24); }} placeholder="Search package IDs or opened details" />
-      <div className="sm:w-64"><CatalogueFilter label="Package type" icon={Boxes}><CustomDropdown value={kind} options={[{ value: '', label: 'All types' }, ...['plugin', 'skill', 'mcp', 'extension'].map(value => ({ value, label: value }))]} onChange={value => { setKind(value); setLimit(24); }} /></CatalogueFilter></div></div>
-    <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-xs text-[var(--text-muted)]">{rows.length} packages · Open a package for details</p>
-      <Button variant="outline" size="sm" disabled={catalogue.busy || busy} onClick={() => { void catalogue.refresh(); setConnection(v => v + 1); }}>Refresh</Button></div>
+    <CatalogueStickyHeader
+      title={pageTitle}
+      subtitle={pageSubtitle}
+      searchQuery={query}
+      onSearchChange={value => { setQuery(value); setLimit(24); }}
+      searchPlaceholder="Search package IDs or opened details"
+      activeFilterCount={kind ? 1 : 0}
+      actions={
+        <Button variant="outline" size="sm" className="h-8 text-xs cursor-pointer" disabled={catalogue.busy || busy} onClick={() => { void catalogue.refresh(); setConnection(v => v + 1); }}>
+          Refresh
+        </Button>
+      }
+      filterContent={
+        <div className="sm:w-64">
+          <CatalogueFilter label="Package type" icon={Boxes}>
+            <CustomDropdown value={kind} options={[{ value: '', label: 'All types' }, ...['plugin', 'skill', 'mcp', 'extension'].map(value => ({ value, label: value }))]} onChange={value => { setKind(value); setLimit(24); }} />
+          </CatalogueFilter>
+        </div>
+      }
+    />
+    <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+      <p className="text-xs text-[var(--text-muted)]">{rows.length} packages · Open a package for details</p>
+    </div>
     {catalogue.busy && <p role="status">Loading available packages…</p>}
     {(catalogue.error || catalogue.reply?.warning) && <p role="alert">{catalogue.error || catalogue.reply?.warning}</p>}
     {engineError && <p role="alert">{engineError}</p>}
