@@ -62,6 +62,11 @@ export function ToolCatalogue({ initialKind }: { initialKind?: string } = {}) {
     return () => controller.abort();
   }, [connection]);
   useEffect(() => { if (installation.result) setConnection(value => value + 1); }, [installation.result]);
+  useEffect(() => {
+    if (installation.error || (installation.receipt && !installation.busy)) {
+      installation.forget();
+    }
+  }, [installation.error, installation.receipt, installation.busy]);
   async function inspect(tool: RegistryTool) {
     const version = ++selection.current;
     setSelected(tool); setDetails(null); setMessage('Loading package details…');
@@ -156,7 +161,7 @@ export function ToolCatalogue({ initialKind }: { initialKind?: string } = {}) {
           {(catalogue.error || catalogue.reply?.warning) && <p role="alert">{catalogue.error || catalogue.reply?.warning}</p>}
           {engineError && <p role="alert">{engineError}</p>}
           {message && <p role="status">{message}</p>}
-          <CatalogueTaskStatus {...installation} />
+          {installation.busy && <CatalogueTaskStatus {...installation} />}
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {rows.slice(0, limit).map(({ tool, details: metadata }) => (
               <CatalogueCard

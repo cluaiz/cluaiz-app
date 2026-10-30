@@ -62,6 +62,13 @@ export function ModelCatalogue() {
 
   useEffect(() => { if (download.result) setConnection(value => value + 1); }, [download.result]);
 
+  // Auto-clear stale failed/error receipts so intrusive cards never linger
+  useEffect(() => {
+    if (download.error || (download.receipt && !download.busy)) {
+      download.forget();
+    }
+  }, [download.error, download.receipt, download.busy]);
+
   const models = catalogue.reply?.data ?? [];
   const tasks = [...new Set(models.flatMap(model => model.tasks))].sort();
   const filtered = filterModels(models, { query, providers, capabilities: task ? [task] : [], format, sort, family });
@@ -199,7 +206,6 @@ export function ModelCatalogue() {
         {catalogue.busy && <p role="status">Loading catalogue…</p>}
         {(catalogue.error || catalogue.reply?.warning) && <p role="alert">{catalogue.error || catalogue.reply?.warning}</p>}
         {engineError && <p role="alert">Installed model status unavailable. {engineError}</p>}
-        <CatalogueTaskStatus {...download} />
 
         {/* ------------------------------------------------------------------ */}
         {/* LEVEL 3: Dedicated Model Detail & Quantization Download Page      */}
@@ -257,6 +263,9 @@ export function ModelCatalogue() {
                 {cleanModelDescription(selectedModel.description || selectedModel.familyDescription) || 'No detailed overview provided for this package.'}
               </p>
             </Card>
+
+            {/* Active Download Status (ONLY when download is actively in progress) */}
+            {download.busy && <CatalogueTaskStatus {...download} />}
 
             {/* Quantizations & Packages Table */}
             <div className="space-y-3">
