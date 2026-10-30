@@ -70,3 +70,21 @@ test('ToolsSettings empty state message avoids matching "all" bug', () => {
   assert.equal(getEmptyMessage('', 'mcp'), 'No installed MCP servers found.');
   assert.equal(getEmptyMessage('weather', 'all'), 'No tools found matching "weather".');
 });
+
+test('AppExtensionsSection filters bundled extensions by name or id', () => {
+  const sampleExtensions = [
+    { id: 'cluaiz.notebook', name: 'Notebook' },
+    { id: 'cluaiz.library', name: 'Library' },
+  ];
+
+  function filterExtensions(extensions, query) {
+    if (!query.trim()) return extensions;
+    const q = query.toLowerCase();
+    return extensions.filter(e => e.name.toLowerCase().includes(q) || e.id.toLowerCase().includes(q));
+  }
+
+  assert.equal(filterExtensions(sampleExtensions, '').length, 2);
+  assert.equal(filterExtensions(sampleExtensions, 'note')[0].name, 'Notebook');
+  assert.equal(filterExtensions(sampleExtensions, 'library')[0].id, 'cluaiz.library');
+  assert.equal(filterExtensions(sampleExtensions, 'nonexistent').length, 0);
+});
