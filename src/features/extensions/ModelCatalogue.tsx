@@ -5,16 +5,22 @@ import type { ModelRegistryEntry } from '../../api/engine/models/models.types';
 import { useConnectionStore } from '../../store/engine/useConnectionStore';
 import { Button } from '../../components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card';
-import { CustomDropdown } from '../../components/ui/dropdown/CustomDropdown';
+import { Badge } from '../../components/ui/Badge';
 import { useCatalogue } from './useCatalogue';
-import { Tabs } from '../../components/ui/Tabs';
-import { ArrowDownWideNarrow, Boxes, Globe, Layers, Sparkles, LayoutGrid } from 'lucide-react';
+import { 
+  ArrowDownWideNarrow, ArrowLeft, ArrowUpRight, Boxes, CheckCircle2, 
+  Download, Globe, Layers, LayoutGrid, LayoutList, Sparkles 
+} from 'lucide-react';
 import { MultiLevelDropdown, type MultiLevelCategory } from '../../components/ui/dropdown';
-import { CatalogueCard, CatalogueChips, CatalogueFilter, CatalogueLogo, CatalogueStickyHeader, CatalogueTags } from './CatalogueUI';
-import { chooseModelVariant, filterModels, installedModelForVariant, type CatalogueSort } from './catalogueView';
+import { CatalogueCard, CatalogueChips, CatalogueLogo, CatalogueStickyHeader, CatalogueTags } from './CatalogueUI';
+import { 
+  chooseModelVariant, filterModels, installedModelForVariant, cleanModelDescription, 
+  extractFamilyCapabilities, type CatalogueSort 
+} from './catalogueView';
 import { resumeModelDownload } from '../../api/engine/models/actions';
 import { useCatalogueTask } from './useCatalogueTask';
 import { CatalogueTaskStatus } from './CatalogueTaskStatus';
+
 const resumeDownload: Parameters<typeof useCatalogueTask<Awaited<ReturnType<typeof resumeModelDownload>>>>[1] =
   (_target, id, signal, observer) => resumeModelDownload(id, signal, observer);
 
@@ -23,15 +29,18 @@ export function ModelCatalogue() {
   const download = useCatalogueTask('models.download', resumeDownload);
   const [query, setQuery] = useState(''), [task, setTask] = useState(''), [format, setFormat] = useState('');
   const [providers, setProviders] = useState<string[]>([]), [sort, setSort] = useState<CatalogueSort>('popular');
-  const [chosen, setChosen] = useState<Record<string, string>>({});
   const [source, setSource] = useState<ModelInstallSource>('catalogue');
   const [installed, setInstalled] = useState<ModelRegistryEntry[]>([]), [engineError, setEngineError] = useState('');
   const [inventoryReady, setInventoryReady] = useState(false);
   const busy = download.busy || download.cancelling;
   const [limit, setLimit] = useState(24);
-  const [view, setView] = useState<'families' | 'models'>('families'), [family, setFamily] = useState('');
+  const [view, setView] = useState<'families' | 'models'>('families');
+  const [family, setFamily] = useState('');
+  const [selectedModel, setSelectedModel] = useState<PublicModel | null>(null);
+  const [familyViewLayout, setFamilyViewLayout] = useState<'list' | 'grid'>('list');
   const scope = useRef(0);
   const [connection, setConnection] = useState(0);
+
   useEffect(() => {
     const unsubscribe = useConnectionStore.subscribe((next, previous) => {
       if (next.host !== previous.host || next.port !== previous.port || next.protocol !== previous.protocol) {
@@ -41,6 +50,7 @@ export function ModelCatalogue() {
     });
     return () => { ++scope.current; unsubscribe(); };
   }, []);
+
   useEffect(() => {
     const controller = new AbortController(), version = scope.current;
     setInventoryReady(false);
@@ -49,17 +59,24 @@ export function ModelCatalogue() {
     }).catch(error => { if (!controller.signal.aborted && scope.current === version) setEngineError(String(error)); });
     return () => controller.abort();
   }, [connection]);
+
   useEffect(() => { if (download.result) setConnection(value => value + 1); }, [download.result]);
+
   const models = catalogue.reply?.data ?? [];
   const tasks = [...new Set(models.flatMap(model => model.tasks))].sort();
   const filtered = filterModels(models, { query, providers, capabilities: task ? [task] : [], format, sort, family });
-  const clearFilters = () => { setQuery(''); setTask(''); setFormat(''); setProviders([]); setFamily(''); setLimit(24); };
+
+  const clearFilters = () => { 
+    setQuery(''); setTask(''); setFormat(''); setProviders([]); 
+    setFamily(''); setSelectedModel(null); setLimit(24); 
+  };
 
   async function install(model: PublicModel, variant: PublicVariant) {
     if (!inventoryReady) return;
     const reference = modelInstallReference(model, variant, source);
     await download.start(reference, (signal, observer) => modelsApi.downloadModel({ model_id: reference }, signal, observer));
   }
+
   const categories: MultiLevelCategory[] = [
     {
       id: 'view',
@@ -73,6 +90,7 @@ export function ModelCatalogue() {
       onSelect: (val) => {
         setView(val as 'families' | 'models');
         setFamily('');
+        setSelectedModel(null);
         setLimit(24);
       },
     },
@@ -140,69 +158,448 @@ export function ModelCatalogue() {
 
   const activeFilterCount = (format ? 1 : 0) + (task ? 1 : 0) + providers.length + (sort !== 'popular' ? 1 : 0) + (view !== 'families' ? 1 : 0);
 
-  return <div className="w-full flex flex-col min-h-full">
-    <CatalogueStickyHeader
-      title="Models"
-      subtitle="Find a model and choose a package for your Engine."
-      searchQuery={query}
-      onSearchChange={value => { setQuery(value); setLimit(24); }}
-      searchPlaceholder="Search models, families, architectures or providers"
+  // Dynamic header titles based on navigation hierarchy
+  const pageTitle = selectedModel
+    ? (selectedModel.name || selectedModel.id)
+    : family
+    ? `${family} Models`
+    : 'AI Models';
 
-      filterElement={
-        <MultiLevelDropdown
-          categories={categories}
-          activeCount={activeFilterCount}
-          onClearAll={clearFilters}
-        />
-      }
-      chips={
-        <CatalogueChips clear={clearFilters} values={[
-          ...providers.map(provider => ({ key: `provider:${provider}`, label: provider, remove: () => { setProviders(values => values.filter(value => value !== provider)); setLimit(24); } })),
-          ...(task ? [{ key: 'task', label: task, remove: () => { setTask(''); setLimit(24); } }] : []),
-          ...(format ? [{ key: 'format', label: format.toUpperCase(), remove: () => { setFormat(''); setLimit(24); } }] : []),
-        ]} />
-      }
-    />
-    <div className="mx-auto w-full max-w-7xl p-6 space-y-4">
-      {family && <Button variant="ghost" onClick={() => { setFamily(''); setLimit(24); }}>All families · {family}</Button>}
-    {catalogue.busy && <p role="status">Loading catalogue…</p>}
-    {(catalogue.error || catalogue.reply?.warning) && <p role="alert">{catalogue.error || catalogue.reply?.warning}</p>}
-    {engineError && <p role="alert">Installed model status unavailable. {engineError}</p>}
-    <CatalogueTaskStatus {...download} />
-    {catalogue.reply && <p className="text-xs text-[var(--text-muted)]">{filtered.length} models · Saved {new Date(catalogue.reply.saved).toLocaleString()}</p>}
-    {view === 'families' && !family ? <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{[...new Set(filtered.map(model => model.family))].map(name => {
-      const members = filtered.filter(model => model.family === name);
-      return <CatalogueCard key={name} title={name} subtitle={members[0]?.provider} source={members[0]?.logo} icon={Boxes}
-        marker={`${members.length} models`} description={members[0]?.familyDescription || members[0]?.description}
-        tags={members.flatMap(model => model.tasks)} identity={name}
-        onOpen={() => { setFamily(name); setLimit(24); }} />;
-    })}</div> : <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{filtered.slice(0, limit).map(model => {
-      const variants = model.variants.filter(v => !format || v.format === format);
-      const variant = chooseModelVariant(model, variants, chosen[model.id]);
-      const installedModel = installedModelForVariant(installed, model, variant);
-      let reference = '', refusal = '';
-      try { if (variant) reference = modelInstallReference(model, variant, source); else refusal = 'No downloadable package is available.'; }
-      catch (error) { refusal = String(error); }
-      return <Card key={model.id} className="min-w-0" style={{ padding: 16 }}><CardHeader><div className="flex items-center gap-3"><CatalogueLogo source={model.logo} name={model.name || model.id} /><div className="min-w-0"><CardTitle>{model.name || model.id}</CardTitle><p className="mt-1 text-xs text-[var(--text-muted)]">{model.provider}</p></div></div></CardHeader><CardContent className="space-y-3">
-        <p className="text-xs leading-5 text-[var(--text-secondary)] line-clamp-2">{model.description || model.familyDescription}</p>
-        <CatalogueTags values={model.tasks} /><p className="text-xs">Runtime: {model.support}</p>
-        <CustomDropdown disabled={!variants.length || !!busy} value={variant?.id} placeholder="No package available"
-          options={variants.map(v => ({ value: v.id, label: `${v.format.toUpperCase()} · ${v.quant} · ${(v.bytes / 1024 ** 3).toFixed(2)} GiB`, description: `${v.file} · ${v.readiness}` }))}
-          onChange={value => setChosen(previous => ({ ...previous, [model.id]: value }))} />
-        {refusal && <p className="text-xs break-words">{refusal}</p>}
-        <details className="text-xs text-[var(--text-secondary)]"><summary className="cursor-pointer">Package details</summary><div className="mt-2 space-y-2 break-words">
-          <p>{model.family} · {model.repo}</p>
-          <p>{[model.architecture, model.parameters, model.context].filter(Boolean).join(' · ')}</p>
-          {model.note && <p>{model.note}</p>}
-          {variant && <p className="break-all">{variant.file}</p>}
-          {reference && <p className="break-all">Download reference: {reference}</p>}
-        </div></details>
-        <Button disabled={!reference || !download.canStart || !inventoryReady || !!engineError || !!installedModel} onClick={() => { if (variant) void install(model, variant); }}>
-          {installedModel ? 'Installed' : busy && download.receipt?.target === reference ? 'Downloading…' : 'Download selected package'}
-        </Button>
-      </CardContent></Card>;
-    })}</div>}
-    {!catalogue.busy && catalogue.reply && !filtered.length && <p>No models match these filters.</p>}
-    {(view === 'models' || family) && filtered.length > limit && <Button variant="outline" onClick={() => setLimit(value => value + 24)}>Show more models</Button>}
-  </div></div>;
+  const pageSubtitle = selectedModel
+    ? `Publisher: ${selectedModel.provider} · Architecture: ${selectedModel.architecture || 'Neural'} · Package Explorer`
+    : family
+    ? `Available neural packages and quantized variants in the ${family} family.`
+    : 'Find a model and choose a package for your Engine.';
+
+  return (
+    <div className="w-full flex flex-col min-h-full">
+      <CatalogueStickyHeader
+        title={pageTitle}
+        subtitle={pageSubtitle}
+        searchQuery={query}
+        onSearchChange={value => { setQuery(value); setLimit(24); }}
+        searchPlaceholder="Search models, families, architectures or tasks…"
+        filterElement={
+          <MultiLevelDropdown
+            categories={categories}
+            activeCount={activeFilterCount}
+            onClearAll={clearFilters}
+          />
+        }
+        chips={
+          <CatalogueChips clear={clearFilters} values={[
+            ...providers.map(provider => ({ key: `provider:${provider}`, label: provider, remove: () => { setProviders(values => values.filter(value => value !== provider)); setLimit(24); } })),
+            ...(task ? [{ key: 'task', label: task, remove: () => { setTask(''); setLimit(24); } }] : []),
+            ...(format ? [{ key: 'format', label: format.toUpperCase(), remove: () => { setFormat(''); setLimit(24); } }] : []),
+          ]} />
+        }
+      />
+
+      <div className="mx-auto w-full max-w-7xl p-6 space-y-5">
+        {catalogue.busy && <p role="status">Loading catalogue…</p>}
+        {(catalogue.error || catalogue.reply?.warning) && <p role="alert">{catalogue.error || catalogue.reply?.warning}</p>}
+        {engineError && <p role="alert">Installed model status unavailable. {engineError}</p>}
+        <CatalogueTaskStatus {...download} />
+
+        {/* ------------------------------------------------------------------ */}
+        {/* LEVEL 3: Dedicated Model Detail & Quantization Download Page      */}
+        {/* ------------------------------------------------------------------ */}
+        {selectedModel ? (
+          <div className="space-y-6">
+            {/* Breadcrumb Navigation */}
+            <div className="flex items-center gap-2 text-xs text-[var(--text-muted)] select-none">
+              <button
+                type="button"
+                onClick={() => { setFamily(''); setSelectedModel(null); }}
+                className="hover:text-[var(--text-primary)] cursor-pointer flex items-center gap-1 font-medium"
+              >
+                <ArrowLeft size={13} /> All Families
+              </button>
+              <span>/</span>
+              <button
+                type="button"
+                onClick={() => setSelectedModel(null)}
+                className="hover:text-[var(--text-primary)] cursor-pointer font-medium"
+              >
+                {selectedModel.family}
+              </button>
+              <span>/</span>
+              <span className="text-[var(--text-primary)] font-semibold truncate">
+                {selectedModel.name || selectedModel.id}
+              </span>
+            </div>
+
+            {/* Model Hero Info Card */}
+            <Card className="p-6">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <CatalogueLogo source={selectedModel.logo} name={selectedModel.name || selectedModel.id} large />
+                  <div>
+                    <h2 className="text-lg font-bold text-[var(--text-primary)] tracking-tight">
+                      {selectedModel.name || selectedModel.id}
+                    </h2>
+                    <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                      Published by <span className="text-[var(--text-secondary)] font-medium">{selectedModel.provider}</span>
+                      {selectedModel.architecture ? ` · Architecture: ${selectedModel.architecture}` : ''}
+                      {selectedModel.parameters ? ` · ${selectedModel.parameters}` : ''}
+                      {selectedModel.context ? ` · ${selectedModel.context} context window` : ''}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 flex-wrap">
+                  <CatalogueTags values={selectedModel.tasks} />
+                </div>
+              </div>
+
+              {/* Clean Sanitized Description */}
+              <p className="mt-4 text-xs leading-5 text-[var(--text-secondary)] border-t border-[var(--border-color)]/60 pt-3">
+                {cleanModelDescription(selectedModel.description || selectedModel.familyDescription) || 'No detailed overview provided for this package.'}
+              </p>
+            </Card>
+
+            {/* Quantizations & Packages Table */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                  Available Packages & Quantizations ({selectedModel.variants.length})
+                </h3>
+                <span className="text-xs text-[var(--text-muted)]">
+                  Select a quantization to download directly to your local Engine
+                </span>
+              </div>
+
+              <div className="border border-[var(--border-color)]/80 rounded-2xl overflow-hidden bg-[var(--bg-secondary)]/40 divide-y divide-[var(--border-color)]/60">
+                {selectedModel.variants.length === 0 ? (
+                  <p className="p-5 text-xs text-[var(--text-muted)]">No downloadable packages found for this model.</p>
+                ) : (
+                  selectedModel.variants.map((v) => {
+                    const isInstalled = !!installedModelForVariant(installed, selectedModel, v);
+                    let reference = '';
+                    try { reference = modelInstallReference(selectedModel, v, source); } catch { /* ignore */ }
+                    const isDownloadingThis = busy && download.receipt?.target === reference;
+
+                    return (
+                      <div
+                        key={v.id}
+                        className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-[var(--bg-secondary)]/80 transition-colors"
+                      >
+                        <div className="flex items-center gap-3">
+                          <Badge variant="outline" className="font-mono text-xs font-bold uppercase tracking-wider shrink-0">
+                            {v.format}
+                          </Badge>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-bold text-[var(--text-primary)] font-mono">
+                                {v.quant}
+                              </span>
+                              <span className="text-xs font-mono text-[var(--text-muted)]">
+                                · {(v.bytes / 1024 ** 3).toFixed(2)} GiB
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-[var(--text-secondary)] font-mono truncate max-w-md mt-0.5">
+                              {v.file}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0">
+                          {isInstalled ? (
+                            <Badge variant="outline" className="text-xs text-[var(--status-success)] border-[var(--status-success)]/40 flex items-center gap-1 font-semibold">
+                              <CheckCircle2 size={13} /> Installed
+                            </Badge>
+                          ) : (
+                            <Button
+                              size="sm"
+                              disabled={!reference || !download.canStart || !inventoryReady || !!engineError || isDownloadingThis}
+                              onClick={() => void install(selectedModel, v)}
+                              className="text-xs font-semibold flex items-center gap-1.5"
+                            >
+                              <Download size={13} />
+                              {isDownloadingThis ? 'Downloading…' : 'Download package'}
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+
+            {/* Technical Metadata Section */}
+            <div className="p-4 rounded-xl border border-[var(--border-color)]/60 bg-[var(--bg-tertiary)]/30 space-y-1.5 text-xs text-[var(--text-muted)]">
+              <p><span className="text-[var(--text-secondary)] font-semibold">Upstream Repository:</span> {selectedModel.repo}</p>
+              <p><span className="text-[var(--text-secondary)] font-semibold">Model ID:</span> {selectedModel.id}</p>
+              {selectedModel.note && <p><span className="text-[var(--text-secondary)] font-semibold">Notes:</span> {selectedModel.note}</p>}
+            </div>
+          </div>
+        ) : family ? (
+          /* ------------------------------------------------------------------ */
+          /* LEVEL 2: Family Overview & Models Explorer                         */
+          /* ------------------------------------------------------------------ */
+          <div className="space-y-6">
+            {/* Breadcrumb Navigation */}
+            <div className="flex items-center gap-2 text-xs text-[var(--text-muted)] select-none">
+              <button
+                type="button"
+                onClick={() => { setFamily(''); setSelectedModel(null); }}
+                className="hover:text-[var(--text-primary)] cursor-pointer flex items-center gap-1 font-medium"
+              >
+                <ArrowLeft size={13} /> All Families
+              </button>
+              <span>/</span>
+              <span className="text-[var(--text-primary)] font-semibold">{family}</span>
+            </div>
+
+            {/* Family Hero Header */}
+            {(() => {
+              const familyModels = filtered.filter(m => m.family === family);
+              const first = familyModels[0];
+              const capabilities = extractFamilyCapabilities(familyModels);
+              const cleanDesc = cleanModelDescription(first?.familyDescription || first?.description);
+
+              return (
+                <Card className="p-6 space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="flex items-center gap-4">
+                      <CatalogueLogo source={first?.logo} name={family} large icon={Boxes} />
+                      <div>
+                        <div className="flex items-center gap-2.5">
+                          <h2 className="text-xl font-bold text-[var(--text-primary)] tracking-tight">
+                            {family}
+                          </h2>
+                          <Badge variant="outline" className="text-[10px] font-bold uppercase tracking-wider">
+                            {familyModels.length} {familyModels.length === 1 ? 'Model' : 'Models'}
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-[var(--text-muted)] mt-1">
+                          Published by <span className="text-[var(--text-secondary)] font-medium">{first?.provider || 'Open Source'}</span>
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <CatalogueTags values={capabilities} />
+                    </div>
+                  </div>
+
+                  {cleanDesc && (
+                    <p className="text-xs leading-5 text-[var(--text-secondary)] border-t border-[var(--border-color)]/60 pt-3">
+                      {cleanDesc}
+                    </p>
+                  )}
+                </Card>
+              );
+            })()}
+
+            {/* Family Models Explorer Toolbar */}
+            {(() => {
+              const familyModels = filtered.filter(m => m.family === family);
+
+              return (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                      Models in {family} ({familyModels.length})
+                    </h3>
+
+                    {/* List / Grid View Layout Toggle */}
+                    <div className="inline-flex items-center gap-1 p-0.5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-color)]/70">
+                      <button
+                        type="button"
+                        onClick={() => setFamilyViewLayout('list')}
+                        title="List view"
+                        className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                          familyViewLayout === 'list'
+                            ? 'bg-[var(--bg-tertiary)] text-[var(--text-primary)] shadow-xs'
+                            : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
+                        }`}
+                      >
+                        <LayoutList size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFamilyViewLayout('grid')}
+                        title="Grid view"
+                        className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                          familyViewLayout === 'grid'
+                            ? 'bg-[var(--bg-tertiary)] text-[var(--text-primary)] shadow-xs'
+                            : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
+                        }`}
+                      >
+                        <LayoutGrid size={14} />
+                      </button>
+                    </div>
+                  </div>
+
+                  {familyModels.length === 0 ? (
+                    <p className="text-xs text-[var(--text-secondary)]">No models match current filters in this family.</p>
+                  ) : familyViewLayout === 'list' ? (
+                    /* -------------------------------------------------------- */
+                    /* LIST VIEW: Clean rows with specs and quantizations       */
+                    /* -------------------------------------------------------- */
+                    <div className="border border-[var(--border-color)]/80 rounded-2xl overflow-hidden bg-[var(--bg-secondary)]/40 divide-y divide-[var(--border-color)]/60">
+                      {familyModels.map(model => {
+                        const distinctQuants = [...new Set(model.variants.map(v => v.quant))];
+
+                        return (
+                          <div
+                            key={model.id}
+                            onClick={() => setSelectedModel(model)}
+                            className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-[var(--bg-secondary)]/80 transition-colors cursor-pointer group"
+                          >
+                            <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                              <CatalogueLogo source={model.logo} name={model.name || model.id} />
+                              <div className="min-w-0">
+                                <h4 className="text-sm font-bold text-[var(--text-primary)] group-hover:text-[var(--accent-color)] transition-colors truncate">
+                                  {model.name || model.id}
+                                </h4>
+                                <div className="flex items-center gap-2 mt-1 text-xs text-[var(--text-muted)] flex-wrap">
+                                  {model.parameters && (
+                                    <span className="font-semibold text-[var(--text-secondary)]">
+                                      {model.parameters}
+                                    </span>
+                                  )}
+                                  {model.architecture && <span>· {model.architecture}</span>}
+                                  {model.context && <span>· {model.context} ctx</span>}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-3 shrink-0 flex-wrap sm:flex-nowrap">
+                              <CatalogueTags values={model.tasks} />
+                              <span className="text-xs font-mono text-[var(--text-muted)] bg-[var(--bg-tertiary)] px-2.5 py-1 rounded-lg border border-[var(--border-color)]/50">
+                                {distinctQuants.length} {distinctQuants.length === 1 ? 'quant' : 'quants'}
+                              </span>
+                              <Button variant="outline" size="sm" className="text-xs font-semibold gap-1">
+                                View Packages <ArrowUpRight size={12} />
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    /* -------------------------------------------------------- */
+                    /* GRID VIEW: Compact model cards                           */
+                    /* -------------------------------------------------------- */
+                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                      {familyModels.map(model => (
+                        <Card key={model.id} className="min-w-0" style={{ padding: 16 }}>
+                          <CardHeader>
+                            <div className="flex items-center gap-3">
+                              <CatalogueLogo source={model.logo} name={model.name || model.id} />
+                              <div className="min-w-0 flex-1">
+                                <CardTitle className="text-sm font-semibold truncate">
+                                  {model.name || model.id}
+                                </CardTitle>
+                                <p className="text-xs text-[var(--text-muted)] mt-0.5 truncate">
+                                  {[model.parameters, model.architecture, model.context].filter(Boolean).join(' · ')}
+                                </p>
+                              </div>
+                            </div>
+                          </CardHeader>
+                          <CardContent className="space-y-3 pt-2">
+                            <CatalogueTags values={model.tasks} />
+                            <p className="text-xs text-[var(--text-secondary)] line-clamp-2">
+                              {cleanModelDescription(model.description || model.familyDescription)}
+                            </p>
+                            <div className="flex items-center justify-between pt-1 border-t border-[var(--border-color)]/50">
+                              <span className="text-xs font-mono text-[var(--text-muted)]">
+                                {model.variants.length} packages
+                              </span>
+                              <Button size="sm" variant="outline" onClick={() => setSelectedModel(model)} className="text-xs gap-1">
+                                Select <ArrowUpRight size={12} />
+                              </Button>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+          </div>
+        ) : view === 'models' ? (
+          /* ------------------------------------------------------------------ */
+          /* FLAT GRID OF ALL MODELS                                            */
+          /* ------------------------------------------------------------------ */
+          <div className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {filtered.slice(0, limit).map(model => (
+                <Card key={model.id} className="min-w-0" style={{ padding: 16 }}>
+                  <CardHeader>
+                    <div className="flex items-center gap-3">
+                      <CatalogueLogo source={model.logo} name={model.name || model.id} />
+                      <div className="min-w-0 flex-1">
+                        <CardTitle className="text-sm font-semibold truncate">
+                          {model.name || model.id}
+                        </CardTitle>
+                        <p className="text-xs text-[var(--text-muted)] mt-0.5 truncate">{model.provider}</p>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-3 pt-2">
+                    <CatalogueTags values={model.tasks} />
+                    <p className="text-xs text-[var(--text-secondary)] line-clamp-2">
+                      {cleanModelDescription(model.description || model.familyDescription)}
+                    </p>
+                    <div className="flex items-center justify-between pt-1 border-t border-[var(--border-color)]/50">
+                      <span className="text-xs font-mono text-[var(--text-muted)]">
+                        {model.variants.length} packages
+                      </span>
+                      <Button size="sm" variant="outline" onClick={() => setSelectedModel(model)} className="text-xs gap-1">
+                        View Details <ArrowUpRight size={12} />
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+            {filtered.length > limit && (
+              <Button variant="outline" onClick={() => setLimit(value => value + 24)}>Show more models</Button>
+            )}
+          </div>
+        ) : (
+          /* ------------------------------------------------------------------ */
+          /* LEVEL 1: Family Catalog Cards Grid                                 */
+          /* ------------------------------------------------------------------ */
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {[...new Set(filtered.map(model => model.family))].map(name => {
+              const members = filtered.filter(model => model.family === name);
+              const distinctCapabilities = extractFamilyCapabilities(members);
+              const cleanDesc = cleanModelDescription(members[0]?.familyDescription || members[0]?.description);
+
+              return (
+                <CatalogueCard
+                  key={name}
+                  title={name}
+                  subtitle={members[0]?.provider}
+                  source={members[0]?.logo}
+                  icon={Boxes}
+                  marker={`${members.length} models`}
+                  description={cleanDesc}
+                  tags={distinctCapabilities}
+                  identity={name}
+                  onOpen={() => {
+                    setFamily(name);
+                    setSelectedModel(null);
+                    setLimit(24);
+                  }}
+                />
+              );
+            })}
+          </div>
+        )}
+
+        {!catalogue.busy && catalogue.reply && !filtered.length && (
+          <p className="text-sm text-[var(--text-secondary)] p-6 text-center border border-dashed border-[var(--border-color)] rounded-2xl">
+            No models match the selected filters.
+          </p>
+        )}
+      </div>
+    </div>
+  );
 }

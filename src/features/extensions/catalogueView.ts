@@ -40,6 +40,33 @@ export function filterModels(models: PublicModel[], filters: ModelFilters): Publ
     });
 }
 
+/** Clean raw HTML snippets (like <img>, <ul>, <li>) from model descriptions. */
+export function cleanModelDescription(raw: string): string {
+  if (!raw) return '';
+  return raw
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** Extract deduplicated, normalized capability task tags from a family's models. */
+export function extractFamilyCapabilities(models: PublicModel[]): string[] {
+  const tasks = new Set<string>();
+  for (const model of models) {
+    for (const t of model.tasks) {
+      if (t && typeof t === 'string') {
+        const normalized = t.trim().toUpperCase();
+        if (normalized) tasks.add(normalized);
+      }
+    }
+  }
+  return Array.from(tasks);
+}
+
 /** An image element is an image boundary; remote markup is never injected into the App DOM. */
 export function catalogueImage(source: string, base = 'https://cluaiz.com'): string | undefined {
   if (!source) return;

@@ -4,7 +4,7 @@ import { Badge } from '../../components/ui/Badge';
 import { Card } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
-import { catalogueImage } from './catalogueView';
+import { catalogueImage, cleanModelDescription } from './catalogueView';
 
 export function CatalogueLogo({ source, name, base, icon: Icon = Box, large = false }: {
   source?: string; name: string; base?: string; icon?: LucideIcon; large?: boolean;
@@ -18,20 +18,33 @@ export function CatalogueLogo({ source, name, base, icon: Icon = Box, large = fa
 }
 export function CatalogueTags({ values }: { values: string[] }) {
   if (!values.length) return null;
-  return <div className="flex flex-wrap gap-1.5">{[...new Set(values)].slice(0, 5).map(value => <Badge key={value} variant="secondary" className="text-[10px]">{value}</Badge>)}</div>;
+  return <div className="flex flex-wrap gap-1.5">{[...new Set(values.map(v => v.trim().toUpperCase()))].slice(0, 5).map(value => <Badge key={value} variant="secondary" className="text-[10px]">{value}</Badge>)}</div>;
 }
 export function CatalogueCard({ title, subtitle, source, imageBase, icon, marker, description, tags, identity, meta, onOpen }: {
   title: string; subtitle: string; source?: string; imageBase?: string; icon?: LucideIcon; marker: string;
   description: string; tags: string[]; identity: string; meta?: string; onOpen(): void;
 }) {
+  const sanitizedDesc = cleanModelDescription(description);
+  const cleanTags = [...new Set(tags.map(t => t.trim().toUpperCase()))].filter(
+    t => t && t.toLowerCase() !== marker.toLowerCase()
+  );
+
   return <Card className="h-full min-w-0 overflow-hidden" style={{ padding: 0 }}>
-    <button type="button" aria-label={`View ${title}`} onClick={onOpen} className="w-full h-full text-left p-4 flex flex-col gap-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent-color)] rounded-[var(--radius-card)] hover:bg-[var(--bg-tertiary)] transition-colors">
-      <div className="flex items-center gap-3"><CatalogueLogo source={source} base={imageBase} name={title} icon={icon} />
-        <div className="min-w-0 flex-1"><h3 className="text-sm font-semibold text-[var(--text-primary)] leading-5 break-words">{title}</h3>
-          {subtitle && <p className="text-xs text-[var(--text-muted)] mt-0.5 truncate">{subtitle}</p>}</div>
-        <Badge variant="outline" className="text-[10px] shrink-0">{marker}</Badge></div>
-      <p className="text-xs leading-5 text-[var(--text-secondary)] line-clamp-2 min-h-10">{description || 'Open this package to view available details.'}</p>
-      <CatalogueTags values={tags.filter(tag => tag.toLocaleLowerCase() !== marker.toLocaleLowerCase())} />
+    <button type="button" aria-label={`View ${title}`} onClick={onOpen} className="w-full h-full text-left p-4 flex flex-col gap-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent-color)] rounded-[var(--radius-card)] hover:bg-[var(--bg-tertiary)] transition-colors cursor-pointer">
+      <div className="flex items-center gap-3">
+        <CatalogueLogo source={source} base={imageBase} name={title} icon={icon} />
+        <div className="min-w-0 flex-1">
+          <h3 className="text-sm font-semibold text-[var(--text-primary)] leading-5 break-words">{title}</h3>
+          {subtitle && <p className="text-xs text-[var(--text-muted)] mt-0.5 truncate">{subtitle}</p>}
+        </div>
+        <Badge variant="outline" className="text-[10px] font-semibold shrink-0 uppercase tracking-wider">{marker}</Badge>
+      </div>
+      {/* Capability Tags directly under Header (Above description) */}
+      <CatalogueTags values={cleanTags} />
+      {/* Sanitized Short Description under Tags */}
+      <p className="text-xs leading-5 text-[var(--text-secondary)] line-clamp-2 min-h-10">
+        {sanitizedDesc || 'Open this package to view available details.'}
+      </p>
       <div className="mt-auto flex justify-between items-center gap-3 pt-1">
         <p className="min-w-0 text-[11px] text-[var(--text-muted)] truncate">{[identity !== title ? identity : '', meta].filter(Boolean).join(' · ')}</p>
         <span className="text-xs text-[var(--text-secondary)] inline-flex gap-1.5 items-center shrink-0">View details <ArrowUpRight size={13} /></span>

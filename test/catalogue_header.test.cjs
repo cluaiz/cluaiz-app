@@ -88,3 +88,47 @@ test('AppExtensionsSection filters bundled extensions by name or id', () => {
   assert.equal(filterExtensions(sampleExtensions, 'library')[0].id, 'cluaiz.library');
   assert.equal(filterExtensions(sampleExtensions, 'nonexistent').length, 0);
 });
+
+test('cleanModelDescription removes raw HTML tags and collapses whitespace', () => {
+  function cleanModelDescription(raw) {
+    if (!raw) return '';
+    return raw
+      .replace(/<[^>]*>/g, ' ')
+      .replace(/&nbsp;/gi, ' ')
+      .replace(/&amp;/gi, '&')
+      .replace(/&lt;/gi, '<')
+      .replace(/&gt;/gi, '>')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  const rawHtml = '<img width="600" alt="qwen" src="https://example.com/pic.png"> Qwen is a <ul style="margin: 0;"><li><b>Fast</b></li></ul> model.';
+  const cleaned = cleanModelDescription(rawHtml);
+  assert.equal(cleaned, 'Qwen is a Fast model.');
+  assert.equal(cleanModelDescription(''), '');
+  assert.equal(cleanModelDescription(null), '');
+});
+
+test('extractFamilyCapabilities deduplicates and normalizes task names across models', () => {
+  function extractFamilyCapabilities(models) {
+    const tasks = new Set();
+    for (const model of models) {
+      for (const t of model.tasks) {
+        if (t && typeof t === 'string') {
+          const normalized = t.trim().toUpperCase();
+          if (normalized) tasks.add(normalized);
+        }
+      }
+    }
+    return Array.from(tasks);
+  }
+
+  const sampleModels = [
+    { tasks: ['text-to-text', 'image-to-text'] },
+    { tasks: ['IMAGE-TO-TEXT', 'visual-document-retrieval'] },
+    { tasks: ['text-to-text'] },
+  ];
+
+  const distinct = extractFamilyCapabilities(sampleModels);
+  assert.deepEqual(distinct, ['TEXT-TO-TEXT', 'IMAGE-TO-TEXT', 'VISUAL-DOCUMENT-RETRIEVAL']);
+});
