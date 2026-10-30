@@ -9,6 +9,14 @@ const AvailableTools = lazy(() => import('../extensions/ToolCatalogue').then(mod
 
 export const ToolsWorkspace: React.FC<{ embedded?: boolean; defaultKind?: string }> = ({ embedded = false, defaultKind }) => {
     const [section, setSection] = useState<'available' | 'installed'>('available');
+
+    if (embedded) {
+        return (
+            <Suspense fallback={<p className="p-5 text-xs text-[var(--text-secondary)]">Opening tools catalogue…</p>}>
+                <AvailableTools initialKind={defaultKind} />
+            </Suspense>
+        );
+    }
     const handleBackToChat = () => {
         useLayoutStore.getState().setActiveView('chat');
         pushViewRoute('chat');

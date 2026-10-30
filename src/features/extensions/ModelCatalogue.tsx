@@ -147,11 +147,7 @@ export function ModelCatalogue() {
       searchQuery={query}
       onSearchChange={value => { setQuery(value); setLimit(24); }}
       searchPlaceholder="Search models, families, architectures or providers"
-      actions={
-        <div className="flex items-center gap-2">
-          <Tabs items={[{ id: 'families', label: 'Families' }, { id: 'models', label: 'All models' }]} value={view} onChange={value => { setView(value); setFamily(''); setLimit(24); }} />
-        </div>
-      }
+
       filterElement={
         <MultiLevelDropdown
           categories={categories}
