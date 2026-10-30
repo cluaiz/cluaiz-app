@@ -400,3 +400,78 @@ test('cluaizEngine.send forwards history_mode adaptive for saved chats and omits
   assert.equal(sentPayloads[1].temporary_chat, 'lite');
   assert.equal(sentPayloads[1].history_mode, undefined);
 });
+
+test('memory.import validates external RAM import events and rejects cross-chat or malformed replies', async () => {
+  const calls = [];
+  let overrideReply = null;
+  const { chatHistoryApi } = load('src/api/engine/chat/history.ts', {
+    '../../client/cep': {
+      callCep: async (method, params) => {
+        calls.push({ method, params });
+        if (overrideReply) return overrideReply;
+        return {
+          chat_id: params.chat_id,
+          storage: 'external',
+          events: params.events.length,
+          cards: 1,
+        };
+      },
+    },
+    '../../client/errors': load('src/api/client/errors.ts'),
+  });
+
+  const imported = await chatHistoryApi.importChat('c1', [sampleEvent({ chat: 'c1' })]);
+  assert.equal(calls[0].method, 'memory.import');
+  assert.equal(imported.storage, 'external');
+  assert.equal(imported.events, 1);
+  assert.equal(imported.cards, 1);
+
+  await assert.rejects(
+    () => chatHistoryApi.importChat('c1', [sampleEvent({ chat: 'c2' })]),
+    { statusText: 'INVALID_HISTORY_RESPONSE' },
+  );
+
+  overrideReply = { chat_id: 'c1', storage: 'engine', events: 1, cards: 1 };
+  await assert.rejects(
+    () => chatHistoryApi.importChat('c1', [sampleEvent({ chat: 'c1' })]),
+    { statusText: 'INVALID_HISTORY_RESPONSE' },
+  );
+});
+
+test('router pushChatRoute and pushViewRoute strip stale API Explorer endpoint and method params', () => {
+  const pushed = [];
+  const win = {
+    location: {
+      href: 'http://localhost:1420/?endpoint=%2Fv1%2Fingest&method=POST',
+      pathname: '/',
+      search: '?endpoint=%2Fv1%2Fingest&method=POST',
+      hash: '',
+    },
+    history: {
+      pushState: (state, _title, url) => pushed.push({ mode: 'push', state, url }),
+      replaceState: (state, _title, url) => pushed.push({ mode: 'replace', state, url }),
+    },
+  };
+  const { pushChatRoute, pushViewRoute } = load(
+    'src/core/router.ts',
+    {
+      '../store/ui/useLayoutStore': {
+        useLayoutStore: { getState: () => ({ activeExtension: null }) },
+      },
+      '../extensions/routes': {
+        extensionPath: () => '/extensions',
+        parseExtensionPath: () => null,
+      },
+    },
+    { window: win, URL, URLSearchParams },
+  );
+
+  pushChatRoute(null, true);
+  assert.equal(pushed[0].url, '/');
+
+  pushChatRoute('chat_20261029_01', false);
+  assert.equal(pushed[1].url, '/?c=chat_20261029_01');
+
+  pushViewRoute('chat', false);
+  assert.equal(pushed[2].url, '/');
+});

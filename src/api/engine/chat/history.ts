@@ -8,6 +8,7 @@ import type {
   ConversationEventsResponse,
   ConversationExportResponse,
   ConversationGrantsResponse,
+  ConversationImportResponse,
   ConversationIndexResponse,
   ConversationItemResponse,
   ConversationSearchParams,
@@ -15,6 +16,8 @@ import type {
   ConversationTask,
   RevokeGrantsResponse,
 } from './history.types';
+
+const MAX_IMPORT_EVENTS = 50000;
 
 const object = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -181,6 +184,46 @@ export const chatHistoryApi = {
       chat_id: chatId,
       events: result.events.map(item => eventRecord(item, chatId, 'memory.export')),
       cards: result.cards.map(item => cardRecord(item, 'memory.export')),
+    };
+  },
+
+  /**
+   * Loads client-owned events for a chat into the Engine's external-mode RAM store
+   * and rebuilds its Chat Map (`memory.import`).
+   * Note: This registers the chat as `storage: "external"` in Engine RAM; default
+   * App chats use `storage: "engine"` so the Engine persists event logs on disk.
+   */
+  importChat: async (
+    chatId: string,
+    events: ConversationEvent[],
+    signal?: AbortSignal,
+  ): Promise<ConversationImportResponse> => {
+    chatIdOf(chatId);
+    if (!Array.isArray(events)) throw inputError('Events array is required for memory.import');
+    if (events.length > MAX_IMPORT_EVENTS) {
+      throw inputError(`memory.import accepts at most ${MAX_IMPORT_EVENTS} events`);
+    }
+    const validatedEvents = events.map(item => eventRecord(item, chatId, 'memory.import'));
+    const result = await callCep<unknown>(
+      'memory.import',
+      { chat_id: chatId, events: validatedEvents },
+      { signal },
+    );
+    if (
+      !object(result) ||
+      result.chat_id !== chatId ||
+      result.storage !== 'external' ||
+      !count(result.events) ||
+      result.events !== validatedEvents.length ||
+      !count(result.cards)
+    ) {
+      throw invalid('memory.import');
+    }
+    return {
+      chat_id: chatId,
+      storage: 'external',
+      events: result.events,
+      cards: result.cards,
     };
   },
 

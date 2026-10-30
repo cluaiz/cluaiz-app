@@ -431,6 +431,13 @@ Rendered lifecycle/race/private-mode and isolated Engine persistence evidence is
 recorded in the existing App integration proof; controlled records are not model
 behavior proof. Test fixtures never write the user's notes or chat history.
 
+`node --test test/conversation_memory_lifecycle.test.cjs test/chat_preview_options.test.cjs test/catalogue_view.test.cjs`
+covers search/source cancellation state, stale chat/private results, score origin,
+the actual Preview button's current composer/history payload, private refusal,
+combined catalogue filters/sorting and logo URL refusal. Controlled hook/component
+boundaries are used; this does not certify packaged native rendering or real model
+inference/downloads.
+
 `node --test test/cep_task_tracking.test.cjs test/catalogue_task_lifecycle.test.cjs`
 covers observed start-once/progress, same-id resume, cancellation preflight and
 acknowledgement/refusal, wrong identities/results, expired tasks, stale Engine

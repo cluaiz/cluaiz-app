@@ -143,6 +143,13 @@ export interface ConversationExportResponse {
   cards: ConversationCard[];
 }
 
+export interface ConversationImportResponse {
+  chat_id: string;
+  storage: 'external';
+  events: number;
+  cards: number;
+}
+
 export interface ConversationToolGrant {
   tool: string;
   minutes_left: number;
