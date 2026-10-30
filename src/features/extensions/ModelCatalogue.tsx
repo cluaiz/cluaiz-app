@@ -14,7 +14,7 @@ import {
 import { MultiLevelDropdown, type MultiLevelCategory } from '../../components/ui/dropdown';
 import { CatalogueCard, CatalogueChips, CatalogueLogo, CatalogueStickyHeader, CatalogueTags } from './CatalogueUI';
 import { 
-  chooseModelVariant, filterModels, installedModelForVariant, cleanModelDescription, 
+  catalogueImage, chooseModelVariant, filterModels, installedModelForVariant, cleanModelDescription, 
   extractFamilyCapabilities, type CatalogueSort 
 } from './catalogueView';
 import { resumeModelDownload } from '../../api/engine/models/actions';
@@ -366,20 +366,23 @@ export function ModelCatalogue() {
               const first = familyModels[0];
               const capabilities = extractFamilyCapabilities(familyModels);
               const cleanDesc = cleanModelDescription(first?.familyDescription || first?.description);
+              const heroLogoUrl = catalogueImage(first?.logo || '');
 
               return (
                 <div className="relative overflow-hidden rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-color)] p-6 sm:px-10 sm:py-12 min-h-[220px] flex items-center text-left">
                   {/* Right Side: Family Logo Watermark seamlessly dissolved into card background */}
-                  {first?.logo && (
-                    <div className="absolute right-0 top-0 bottom-0 w-2/5 sm:w-1/3 flex items-center justify-end pointer-events-none select-none overflow-hidden z-0 pr-4 sm:pr-8">
+                  {heroLogoUrl && (
+                    <div className="absolute right-0 top-0 bottom-0 w-1/2 sm:w-2/5 flex items-center justify-end pointer-events-none select-none overflow-hidden z-0 pr-4 sm:pr-8">
                       <img
-                        src={first.logo}
+                        src={heroLogoUrl}
                         alt=""
                         aria-hidden="true"
-                        className="w-48 h-48 sm:w-64 sm:h-64 object-contain opacity-25 filter contrast-125"
+                        loading="lazy"
+                        referrerPolicy="no-referrer"
+                        className="w-56 h-56 sm:w-72 sm:h-72 object-contain opacity-45 filter contrast-125 transition-opacity"
                         style={{
-                          maskImage: 'radial-gradient(ellipse at center right, rgba(0,0,0,0.65) 15%, rgba(0,0,0,0.2) 55%, transparent 95%)',
-                          WebkitMaskImage: 'radial-gradient(ellipse at center right, rgba(0,0,0,0.65) 15%, rgba(0,0,0,0.2) 55%, transparent 95%)',
+                          maskImage: 'linear-gradient(to left, rgba(0,0,0,0.85) 10%, rgba(0,0,0,0.35) 55%, transparent 100%)',
+                          WebkitMaskImage: 'linear-gradient(to left, rgba(0,0,0,0.85) 10%, rgba(0,0,0,0.35) 55%, transparent 100%)',
                         }}
                       />
                     </div>

@@ -220,12 +220,14 @@ test('Family Hero Banner watermark dissolves smoothly without neon glow', () => 
   const heroConfig = {
     minHeight: 'min-h-[220px]',
     hasNeonGlowBulb: false,
-    maskImage: 'radial-gradient(ellipse at center right, rgba(0,0,0,0.65) 15%, rgba(0,0,0,0.2) 55%, transparent 95%)',
+    maskImage: 'linear-gradient(to left, rgba(0,0,0,0.85) 10%, rgba(0,0,0,0.35) 55%, transparent 100%)',
+    referrerPolicy: 'no-referrer',
   };
 
   assert.equal(heroConfig.hasNeonGlowBulb, false, 'Fake neon light bulb must not be present');
   assert.ok(heroConfig.minHeight.includes('220px'), 'Hero card should have expanded vertical height');
-  assert.ok(heroConfig.maskImage.includes('radial-gradient'), 'Watermark must use smooth radial gradient fade');
+  assert.ok(heroConfig.maskImage.includes('linear-gradient'), 'Watermark must use smooth linear gradient fade');
+  assert.equal(heroConfig.referrerPolicy, 'no-referrer', 'Image should have no-referrer policy');
 });
 
 
