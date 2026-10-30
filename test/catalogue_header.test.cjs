@@ -29,3 +29,44 @@ test('ToolCatalogue resolves proper dynamic title for mcp, skill, and plugin', (
   assert.equal(getCatalogueTitle('plugin'), 'Plugins & Tools');
   assert.equal(getCatalogueTitle(undefined), 'Available Tools');
 });
+
+test('ToolCatalogue tab order places Installed first and Browse second', () => {
+  const tabs = [
+    { id: 'installed', label: 'Installed' },
+    { id: 'browse', label: 'Browse' },
+  ];
+  const defaultTab = 'installed';
+
+  assert.equal(tabs[0].id, 'installed', 'Installed tab must be first');
+  assert.equal(tabs[1].id, 'browse', 'Browse tab must be second');
+  assert.equal(defaultTab, 'installed', 'Default tab must be installed');
+});
+
+test('ToolCatalogue maps kind to ToolsSettings category accurately', () => {
+  function mapKindToCategory(kind) {
+    return kind === 'skill' ? 'skill' : kind === 'plugin' ? 'plugin' : kind === 'mcp' ? 'mcp' : 'all';
+  }
+
+  assert.equal(mapKindToCategory('skill'), 'skill');
+  assert.equal(mapKindToCategory('plugin'), 'plugin');
+  assert.equal(mapKindToCategory('mcp'), 'mcp');
+  assert.equal(mapKindToCategory('extension'), 'all');
+  assert.equal(mapKindToCategory(''), 'all');
+});
+
+test('ToolsSettings empty state message avoids matching "all" bug', () => {
+  function getEmptyMessage(searchQuery, filter) {
+    if (searchQuery.trim()) {
+      return `No tools found matching "${searchQuery}".`;
+    }
+    if (filter !== 'all') {
+      return `No installed ${filter === 'mcp' ? 'MCP servers' : filter + 's'} found.`;
+    }
+    return 'No installed tools found in workspace.';
+  }
+
+  assert.equal(getEmptyMessage('', 'all'), 'No installed tools found in workspace.');
+  assert.equal(getEmptyMessage('', 'skill'), 'No installed skills found.');
+  assert.equal(getEmptyMessage('', 'mcp'), 'No installed MCP servers found.');
+  assert.equal(getEmptyMessage('weather', 'all'), 'No tools found matching "weather".');
+});

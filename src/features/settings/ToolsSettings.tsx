@@ -20,9 +20,23 @@ const SECURITY_POLICY_OPTIONS: DropdownOption[] = [
     { value: 'always_allow', label: 'Always Allow', description: 'Bypass confirmation prompts and execute directly' },
 ];
 
-export function ToolsSettings() {
-    const [filter, setFilter] = useState<'all' | 'skill' | 'plugin' | 'mcp'>('all');
-    const [searchQuery, setSearchQuery] = useState('');
+export interface ToolsSettingsProps {
+    searchQuery?: string;
+    filterCategory?: 'all' | 'skill' | 'plugin' | 'mcp';
+    hideToolbar?: boolean;
+    onBrowseClick?: () => void;
+}
+
+export function ToolsSettings({
+    searchQuery: externalQuery,
+    filterCategory: externalCategory,
+    hideToolbar = false,
+    onBrowseClick,
+}: ToolsSettingsProps = {}) {
+    const [internalFilter, setInternalFilter] = useState<'all' | 'skill' | 'plugin' | 'mcp'>('all');
+    const [internalSearchQuery, setInternalSearchQuery] = useState('');
+    const filter = externalCategory !== undefined ? externalCategory : internalFilter;
+    const searchQuery = externalQuery !== undefined ? externalQuery : internalSearchQuery;
     const [tools, setTools] = useState<ToolComponent[]>([]);
     const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
     const [isLoading, setIsLoading] = useState(true);
@@ -223,67 +237,69 @@ export function ToolsSettings() {
 
     return (
         <div className="space-y-6 select-none pb-12">
-            {/* Unified Responsive Toolbar: Tabs + Search + Actions */}
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 p-1.5 bg-[var(--bg-secondary)]/40 border border-[var(--border-color)]/70 rounded-2xl shadow-sm">
-                {/* Left: Category Filter Tabs */}
-                <div className="flex items-center gap-1 p-1 bg-[var(--bg-secondary)]/90 border border-[var(--border-color)]/50 rounded-xl overflow-x-auto custom-scrollbar shrink-0">
-                    {(['all', 'skill', 'plugin', 'mcp'] as const).map((tab) => (
-                        <button
-                            key={tab}
-                            type="button"
-                            onClick={() => setFilter(tab)}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap ${
-                                filter === tab
-                                    ? 'bg-[var(--accent-color)] text-[var(--bg-primary)] shadow-sm'
-                                    : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/[0.04]'
-                            }`}
-                        >
-                            {tab === 'all' ? 'All' : tab === 'mcp' ? 'MCP' : `${tab}s`}
-                        </button>
-                    ))}
-                    <div className="h-4 w-px bg-[var(--border-color)]/60 my-auto mx-1 shrink-0" />
-                    <span className="text-[10px] text-[var(--text-muted)] font-mono font-bold px-2 py-0.5 rounded bg-[var(--bg-tertiary)]/70 whitespace-nowrap shrink-0">
-                        {filteredTools.length} {filteredTools.length === 1 ? 'item' : 'items'}
-                    </span>
-                </div>
-
-                {/* Right: Search Input + Refresh Button */}
-                <div className="flex items-center gap-2 flex-1 lg:max-w-md justify-end">
-                    {/* Search Input */}
-                    <div className="flex-1">
-                        <Input
-                            type="text"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            placeholder="Search tools, skills, or triggers..."
-                            leftIcon={<Search size={14} />}
-                            rightElement={searchQuery ? (
-                                <button
-                                    type="button"
-                                    onClick={() => setSearchQuery('')}
-                                    className="text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
-                                    title="Clear search"
-                                >
-                                    <X size={13} />
-                                </button>
-                            ) : undefined}
-                        />
+            {/* Unified Responsive Toolbar: Tabs + Search + Actions (hidden when embedded in catalogue) */}
+            {!hideToolbar && (
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 p-1.5 bg-[var(--bg-secondary)]/40 border border-[var(--border-color)]/70 rounded-2xl shadow-sm">
+                    {/* Left: Category Filter Tabs */}
+                    <div className="flex items-center gap-1 p-1 bg-[var(--bg-secondary)]/90 border border-[var(--border-color)]/50 rounded-xl overflow-x-auto custom-scrollbar shrink-0">
+                        {(['all', 'skill', 'plugin', 'mcp'] as const).map((tab) => (
+                            <button
+                                key={tab}
+                                type="button"
+                                onClick={() => setInternalFilter(tab)}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap ${
+                                    filter === tab
+                                        ? 'bg-[var(--accent-color)] text-[var(--bg-primary)] shadow-sm'
+                                        : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/[0.04]'
+                                }`}
+                            >
+                                {tab === 'all' ? 'All' : tab === 'mcp' ? 'MCP' : `${tab}s`}
+                            </button>
+                        ))}
+                        <div className="h-4 w-px bg-[var(--border-color)]/60 my-auto mx-1 shrink-0" />
+                        <span className="text-[10px] text-[var(--text-muted)] font-mono font-bold px-2 py-0.5 rounded bg-[var(--bg-tertiary)]/70 whitespace-nowrap shrink-0">
+                            {filteredTools.length} {filteredTools.length === 1 ? 'item' : 'items'}
+                        </span>
                     </div>
 
-                    {/* Refresh Button */}
-                    <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        onClick={loadTools}
-                        title="Reload tools and skills"
-                        className="shrink-0"
-                    >
-                        <RefreshCw size={13} className={isLoading ? 'animate-spin' : ''} />
-                        <span className="hidden sm:inline">Refresh</span>
-                    </Button>
+                    {/* Right: Search Input + Refresh Button */}
+                    <div className="flex items-center gap-2 flex-1 lg:max-w-md justify-end">
+                        {/* Search Input */}
+                        <div className="flex-1">
+                            <Input
+                                type="text"
+                                value={internalSearchQuery}
+                                onChange={(e) => setInternalSearchQuery(e.target.value)}
+                                placeholder="Search tools, skills, or triggers..."
+                                leftIcon={<Search size={14} />}
+                                rightElement={internalSearchQuery ? (
+                                    <button
+                                        type="button"
+                                        onClick={() => setInternalSearchQuery('')}
+                                        className="text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
+                                        title="Clear search"
+                                    >
+                                        <X size={13} />
+                                    </button>
+                                ) : undefined}
+                            />
+                        </div>
+
+                        {/* Refresh Button */}
+                        <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            onClick={loadTools}
+                            title="Reload tools and skills"
+                            className="shrink-0"
+                        >
+                            <RefreshCw size={13} className={isLoading ? 'animate-spin' : ''} />
+                            <span className="hidden sm:inline">Refresh</span>
+                        </Button>
+                    </div>
                 </div>
-            </div>
+            )}
 
             {/* Tools List */}
             {isLoading ? (
@@ -294,16 +310,30 @@ export function ToolsSettings() {
             ) : filteredTools.length === 0 ? (
                 <div className="flex flex-col items-center justify-center p-12 border border-dashed border-[var(--border-color)] rounded-2xl gap-3 text-center">
                     <span className="text-sm font-semibold text-[var(--text-secondary)]">
-                        No tools found matching &quot;{searchQuery || filter}&quot;.
+                        {searchQuery.trim()
+                            ? `No tools found matching "${searchQuery}".`
+                            : filter !== 'all'
+                            ? `No installed ${filter === 'mcp' ? 'MCP servers' : filter + 's'} found.`
+                            : 'No installed tools found in workspace.'}
                     </span>
-                    <a
-                        href="https://github.com"
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--accent-color)] text-[var(--bg-primary)] rounded-xl text-xs font-bold hover:opacity-90 transition-opacity"
-                    >
-                        <ExternalLink size={13} /> Discover on Hub
-                    </a>
+                    {onBrowseClick ? (
+                        <button
+                            type="button"
+                            onClick={onBrowseClick}
+                            className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--accent-color)] text-[var(--bg-primary)] rounded-xl text-xs font-bold hover:opacity-90 transition-opacity cursor-pointer"
+                        >
+                            <ExternalLink size={13} /> Browse Packages
+                        </button>
+                    ) : (
+                        <a
+                            href="https://github.com"
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--accent-color)] text-[var(--bg-primary)] rounded-xl text-xs font-bold hover:opacity-90 transition-opacity"
+                        >
+                            <ExternalLink size={13} /> Discover on Hub
+                        </a>
+                    )}
                 </div>
             ) : (
                 <div className="space-y-3">

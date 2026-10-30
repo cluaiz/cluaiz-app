@@ -83,7 +83,7 @@ export function Tabs<T extends string = string>({
 
     // Default 'pill' variant — smooth rubber sliding segment
     return (
-        <div className={`flex items-center gap-1 overflow-x-auto no-scrollbar py-1 ${className}`}>
+        <div className={`inline-flex items-center gap-1 overflow-x-auto no-scrollbar p-1 rounded-xl bg-[var(--bg-secondary)]/70 border border-[var(--border-color)]/60 ${className}`}>
             {normalizedItems.map((item) => {
                 const isActive = item.id.toLowerCase() === value.toLowerCase();
                 const Icon = item.icon;
@@ -103,7 +103,7 @@ export function Tabs<T extends string = string>({
                         {isActive && (
                             <motion.div
                                 layoutId={`tab-pill-${layoutScope}`}
-                                className="absolute inset-0 rounded-lg bg-[var(--accent-color)]/15 border border-[var(--accent-color)]/30 shadow-[0_0_12px_var(--accent-color)]/15"
+                                className="absolute inset-0 rounded-lg bg-[var(--bg-tertiary)] border border-white/10 shadow-xs"
                                 transition={{ type: 'spring', stiffness: 450, damping: 32 }}
                             />
                         )}

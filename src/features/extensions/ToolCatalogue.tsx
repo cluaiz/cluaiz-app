@@ -27,7 +27,7 @@ export function ToolCatalogue({ initialKind }: { initialKind?: string } = {}) {
   const catalogue = useCatalogue(toolCatalogue.list);
   const installation = useCatalogueTask('tools.install', resumeInstall);
   const [kind, setKind] = useState(initialKind ?? ''), [query, setQuery] = useState('');
-  const [tab, setTab] = useState<'browse' | 'installed'>('browse');
+  const [tab, setTab] = useState<'installed' | 'browse'>('installed');
 
   useEffect(() => {
     if (initialKind !== undefined) {
@@ -114,13 +114,16 @@ export function ToolCatalogue({ initialKind }: { initialKind?: string } = {}) {
     },
   ];
 
+  const activeCategory: 'all' | 'skill' | 'plugin' | 'mcp' =
+    kind === 'skill' ? 'skill' : kind === 'plugin' ? 'plugin' : kind === 'mcp' ? 'mcp' : 'all';
+
   return <div className="w-full flex flex-col min-h-full">
     <CatalogueStickyHeader
       title={pageTitle}
       subtitle={pageSubtitle}
       searchQuery={query}
       onSearchChange={value => { setQuery(value); setLimit(24); }}
-      searchPlaceholder="Search package IDs or opened details"
+      searchPlaceholder={tab === 'installed' ? 'Search installed tools, skills, or triggers…' : 'Search package IDs or opened details'}
       filterElement={
         <MultiLevelDropdown
           categories={toolCategories}
@@ -130,18 +133,20 @@ export function ToolCatalogue({ initialKind }: { initialKind?: string } = {}) {
       }
     />
     <div className="mx-auto w-full max-w-7xl p-6 space-y-4">
-      {/* 2 Clean Tabs: Browse & Installed */}
+      {/* 2 Clean Tabs: Installed (First) & Browse (Second) */}
       <div className="flex items-center justify-between">
         <Tabs
           items={[
-            { id: 'browse', label: 'Browse' },
             { id: 'installed', label: 'Installed' },
+            { id: 'browse', label: 'Browse' },
           ]}
           value={tab}
-          onChange={value => setTab(value as 'browse' | 'installed')}
+          onChange={value => setTab(value as 'installed' | 'browse')}
         />
-        {tab === 'browse' && (
+        {tab === 'browse' ? (
           <p className="text-xs text-[var(--text-muted)]">{rows.length} packages · Open a package for details</p>
+        ) : (
+          <p className="text-xs text-[var(--text-muted)]">Active engine capabilities & configurations</p>
         )}
       </div>
 
@@ -198,7 +203,12 @@ export function ToolCatalogue({ initialKind }: { initialKind?: string } = {}) {
         </>
       ) : (
         <EngineOfflineGuard>
-          <ToolsSettings />
+          <ToolsSettings
+            searchQuery={query}
+            filterCategory={activeCategory}
+            hideToolbar={true}
+            onBrowseClick={() => setTab('browse')}
+          />
         </EngineOfflineGuard>
       )}
     </div></div>;
