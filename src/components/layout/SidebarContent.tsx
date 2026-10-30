@@ -39,7 +39,7 @@ const DockIconButton: React.FC<DockIconButtonProps> = ({
 }) => {
     const { ref: iconRef, triggerProps } = useIconHover();
     return (
-        <Tooltip title={tooltip} position="right">
+        <Tooltip title={tooltip} position="right" disabled={!tooltip || !tooltip.trim()}>
             <button
                 type="button"
                 onClick={onClick}
@@ -891,7 +891,7 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                                 className="relative flex items-center justify-center"
                             >
                                 <DockIconButton
-                                    tooltip={isFlyoutOpen ? "" : (activeView === 'apis' ? "Search Endpoints" : activeView === 'toolkit' ? "Search Toolkit" : "Search & Chats")}
+                                    tooltip={activeView === 'apis' ? "Search Endpoints" : activeView === 'toolkit' ? "Search Toolkit" : "Search & Chats"}
                                     icon={Icons.Search}
                                     isActive={isFlyoutOpen}
                                     onClick={() => setIsFlyoutOpen(prev => !prev)}
@@ -961,7 +961,7 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                                 className="relative flex items-center justify-center"
                             >
                                 <DockIconButton
-                                    tooltip={isFlyoutOpen && activeView === 'apis' ? "" : "APIs"}
+                                    tooltip="APIs"
                                     icon={Icons.Code2}
                                     isActive={activeView === 'apis'}
                                     onClick={() => {
@@ -988,7 +988,7 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                                 className="relative flex items-center justify-center"
                             >
                                 <DockIconButton
-                                    tooltip={isFlyoutOpen && activeView === 'toolkit' ? "" : "Toolkit"}
+                                    tooltip="Toolkit"
                                     icon={Icons.Boxes}
                                     isActive={activeView === 'toolkit'}
                                     onClick={() => {
