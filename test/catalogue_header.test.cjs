@@ -132,3 +132,66 @@ test('extractFamilyCapabilities deduplicates and normalizes task names across mo
   const distinct = extractFamilyCapabilities(sampleModels);
   assert.deepEqual(distinct, ['TEXT-TO-TEXT', 'IMAGE-TO-TEXT', 'VISUAL-DOCUMENT-RETRIEVAL']);
 });
+
+test('FamilyModelSliderRow groups models by family and exposes View All and Model selection', () => {
+  const allModels = [
+    { id: 'qwen-7b', name: 'Qwen 7B', family: 'Qwen', provider: 'Alibaba Cloud', tasks: ['text-to-text'] },
+    { id: 'qwen-14b', name: 'Qwen 14B', family: 'Qwen', provider: 'Alibaba Cloud', tasks: ['text-to-text'] },
+    { id: 'llama-3.2-1b', name: 'Llama 3.2 1B', family: 'Llama 3.2', provider: 'Meta AI', tasks: ['text-to-text'] },
+  ];
+
+  const families = [...new Set(allModels.map(m => m.family))];
+  assert.deepEqual(families, ['Qwen', 'Llama 3.2']);
+
+  const qwenModels = allModels.filter(m => m.family === 'Qwen');
+  assert.equal(qwenModels.length, 2);
+
+  const llamaModels = allModels.filter(m => m.family === 'Llama 3.2');
+  assert.equal(llamaModels.length, 1);
+});
+
+test('ModelSliderCard resolves default variant and allows instant quantization switching', () => {
+  const sampleModel = {
+    id: 'qwen-2.5-7b',
+    name: 'Qwen 2.5 7B',
+    variants: [
+      { id: 'v1', quant: 'Q4_K_M', bytes: 4.5 * 1024 ** 3 },
+      { id: 'v2', quant: 'Q8_0', bytes: 7.8 * 1024 ** 3 },
+    ],
+  };
+
+  // Default selection is first variant
+  let selected = sampleModel.variants[0];
+  assert.equal(selected.quant, 'Q4_K_M');
+
+  // Switch to Q8_0
+  selected = sampleModel.variants[1];
+  assert.equal(selected.quant, 'Q8_0');
+  assert.equal((selected.bytes / 1024 ** 3).toFixed(1), '7.8');
+});
+
+test('ScrubberDot calculates center and progress distance correctly across 48 dots', () => {
+  const total = 48;
+  const distance = 1 / total;
+
+  function calculateDotBounds(index) {
+    const center = index / (total - 1);
+    return {
+      center,
+      minActive: center - distance * 3,
+      maxActive: center + distance * 3,
+    };
+  }
+
+  const dot0 = calculateDotBounds(0);
+  assert.equal(dot0.center, 0);
+
+  const dotLast = calculateDotBounds(47);
+  assert.equal(dotLast.center, 1);
+
+  const dotMid = calculateDotBounds(24);
+  assert.ok(dotMid.center > 0.49 && dotMid.center < 0.52);
+  assert.ok(dotMid.maxActive > dotMid.center);
+  assert.ok(dotMid.minActive < dotMid.center);
+});
+

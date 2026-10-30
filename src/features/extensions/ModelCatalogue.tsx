@@ -20,6 +20,7 @@ import {
 import { resumeModelDownload } from '../../api/engine/models/actions';
 import { useCatalogueTask } from './useCatalogueTask';
 import { CatalogueTaskStatus } from './CatalogueTaskStatus';
+import { FamilyModelSliderRow } from './FamilyModelSliderRow';
 
 const resumeDownload: Parameters<typeof useCatalogueTask<Awaited<ReturnType<typeof resumeModelDownload>>>>[1] =
   (_target, id, signal, observer) => resumeModelDownload(id, signal, observer);
@@ -573,29 +574,29 @@ export function ModelCatalogue() {
           </div>
         ) : (
           /* ------------------------------------------------------------------ */
-          /* LEVEL 1: Family Catalog Cards Grid                                 */
+          /* LEVEL 1: Family Master Rows with Models Slider & Wave Scrubber     */
           /* ------------------------------------------------------------------ */
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {[...new Set(filtered.map(model => model.family))].map(name => {
+          <div className="space-y-6">
+            {[...new Set(filtered.map(model => model.family))].map((name) => {
               const members = filtered.filter(model => model.family === name);
-              const distinctCapabilities = extractFamilyCapabilities(members);
-              const cleanDesc = cleanModelDescription(members[0]?.familyDescription || members[0]?.description);
 
               return (
-                <CatalogueCard
+                <FamilyModelSliderRow
                   key={name}
-                  title={name}
-                  subtitle={members[0]?.provider}
-                  source={members[0]?.logo}
-                  icon={Boxes}
-                  marker={`${members.length} models`}
-                  description={cleanDesc}
-                  tags={distinctCapabilities}
-                  identity={name}
-                  onOpen={() => {
-                    setFamily(name);
+                  family={name}
+                  models={members}
+                  installed={installed}
+                  isBusy={busy}
+                  downloadingTarget={download.receipt?.target}
+                  onDownload={(model, variant) => void install(model, variant)}
+                  onViewAll={(fam) => {
+                    setFamily(fam);
                     setSelectedModel(null);
                     setLimit(24);
+                  }}
+                  onSelectModel={(model) => {
+                    setSelectedModel(model);
+                    setFamily(model.family);
                   }}
                 />
               );
