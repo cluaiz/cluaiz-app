@@ -148,16 +148,16 @@ export const FamilyModelSliderRow: React.FC<FamilyModelSliderRowProps> = ({
   };
 
   return (
-    <div className="w-full rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-color)] p-3.5 sm:p-5 space-y-3.5 sm:space-y-4 text-left">
+    <div className="w-full rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-color)] p-3 sm:p-5 space-y-3 sm:space-y-4 text-left">
       {/* ------------------------------------------------------------------ */}
       {/* SECTION 1: FAMILY HEADER (RESPONSIVE STACK)                         */}
       {/* ------------------------------------------------------------------ */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 pb-3 border-b border-[var(--border-color)]">
         {/* Left Side: Logo, Name, Publisher, Description, Tags, Count */}
-        <div className="flex items-start gap-3 min-w-0">
+        <div className="flex items-start gap-2.5 sm:gap-3.5 min-w-0">
           <CatalogueLogo source={firstModel?.logo} name={family} large icon={Boxes} />
           <div className="space-y-1 min-w-0 flex-1">
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
               <h3 className="text-base sm:text-lg font-bold font-mono uppercase text-[var(--text-primary)] tracking-tight">
                 {family}
               </h3>
@@ -213,7 +213,7 @@ export const FamilyModelSliderRow: React.FC<FamilyModelSliderRowProps> = ({
         </div>
       ) : models.length === 2 ? (
         /* Case 2: Exactly 2 Models -> 50% - 50% Clean Grid (No empty gap) */
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 w-full">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 w-full">
           {models.map((model) => (
             <ModelSliderCard
               key={model.id}
@@ -229,7 +229,7 @@ export const FamilyModelSliderRow: React.FC<FamilyModelSliderRowProps> = ({
         </div>
       ) : (
         /* Case 3: 3+ Models -> Horizontal Slider Track + 60-Dot Scrubber */
-        <div className="flex flex-col gap-3.5 sm:gap-4 w-full select-none">
+        <div className="flex flex-col gap-3 sm:gap-4 w-full select-none">
           {/* Track Container with Left and Right Edge Fade Shadows */}
           <div className="relative w-full overflow-hidden">
             {/* Left Edge Fade Shadow */}
@@ -248,7 +248,7 @@ export const FamilyModelSliderRow: React.FC<FamilyModelSliderRowProps> = ({
               className="flex w-full overflow-x-auto no-scrollbar py-1.5 sm:py-2 cursor-grab active:cursor-grabbing"
               style={{ scrollBehavior: 'auto' }}
             >
-              <div className="flex w-max px-1.5 sm:px-4 gap-2.5 sm:gap-3.5">
+              <div className="flex w-max px-1 sm:px-4 gap-2 sm:gap-3.5">
                 {models.map((model) => (
                   <ModelSliderCard
                     key={model.id}

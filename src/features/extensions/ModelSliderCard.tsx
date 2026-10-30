@@ -46,14 +46,14 @@ export const ModelSliderCard: React.FC<ModelSliderCardProps> = ({
     : `${model.id.toLowerCase()}:latest:gguf:q4_k_m`;
 
   const containerClasses = className
-    ? `group relative flex flex-col justify-between gap-3 p-3.5 sm:p-4.5 border-2 border-[var(--border-color)] bg-[var(--bg-secondary)] transition-colors text-left rounded-xl select-none overflow-hidden ${className}`
-    : `group relative flex flex-col justify-between gap-3 p-3.5 sm:p-4.5 mx-1 border-2 border-[var(--border-color)] bg-[var(--bg-secondary)] transition-colors w-[calc(100vw-3.5rem)] sm:w-[350px] md:w-[380px] max-w-[380px] shrink-0 text-left rounded-xl select-none overflow-hidden`;
+    ? `group relative flex flex-col justify-between gap-3 p-3 sm:p-5 border-2 border-[var(--border-color)] bg-[var(--bg-secondary)] transition-colors text-left rounded-xl select-none overflow-hidden ${className}`
+    : `group relative flex flex-col justify-between gap-3 p-3 sm:p-5 mx-0.5 sm:mx-1 border-2 border-[var(--border-color)] bg-[var(--bg-secondary)] transition-colors w-[270px] sm:w-[350px] md:w-[380px] max-w-[calc(100vw-2.5rem)] shrink-0 text-left rounded-xl select-none overflow-hidden`;
 
   return (
     <div className={containerClasses}>
       {/* Top Section: Logo + Header Details */}
-      <div className="flex flex-row items-start sm:items-center gap-3 w-full overflow-hidden">
-        <div className="relative w-12 h-12 sm:w-14 sm:h-14 border-2 border-[var(--border-color)] bg-[var(--bg-tertiary)] overflow-hidden shrink-0 flex items-center justify-center rounded-lg">
+      <div className="flex flex-row items-start sm:items-center gap-2.5 sm:gap-3.5 w-full overflow-hidden">
+        <div className="relative w-11 h-11 sm:w-14 sm:h-14 border-2 border-[var(--border-color)] bg-[var(--bg-tertiary)] overflow-hidden shrink-0 flex items-center justify-center rounded-lg">
           <CatalogueLogo source={model.logo} name={model.name || model.id} large />
         </div>
 
@@ -68,8 +68,8 @@ export const ModelSliderCard: React.FC<ModelSliderCardProps> = ({
             </span>
           </div>
 
-          {/* Title (Responsive Fluid Scaling) */}
-          <span className="font-bold text-base sm:text-lg font-mono uppercase text-[var(--text-primary)] leading-tight tracking-tight truncate">
+          {/* Title (Fluid text scaling down to 300px viewports) */}
+          <span className="font-bold text-sm sm:text-lg font-mono uppercase text-[var(--text-primary)] leading-tight tracking-tight truncate">
             {model.name || model.id}
           </span>
 
@@ -105,7 +105,7 @@ export const ModelSliderCard: React.FC<ModelSliderCardProps> = ({
         <div className="pt-2 border-t border-[var(--border-color)]/60 flex items-center justify-between text-xs font-mono">
           <div className="flex items-center gap-1.5 min-w-0 truncate">
             <span className="text-[10px] uppercase font-bold text-[var(--text-muted)]">Package:</span>
-            <span className="font-bold text-[var(--text-primary)] bg-[var(--bg-tertiary)] px-2 py-0.5 rounded border border-[var(--border-color)] truncate">
+            <span className="font-bold text-[var(--text-primary)] bg-[var(--bg-tertiary)] px-2 py-0.5 rounded border border-[var(--border-color)] truncate text-[11px]">
               {currentVariant?.quant || 'Default'}
             </span>
             <span className="text-[10px] text-[var(--text-muted)] uppercase">
@@ -122,7 +122,7 @@ export const ModelSliderCard: React.FC<ModelSliderCardProps> = ({
           <div className="flex items-center justify-between text-xs font-mono">
             <div className="flex items-center gap-1.5 min-w-0 truncate">
               <span className="text-[10px] uppercase font-bold text-[var(--text-muted)]">Quant:</span>
-              <span className="font-bold text-[var(--text-primary)] bg-[var(--bg-tertiary)] px-1.5 py-0.5 rounded border border-[var(--border-color)] truncate">
+              <span className="font-bold text-[var(--text-primary)] bg-[var(--bg-tertiary)] px-1.5 py-0.5 rounded border border-[var(--border-color)] truncate text-[11px]">
                 {currentVariant?.quant}
               </span>
               <span className="text-[10px] text-[var(--text-muted)] uppercase">
@@ -168,15 +168,17 @@ export const ModelSliderCard: React.FC<ModelSliderCardProps> = ({
         </div>
       )}
 
-      {/* Bottom Section: Deploy Spec & Download Action */}
-      <div className="pt-2 border-t border-[var(--border-color)] flex items-center justify-between gap-1.5 mt-auto w-full">
-        <div className="min-w-0 overflow-hidden flex-1">
+      {/* Bottom Section: 2-Tier Layout on Mobile (< sm), Single Line on Desktop (>= sm) */}
+      <div className="pt-2 border-t border-[var(--border-color)] flex flex-col sm:flex-row sm:items-center justify-between gap-2 mt-auto w-full">
+        {/* Tier 1: Deploy ID (Never squeezed on 300px) */}
+        <div className="min-w-0 overflow-hidden w-full sm:w-auto">
           <span className="text-[9px] sm:text-[10px] font-mono font-bold text-[var(--text-muted)] tracking-wider uppercase block truncate">
             {deploySpec}
           </span>
         </div>
 
-        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+        {/* Tier 2: Details on Left, Download on Right */}
+        <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0 w-full sm:w-auto">
           <button
             type="button"
             onClick={() => onSelectModel(model)}
@@ -195,7 +197,7 @@ export const ModelSliderCard: React.FC<ModelSliderCardProps> = ({
                 size="sm"
                 disabled={isDownloadingCurrent}
                 onClick={() => onDownload(model, currentVariant)}
-                className="text-xs font-semibold gap-1 py-1 px-2.5 h-7 cursor-pointer shrink-0"
+                className="text-xs font-semibold gap-1 py-1 px-3 h-7 cursor-pointer shrink-0"
               >
                 <Download size={11} />
                 {isDownloadingCurrent ? 'Downloading…' : 'Download'}
