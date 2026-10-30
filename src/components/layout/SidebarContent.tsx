@@ -9,6 +9,7 @@ import { Icons, useIconHover } from '../animate-ui/icons';
 import { useProjectStore } from '../../store/workspace/useProjectStore';
 import { pushViewRoute, pushChatRoute } from '../../core/router';
 import { ApiSidebar } from '../../features/api/components/ApiSidebar';
+import { ToolkitSidebar } from '../../features/extensions/ToolkitSidebar';
 import { Tabs } from '../ui/Tabs';
 import { ChatRibbon } from '../ui/ChatRibbon';
 import { SwipeableChatCard } from './SwipeableChatCard';
@@ -968,6 +969,7 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                                 isActive={activeView === 'toolkit'}
                                 onClick={() => {
                                     useLayoutStore.getState().setActiveView('toolkit');
+                                    pushViewRoute('toolkit');
                                     document.dispatchEvent(new CustomEvent('open-toolkit'));
                                     setIsFlyoutOpen(false);
                                 }}
@@ -1002,10 +1004,10 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                 ) : (
                     <div className={`px-4 ${inTauri ? 'py-3 border-b border-[var(--border-color)]' : 'py-2 pb-1'} flex items-center justify-between`} style={{ borderStyle: 'var(--border-style)' }}>
                         <h2 className="text-xl font-extrabold tracking-wide text-[var(--text-primary)]">
-                            {activeView === 'apis' ? 'APIs' : 'Chats'}
+                            {activeView === 'apis' ? 'APIs' : activeView === 'toolkit' ? 'Toolkit' : 'Chats'}
                         </h2>
                         <div className="flex items-center gap-1">
-                            {activeView !== 'apis' && (
+                            {activeView !== 'apis' && activeView !== 'toolkit' && (
                                 <Tooltip title="New Chat" position="bottom">
                                     <button
                                         ref={plusBtnRef}
@@ -1050,11 +1052,15 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                     </div>
                 )}
 
-                {/* Search & List Body (Chats or APIs) */}
+                {/* Search & List Body (Chats, APIs, or Toolkit) */}
                 {!sidebarCollapsed && (
                     activeView === 'apis' ? (
                         <div className="flex-1 overflow-hidden flex flex-col min-h-0">
                             <ApiSidebar />
+                        </div>
+                    ) : activeView === 'toolkit' ? (
+                        <div className="flex-1 overflow-hidden flex flex-col min-h-0">
+                            <ToolkitSidebar />
                         </div>
                     ) : (
                         renderChatDirectory(false)
@@ -1157,14 +1163,14 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                             <div className="p-3.5 pb-2.5 flex items-center justify-between border-b border-[var(--border-color)]" style={{ borderStyle: 'var(--border-style)' }}>
                                 <div className="flex items-center gap-2">
                                     <h3 className="text-sm font-extrabold tracking-wide text-[var(--text-primary)]">
-                                        {activeView === 'apis' ? 'APIs' : 'Chats'}
+                                        {activeView === 'apis' ? 'APIs' : activeView === 'toolkit' ? 'Toolkit' : 'Chats'}
                                     </h3>
                                     <span className="text-[10px] px-2 py-0.5 rounded-full bg-[var(--bg-tertiary)] text-[var(--text-muted)] border border-[var(--border-color)]">
-                                        {activeView === 'apis' ? '' : filteredChats.length}
+                                        {activeView === 'apis' || activeView === 'toolkit' ? '' : filteredChats.length}
                                     </span>
                                 </div>
                                 <div className="flex items-center gap-1">
-                                    {activeView !== 'apis' && (
+                                    {activeView !== 'apis' && activeView !== 'toolkit' && (
                                         <Tooltip title="New Chat" position="bottom">
                                             <button
                                                 onClick={() => {
@@ -1194,6 +1200,10 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                             {activeView === 'apis' ? (
                                 <div className="flex-1 overflow-hidden flex flex-col min-h-0">
                                     <ApiSidebar />
+                                </div>
+                            ) : activeView === 'toolkit' ? (
+                                <div className="flex-1 overflow-hidden flex flex-col min-h-0">
+                                    <ToolkitSidebar />
                                 </div>
                             ) : (
                                 renderChatDirectory(true)

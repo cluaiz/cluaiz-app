@@ -1,5 +1,4 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
-import { ArrowLeft, LayoutGrid } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card';
 import { ComponentShowcase } from '../../components/ComponentShowcase';
@@ -23,7 +22,11 @@ export function ToolkitWorkspace() {
     useEffect(() => {
         const restore = () => { setSection(toolkitSection(location.search)); setPreview(false); };
         window.addEventListener('popstate', restore);
-        return () => window.removeEventListener('popstate', restore);
+        window.addEventListener('toolkit-section-change', restore);
+        return () => {
+            window.removeEventListener('popstate', restore);
+            window.removeEventListener('toolkit-section-change', restore);
+        };
     }, []);
 
     function select(value: ToolkitSectionId) {
@@ -38,91 +41,12 @@ export function ToolkitWorkspace() {
             url.searchParams.set('section', value);
         }
         window.history.pushState(window.history.state, '', url);
+        window.dispatchEvent(new CustomEvent('toolkit-section-change', { detail: { section: value } }));
     }
-
-    const currentSectionMeta = TOOLKIT_SECTIONS.find(s => s.id === section);
 
     return (
         <section className="flex flex-col h-full min-h-0 bg-[var(--bg-primary)] text-[var(--text-primary)]">
-            {/* Contextual Navigation Bar (Replaces rigid tabs-based isolation) */}
-            <header className="shrink-0 border-b border-[var(--border-color)] bg-[var(--bg-secondary)]/40 backdrop-blur-md">
-                <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-2.5">
-                    {section === 'landing' ? (
-                        <div className="flex items-center gap-2.5">
-                            <div className="w-7 h-7 rounded-lg bg-[var(--accent-color)]/10 border border-[var(--accent-color)]/25 flex items-center justify-center text-[var(--accent-color)]">
-                                <LayoutGrid className="w-3.5 h-3.5" />
-                            </div>
-                            <h1 className="text-sm font-bold tracking-tight text-[var(--text-primary)]">
-                                Toolkit Hub
-                            </h1>
-                        </div>
-                    ) : (
-                        <div className="flex items-center gap-3">
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => select('landing')}
-                                className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] -ml-2"
-                            >
-                                <ArrowLeft className="w-3.5 h-3.5" />
-                                <span>Toolkit Hub</span>
-                            </Button>
-                            <span className="text-[var(--text-muted)] text-xs">/</span>
-                            <span className="text-xs font-semibold text-[var(--text-primary)]">
-                                {currentSectionMeta?.label || section}
-                            </span>
-                        </div>
-                    )}
-
-                    {/* Quick Category Jump Pills */}
-                    <nav className="flex items-center gap-1 overflow-x-auto text-xs" aria-label="Toolkit Quick Jump">
-                        {section !== 'landing' && (
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => select('landing')}
-                                className="text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-                            >
-                                Hub Overview
-                            </Button>
-                        )}
-                        <Button
-                            variant={section === 'models' ? 'secondary' : 'ghost'}
-                            size="sm"
-                            onClick={() => select('models')}
-                            className="text-xs"
-                        >
-                            Models
-                        </Button>
-                        <Button
-                            variant={section === 'tools' ? 'secondary' : 'ghost'}
-                            size="sm"
-                            onClick={() => select('tools')}
-                            className="text-xs"
-                        >
-                            Tools & MCP
-                        </Button>
-                        <Button
-                            variant={section === 'extensions' ? 'secondary' : 'ghost'}
-                            size="sm"
-                            onClick={() => select('extensions')}
-                            className="text-xs"
-                        >
-                            Extensions
-                        </Button>
-                        <Button
-                            variant={section === 'components' ? 'secondary' : 'ghost'}
-                            size="sm"
-                            onClick={() => select('components')}
-                            className="text-xs"
-                        >
-                            UI SDK
-                        </Button>
-                    </nav>
-                </div>
-            </header>
-
-            {/* Main Content Area */}
+            {/* Main Content Area — No rigid top header; navigation driven by primary Sidebar */}
             <div className="flex-1 min-h-0 overflow-auto">
                 {section === 'landing' && (
                     <ToolkitLanding onSelectSection={(target) => select(target)} />
