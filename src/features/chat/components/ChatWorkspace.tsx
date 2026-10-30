@@ -291,6 +291,7 @@ export function ChatWorkspace({ workspace, chatBinding }: { workspace?: React.Re
     };
 
     const handleGlobalContextMenu = (e: React.MouseEvent) => {
+        if (isBoundChat || !activeSessionId || messages.length === 0) return;
         e.preventDefault();
         setGlobalMenu({
             x: e.clientX,
@@ -475,10 +476,7 @@ main().catch(console.error);`);
 
 
                 {isBoundChat && !activeSession ? <div className="flex-1 flex items-center justify-center text-[var(--text-secondary)]" role="status">Open a extension chat to begin.</div> : messages.length === 0 ? (
-                    <div
-                        className="flex-1 flex flex-col items-center justify-center p-2 sm:p-4 md:p-8 z-20 relative"
-                        onContextMenu={!isBoundChat ? handleGlobalContextMenu : undefined}
-                    >
+                    <div className="flex-1 flex flex-col items-center justify-center p-2 sm:p-4 md:p-8 z-20 relative">
 
                         <DynamicGreeting />
 
@@ -750,7 +748,7 @@ main().catch(console.error);`);
                 />
             )}
 
-            {globalMenu?.isOpen && (
+            {!isBoundChat && activeSessionId && messages.length > 0 && globalMenu?.isOpen && (
                 <GlobalChatContextMenu
                     x={globalMenu.x}
                     y={globalMenu.y}

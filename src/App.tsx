@@ -75,9 +75,7 @@ function MainAppContent() {
             if (currentRoute.isSettingsOpen) {
                 pushSettingsRoute(currentRoute.settingsTab, true);
             } else if (currentRoute.view === 'chat') {
-                if (currentRoute.activeChatId) {
-                    pushChatRoute(currentRoute.activeChatId, true);
-                }
+                pushChatRoute(currentRoute.activeChatId || null, true);
             } else {
                 pushViewRoute(currentRoute.view, true);
             }
@@ -88,7 +86,11 @@ function MainAppContent() {
         }
 
         if (!settingsState.isOpen) {
-            pushViewRoute(activeView);
+            if (activeView === 'chat') {
+                pushChatRoute(useChatStore.getState().activeSessionId);
+            } else {
+                pushViewRoute(activeView);
+            }
         }
     }, [activeView, activeExtension, settingsState.isOpen]);
 

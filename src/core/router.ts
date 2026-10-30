@@ -146,9 +146,11 @@ export function pushChatRoute(chatId: string | null, replace: boolean = false): 
     if (typeof window === 'undefined') return;
     try {
         const url = new URL(window.location.href);
-        // Explicitly set pathname to root for chat and clear any settings tab
+        // Explicitly set pathname to root for chat and clear any settings or API Explorer query params
         url.pathname = '/';
         url.searchParams.delete('tab');
+        url.searchParams.delete('endpoint');
+        url.searchParams.delete('method');
         if (chatId) {
             url.searchParams.set('c', chatId);
         } else {
@@ -198,6 +200,10 @@ export function pushViewRoute(view: MainViewId, replace: boolean = false): void 
             ? extensionPath(selectedExtension) : `/${view}`;
         url.pathname = targetPath;
         url.searchParams.delete('tab');
+        if (view !== 'apis') {
+            url.searchParams.delete('endpoint');
+            url.searchParams.delete('method');
+        }
         if (view !== 'chat') {
             url.searchParams.delete('c');
         }
