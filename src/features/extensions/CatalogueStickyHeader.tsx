@@ -1,6 +1,5 @@
-import React, { useState } from 'react';
-import { Search, SlidersHorizontal, ChevronDown, X } from 'lucide-react';
-import { Button } from '../../components/ui/Button';
+import React from 'react';
+import { Search, X } from 'lucide-react';
 import { Input } from '../../components/ui/Input';
 
 export interface CatalogueStickyHeaderProps {
@@ -9,12 +8,10 @@ export interface CatalogueStickyHeaderProps {
   searchQuery: string;
   onSearchChange: (query: string) => void;
   searchPlaceholder?: string;
-  activeFilterCount?: number;
-  filterContent?: React.ReactNode;
   actions?: React.ReactNode;
+  filterElement?: React.ReactNode;
   rightExtra?: React.ReactNode;
   chips?: React.ReactNode;
-  initialFilterOpen?: boolean;
 }
 
 export const CatalogueStickyHeader: React.FC<CatalogueStickyHeaderProps> = ({
@@ -23,18 +20,14 @@ export const CatalogueStickyHeader: React.FC<CatalogueStickyHeaderProps> = ({
   searchQuery,
   onSearchChange,
   searchPlaceholder = 'Search…',
-  activeFilterCount = 0,
-  filterContent,
   actions,
+  filterElement,
   rightExtra,
   chips,
-  initialFilterOpen = false,
 }) => {
-  const [isFilterOpen, setIsFilterOpen] = useState(initialFilterOpen);
-
   return (
-    <header className="sticky top-0 z-20 -mx-5 px-5 py-3.5 bg-[var(--bg-primary)]/95 backdrop-blur-md border-b border-[var(--border-color)] transition-all">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+    <header className="sticky top-0 z-20 w-full px-6 py-3.5 bg-[var(--bg-primary)]/95 backdrop-blur-md border-b border-[var(--border-color)] transition-all">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 max-w-7xl mx-auto">
         {/* Left: Dynamic Title & Subtitle */}
         <div className="min-w-0 flex-1">
           <h1 className="text-base font-bold text-[var(--text-primary)] tracking-tight truncate">
@@ -74,48 +67,14 @@ export const CatalogueStickyHeader: React.FC<CatalogueStickyHeaderProps> = ({
             />
           </div>
 
-          {/* Filter Toggle Button */}
-          {filterContent && (
-            <Button
-              type="button"
-              variant={isFilterOpen || activeFilterCount > 0 ? 'secondary' : 'outline'}
-              size="sm"
-              onClick={() => setIsFilterOpen(prev => !prev)}
-              className={`h-8 px-2.5 gap-1.5 text-xs transition-colors cursor-pointer shrink-0 ${
-                isFilterOpen || activeFilterCount > 0
-                  ? 'border-[var(--accent-color)] text-[var(--text-primary)] bg-[var(--accent-color)]/10'
-                  : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-              }`}
-              title="Toggle filters"
-            >
-              <SlidersHorizontal size={13} />
-              <span className="hidden md:inline font-medium">Filters</span>
-              {activeFilterCount > 0 && (
-                <span className="min-w-[16px] h-4 px-1 rounded-full bg-[var(--accent-color)] text-[var(--bg-primary)] text-[10px] font-bold flex items-center justify-center">
-                  {activeFilterCount}
-                </span>
-              )}
-              <ChevronDown
-                size={12}
-                className={`transition-transform duration-200 ${isFilterOpen ? 'rotate-180' : ''}`}
-              />
-            </Button>
-          )}
+          {filterElement}
 
           {rightExtra}
         </div>
       </div>
 
-      {/* Expandable Filter Panel */}
-      {filterContent && isFilterOpen && (
-        <div className="mt-3 pt-3 border-t border-[var(--border-color)]/60 animate-fade-in">
-          {filterContent}
-        </div>
-      )}
-
-      {/* Filter Chips Row */}
       {chips && (
-        <div className="mt-2.5">
+        <div className="max-w-7xl mx-auto mt-2.5">
           {chips}
         </div>
       )}

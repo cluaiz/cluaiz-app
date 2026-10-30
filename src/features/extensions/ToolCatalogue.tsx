@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Ca
 import { CustomDropdown } from '../../components/ui/dropdown/CustomDropdown';
 import { useCatalogue } from './useCatalogue';
 import { Boxes } from 'lucide-react';
+import { MultiLevelDropdown, type MultiLevelCategory } from '../../components/ui/dropdown';
 import { CatalogueCard, CatalogueFilter, CatalogueLogo, CatalogueStickyHeader, CatalogueTags } from './CatalogueUI';
 import { filterTools } from './catalogueView';
 import { useCatalogueTask } from './useCatalogueTask';
@@ -89,30 +90,45 @@ export function ToolCatalogue({ initialKind }: { initialKind?: string } = {}) {
     ? 'Native and community runtime plugins for your workspace.'
     : 'Plugins, MCP servers and skills for your workspace.';
 
-  return <div className="space-y-4">
+  const toolCategories: MultiLevelCategory[] = [
+    {
+      id: 'kind',
+      label: 'Package Type',
+      icon: Boxes,
+      options: [
+        { value: '', label: 'All Types' },
+        { value: 'plugin', label: 'Plugins' },
+        { value: 'skill', label: 'Skills' },
+        { value: 'mcp', label: 'MCP Servers' },
+        { value: 'extension', label: 'Extensions' },
+      ],
+      selectedValue: kind,
+      onSelect: (val) => {
+        setKind(val);
+        setLimit(24);
+      },
+    },
+  ];
+
+  return <div className="w-full flex flex-col min-h-full">
     <CatalogueStickyHeader
       title={pageTitle}
       subtitle={pageSubtitle}
       searchQuery={query}
       onSearchChange={value => { setQuery(value); setLimit(24); }}
       searchPlaceholder="Search package IDs or opened details"
-      activeFilterCount={kind ? 1 : 0}
-      actions={
-        <Button variant="outline" size="sm" className="h-8 text-xs cursor-pointer" disabled={catalogue.busy || busy} onClick={() => { void catalogue.refresh(); setConnection(v => v + 1); }}>
-          Refresh
-        </Button>
-      }
-      filterContent={
-        <div className="sm:w-64">
-          <CatalogueFilter label="Package type" icon={Boxes}>
-            <CustomDropdown value={kind} options={[{ value: '', label: 'All types' }, ...['plugin', 'skill', 'mcp', 'extension'].map(value => ({ value, label: value }))]} onChange={value => { setKind(value); setLimit(24); }} />
-          </CatalogueFilter>
-        </div>
+      filterElement={
+        <MultiLevelDropdown
+          categories={toolCategories}
+          activeCount={kind ? 1 : 0}
+          onClearAll={() => setKind('')}
+        />
       }
     />
-    <div className="flex flex-wrap items-center justify-between gap-2 px-1">
-      <p className="text-xs text-[var(--text-muted)]">{rows.length} packages · Open a package for details</p>
-    </div>
+    <div className="mx-auto w-full max-w-7xl p-6 space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+        <p className="text-xs text-[var(--text-muted)]">{rows.length} packages · Open a package for details</p>
+      </div>
     {catalogue.busy && <p role="status">Loading available packages…</p>}
     {(catalogue.error || catalogue.reply?.warning) && <p role="alert">{catalogue.error || catalogue.reply?.warning}</p>}
     {engineError && <p role="alert">{engineError}</p>}
@@ -134,5 +150,5 @@ export function ToolCatalogue({ initialKind }: { initialKind?: string } = {}) {
           {!/^[a-z0-9][a-z0-9._-]{0,63}$/.test(selected.id) && <p>This legacy registry id is not accepted by the current Engine installer.</p>}
           <Button disabled={!details || !installation.canStart || !inventoryReady || !/^[a-z0-9][a-z0-9._-]{0,63}$/.test(selected.id) || installed.includes(`${selected.kind}:${selected.id}`)} onClick={() => { void install(); }}>{busy ? 'Installing…' : installed.includes(`${selected.kind}:${selected.id}`) ? 'Installed' : 'Install current registry release'}</Button></>}
     </CardContent></Card>}
-  </div>;
+  </div></div>;
 }
