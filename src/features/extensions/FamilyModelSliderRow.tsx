@@ -48,6 +48,7 @@ export interface FamilyModelSliderRowProps {
   downloadingTarget?: string;
   borderless?: boolean;
   hideHeader?: boolean;
+  activeModelId?: string;
   onDownload: (model: PublicModel, variant: PublicVariant) => void;
   onViewAll: (family: string) => void;
   onSelectModel: (model: PublicModel) => void;
@@ -61,6 +62,7 @@ export const FamilyModelSliderRow: React.FC<FamilyModelSliderRowProps> = ({
   downloadingTarget,
   borderless = false,
   hideHeader = false,
+  activeModelId,
   onDownload,
   onViewAll,
   onSelectModel,
@@ -214,6 +216,7 @@ export const FamilyModelSliderRow: React.FC<FamilyModelSliderRowProps> = ({
             installed={installed}
             isBusy={isBusy}
             downloadingTarget={downloadingTarget}
+            isActive={models[0].id === activeModelId}
             className="w-full"
             onDownload={onDownload}
             onSelectModel={onSelectModel}
@@ -229,6 +232,7 @@ export const FamilyModelSliderRow: React.FC<FamilyModelSliderRowProps> = ({
               installed={installed}
               isBusy={isBusy}
               downloadingTarget={downloadingTarget}
+              isActive={model.id === activeModelId}
               className="w-full"
               onDownload={onDownload}
               onSelectModel={onSelectModel}
@@ -264,6 +268,7 @@ export const FamilyModelSliderRow: React.FC<FamilyModelSliderRowProps> = ({
                     installed={installed}
                     isBusy={isBusy}
                     downloadingTarget={downloadingTarget}
+                    isActive={model.id === activeModelId}
                     onDownload={onDownload}
                     onSelectModel={onSelectModel}
                   />

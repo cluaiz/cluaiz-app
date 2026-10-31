@@ -40,12 +40,14 @@ export function filterModels(models: PublicModel[], filters: ModelFilters): Publ
     });
 }
 
-/** Clean raw HTML snippets (like <img>, <ul>, <li>) from model descriptions. */
+/** Clean raw HTML snippets (like <img>, <ul>, <li>) and Markdown images from model descriptions. */
 export function cleanModelDescription(raw: string): string {
   if (!raw) return '';
   return raw
     .replace(/&lt;/gi, '<')
     .replace(/&gt;/gi, '>')
+    .replace(/<img[^>]*>?/gi, ' ')
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
     .replace(/<[^>]*>/g, ' ')
     .replace(/&nbsp;/gi, ' ')
     .replace(/&amp;/gi, '&')

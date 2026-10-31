@@ -4,25 +4,40 @@ import { modelsApi } from '../../api/engine/models/models.api';
 import type { ModelRegistryEntry } from '../../api/engine/models/models.types';
 import { useConnectionStore } from '../../store/engine/useConnectionStore';
 import { Button } from '../../components/ui/Button';
+import { Input } from '../../components/ui/Input';
 import { Badge } from '../../components/ui/Badge';
 import { useCatalogue } from './useCatalogue';
-import { 
-  ArrowDownWideNarrow, ArrowLeft, ArrowUpRight, Boxes, CheckCircle2, 
-  Download, Globe, Layers, Sparkles 
-} from 'lucide-react';
-import { CatalogueCard, CatalogueChips, CatalogueLogo, CatalogueTags } from './CatalogueUI';
-import { 
-  catalogueImage, chooseModelVariant, filterModels, installedModelForVariant, cleanModelDescription, 
-  extractFamilyCapabilities, type CatalogueSort 
+import { ArrowLeft, ArrowUpDown, Check, CheckCircle2, Download, Search, X } from 'lucide-react';
+import { CatalogueChips, CatalogueTags } from './CatalogueUI';
+import {
+  catalogueImage, filterModels, installedModelForVariant, cleanModelDescription,
+  extractFamilyCapabilities
 } from './catalogueView';
 import { resumeModelDownload } from '../../api/engine/models/actions';
 import { useCatalogueTask } from './useCatalogueTask';
 import { CatalogueTaskStatus } from './CatalogueTaskStatus';
 import { FamilyModelSliderRow } from './FamilyModelSliderRow';
+import { ModelPackagePanel } from './ModelPackagePanel';
 import { useModelCatalogueStore } from './modelCatalogueStore';
+import { MarkdownRenderer } from '../../components/ui/MarkdownRenderer';
+import { getSystemHardwareProfile, calculateModelHardwareScore, type CachedHardwareProfile } from './hardwareRecommendation';
 
 const resumeDownload: Parameters<typeof useCatalogueTask<Awaited<ReturnType<typeof resumeModelDownload>>>>[1] =
   (_target, id, signal, observer) => resumeModelDownload(id, signal, observer);
+
+function parseModelParams(paramStr?: string): number {
+  if (!paramStr) return 0;
+  const clean = paramStr.replace(/,/g, '').trim();
+  const match = clean.match(/([0-9]+(?:\.[0-9]+)?)\s*([BMKTP]?)/i);
+  if (!match) return 0;
+  const val = parseFloat(match[1]);
+  const unit = (match[2] || 'B').toUpperCase();
+  if (unit === 'T') return val * 1e12;
+  if (unit === 'B') return val * 1e9;
+  if (unit === 'M') return val * 1e6;
+  if (unit === 'K') return val * 1e3;
+  return val;
+}
 
 export function ModelCatalogue() {
   const catalogue = useCatalogue(modelCatalogue.list);
@@ -48,9 +63,21 @@ export function ModelCatalogue() {
     clearFilters,
   } = useModelCatalogueStore();
 
-  const [source, setSource] = useState<ModelInstallSource>('catalogue');
+  const [familyModelQuery, setFamilyModelQuery] = useState('');
+  const [familySort, setFamilySort] = useState<'recommended' | 'latest' | 'popular' | 'random' | 'oldest' | 'big' | 'small'>('recommended');
+  const [familySortOpen, setFamilySortOpen] = useState(false);
+  const [activeModelId, setActiveModelId] = useState<string>('');
+  const [selectedVariantByModel, setSelectedVariantByModel] = useState<Record<string, string>>({});
+  const [hardwareProfile, setHardwareProfile] = useState<CachedHardwareProfile | null>(null);
+
+  useEffect(() => {
+    void getSystemHardwareProfile().then(setHardwareProfile);
+  }, []);
+
+  const [source] = useState<ModelInstallSource>('catalogue');
   const [installed, setInstalled] = useState<ModelRegistryEntry[]>([]);
   const [engineError, setEngineError] = useState('');
+  const [installError, setInstallError] = useState('');
   const [inventoryReady, setInventoryReady] = useState(false);
   const busy = download.busy || download.cancelling;
   const [limit, setLimit] = useState(24);
@@ -78,21 +105,25 @@ export function ModelCatalogue() {
 
   useEffect(() => { if (download.result) setConnection(value => value + 1); }, [download.result]);
 
-  // Auto-clear stale failed/error receipts so intrusive cards never linger
-  useEffect(() => {
-    if (download.error || (download.receipt && !download.busy)) {
-      download.forget();
-    }
-  }, [download.error, download.receipt, download.busy]);
 
   const models = catalogue.reply?.data ?? [];
   const tasks = [...new Set(models.flatMap(model => model.tasks))].sort();
   const filtered = filterModels(models, { query, providers, capabilities: task ? [task] : [], format, sort, family });
 
+  const activeFamilyModels = family ? filtered.filter(m => m.family === family) : [];
+  const effectiveActiveId = (activeModelId && activeFamilyModels.some(m => m.id === activeModelId))
+    ? activeModelId
+    : (activeFamilyModels[0]?.id || '');
+
   async function install(model: PublicModel, variant: PublicVariant) {
-    if (!inventoryReady) return;
-    const reference = modelInstallReference(model, variant, source);
-    await download.start(reference, (signal, observer) => modelsApi.downloadModel({ model_id: reference }, signal, observer));
+    setInstallError('');
+    if (!inventoryReady) { setInstallError('Connect to your Engine before downloading a package.'); return; }
+    try {
+      const reference = modelInstallReference(model, variant, source);
+      await download.start(reference, (signal, observer) => modelsApi.downloadModel({ model_id: reference }, signal, observer));
+    } catch (error) {
+      setInstallError(error instanceof Error ? error.message : String(error));
+    }
   }
 
   // Synchronize URL search params with family and model selection
@@ -214,7 +245,30 @@ export function ModelCatalogue() {
 
         {catalogue.busy && <p role="status">Loading catalogue…</p>}
         {(catalogue.error || catalogue.reply?.warning) && <p role="alert">{catalogue.error || catalogue.reply?.warning}</p>}
-        {cleanEngineError && <p role="alert">Installed model status unavailable: {cleanEngineError}</p>}
+
+        {!inventoryReady && <div className="flex flex-wrap items-center gap-3 text-sm text-[var(--text-secondary)]">
+          <p role={engineError ? 'alert' : 'status'}>{cleanEngineError || 'Checking installed models…'}</p>
+          {engineError && <Button variant="secondary" size="sm" onClick={() => setConnection(value => value + 1)}>Retry Engine connection</Button>}
+        </div>}
+        {installError && <p role="alert" className="text-sm text-[var(--status-error)]">{installError}</p>}
+        <CatalogueTaskStatus {...download} />
+
+        {/* Global GPU SVG Filter to eliminate white box/background from any model logo */}
+        <svg className="absolute w-0 h-0 pointer-events-none opacity-0 overflow-hidden" aria-hidden="true">
+          <defs>
+            <filter id="remove-white-bg" colorInterpolationFilters="sRGB">
+              <feColorMatrix
+                type="matrix"
+                values="1 0 0 0 0
+                        0 1 0 0 0
+                        0 0 1 0 0
+                        -2 -2 -2 0 5.5"
+                result="filtered"
+              />
+              <feComposite in="filtered" in2="SourceGraphic" operator="in" />
+            </filter>
+          </defs>
+        </svg>
 
         {/* ------------------------------------------------------------------ */}
         {/* LEVEL 3: Dedicated Model Detail & Quantization Download Page      */}
@@ -225,24 +279,38 @@ export function ModelCatalogue() {
             {/* Model Hero Info Card */}
             {(() => {
               const modelLogoUrl = catalogueImage(selectedModel.logo || '');
+              const transparentModelLogoUrl = modelLogoUrl;
               const cleanDesc = cleanModelDescription(selectedModel.description || selectedModel.familyDescription);
 
               return (
                 <div className="relative pt-0 pb-6 min-h-[220px] sm:min-h-[280px] flex items-center text-left">
-                  {/* Right Side: Model Logo Flush to Top with Seamless Background Blend */}
-                  {modelLogoUrl && (
-                    <div className="absolute right-0 top-0 pointer-events-none select-none z-0 pr-0 sm:pr-4 flex items-start justify-end">
+                  {/* Right Side: Seamless Logo (White Background Removed, Uniformly Dimmed) */}
+                  {transparentModelLogoUrl && (
+                    <div
+                      className="
+                        absolute inset-y-0 right-0
+                        w-[40%] pointer-events-none
+                        select-none z-0
+                        flex items-center justify-end
+                        overflow-hidden
+                      "
+                      aria-hidden="true"
+                    >
                       <img
-                        src={modelLogoUrl}
+                        src={transparentModelLogoUrl}
                         alt=""
-                        aria-hidden="true"
                         loading="lazy"
                         referrerPolicy="no-referrer"
-                        className="w-64 h-64 sm:w-80 sm:h-80 md:w-96 md:h-96 object-contain opacity-45 transition-opacity"
+                        className="
+                          absolute right-[8%] top-1/2
+                          -translate-y-1/2
+                          w-72 h-72
+                          object-contain
+                          opacity-40
+                          transition-opacity duration-300
+                        "
                         style={{
-                          filter: 'drop-shadow(0 15px 35px rgba(0,0,0,0.9))',
-                          maskImage: 'radial-gradient(ellipse 70% 70% at 50% 50%, rgba(0,0,0,1) 40%, rgba(0,0,0,0.6) 70%, transparent 95%)',
-                          WebkitMaskImage: 'radial-gradient(ellipse 70% 70% at 50% 50%, rgba(0,0,0,1) 40%, rgba(0,0,0,0.6) 70%, transparent 95%)',
+                          filter: 'url(#remove-white-bg)',
                         }}
                       />
                     </div>
@@ -281,8 +349,6 @@ export function ModelCatalogue() {
               );
             })()}
 
-            {/* Active Download Status (ONLY when download is actively in progress) */}
-            {download.busy && <CatalogueTaskStatus {...download} />}
 
             {/* Quantizations & Packages Table */}
             <div className="space-y-3">
@@ -375,20 +441,33 @@ export function ModelCatalogue() {
 
               return (
                 <div className="relative pt-0 pb-6 min-h-[220px] sm:min-h-[280px] flex items-center text-left">
-                  {/* Right Side: Family Logo Flush to Top with Seamless Background Blend */}
+                  {/* Right Side: Seamless Logo (White Background Removed, Uniformly Dimmed) */}
                   {heroLogoUrl && (
-                    <div className="absolute right-0 top-0 pointer-events-none select-none z-0 pr-0 sm:pr-4 flex items-start justify-end">
+                    <div
+                      className="
+                        absolute inset-y-0 right-0
+                        w-[40%] pointer-events-none
+                        select-none z-0
+                        flex items-center justify-end
+                        overflow-hidden
+                      "
+                      aria-hidden="true"
+                    >
                       <img
                         src={heroLogoUrl}
                         alt=""
-                        aria-hidden="true"
                         loading="lazy"
                         referrerPolicy="no-referrer"
-                        className="w-64 h-64 sm:w-80 sm:h-80 md:w-96 md:h-96 object-contain opacity-45 transition-opacity"
+                        className="
+                          absolute right-[8%] top-1/2
+                          -translate-y-1/2
+                          w-72 h-72
+                          object-contain
+                          opacity-40
+                          transition-opacity duration-300
+                        "
                         style={{
-                          filter: 'drop-shadow(0 15px 35px rgba(0,0,0,0.9))',
-                          maskImage: 'radial-gradient(ellipse 70% 70% at 50% 50%, rgba(0,0,0,1) 40%, rgba(0,0,0,0.6) 70%, transparent 95%)',
-                          WebkitMaskImage: 'radial-gradient(ellipse 70% 70% at 50% 50%, rgba(0,0,0,1) 40%, rgba(0,0,0,0.6) 70%, transparent 95%)',
+                          filter: 'url(#remove-white-bg)',
                         }}
                       />
                     </div>
@@ -428,26 +507,177 @@ export function ModelCatalogue() {
               );
             })()}
 
-            {/* Models in Family - Image 3 Slider Row (No outer card/border) */}
+            {/* Models in Family - Search, Sort & Slider Row */}
             {(() => {
-              const familyModels = filtered.filter(m => m.family === family);
+              const baseFamilyModels = filtered.filter(m => m.family === family);
+
+              // 1. Search filter
+              const searchedModels = familyModelQuery.trim()
+                ? baseFamilyModels.filter(m => {
+                    const q = familyModelQuery.toLowerCase().trim();
+                    return (
+                      m.name?.toLowerCase().includes(q) ||
+                      m.id?.toLowerCase().includes(q) ||
+                      m.parameters?.toLowerCase().includes(q) ||
+                      m.tasks?.some(t => t.toLowerCase().includes(q)) ||
+                      m.description?.toLowerCase().includes(q)
+                    );
+                  })
+                : baseFamilyModels;
+
+              // 2. Sort
+              const sortedModels = [...searchedModels].sort((a, b) => {
+                if (familySort === 'recommended' && hardwareProfile) {
+                  const scoreA = calculateModelHardwareScore(a, hardwareProfile).score;
+                  const scoreB = calculateModelHardwareScore(b, hardwareProfile).score;
+                  if (scoreB !== scoreA) return scoreB - scoreA;
+                  return (b.downloads || 0) - (a.downloads || 0);
+                }
+                if (familySort === 'popular') {
+                  return (b.downloads || 0) - (a.downloads || 0);
+                }
+                if (familySort === 'oldest') {
+                  return new Date(a.created || 0).getTime() - new Date(b.created || 0).getTime();
+                }
+                if (familySort === 'big') {
+                  return parseModelParams(b.parameters) - parseModelParams(a.parameters);
+                }
+                if (familySort === 'small') {
+                  return parseModelParams(a.parameters) - parseModelParams(b.parameters);
+                }
+                if (familySort === 'random') {
+                  return a.id.localeCompare(b.id) * -1;
+                }
+                // 'latest' default
+                return new Date(b.created || 0).getTime() - new Date(a.created || 0).getTime();
+              });
+
+              const sortLabels: Record<typeof familySort, string> = {
+                recommended: 'Recommended',
+                latest: 'Latest / New',
+                popular: 'Popular',
+                random: 'Random',
+                oldest: 'Old Model',
+                big: 'Big Model',
+                small: 'Small Model',
+              };
+
               return (
-                <FamilyModelSliderRow
-                  family={family}
-                  models={familyModels}
-                  installed={installed}
-                  isBusy={busy}
-                  downloadingTarget={download.receipt?.target}
-                  borderless={true}
-                  hideHeader={true}
-                  onDownload={(model, variant) => void install(model, variant)}
-                  onViewAll={() => {}}
-                  onSelectModel={(model) => {
-                    setSelectedModel(model);
-                    setFamily(model.family);
-                    updateUrl(model.family, model.id);
-                  }}
-                />
+                <div className="space-y-4">
+                  {/* Toolbar: Reusable Design-System Search (Left) + Sort Filter Button (Right) */}
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-1 pb-1">
+                    {/* Left: Reusable Design-System Search Input */}
+                    <div className="relative flex-1 max-w-sm">
+                      <Input
+                        value={familyModelQuery}
+                        onChange={(e) => setFamilyModelQuery(e.target.value)}
+                        placeholder={`Search ${family} models...`}
+                        sizeVariant="sm"
+                        leftIcon={<Search size={14} />}
+                        rightElement={
+                          familyModelQuery ? (
+                            <button
+                              type="button"
+                              onClick={() => setFamilyModelQuery('')}
+                              className="text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer p-0.5"
+                              title="Clear search"
+                            >
+                              <X size={12} />
+                            </button>
+                          ) : null
+                        }
+                      />
+                    </div>
+
+                    {/* Right: Reusable Design-System Sort Button with Dropdown Menu */}
+                    <div className="relative flex items-center gap-2 self-end sm:self-auto">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => setFamilySortOpen(!familySortOpen)}
+                        className="flex items-center gap-1.5 font-mono text-xs cursor-pointer shadow-xs"
+                      >
+                        <ArrowUpDown size={12} className="text-[var(--accent-color)]" />
+                        <span className="text-[var(--text-muted)]">Sort:</span>
+                        <span className="font-semibold text-[var(--text-primary)]">{sortLabels[familySort]}</span>
+                      </Button>
+
+                      {/* Dropdown Menu */}
+                      {familySortOpen && (
+                        <>
+                          <div className="fixed inset-0 z-30" onClick={() => setFamilySortOpen(false)} />
+                          <div className="absolute right-0 top-full mt-1.5 w-44 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl shadow-xl z-40 py-1 font-mono text-xs overflow-hidden animate-in fade-in zoom-in-95 duration-100">
+                            {(['recommended', 'latest', 'popular', 'random', 'oldest', 'big', 'small'] as const).map((opt) => (
+                              <button
+                                key={opt}
+                                type="button"
+                                onClick={() => {
+                                  setFamilySort(opt);
+                                  setFamilySortOpen(false);
+                                }}
+                                className={`w-full text-left px-3 py-2 flex items-center justify-between hover:bg-[var(--bg-tertiary)] cursor-pointer transition-colors ${
+                                  familySort === opt
+                                    ? 'text-[var(--accent-color)] font-bold bg-[var(--bg-tertiary)]/50'
+                                    : 'text-[var(--text-secondary)]'
+                                }`}
+                              >
+                                <span>{sortLabels[opt]}</span>
+                                {familySort === opt && <Check size={12} />}
+                              </button>
+                            ))}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Empty Search State */}
+                  {sortedModels.length === 0 ? (
+                    <div className="py-12 text-center border border-dashed border-[var(--border-color)] rounded-2xl bg-[var(--bg-tertiary)]/20">
+                      <p className="text-xs font-mono text-[var(--text-muted)]">No models matched &ldquo;{familyModelQuery}&rdquo;</p>
+                      <button
+                        type="button"
+                        onClick={() => setFamilyModelQuery('')}
+                        className="mt-2 text-xs font-mono text-[var(--accent-color)] hover:underline cursor-pointer"
+                      >
+                        Clear search
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-6">
+                      <FamilyModelSliderRow
+                        family={family}
+                        models={sortedModels}
+                        installed={installed}
+                        isBusy={busy}
+                        downloadingTarget={download.receipt?.target}
+                        borderless={true}
+                        hideHeader={true}
+                        activeModelId={effectiveActiveId}
+                        onDownload={(model, variant) => void install(model, variant)}
+                        onViewAll={() => {}}
+                        onSelectModel={(model) => {
+                          if (effectiveActiveId === model.id) {
+                            setSelectedModel(model);
+                            setFamily(model.family);
+                            updateUrl(model.family, model.id);
+                          } else {
+                            setActiveModelId(model.id);
+                          }
+                        }}
+                      />
+
+                      {(() => {
+                        const model = sortedModels.find(item => item.id === effectiveActiveId) || sortedModels[0];
+                        return model ? <ModelPackagePanel key={model.id} model={model} installed={installed}
+                          source={source} selectedVariantId={selectedVariantByModel[model.id]}
+                          onSelectVariant={id => setSelectedVariantByModel(previous => ({ ...previous, [model.id]: id }))}
+                          onInstall={install} canStart={download.canStart} inventoryReady={inventoryReady}
+                          hardware={hardwareProfile} /> : null;
+                      })()}
+                    </div>
+                  )}
+                </div>
               );
             })()}
           </div>

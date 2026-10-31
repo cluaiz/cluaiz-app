@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
-import { CheckCircle2 } from 'lucide-react';
+import React from 'react';
 import type { PublicModel, PublicVariant } from '../../api/catalogue/models';
 import type { ModelRegistryEntry } from '../../api/engine/models/models.types';
 import { CatalogueLogo } from './CatalogueUI';
-import { cleanModelDescription, installedModelForVariant } from './catalogueView';
+import { cleanModelDescription } from './catalogueView';
+import { Card } from '../../components/ui/Card';
 
 export interface ModelSliderCardProps {
   model: PublicModel;
@@ -11,29 +11,38 @@ export interface ModelSliderCardProps {
   isBusy: boolean;
   downloadingTarget?: string;
   className?: string;
+  isActive?: boolean;
   onDownload?: (model: PublicModel, variant: PublicVariant) => void;
   onSelectModel: (model: PublicModel) => void;
 }
 
 export const ModelSliderCard: React.FC<ModelSliderCardProps> = ({
   model,
-  installed,
   className,
+  isActive = false,
   onSelectModel,
 }) => {
-  const [selectedVariant, setSelectedVariant] = useState<PublicVariant | null>(null);
 
   const variants = model.variants || [];
-  const currentVariant = selectedVariant || variants[0] || null;
 
-  const cleanDesc = cleanModelDescription(model.description);
+  const cleanDesc = cleanModelDescription(model.description)
+    || cleanModelDescription(model.familyDescription)
+    || 'Foundation model ready for inference.';
+
+  const borderClasses = isActive
+    ? 'border-2 border-[var(--accent-color)] ring-1 ring-[var(--accent-color)] shadow-sm shadow-[var(--accent-color)]/20'
+    : 'border-2 border-[var(--border-color)] hover:border-[var(--accent-color)]/60';
 
   const containerClasses = className
-    ? `group relative flex flex-col justify-between gap-3 p-3 sm:p-5 border-2 border-[var(--border-color)] bg-[var(--bg-secondary)] hover:border-[var(--accent-color)]/60 transition-colors text-left rounded-xl select-none overflow-hidden cursor-pointer ${className}`
-    : `group relative flex flex-col justify-between gap-3 p-3 sm:p-5 mx-0.5 sm:mx-1 border-2 border-[var(--border-color)] bg-[var(--bg-secondary)] hover:border-[var(--accent-color)]/60 transition-colors w-[270px] sm:w-[350px] md:w-[380px] max-w-[calc(100vw-2.5rem)] shrink-0 text-left rounded-xl select-none overflow-hidden cursor-pointer`;
+    ? `group relative flex flex-col justify-between gap-3 p-3 sm:p-5 ${borderClasses} bg-[var(--bg-secondary)] transition-all text-left rounded-xl select-none overflow-hidden cursor-pointer ${className}`
+    : `group relative flex flex-col justify-between gap-3 p-3 sm:p-5 mx-0.5 sm:mx-1 ${borderClasses} bg-[var(--bg-secondary)] transition-all w-[270px] sm:w-[350px] md:w-[380px] max-w-[calc(100vw-2.5rem)] shrink-0 text-left rounded-xl select-none overflow-hidden cursor-pointer`;
 
   return (
-    <div
+    <Card
+      role="button" tabIndex={0} aria-pressed={isActive}
+      onKeyDown={event => {
+        if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelectModel(model); }
+      }}
       onClick={() => onSelectModel(model)}
       className={containerClasses}
       title={`View ${model.name || model.id} details`}
@@ -91,77 +100,10 @@ export const ModelSliderCard: React.FC<ModelSliderCardProps> = ({
         </p>
       )}
 
-      {/* Quantization Section: Smart 1 vs Multiple handling */}
-      {variants.length <= 1 ? (
-        /* Single Quantization: Direct clean label, no dots or slider */
-        <div className="pt-2 border-t border-[var(--border-color)]/60 flex items-center justify-between text-xs font-mono">
-          <div className="flex items-center gap-1.5 min-w-0 truncate">
-            <span className="text-[10px] uppercase font-bold text-[var(--text-muted)]">Package:</span>
-            <span className="font-bold text-[var(--text-primary)] bg-[var(--bg-tertiary)] px-2 py-0.5 rounded border border-[var(--border-color)] truncate text-[11px]">
-              {currentVariant?.quant || 'Default'}
-            </span>
-            <span className="text-[10px] text-[var(--text-muted)] uppercase">
-              {currentVariant?.format}
-            </span>
-          </div>
-          <span className="font-bold text-[var(--accent-color)] text-xs shrink-0 ml-1.5">
-            {currentVariant ? `${(currentVariant.bytes / 1024 ** 3).toFixed(2)} GiB` : ''}
-          </span>
-        </div>
-      ) : (
-        /* Multiple Quantizations: Compact Square Dots Stepper */
-        <div className="space-y-1.5 pt-2 border-t border-[var(--border-color)]/60">
-          <div className="flex items-center justify-between text-xs font-mono">
-            <div className="flex items-center gap-1.5 min-w-0 truncate">
-              <span className="text-[10px] uppercase font-bold text-[var(--text-muted)]">Quant:</span>
-              <span className="font-bold text-[var(--text-primary)] bg-[var(--bg-tertiary)] px-1.5 py-0.5 rounded border border-[var(--border-color)] truncate text-[11px]">
-                {currentVariant?.quant}
-              </span>
-              <span className="text-[10px] text-[var(--text-muted)] uppercase">
-                {currentVariant?.format}
-              </span>
-            </div>
-            <div className="text-right shrink-0 ml-1.5">
-              <span className="font-bold text-[var(--accent-color)] font-mono text-xs">
-                {currentVariant ? `${(currentVariant.bytes / 1024 ** 3).toFixed(2)} GiB` : ''}
-              </span>
-            </div>
-          </div>
-
-          {/* Stepped Square Dots Row */}
-          <div className="flex items-center gap-1 w-full overflow-x-auto no-scrollbar py-0.5">
-            {variants.map((v) => {
-              const isSelected = currentVariant?.id === v.id;
-              const isInstalled = !!installedModelForVariant(installed, model, v);
-
-              return (
-                <button
-                  key={v.id}
-                  type="button"
-                  title={`${v.quant} · ${(v.bytes / 1024 ** 3).toFixed(1)} GiB`}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSelectedVariant(v);
-                  }}
-                  className={`h-6 px-1.5 rounded-[4px] text-[10px] font-mono font-bold transition-all cursor-pointer flex items-center justify-center gap-0.5 shrink-0 border ${
-                    isSelected
-                      ? 'bg-[var(--accent-color)] text-[var(--bg-primary)] border-[var(--accent-color)] shadow-xs scale-105 z-10'
-                      : 'bg-[var(--bg-tertiary)] text-[var(--text-muted)] border-[var(--border-color)] hover:text-[var(--text-primary)] hover:border-[var(--accent-color)]/50'
-                  }`}
-                >
-                  <span>{v.quant}</span>
-                  {isInstalled && (
-                    <CheckCircle2
-                      size={9}
-                      className={isSelected ? 'text-[var(--bg-primary)]' : 'text-[var(--status-success)]'}
-                    />
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-    </div>
+      <div className="pt-2 border-t border-[var(--border-color)] flex items-center justify-between gap-2 text-xs text-[var(--text-secondary)]">
+        <span>{variants.length} {variants.length === 1 ? 'package' : 'packages'}</span>
+        <span className="uppercase">{[...new Set(variants.map(variant => variant.format))].join(' · ')}</span>
+      </div>
+    </Card>
   );
 };

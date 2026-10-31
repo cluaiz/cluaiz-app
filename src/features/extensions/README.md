@@ -7,6 +7,14 @@
 
 ## Toolkit navigation
 
+`ModelPackagePanel` is the family view's single package selector. Slider cards summarize package
+counts/formats; they keep no independent quantization state. Selection uses variant IDs, and the
+existing `chooseModelVariant`/`modelInstallReference` contract owns the command and install target.
+Shared Button/Card/Badge components supply theme styling. Invalid or ambiguous package references
+are shown before dispatch. `ModelCatalogue` reuses `useCatalogueTask` and `CatalogueTaskStatus` for
+progress, errors, rechecks and explicit forgetting; it never automatically discards failed tracking.
+An unavailable installed-model inventory is visible with a connection retry action.
+
 ToolkitWorkspace.tsx is the App's /toolkit home. It composes the existing
 ToolsWorkspace for plugins/MCP/skills, the actual bundled workspace registry for
 Extensions, and ComponentShowcase for UI components & SDK. Sections are recorded
