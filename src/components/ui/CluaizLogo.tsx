@@ -1,4 +1,5 @@
 import React from 'react';
+import { useThemeStore, isThemeDark } from '../../store/ui/useThemeStore';
 
 export interface CluaizLogoProps {
     size?: number | string;
@@ -6,6 +7,7 @@ export interface CluaizLogoProps {
     glow?: boolean;
     interactive?: boolean;
     alt?: string;
+    variant?: 'auto' | 'dark' | 'light';
 }
 
 export const CluaizLogo: React.FC<CluaizLogoProps> = ({
@@ -13,8 +15,23 @@ export const CluaizLogo: React.FC<CluaizLogoProps> = ({
     className = '',
     glow = false,
     interactive = false,
-    alt = 'Cluaiz Logo'
+    alt = 'Cluaiz Logo',
+    variant = 'auto',
 }) => {
+    const theme = useThemeStore((s) => s.theme);
+    const isDark = isThemeDark(theme);
+
+    // Dynamic SVG resolution based on current theme:
+    // On dark themes (dark/oled/etc.), cluaiz-light.svg gives crisp high-contrast white contour on dark background.
+    // On light themes, cluaiz-dark.svg gives crisp high-contrast dark contour on light background.
+    const logoSrc = variant === 'dark'
+        ? '/logo/cluaiz-dark.svg'
+        : variant === 'light'
+            ? '/logo/cluaiz-light.svg'
+            : isDark
+                ? '/logo/cluaiz-light.svg'
+                : '/logo/cluaiz-dark.svg';
+
     const dim = typeof size === 'number' ? `${size}px` : size;
 
     return (
@@ -32,11 +49,9 @@ export const CluaizLogo: React.FC<CluaizLogoProps> = ({
                 />
             )}
             <img
-                src="/logo/icon-512.png"
-                srcSet="/logo/icon-512.png 512w, /logo/logo-bg-black.png 4096w"
-                sizes={`${dim}`}
+                src={logoSrc}
                 alt={alt}
-                className="w-full h-full object-contain select-none pointer-events-none drop-shadow-[0_2px_10px_rgba(0,0,0,0.6)]"
+                className="w-full h-full object-contain select-none pointer-events-none drop-shadow-[0_2px_10px_rgba(0,0,0,0.4)]"
                 loading="eager"
             />
         </div>
