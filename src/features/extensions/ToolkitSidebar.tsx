@@ -13,7 +13,11 @@ import {
   Layers,
   Globe,
   ArrowDownWideNarrow,
+  Loader2,
+  Download,
 } from 'lucide-react';
+import { useConnectionStore } from '../../store/engine/useConnectionStore';
+import { readTaskReceipt } from './catalogueTaskReceipt';
 import { Input } from '../../components/ui/Input';
 import { useScrollReveal } from '../../hooks/useScrollReveal';
 import { useToolkitSummary } from './useToolkitSummary';
@@ -128,6 +132,19 @@ function ModelsSidebarDirectory({ onBack }: { onBack?: () => void }) {
     clearFilters,
   } = useModelCatalogueStore();
 
+  const scope = useConnectionStore(s => JSON.stringify([s.protocol, s.host, s.port]));
+  const [hasActiveDownload, setHasActiveDownload] = useState(false);
+
+  useEffect(() => {
+    const check = () => {
+      const receipt = readTaskReceipt(scope, 'models.download').receipt;
+      setHasActiveDownload(!!(receipt && receipt.taskId));
+    };
+    check();
+    const interval = setInterval(check, 1500);
+    return () => clearInterval(interval);
+  }, [scope]);
+
   const families = useMemo(() => {
     const map = new Map<string, { family: string; provider: string; logo: string; count: number }>();
     for (const m of models) {
@@ -223,9 +240,17 @@ function ModelsSidebarDirectory({ onBack }: { onBack?: () => void }) {
     <div className="flex-1 overflow-hidden flex flex-col min-h-0 bg-[var(--bg-secondary)] font-sans">
       {/* 1. Section Header: Title & Subtitle */}
       <div className="p-3.5 pb-2.5 border-b border-[var(--border-color)] space-y-0.5">
-        <h2 className="text-base font-bold text-[var(--text-primary)] tracking-tight">
-          AI Models
-        </h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-bold text-[var(--text-primary)] tracking-tight">
+            AI Models
+          </h2>
+          {hasActiveDownload && (
+            <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-[var(--accent-color)]/10 border border-[var(--accent-color)]/30 text-[10px] font-mono text-[var(--accent-color)] font-semibold animate-pulse">
+              <Loader2 size={11} className="animate-spin" />
+              Downloading
+            </span>
+          )}
+        </div>
         <p className="text-xs text-[var(--text-muted)]">
           Find a model for your Engine.
         </p>
@@ -344,6 +369,19 @@ export const ToolkitSidebar: React.FC = () => {
   } = useToolkitNavStore();
   const [search, setSearch] = useState('');
 
+  const scope = useConnectionStore(s => JSON.stringify([s.protocol, s.host, s.port]));
+  const [hasActiveDownload, setHasActiveDownload] = useState(false);
+
+  useEffect(() => {
+    const check = () => {
+      const receipt = readTaskReceipt(scope, 'models.download').receipt;
+      setHasActiveDownload(!!(receipt && receipt.taskId));
+    };
+    check();
+    const interval = setInterval(check, 1500);
+    return () => clearInterval(interval);
+  }, [scope]);
+
   // Listen to popstate or custom section changes
   useEffect(() => {
     const sync = () => {
@@ -442,6 +480,11 @@ export const ToolkitSidebar: React.FC = () => {
               </div>
 
               <div className="flex items-center gap-1 shrink-0 ml-2">
+                {item.id === 'models' && hasActiveDownload && (
+                  <span className="flex items-center gap-1 text-[10px] font-mono text-[var(--accent-color)] font-semibold animate-pulse mr-0.5">
+                    <Loader2 size={12} className="animate-spin" />
+                  </span>
+                )}
                 {count > 0 && (
                   <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-[var(--bg-tertiary)] text-[var(--text-muted)] border border-[var(--border-color)]">
                     {count}
