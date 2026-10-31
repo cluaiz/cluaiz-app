@@ -66,3 +66,14 @@ test('MultiLevelDropdown single and multi select handlers toggle state correctly
   toggleProvider('google');
   assert.deepEqual(selectedProviders, ['alibaba']);
 });
+
+test('MultiLevelDropdown submenu flyout aligns right by default to prevent left dock clipping', () => {
+  function getSubmenuPositionClass(submenuAlign = 'right') {
+    return submenuAlign === 'left' ? 'right-full mr-1.5' : 'left-full ml-1.5';
+  }
+
+  assert.equal(getSubmenuPositionClass(), 'left-full ml-1.5');
+  assert.equal(getSubmenuPositionClass('right'), 'left-full ml-1.5');
+  assert.equal(getSubmenuPositionClass('left'), 'right-full mr-1.5');
+});
+

@@ -10,6 +10,7 @@ import { useProjectStore } from '../../store/workspace/useProjectStore';
 import { pushViewRoute, pushChatRoute } from '../../core/router';
 import { ApiSidebar } from '../../features/api/components/ApiSidebar';
 import { ToolkitSidebar } from '../../features/extensions/ToolkitSidebar';
+import { useToolkitNavStore } from '../../features/extensions/toolkitStore';
 import { Tabs } from '../ui/Tabs';
 import { ChatRibbon } from '../ui/ChatRibbon';
 import { SwipeableChatCard } from './SwipeableChatCard';
@@ -180,6 +181,7 @@ const getChatDate = (timeStr: string): Date => {
 
 export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
     const { activeView, sidebarPosition, toggleSidebar, sidebarCollapsed, setSidebarCollapsed, sidebarPeeked, setSidebarPeeked, setActiveChatData } = useLayoutStore();
+    const { showSectionPicker: toolkitShowHub, backToHub: toolkitBackToHub } = useToolkitNavStore();
     const { theme } = useThemeStore();
     const [inTauri, setInTauri] = useState(false);
     const [isLogoHovered, setIsLogoHovered] = useState(false);
@@ -1033,9 +1035,21 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                     </div>
                 ) : (
                     <div className={`px-4 ${inTauri ? 'py-3 border-b border-[var(--border-color)]' : 'py-2 pb-1'} flex items-center justify-between`} style={{ borderStyle: 'var(--border-style)' }}>
-                        <h2 className="text-xl font-extrabold tracking-wide text-[var(--text-primary)]">
-                            {activeView === 'apis' ? 'APIs' : activeView === 'toolkit' ? 'Toolkit' : 'Chats'}
-                        </h2>
+                        {activeView === 'toolkit' && !toolkitShowHub ? (
+                            <button
+                                type="button"
+                                onClick={() => toolkitBackToHub()}
+                                className="flex items-center gap-1.5 text-lg font-extrabold tracking-wide text-[var(--text-primary)] hover:text-[var(--accent-color)] transition-colors cursor-pointer group"
+                                title="Back to Toolkit Hub"
+                            >
+                                <Icons.ArrowLeft className="w-4 h-4 text-[var(--text-muted)] group-hover:text-[var(--accent-color)] transition-colors" />
+                                <span>Toolkit Hub</span>
+                            </button>
+                        ) : (
+                            <h2 className="text-xl font-extrabold tracking-wide text-[var(--text-primary)]">
+                                {activeView === 'apis' ? 'APIs' : activeView === 'toolkit' ? 'Toolkit' : 'Chats'}
+                            </h2>
+                        )}
                         <div className="flex items-center gap-1">
                             {activeView !== 'apis' && activeView !== 'toolkit' && (
                                 <Tooltip title="New Chat" position="bottom">
@@ -1192,9 +1206,21 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                             {/* Header */}
                             <div className="p-3.5 pb-2.5 flex items-center justify-between border-b border-[var(--border-color)]" style={{ borderStyle: 'var(--border-style)' }}>
                                 <div className="flex items-center gap-2">
-                                    <h3 className="text-sm font-extrabold tracking-wide text-[var(--text-primary)]">
-                                        {activeView === 'apis' ? 'APIs' : activeView === 'toolkit' ? 'Toolkit' : 'Chats'}
-                                    </h3>
+                                    {activeView === 'toolkit' && !toolkitShowHub ? (
+                                        <button
+                                            type="button"
+                                            onClick={() => toolkitBackToHub()}
+                                            className="flex items-center gap-1.5 text-sm font-extrabold tracking-wide text-[var(--text-primary)] hover:text-[var(--accent-color)] transition-colors cursor-pointer group"
+                                            title="Back to Toolkit Hub"
+                                        >
+                                            <Icons.ArrowLeft className="w-4 h-4 text-[var(--text-muted)] group-hover:text-[var(--accent-color)] transition-colors" />
+                                            <span>Toolkit Hub</span>
+                                        </button>
+                                    ) : (
+                                        <h3 className="text-sm font-extrabold tracking-wide text-[var(--text-primary)]">
+                                            {activeView === 'apis' ? 'APIs' : activeView === 'toolkit' ? 'Toolkit' : 'Chats'}
+                                        </h3>
+                                    )}
                                     <span className="text-[10px] px-2 py-0.5 rounded-full bg-[var(--bg-tertiary)] text-[var(--text-muted)] border border-[var(--border-color)]">
                                         {activeView === 'apis' || activeView === 'toolkit' ? '' : filteredChats.length}
                                     </span>

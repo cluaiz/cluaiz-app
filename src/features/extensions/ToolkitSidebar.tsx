@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { motion } from 'framer-motion';
 import {
   Sparkles,
   Cpu,
@@ -14,8 +15,10 @@ import {
   ArrowDownWideNarrow,
 } from 'lucide-react';
 import { Input } from '../../components/ui/Input';
+import { useScrollReveal } from '../../hooks/useScrollReveal';
 import { useToolkitSummary } from './useToolkitSummary';
 import { toolkitSection, type ToolkitSectionId } from './toolkitNavigation';
+import { useToolkitNavStore } from './toolkitStore';
 import { useLayoutStore } from '../../store/ui/useLayoutStore';
 import { pushViewRoute } from '../../core/router';
 import { useCatalogue } from './useCatalogue';
@@ -103,9 +106,10 @@ const NAV_ITEMS: NavItem[] = [
 ];
 
 /** Contextual Second Sidebar for AI Models Families Directory (Image 2) */
-function ModelsSidebarDirectory({ onBack }: { onBack: () => void }) {
+function ModelsSidebarDirectory({ onBack }: { onBack?: () => void }) {
   const catalogue = useCatalogue(modelCatalogue.list);
   const models = catalogue.reply?.data ?? [];
+  const scrollReveal = useScrollReveal({ amount: 0.15, scale: 0.96 });
 
   const {
     family,
@@ -224,16 +228,8 @@ function ModelsSidebarDirectory({ onBack }: { onBack: () => void }) {
 
   return (
     <div className="flex-1 overflow-hidden flex flex-col min-h-0 bg-[var(--bg-secondary)] font-sans">
-      {/* 1. Header: Back + Title & Subtitle */}
-      <div className="p-3.5 pb-2.5 border-b border-[var(--border-color)] space-y-1">
-        <button
-          type="button"
-          onClick={onBack}
-          className="inline-flex items-center gap-1 text-[11px] font-mono text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer mb-0.5"
-          title="Switch Toolkit section"
-        >
-          <ArrowLeft size={12} /> Toolkit Hub
-        </button>
+      {/* 1. Section Header: Title & Subtitle */}
+      <div className="p-3.5 pb-2.5 border-b border-[var(--border-color)] space-y-0.5">
         <h2 className="text-base font-bold text-[var(--text-primary)] tracking-tight">
           AI Models
         </h2>
@@ -268,8 +264,9 @@ function ModelsSidebarDirectory({ onBack }: { onBack: () => void }) {
           const resolvedLogo = catalogueImage(item.logo || '');
 
           return (
-            <button
+            <motion.button
               key={item.family}
+              {...scrollReveal}
               type="button"
               onClick={() => {
                 setFamily(item.family);
@@ -309,7 +306,7 @@ function ModelsSidebarDirectory({ onBack }: { onBack: () => void }) {
               <span className="text-[11px] font-mono font-bold px-1.5 py-0.5 rounded text-[var(--text-muted)] shrink-0 ml-2">
                 {item.count}
               </span>
-            </button>
+            </motion.button>
           );
         })}
 
@@ -334,17 +331,19 @@ function ModelsSidebarDirectory({ onBack }: { onBack: () => void }) {
 
 export const ToolkitSidebar: React.FC = () => {
   const summary = useToolkitSummary();
-  const [activeSection, setActiveSection] = useState<ToolkitSectionId>(() =>
-    typeof window !== 'undefined' ? toolkitSection(window.location.search) : 'models'
-  );
-  const [showSectionPicker, setShowSectionPicker] = useState(false);
+  const scrollReveal = useScrollReveal({ amount: 0.15, scale: 0.96 });
+  const {
+    activeSection,
+    showSectionPicker,
+    setActiveSection,
+    setShowSectionPicker,
+  } = useToolkitNavStore();
   const [search, setSearch] = useState('');
 
   // Listen to popstate or custom section changes
   useEffect(() => {
     const sync = () => {
       setActiveSection(toolkitSection(window.location.search));
-      setShowSectionPicker(false);
     };
     window.addEventListener('popstate', sync);
     window.addEventListener('toolkit-section-change', sync);
@@ -352,11 +351,10 @@ export const ToolkitSidebar: React.FC = () => {
       window.removeEventListener('popstate', sync);
       window.removeEventListener('toolkit-section-change', sync);
     };
-  }, []);
+  }, [setActiveSection]);
 
   const handleSelect = (sectionId: ToolkitSectionId) => {
     setActiveSection(sectionId);
-    setShowSectionPicker(false);
 
     // 1. Ensure Toolkit view is active in layout store
     if (useLayoutStore.getState().activeView !== 'toolkit') {
@@ -412,8 +410,9 @@ export const ToolkitSidebar: React.FC = () => {
           const isActive = activeSection === item.id;
 
           return (
-            <button
+            <motion.button
               key={`${item.id}-${item.title}`}
+              {...scrollReveal}
               type="button"
               onClick={() => handleSelect(item.id)}
               className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-left transition-all cursor-pointer group ${
@@ -452,7 +451,7 @@ export const ToolkitSidebar: React.FC = () => {
                   }`}
                 />
               </div>
-            </button>
+            </motion.button>
           );
         })}
 

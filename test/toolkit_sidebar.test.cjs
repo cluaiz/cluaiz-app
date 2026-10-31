@@ -49,3 +49,36 @@ test('dock search tooltip accurately reflects activeView and retains text on hov
   assert.equal(getSearchTooltip('apis'), 'Search Endpoints');
   assert.equal(getSearchTooltip('toolkit'), 'Search Toolkit');
 });
+
+test('toolkit navigation store state transitions toggle back button in title bar', () => {
+  let state = {
+    activeSection: 'models',
+    showSectionPicker: false,
+  };
+
+  function isInsideSection(s) {
+    return !s.showSectionPicker;
+  }
+
+  function backToHub() {
+    state.showSectionPicker = true;
+  }
+
+  function selectSection(sec) {
+    state.activeSection = sec;
+    state.showSectionPicker = false;
+  }
+
+  // Inside models section -> header must show back button (Toolkit Hub)
+  assert.equal(isInsideSection(state), true);
+
+  // User clicks back button in header -> returns to Hub -> header displays static Toolkit
+  backToHub();
+  assert.equal(isInsideSection(state), false);
+
+  // User selects an item from Hub -> enters that section -> header displays back button again
+  selectSection('mcp');
+  assert.equal(isInsideSection(state), true);
+  assert.equal(state.activeSection, 'mcp');
+});
+

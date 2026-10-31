@@ -25,6 +25,7 @@ export interface MultiLevelDropdownProps {
   onClearAll?: () => void;
   className?: string;
   iconOnly?: boolean;
+  submenuAlign?: 'left' | 'right';
 }
 
 export const MultiLevelDropdown: React.FC<MultiLevelDropdownProps> = ({
@@ -34,6 +35,7 @@ export const MultiLevelDropdown: React.FC<MultiLevelDropdownProps> = ({
   onClearAll,
   className = '',
   iconOnly = false,
+  submenuAlign = 'right',
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
@@ -174,12 +176,12 @@ export const MultiLevelDropdown: React.FC<MultiLevelDropdownProps> = ({
             })}
           </div>
 
-          {/* Submenu Flyout (opens to the left of the main menu) */}
+          {/* Submenu Flyout (opens to the right by default to avoid left dock obstruction) */}
           {activeCategory && (
             <div
               onMouseEnter={handleSubmenuMouseEnter}
               onMouseLeave={handleSubmenuMouseLeave}
-              className="absolute right-full top-0 mr-1.5 w-60 max-h-80 overflow-y-auto custom-scrollbar bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl shadow-2xl p-1.5 z-50 backdrop-blur-xl animate-fade-in"
+              className={`absolute ${submenuAlign === 'left' ? 'right-full mr-1.5' : 'left-full ml-1.5'} top-0 w-60 max-h-80 overflow-y-auto custom-scrollbar bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl shadow-2xl p-1.5 z-50 backdrop-blur-xl animate-fade-in`}
               style={{ borderStyle: 'var(--border-style)' }}
             >
               <div className="px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] border-b border-[var(--border-color)]/50 mb-1 flex items-center justify-between">
