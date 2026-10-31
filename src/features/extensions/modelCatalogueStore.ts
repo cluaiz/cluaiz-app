@@ -34,7 +34,11 @@ export const useModelCatalogueStore = create<ModelCatalogueState>((set) => ({
   sort: 'popular',
   view: 'families',
 
-  setFamily: (family) => set({ family, selectedModel: null }),
+  setFamily: (family) => set({ 
+    family, 
+    view: family ? 'models' : 'families',
+    selectedModel: null 
+  }),
   setSelectedModel: (model) => set({ selectedModel: model }),
   setQuery: (query) => set({ query }),
   setProviders: (providers) => set((state) => ({

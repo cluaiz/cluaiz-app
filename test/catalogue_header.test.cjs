@@ -270,21 +270,21 @@ test('Models Second Sidebar groups families with counts and providers matching I
   assert.equal(searched[0].family, 'Gemma');
 });
 
-test('ModelCatalogue maintains List Page (Level 1) when family is selected via sidebar', () => {
-  function getActiveCatalogueView({ selectedModel, family, view }) {
+test('ModelCatalogue navigates to Detail Page when family is selected via sidebar or card', () => {
+  function getActiveCatalogueView({ selectedModel, family }) {
     if (selectedModel) return 'LEVEL_3_MODEL_DETAIL';
-    if (family && view === 'models') return 'LEVEL_2_FAMILY_DETAIL';
+    if (family) return 'LEVEL_2_FAMILY_DETAIL';
     return 'LEVEL_1_LIST_PAGE';
   }
 
   // 1. Initial page load (no selection) -> List page
-  assert.equal(getActiveCatalogueView({ selectedModel: null, family: '', view: 'families' }), 'LEVEL_1_LIST_PAGE');
+  assert.equal(getActiveCatalogueView({ selectedModel: null, family: '' }), 'LEVEL_1_LIST_PAGE');
 
-  // 2. User clicks family in sidebar -> Still List page (showing cards for that family)
-  assert.equal(getActiveCatalogueView({ selectedModel: null, family: 'Qwen', view: 'families' }), 'LEVEL_1_LIST_PAGE');
+  // 2. User clicks family in sidebar or list card -> Detail page
+  assert.equal(getActiveCatalogueView({ selectedModel: null, family: 'Qwen' }), 'LEVEL_2_FAMILY_DETAIL');
 
-  // 3. User unselects family -> Still List page (showing all families)
-  assert.equal(getActiveCatalogueView({ selectedModel: null, family: '', view: 'families' }), 'LEVEL_1_LIST_PAGE');
+  // 3. User unselects family (Back to All Families) -> List page (showing all families)
+  assert.equal(getActiveCatalogueView({ selectedModel: null, family: '' }), 'LEVEL_1_LIST_PAGE');
 });
 
 

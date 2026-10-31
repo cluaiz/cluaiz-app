@@ -188,7 +188,7 @@ export function ModelCatalogue() {
         )}
 
         {/* Navigation Breadcrumb back to All Families when inside Family Overview (Level 2) */}
-        {!selectedModel && family && view === 'models' && (
+        {!selectedModel && family && (
           <div className="flex items-center gap-2 text-xs font-mono text-[var(--text-muted)]">
             <button
               type="button"
@@ -229,17 +229,17 @@ export function ModelCatalogue() {
               const cleanDesc = cleanModelDescription(selectedModel.description || selectedModel.familyDescription);
 
               return (
-                <div className="relative overflow-hidden rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-color)] p-6 sm:px-10 sm:py-10 min-h-[200px] flex items-center text-left">
-                  {/* Right Side: Model Logo Watermark seamlessly dissolved into card background on all sides */}
+                <div className="relative overflow-hidden pt-2 pb-6 min-h-[200px] flex items-center text-left">
+                  {/* Right Side: Model Logo Watermark seamlessly dissolved into background on all sides */}
                   {modelLogoUrl && (
-                    <div className="absolute right-0 top-0 bottom-0 w-1/2 sm:w-2/5 flex items-center justify-end pointer-events-none select-none overflow-hidden z-0 pr-6 sm:pr-12">
+                    <div className="absolute right-0 top-0 bottom-0 w-1/2 sm:w-2/5 flex items-center justify-end pointer-events-none select-none overflow-hidden z-0 pr-2 sm:pr-8">
                       <img
                         src={modelLogoUrl}
                         alt=""
                         aria-hidden="true"
                         loading="lazy"
                         referrerPolicy="no-referrer"
-                        className="w-56 h-56 sm:w-72 sm:h-72 object-contain opacity-45 filter contrast-125 transition-opacity"
+                        className="w-56 h-56 sm:w-72 sm:h-72 object-contain opacity-50 filter contrast-125 transition-opacity"
                         style={{
                           maskImage: 'radial-gradient(ellipse at center, rgba(0,0,0,0.85) 15%, rgba(0,0,0,0.35) 55%, transparent 92%)',
                           WebkitMaskImage: 'radial-gradient(ellipse at center, rgba(0,0,0,0.85) 15%, rgba(0,0,0,0.35) 55%, transparent 92%)',
@@ -360,7 +360,7 @@ export function ModelCatalogue() {
               {selectedModel.note && <p><span className="text-[var(--text-secondary)] font-semibold">Notes:</span> {selectedModel.note}</p>}
             </div>
           </div>
-        ) : family && view === 'models' ? (
+        ) : family ? (
           /* ------------------------------------------------------------------ */
           /* LEVEL 2: Family Overview & Models Explorer                         */
           /* ------------------------------------------------------------------ */
@@ -526,9 +526,10 @@ export function ModelCatalogue() {
                     updateUrl(fam, '');
                   }}
                   onSelectModel={(model) => {
-                    setSelectedModel(model);
                     setFamily(model.family);
-                    updateUrl(model.family, model.id);
+                    setView('models');
+                    setSelectedModel(null);
+                    updateUrl(model.family, '');
                   }}
                 />
               );

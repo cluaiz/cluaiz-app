@@ -262,8 +262,19 @@ function ModelsSidebarDirectory({ onBack }: { onBack?: () => void }) {
               {...scrollReveal}
               type="button"
               onClick={() => {
-                setFamily(family === item.family ? '' : item.family);
+                const nextFamily = family === item.family ? '' : item.family;
+                setFamily(nextFamily);
                 setSelectedModel(null);
+                try {
+                  const url = new URL(window.location.href);
+                  if (nextFamily) {
+                    url.searchParams.set('family', nextFamily);
+                  } else {
+                    url.searchParams.delete('family');
+                  }
+                  url.searchParams.delete('model');
+                  window.history.pushState(window.history.state, '', url);
+                } catch { /* ignore */ }
               }}
               className={`w-full flex items-center justify-between p-2 rounded-xl text-left transition-all cursor-pointer group ${
                 isSelected
