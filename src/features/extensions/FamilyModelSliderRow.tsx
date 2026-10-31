@@ -69,6 +69,7 @@ export const FamilyModelSliderRow: React.FC<FamilyModelSliderRowProps> = ({
   const trackRef = useRef<HTMLDivElement>(null);
   const isScrubberDragging = useRef(false);
   const isTrackDragging = useRef(false);
+  const trackHasMoved = useRef(false);
   const trackStartX = useRef(0);
   const trackStartScrollLeft = useRef(0);
   const localProgress = useMotionValue(0);
@@ -125,28 +126,38 @@ export const FamilyModelSliderRow: React.FC<FamilyModelSliderRowProps> = ({
     } catch { /* ignore */ }
   };
 
-  // Cards Track direct mouse drag-to-scroll handlers
+  // Cards Track direct mouse drag-to-scroll handlers (does not block pure clicks)
   const handleTrackPointerDown = (e: React.PointerEvent) => {
     if ((e.target as HTMLElement).closest('button, a')) return;
     if (!trackRef.current) return;
 
     isTrackDragging.current = true;
+    trackHasMoved.current = false;
     trackStartX.current = e.clientX;
     trackStartScrollLeft.current = trackRef.current.scrollLeft;
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   };
 
   const handleTrackPointerMove = (e: React.PointerEvent) => {
     if (!isTrackDragging.current || !trackRef.current) return;
     const dx = e.clientX - trackStartX.current;
-    trackRef.current.scrollLeft = trackStartScrollLeft.current - dx;
-    handleTrackScroll();
+    if (Math.abs(dx) > 4) {
+      trackHasMoved.current = true;
+      if (!trackRef.current.hasPointerCapture(e.pointerId)) {
+        try {
+          (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+        } catch { /* ignore */ }
+      }
+      trackRef.current.scrollLeft = trackStartScrollLeft.current - dx;
+      handleTrackScroll();
+    }
   };
 
   const handleTrackPointerUp = (e: React.PointerEvent) => {
     isTrackDragging.current = false;
     try {
-      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+      if ((e.currentTarget as HTMLElement).hasPointerCapture(e.pointerId)) {
+        (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+      }
     } catch { /* ignore */ }
   };
 

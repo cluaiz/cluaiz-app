@@ -228,20 +228,20 @@ export function ModelCatalogue() {
               const cleanDesc = cleanModelDescription(selectedModel.description || selectedModel.familyDescription);
 
               return (
-                <div className="relative overflow-hidden pt-2 pb-6 min-h-[200px] flex items-center text-left">
+                <div className="relative pt-2 pb-6 min-h-[220px] sm:min-h-[280px] flex items-center text-left">
                   {/* Right Side: Model Logo Watermark seamlessly dissolved into background on all sides */}
                   {modelLogoUrl && (
-                    <div className="absolute right-0 top-0 bottom-0 w-1/2 sm:w-2/5 flex items-center justify-end pointer-events-none select-none overflow-hidden z-0 pr-2 sm:pr-8">
+                    <div className="absolute right-0 top-0 pointer-events-none select-none z-0 pr-2 sm:pr-6 flex items-start justify-end">
                       <img
                         src={modelLogoUrl}
                         alt=""
                         aria-hidden="true"
                         loading="lazy"
                         referrerPolicy="no-referrer"
-                        className="w-56 h-56 sm:w-72 sm:h-72 object-contain opacity-50 filter contrast-125 transition-opacity"
+                        className="w-64 h-64 sm:w-80 sm:h-80 md:w-96 md:h-96 object-contain opacity-55 filter contrast-125 transition-opacity"
                         style={{
-                          maskImage: 'radial-gradient(ellipse at center, rgba(0,0,0,0.85) 15%, rgba(0,0,0,0.35) 55%, transparent 92%)',
-                          WebkitMaskImage: 'radial-gradient(ellipse at center, rgba(0,0,0,0.85) 15%, rgba(0,0,0,0.35) 55%, transparent 92%)',
+                          maskImage: 'radial-gradient(circle at center, rgba(0,0,0,1) 25%, rgba(0,0,0,0.7) 50%, rgba(0,0,0,0.2) 75%, transparent 88%)',
+                          WebkitMaskImage: 'radial-gradient(circle at center, rgba(0,0,0,1) 25%, rgba(0,0,0,0.7) 50%, rgba(0,0,0,0.2) 75%, transparent 88%)',
                         }}
                       />
                     </div>
@@ -373,20 +373,20 @@ export function ModelCatalogue() {
               const heroLogoUrl = catalogueImage(first?.logo || '');
 
               return (
-                <div className="relative overflow-hidden pt-2 pb-6 min-h-[200px] flex items-center text-left">
-                  {/* Right Side: Family Logo Watermark with Smooth Radial Fade Mask on all sides (Image 2 style) */}
+                <div className="relative pt-2 pb-6 min-h-[220px] sm:min-h-[280px] flex items-center text-left">
+                  {/* Right Side: Family Logo Watermark with Smooth Radial Fade Mask on all sides */}
                   {heroLogoUrl && (
-                    <div className="absolute right-0 top-0 bottom-0 w-1/2 sm:w-2/5 flex items-center justify-end pointer-events-none select-none overflow-hidden z-0 pr-2 sm:pr-8">
+                    <div className="absolute right-0 top-0 pointer-events-none select-none z-0 pr-2 sm:pr-6 flex items-start justify-end">
                       <img
                         src={heroLogoUrl}
                         alt=""
                         aria-hidden="true"
                         loading="lazy"
                         referrerPolicy="no-referrer"
-                        className="w-56 h-56 sm:w-72 sm:h-72 object-contain opacity-50 filter contrast-125 transition-opacity"
+                        className="w-64 h-64 sm:w-80 sm:h-80 md:w-96 md:h-96 object-contain opacity-55 filter contrast-125 transition-opacity"
                         style={{
-                          maskImage: 'radial-gradient(ellipse at center, rgba(0,0,0,0.85) 15%, rgba(0,0,0,0.35) 55%, transparent 92%)',
-                          WebkitMaskImage: 'radial-gradient(ellipse at center, rgba(0,0,0,0.85) 15%, rgba(0,0,0,0.35) 55%, transparent 92%)',
+                          maskImage: 'radial-gradient(circle at center, rgba(0,0,0,1) 25%, rgba(0,0,0,0.7) 50%, rgba(0,0,0,0.2) 75%, transparent 88%)',
+                          WebkitMaskImage: 'radial-gradient(circle at center, rgba(0,0,0,1) 25%, rgba(0,0,0,0.7) 50%, rgba(0,0,0,0.2) 75%, transparent 88%)',
                         }}
                       />
                     </div>

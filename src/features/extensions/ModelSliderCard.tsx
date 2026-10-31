@@ -29,16 +29,18 @@ export const ModelSliderCard: React.FC<ModelSliderCardProps> = ({
   const cleanDesc = cleanModelDescription(model.description);
 
   const containerClasses = className
-    ? `group relative flex flex-col justify-between gap-3 p-3 sm:p-5 border-2 border-[var(--border-color)] bg-[var(--bg-secondary)] transition-colors text-left rounded-xl select-none overflow-hidden ${className}`
-    : `group relative flex flex-col justify-between gap-3 p-3 sm:p-5 mx-0.5 sm:mx-1 border-2 border-[var(--border-color)] bg-[var(--bg-secondary)] transition-colors w-[270px] sm:w-[350px] md:w-[380px] max-w-[calc(100vw-2.5rem)] shrink-0 text-left rounded-xl select-none overflow-hidden`;
+    ? `group relative flex flex-col justify-between gap-3 p-3 sm:p-5 border-2 border-[var(--border-color)] bg-[var(--bg-secondary)] hover:border-[var(--accent-color)]/60 transition-colors text-left rounded-xl select-none overflow-hidden cursor-pointer ${className}`
+    : `group relative flex flex-col justify-between gap-3 p-3 sm:p-5 mx-0.5 sm:mx-1 border-2 border-[var(--border-color)] bg-[var(--bg-secondary)] hover:border-[var(--accent-color)]/60 transition-colors w-[270px] sm:w-[350px] md:w-[380px] max-w-[calc(100vw-2.5rem)] shrink-0 text-left rounded-xl select-none overflow-hidden cursor-pointer`;
 
   return (
-    <div className={containerClasses}>
-      {/* Top Section: Logo + Header Details (Clickable to open model details) */}
+    <div
+      onClick={() => onSelectModel(model)}
+      className={containerClasses}
+      title={`View ${model.name || model.id} details`}
+    >
+      {/* Top Section: Logo + Header Details */}
       <div
-        onClick={() => onSelectModel(model)}
-        className="flex flex-row items-start sm:items-center gap-2.5 sm:gap-3.5 w-full overflow-hidden cursor-pointer group/cardheader"
-        title={`View ${model.name || model.id} details`}
+        className="flex flex-row items-start sm:items-center gap-2.5 sm:gap-3.5 w-full overflow-hidden group/cardheader"
       >
         <div className="relative w-11 h-11 sm:w-14 sm:h-14 border-2 border-[var(--border-color)] bg-[var(--bg-tertiary)] overflow-hidden shrink-0 flex items-center justify-center rounded-lg group-hover/cardheader:border-[var(--accent-color)]/60 transition-colors">
           <CatalogueLogo source={model.logo} name={model.name || model.id} large />
