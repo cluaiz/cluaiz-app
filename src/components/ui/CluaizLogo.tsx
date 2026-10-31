@@ -27,9 +27,9 @@ export const CluaizLogo: React.FC<CluaizLogoProps> = ({
     const logoSrc = variant === 'dark'
         ? '/logo/cluaiz-dark.svg'
         : variant === 'light'
-            ? '/logo/cluaiz-light.svg'
+            ? '/logo/cluaiz-mascot.svg'
             : isDark
-                ? '/logo/cluaiz-light.svg'
+                ? '/logo/cluaiz-mascot.svg'
                 : '/logo/cluaiz-dark.svg';
 
     const dim = typeof size === 'number' ? `${size}px` : size;
