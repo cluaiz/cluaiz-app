@@ -46,6 +46,8 @@ export interface FamilyModelSliderRowProps {
   installed: ModelRegistryEntry[];
   isBusy: boolean;
   downloadingTarget?: string;
+  borderless?: boolean;
+  hideHeader?: boolean;
   onDownload: (model: PublicModel, variant: PublicVariant) => void;
   onViewAll: (family: string) => void;
   onSelectModel: (model: PublicModel) => void;
@@ -57,6 +59,8 @@ export const FamilyModelSliderRow: React.FC<FamilyModelSliderRowProps> = ({
   installed,
   isBusy,
   downloadingTarget,
+  borderless = false,
+  hideHeader = false,
   onDownload,
   onViewAll,
   onSelectModel,
@@ -147,43 +151,45 @@ export const FamilyModelSliderRow: React.FC<FamilyModelSliderRowProps> = ({
   };
 
   return (
-    <div className="w-full rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-color)] p-3 sm:p-5 space-y-3 sm:space-y-4 text-left">
+    <div className={`w-full ${borderless ? 'p-0 space-y-4' : 'rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-color)] p-3 sm:p-5 space-y-3 sm:space-y-4'} text-left`}>
       {/* ------------------------------------------------------------------ */}
       {/* SECTION 1: FAMILY HEADER (CLICKABLE TO OPEN FAMILY DETAIL)         */}
       {/* ------------------------------------------------------------------ */}
-      <div
-        onClick={() => onViewAll(family)}
-        className="group/family-header flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 pb-3 border-b border-[var(--border-color)] cursor-pointer hover:bg-[var(--bg-tertiary)]/30 -mx-2 px-2 -mt-1 pt-1 rounded-xl transition-colors"
-        title={`View ${family} details`}
-      >
-        {/* Left Side: Logo, Name, Publisher, Description, Tags, Count */}
-        <div className="flex items-start gap-2.5 sm:gap-3.5 min-w-0 flex-1">
-          <CatalogueLogo source={firstModel?.logo} name={family} large icon={Boxes} />
-          <div className="space-y-1 min-w-0 flex-1">
-            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-              <h3 className="text-base sm:text-lg font-bold font-mono uppercase text-[var(--text-primary)] group-hover/family-header:text-[var(--accent-color)] transition-colors tracking-tight">
-                {family}
-              </h3>
-              <Badge variant="outline" className="text-[10px] font-mono font-bold uppercase tracking-wider">
-                {models.length} {models.length === 1 ? 'Model' : 'Models'}
-              </Badge>
-              <span className="text-xs text-[var(--text-muted)] font-mono">
-                by <span className="text-[var(--text-secondary)] font-bold">{firstModel?.provider || 'Open Source'}</span>
-              </span>
-            </div>
+      {!hideHeader && (
+        <div
+          onClick={() => onViewAll(family)}
+          className="group/family-header flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 pb-3 border-b border-[var(--border-color)] cursor-pointer hover:bg-[var(--bg-tertiary)]/30 -mx-2 px-2 -mt-1 pt-1 rounded-xl transition-colors"
+          title={`View ${family} details`}
+        >
+          {/* Left Side: Logo, Name, Publisher, Description, Tags, Count */}
+          <div className="flex items-start gap-2.5 sm:gap-3.5 min-w-0 flex-1">
+            <CatalogueLogo source={firstModel?.logo} name={family} large icon={Boxes} />
+            <div className="space-y-1 min-w-0 flex-1">
+              <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                <h3 className="text-base sm:text-lg font-bold font-mono uppercase text-[var(--text-primary)] group-hover/family-header:text-[var(--accent-color)] transition-colors tracking-tight">
+                  {family}
+                </h3>
+                <Badge variant="outline" className="text-[10px] font-mono font-bold uppercase tracking-wider">
+                  {models.length} {models.length === 1 ? 'Model' : 'Models'}
+                </Badge>
+                <span className="text-xs text-[var(--text-muted)] font-mono">
+                  by <span className="text-[var(--text-secondary)] font-bold">{firstModel?.provider || 'Open Source'}</span>
+                </span>
+              </div>
 
-            {cleanDesc && (
-              <p className="text-xs text-[var(--text-secondary)] line-clamp-1 max-w-2xl">
-                {cleanDesc}
-              </p>
-            )}
+              {cleanDesc && (
+                <p className="text-xs text-[var(--text-secondary)] line-clamp-1 max-w-2xl">
+                  {cleanDesc}
+                </p>
+              )}
 
-            <div className="pt-0.5">
-              <CatalogueTags values={distinctCapabilities} />
+              <div className="pt-0.5">
+                <CatalogueTags values={distinctCapabilities} />
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* ------------------------------------------------------------------ */}
       {/* SECTION 2: ADAPTIVE FAMILY BODY                                    */}
@@ -224,9 +230,9 @@ export const FamilyModelSliderRow: React.FC<FamilyModelSliderRowProps> = ({
           {/* Track Container with Left and Right Edge Fade Shadows */}
           <div className="relative w-full overflow-hidden">
             {/* Left Edge Fade Shadow */}
-            <div className="absolute top-0 left-0 w-6 sm:w-16 h-full bg-gradient-to-r from-[var(--bg-secondary)] to-transparent z-10 pointer-events-none" />
+            <div className={`absolute top-0 left-0 w-6 sm:w-16 h-full bg-gradient-to-r ${borderless ? 'from-[var(--bg-primary,#09090b)]' : 'from-[var(--bg-secondary)]'} to-transparent z-10 pointer-events-none`} />
             {/* Right Edge Fade Shadow */}
-            <div className="absolute top-0 right-0 w-6 sm:w-16 h-full bg-gradient-to-l from-[var(--bg-secondary)] to-transparent z-10 pointer-events-none" />
+            <div className={`absolute top-0 right-0 w-6 sm:w-16 h-full bg-gradient-to-l ${borderless ? 'from-[var(--bg-primary,#09090b)]' : 'from-[var(--bg-secondary)]'} to-transparent z-10 pointer-events-none`} />
 
             {/* Draggable Horizontal Models Track */}
             <div
