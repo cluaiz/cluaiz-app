@@ -278,7 +278,7 @@ export function ModelCatalogue() {
               {selectedModel.note && <p><span className="text-[var(--text-secondary)] font-semibold">Notes:</span> {selectedModel.note}</p>}
             </div>
           </div>
-        ) : family ? (
+        ) : family && view === 'models' ? (
           /* ------------------------------------------------------------------ */
           /* LEVEL 2: Family Overview & Models Explorer                         */
           /* ------------------------------------------------------------------ */

@@ -147,13 +147,6 @@ function ModelsSidebarDirectory({ onBack }: { onBack?: () => void }) {
     return Array.from(map.values());
   }, [models]);
 
-  // Auto-select first family if none selected
-  useEffect(() => {
-    if (!family && families.length > 0) {
-      setFamily(families[0].family);
-    }
-  }, [family, families, setFamily]);
-
   const allTasks = useMemo(() => {
     const set = new Set<string>();
     for (const m of models) {
@@ -269,7 +262,7 @@ function ModelsSidebarDirectory({ onBack }: { onBack?: () => void }) {
               {...scrollReveal}
               type="button"
               onClick={() => {
-                setFamily(item.family);
+                setFamily(family === item.family ? '' : item.family);
                 setSelectedModel(null);
               }}
               className={`w-full flex items-center justify-between p-2 rounded-xl text-left transition-all cursor-pointer group ${

@@ -77,3 +77,26 @@ test('MultiLevelDropdown submenu flyout aligns right by default to prevent left 
   assert.equal(getSubmenuPositionClass('left'), 'right-full mr-1.5');
 });
 
+test('MultiLevelDropdown portal coordinates calculate fixed positioning cleanly outside sidebar bounds', () => {
+  function calculateDropdownPosition(anchorRect, windowWidth = 1920) {
+    const menuWidth = 240;
+    let left = anchorRect.right - menuWidth;
+    if (left < 8) left = 8;
+    if (left + menuWidth > windowWidth - 8) {
+      left = Math.max(8, windowWidth - menuWidth - 8);
+    }
+    const top = anchorRect.bottom + 6;
+    return { top, left };
+  }
+
+  // Normal anchor in sidebar (e.g. left dock 72px, sidebar 320px, button at 300px)
+  const pos = calculateDropdownPosition({ top: 100, bottom: 132, right: 380, left: 348 });
+  assert.equal(pos.top, 138);
+  assert.equal(pos.left, 140);
+
+  // Near left edge
+  const leftEdge = calculateDropdownPosition({ top: 50, bottom: 82, right: 100, left: 68 });
+  assert.equal(leftEdge.left, 8);
+});
+
+

@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { SlidersHorizontal, ChevronRight, ChevronDown, Check, X, type LucideIcon } from 'lucide-react';
 import { Button } from '../Button';
 
@@ -40,15 +41,40 @@ export const MultiLevelDropdown: React.FC<MultiLevelDropdownProps> = ({
   const [isOpen, setIsOpen] = useState(false);
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const primaryMenuRef = useRef<HTMLDivElement>(null);
+  const submenuRef = useRef<HTMLDivElement>(null);
   const closeSubmenuTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
+  const [submenuPos, setSubmenuPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
+
+  const updateDropdownPosition = useCallback(() => {
+    if (!containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const menuWidth = 240;
+    let left = rect.right - menuWidth;
+    if (left < 8) left = 8;
+    if (left + menuWidth > window.innerWidth - 8) {
+      left = Math.max(8, window.innerWidth - menuWidth - 8);
+    }
+    const top = rect.bottom + 6;
+    setDropdownPos({ top, left });
+  }, []);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-        setActiveCategoryId(null);
+      const target = event.target as Node;
+      if (
+        containerRef.current?.contains(target) ||
+        primaryMenuRef.current?.contains(target) ||
+        submenuRef.current?.contains(target)
+      ) {
+        return;
       }
+      setIsOpen(false);
+      setActiveCategoryId(null);
     };
+
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         setIsOpen(false);
@@ -57,23 +83,38 @@ export const MultiLevelDropdown: React.FC<MultiLevelDropdownProps> = ({
     };
 
     if (isOpen) {
+      updateDropdownPosition();
       document.addEventListener('mousedown', handleClickOutside);
       document.addEventListener('keydown', handleKeyDown);
+      window.addEventListener('resize', updateDropdownPosition);
+      window.addEventListener('scroll', updateDropdownPosition, true);
     }
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('resize', updateDropdownPosition);
+      window.removeEventListener('scroll', updateDropdownPosition, true);
     };
-  }, [isOpen]);
+  }, [isOpen, updateDropdownPosition]);
 
   const activeCategory = categories.find(cat => cat.id === activeCategoryId);
 
-  const handleCategoryMouseEnter = (catId: string) => {
+  const handleCategoryMouseEnter = (catId: string, e?: React.MouseEvent<HTMLButtonElement>) => {
     if (closeSubmenuTimerRef.current) {
       clearTimeout(closeSubmenuTimerRef.current);
       closeSubmenuTimerRef.current = null;
     }
     setActiveCategoryId(catId);
+
+    if (e) {
+      const catRect = e.currentTarget.getBoundingClientRect();
+      const subWidth = 240;
+      let left = catRect.right + 6;
+      if (left + subWidth > window.innerWidth - 8) {
+        left = Math.max(8, catRect.left - subWidth - 6);
+      }
+      setSubmenuPos({ top: catRect.top, left });
+    }
   };
 
   const handleSubmenuMouseLeave = () => {
@@ -122,11 +163,19 @@ export const MultiLevelDropdown: React.FC<MultiLevelDropdownProps> = ({
         )}
       </Button>
 
-      {/* Primary Categories Dropdown */}
-      {isOpen && (
+      {/* Primary Categories Dropdown rendered in document.body Portal to prevent clipping */}
+      {isOpen && typeof document !== 'undefined' && createPortal(
         <div
-          className="absolute right-0 top-full mt-2 w-60 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl shadow-2xl p-1.5 z-50 backdrop-blur-xl animate-fade-in"
-          style={{ borderStyle: 'var(--border-style)' }}
+          ref={primaryMenuRef}
+          style={{
+            position: 'fixed',
+            top: dropdownPos.top,
+            left: dropdownPos.left,
+            width: 240,
+            zIndex: 99999,
+            borderStyle: 'var(--border-style)',
+          }}
+          className="bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl shadow-2xl p-1.5 backdrop-blur-xl animate-fade-in"
         >
           <div className="px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] border-b border-[var(--border-color)]/50 mb-1">
             Filter by Category
@@ -150,8 +199,11 @@ export const MultiLevelDropdown: React.FC<MultiLevelDropdownProps> = ({
                 <button
                   key={category.id}
                   type="button"
-                  onMouseEnter={() => handleCategoryMouseEnter(category.id)}
-                  onClick={() => setActiveCategoryId(prev => prev === category.id ? null : category.id)}
+                  onMouseEnter={(e) => handleCategoryMouseEnter(category.id, e)}
+                  onClick={(e) => {
+                    handleCategoryMouseEnter(category.id, e);
+                    setActiveCategoryId(prev => prev === category.id ? null : category.id);
+                  }}
                   className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs transition-colors cursor-pointer text-left ${
                     isSelected
                       ? 'bg-[var(--accent-color)]/15 text-[var(--text-primary)] font-semibold'
@@ -176,55 +228,6 @@ export const MultiLevelDropdown: React.FC<MultiLevelDropdownProps> = ({
             })}
           </div>
 
-          {/* Submenu Flyout (opens to the right by default to avoid left dock obstruction) */}
-          {activeCategory && (
-            <div
-              onMouseEnter={handleSubmenuMouseEnter}
-              onMouseLeave={handleSubmenuMouseLeave}
-              className={`absolute ${submenuAlign === 'left' ? 'right-full mr-1.5' : 'left-full ml-1.5'} top-0 w-60 max-h-80 overflow-y-auto custom-scrollbar bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl shadow-2xl p-1.5 z-50 backdrop-blur-xl animate-fade-in`}
-              style={{ borderStyle: 'var(--border-style)' }}
-            >
-              <div className="px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] border-b border-[var(--border-color)]/50 mb-1 flex items-center justify-between">
-                <span>{activeCategory.label}</span>
-                {activeCategory.isMultiSelect && (
-                  <span className="text-[9px] lowercase font-normal text-[var(--text-muted)]">(multi)</span>
-                )}
-              </div>
-
-              <div className="space-y-0.5">
-                {activeCategory.options.map(option => {
-                  const isChecked = Array.isArray(activeCategory.selectedValue)
-                    ? activeCategory.selectedValue.includes(option.value)
-                    : activeCategory.selectedValue === option.value || (!activeCategory.selectedValue && option.value === '');
-
-                  const OptionIcon = option.icon;
-
-                  return (
-                    <button
-                      key={option.value}
-                      type="button"
-                      onClick={() => activeCategory.onSelect(option.value)}
-                      className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition-colors cursor-pointer text-left ${
-                        isChecked
-                          ? 'bg-[var(--accent-color)]/10 text-[var(--text-primary)] font-medium'
-                          : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 min-w-0 flex-1">
-                        {OptionIcon && <OptionIcon size={13} className="shrink-0 text-[var(--text-muted)]" />}
-                        <span className="truncate">{option.label}</span>
-                      </div>
-
-                      {isChecked && (
-                        <Check size={13} className="text-[var(--accent-color)] shrink-0 ml-2" />
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
           {/* Footer: Clear All Filters */}
           {activeCount > 0 && onClearAll && (
             <div className="pt-1.5 mt-1 border-t border-[var(--border-color)]/50">
@@ -241,7 +244,66 @@ export const MultiLevelDropdown: React.FC<MultiLevelDropdownProps> = ({
               </button>
             </div>
           )}
-        </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Submenu Flyout rendered in document.body Portal */}
+      {isOpen && activeCategory && typeof document !== 'undefined' && createPortal(
+        <div
+          ref={submenuRef}
+          onMouseEnter={handleSubmenuMouseEnter}
+          onMouseLeave={handleSubmenuMouseLeave}
+          style={{
+            position: 'fixed',
+            top: submenuPos.top,
+            left: submenuPos.left,
+            width: 240,
+            zIndex: 100000,
+            borderStyle: 'var(--border-style)',
+          }}
+          className="max-h-80 overflow-y-auto custom-scrollbar bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl shadow-2xl p-1.5 backdrop-blur-xl animate-fade-in"
+        >
+          <div className="px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] border-b border-[var(--border-color)]/50 mb-1 flex items-center justify-between">
+            <span>{activeCategory.label}</span>
+            {activeCategory.isMultiSelect && (
+              <span className="text-[9px] lowercase font-normal text-[var(--text-muted)]">(multi)</span>
+            )}
+          </div>
+
+          <div className="space-y-0.5">
+            {activeCategory.options.map(option => {
+              const isChecked = Array.isArray(activeCategory.selectedValue)
+                ? activeCategory.selectedValue.includes(option.value)
+                : activeCategory.selectedValue === option.value || (!activeCategory.selectedValue && option.value === '');
+
+              const OptionIcon = option.icon;
+
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => activeCategory.onSelect(option.value)}
+                  className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition-colors cursor-pointer text-left ${
+                    isChecked
+                      ? 'bg-[var(--accent-color)]/10 text-[var(--text-primary)] font-medium'
+                      : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                    {OptionIcon && <OptionIcon size={13} className="shrink-0 text-[var(--text-muted)]" />}
+                    <span className="truncate">{option.label}</span>
+                  </div>
+
+                  {isChecked && (
+                    <Check size={13} className="text-[var(--accent-color)] shrink-0 ml-2" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   );
