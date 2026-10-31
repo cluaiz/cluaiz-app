@@ -47,6 +47,14 @@ export interface ChatMessage {
     };
     finishReason?: string;
     contextReport?: any;
+    /** A compaction card: the model's summary replaces the messages before it in later requests */
+    compaction?: {
+        summary: string;
+        replacedMessages: number;
+        auto: boolean;
+        status: 'running' | 'done' | 'failed';
+        error?: string;
+    };
 }
 
 export interface ChatSession {

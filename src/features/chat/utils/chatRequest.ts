@@ -19,6 +19,8 @@ export function chatHistoryOptions(options: SendChatOptions | undefined, private
 /** Keep failed turns visible in the conversation, but never retry their attachments implicitly. */
 export function selectChatContext(messages: ChatMessage[]) {
     return messages.filter((message, index) => {
+        // Compaction cards are sent as their summary (buildChatHistory), never as a message
+        if (message.compaction) return false;
         if (message.finishReason === 'error') return false;
         if (message.sender === 'assistant') return Boolean(message.text || message.thinking);
         // Older clients saved transport errors as system messages, not model instructions.
@@ -35,13 +37,19 @@ export function selectChatContext(messages: ChatMessage[]) {
 }
 
 export function buildChatHistory(messages: ChatMessage[]) {
-    return selectChatContext(messages).map(message => {
+    // After a finished compaction only its summary and the messages after it are sent
+    const last = messages.map(m => m.compaction?.status === 'done').lastIndexOf(true);
+    const summary = last >= 0 ? [
+        { role: 'user' as const, content: `Summary of our conversation so far (it replaces the earlier messages):\n${messages[last].compaction!.summary}` },
+        { role: 'assistant' as const, content: 'Understood. I will continue from this summary.' },
+    ] : [];
+    return [...summary, ...selectChatContext(messages.slice(last + 1)).map(message => {
         let content = message.parts?.length ? message.parts : message.text;
         if (message.sender === 'user' && message.replyTo?.text && typeof content === 'string') {
             content = `[In reply to: "${message.replyTo.text}"]\n\n${content}`;
         }
         return { role: message.sender, content };
-    });
+    })];
 }
 
 const STAGES: Record<ProcessingEvent['stage'], string> = {

@@ -23,6 +23,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useScrollReveal } from '../../../hooks/useScrollReveal';
 import { Tooltip } from '../../../components/ui/tooltip';
 import { LiveTelemetryBar } from './LiveTelemetryBar';
+import { CompactionCard } from './CompactionCard';
+import { AUTO_COMPACT_PERCENT, compactSession, messagesSinceCompaction } from '../utils/compactChat';
 import { useChatTelemetry } from '../hooks/useChatTelemetry';
 import { WorkspaceEditorPane } from '../../workspace';
 import { ResizableDivider } from '../../../components/ui/ResizableDivider';
@@ -359,6 +361,18 @@ main().catch(console.error);`);
     const boundChat = useExtensionChat(chatBinding ?? undefined, telemetry,
         () => { setInputValue(''); setReplyingTo(null); }, inputValue, replyingTo?.text);
     const streamingHere = (isBoundChat ? boundChat.running : liveStats.isStreaming) && streamingSessionId === activeSessionId;
+    // Like Claude Code: once an answer leaves the context AUTO_COMPACT_PERCENT full, the chat is
+    // compacted on its own; the card shows it in the chat
+    useEffect(() => {
+        if (isBoundChat || !activeSessionId || streamingHere || !breakdown) return;
+        const limit = breakdown.total_context_limit || 0;
+        const used = breakdown.total_active_tokens || 0;
+        const percent = breakdown.active_percentage || (limit > 0 ? Math.round((used * 100) / limit) : 0);
+        if (percent < AUTO_COMPACT_PERCENT) return;
+        const sessionMessages = useChatStore.getState().sessions[activeSessionId]?.messages || [];
+        if (messagesSinceCompaction(sessionMessages).length < 4) return;
+        void compactSession(activeSessionId, true);
+    }, [breakdown, streamingHere, activeSessionId, isBoundChat]);
     // A long reply can exceed the viewport; reveal on any overlap, without animating live text.
     const messageReveal = useScrollReveal({ amount: 'some', scale: 0.98, disabled: streamingHere || isSelectionMode });
 
@@ -557,7 +571,7 @@ main().catch(console.error);`);
                                                         const isLatestMessage = currentIndex === messages.length - 1;
                                                         return (
                                                             <motion.div key={msg.id || currentIndex} {...messageReveal}>
-                                                                <MessageBubble
+                                                                {msg.compaction ? <CompactionCard compaction={msg.compaction} /> : <MessageBubble
                                                                     sessionId={activeSessionId ?? undefined}
                                                                     autoSpeech={!isBoundChat}
                                                                     msg={msg}
@@ -572,7 +586,7 @@ main().catch(console.error);`);
                                                                     isStreaming={streamingHere && msg.id === messages[messages.length - 1]?.id}
                                                                     processingLabel={processing?.sessionId === activeSessionId ? processing.label : undefined}
                                                                     onRetry={isBoundChat || !isLatestMessage ? undefined : handleRetryMessage}
-                                                                />
+                                                                />}
                                                             </motion.div>
                                                         );
                                                     })}
@@ -672,6 +686,7 @@ main().catch(console.error);`);
                                     <LiveTelemetryBar
                                         breakdown={breakdown}
                                         liveStats={liveStats}
+                                        onCompact={!isBoundChat && activeSessionId && !streamingHere ? () => compactSession(activeSessionId, false) : undefined}
                                         onInspectContext={!isBoundChat ? () => setContextDetailsOpen(true) : undefined}
                                     />
                                 </motion.div>

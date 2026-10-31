@@ -6,12 +6,15 @@ interface LiveTelemetryBarProps {
     breakdown: ContextBreakdown | null;
     liveStats: LivePerformanceStats;
     onInspectContext?: () => void;
+    /** Replaces the chat so far with a summary (absent while answering or for bound chats) */
+    onCompact?: () => void;
 }
 
 export const LiveTelemetryBar: React.FC<LiveTelemetryBarProps> = ({
     breakdown,
     liveStats,
-    onInspectContext
+    onInspectContext,
+    onCompact
 }) => {
     const [isPinned, setIsPinned] = useState(false);
     const [isHovered, setIsHovered] = useState(false);
@@ -94,6 +97,7 @@ export const LiveTelemetryBar: React.FC<LiveTelemetryBarProps> = ({
                     breakdown={breakdown}
                     isPinned={isPinned}
                     onInspectContext={onInspectContext}
+                    onCompact={onCompact}
                 />
             </div>
         </div>

@@ -115,3 +115,13 @@ another settings copy. An empty preview sends no synthetic user prompt.
 - `test/cep_notes.test.cjs` and `test/cep_conversation_context.test.cjs` cover
   actual adapter contracts. Integration proof records controlled rendered-panel
   race/failure/private-mode checks and isolated release-Engine read/write journeys.
+
+## Compaction
+
+`utils/compactChat.ts`: the model summarizes the chat (a non-streaming completion with
+`temporary_chat: "lite"`, thinking off, no tools) and a `compaction` card holding the summary is
+added to the chat (`CompactionCard`, expandable). `buildChatHistory` then sends that summary plus
+the messages after it; the earlier messages stay visible but are no longer sent. It runs from
+"Compact now" in the context popover, or on its own when an answer leaves the context
+`AUTO_COMPACT_PERCENT` (80%) full and at least 4 messages came after the last compaction
+(`ChatWorkspace`). A failed compaction leaves the full conversation in use.

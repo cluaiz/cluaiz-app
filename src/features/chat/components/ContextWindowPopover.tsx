@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { AUTO_COMPACT_PERCENT } from '../utils/compactChat';
 import { ContextBreakdown, formatTokensK, formatDuration, ComponentTelemetryItem } from '../hooks/useChatTelemetry';
 
 interface ContextWindowPopoverProps {
@@ -7,6 +8,7 @@ interface ContextWindowPopoverProps {
     breakdown: ContextBreakdown | null;
     isPinned?: boolean;
     onInspectContext?: () => void;
+    onCompact?: () => void;
 }
 
 export const ContextWindowPopover: React.FC<ContextWindowPopoverProps> = ({
@@ -14,7 +16,8 @@ export const ContextWindowPopover: React.FC<ContextWindowPopoverProps> = ({
     onClose,
     breakdown,
     isPinned = false,
-    onInspectContext
+    onInspectContext,
+    onCompact
 }) => {
     const [openCategory, setOpenCategory] = useState<'skills' | 'plugins' | 'mcp' | null>(null);
 
@@ -296,6 +299,23 @@ export const ContextWindowPopover: React.FC<ContextWindowPopoverProps> = ({
                             <b>{formatTokensK(breakdown?.free_space_tokens || totalLimit - totalActive)}</b>{' '}
                             <span className="text-[var(--text-muted)] text-[9.5px]">{breakdown?.free_space_percentage || Math.max(0, 100 - activePct)}%</span>
                         </span>
+                    </div>
+                    <div className="border-t border-[var(--border-color)]/40 pt-1.5 mt-0.5 flex items-center justify-between gap-2">
+                        <span className="text-[9.5px] text-[var(--text-muted)]">
+                            {Math.max(0, AUTO_COMPACT_PERCENT - activePct)}% of context left until auto-compact
+                        </span>
+                        {onCompact && (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    onClose();
+                                    onCompact();
+                                }}
+                                className="rounded-md border border-[var(--border-color)] bg-[var(--bg-primary)] px-2 py-0.5 text-[10px] font-semibold text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-colors cursor-pointer"
+                            >
+                                Compact now
+                            </button>
+                        )}
                     </div>
                     {onInspectContext && (
                         <div className="border-t border-[var(--border-color)]/40 pt-1.5 mt-0.5">
