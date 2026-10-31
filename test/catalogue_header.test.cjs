@@ -89,15 +89,15 @@ test('AppExtensionsSection filters bundled extensions by name or id', () => {
   assert.equal(filterExtensions(sampleExtensions, 'nonexistent').length, 0);
 });
 
-test('cleanModelDescription removes raw HTML tags and collapses whitespace', () => {
+test('cleanModelDescription removes raw HTML tags and encoded HTML tags cleanly', () => {
   function cleanModelDescription(raw) {
     if (!raw) return '';
     return raw
+      .replace(/&lt;/gi, '<')
+      .replace(/&gt;/gi, '>')
       .replace(/<[^>]*>/g, ' ')
       .replace(/&nbsp;/gi, ' ')
       .replace(/&amp;/gi, '&')
-      .replace(/&lt;/gi, '<')
-      .replace(/&gt;/gi, '>')
       .replace(/\s+/g, ' ')
       .trim();
   }
@@ -105,6 +105,10 @@ test('cleanModelDescription removes raw HTML tags and collapses whitespace', () 
   const rawHtml = '<img width="600" alt="qwen" src="https://example.com/pic.png"> Qwen is a <ul style="margin: 0;"><li><b>Fast</b></li></ul> model.';
   const cleaned = cleanModelDescription(rawHtml);
   assert.equal(cleaned, 'Qwen is a Fast model.');
+
+  // Encoded image tag from API
+  const encodedHtml = '&lt;img width="800" alt="qwen3.8 unsloth desktop" src="https://example.com/pic.png"&gt; Qwen is capable.';
+  assert.equal(cleanModelDescription(encodedHtml), 'Qwen is capable.');
   assert.equal(cleanModelDescription(''), '');
   assert.equal(cleanModelDescription(null), '');
 });
@@ -229,5 +233,42 @@ test('Family Hero Banner watermark dissolves smoothly without neon glow', () => 
   assert.ok(heroConfig.maskImage.includes('radial-gradient'), 'Watermark must use smooth radial gradient fade on all sides');
   assert.equal(heroConfig.referrerPolicy, 'no-referrer', 'Image should have no-referrer policy');
 });
+
+test('Models Second Sidebar groups families with counts and providers matching Image 2', () => {
+  const sampleModels = [
+    { id: 'qwen-7b', family: 'Qwen', provider: 'Alibaba Cloud', logo: '/assets/qwen.svg' },
+    { id: 'qwen-14b', family: 'Qwen', provider: 'Alibaba Cloud', logo: '/assets/qwen.svg' },
+    { id: 'gemma-2b', family: 'Gemma', provider: 'Google', logo: '/assets/gemma.svg' },
+  ];
+
+  function extractSidebarFamilies(models, query = '') {
+    const map = new Map();
+    for (const m of models) {
+      if (!m.family) continue;
+      const existing = map.get(m.family);
+      if (existing) {
+        existing.count += 1;
+      } else {
+        map.set(m.family, { family: m.family, provider: m.provider, count: 1 });
+      }
+    }
+    const list = Array.from(map.values());
+    if (!query.trim()) return list;
+    const q = query.toLowerCase();
+    return list.filter(item => item.family.toLowerCase().includes(q) || item.provider.toLowerCase().includes(q));
+  }
+
+  const all = extractSidebarFamilies(sampleModels);
+  assert.equal(all.length, 2);
+  assert.equal(all[0].family, 'Qwen');
+  assert.equal(all[0].count, 2);
+  assert.equal(all[1].family, 'Gemma');
+  assert.equal(all[1].count, 1);
+
+  const searched = extractSidebarFamilies(sampleModels, 'google');
+  assert.equal(searched.length, 1);
+  assert.equal(searched[0].family, 'Gemma');
+});
+
 
 

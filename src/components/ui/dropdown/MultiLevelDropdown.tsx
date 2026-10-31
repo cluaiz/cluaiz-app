@@ -24,6 +24,7 @@ export interface MultiLevelDropdownProps {
   activeCount?: number;
   onClearAll?: () => void;
   className?: string;
+  iconOnly?: boolean;
 }
 
 export const MultiLevelDropdown: React.FC<MultiLevelDropdownProps> = ({
@@ -32,6 +33,7 @@ export const MultiLevelDropdown: React.FC<MultiLevelDropdownProps> = ({
   activeCount = 0,
   onClearAll,
   className = '',
+  iconOnly = false,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
@@ -96,24 +98,26 @@ export const MultiLevelDropdown: React.FC<MultiLevelDropdownProps> = ({
           setIsOpen(prev => !prev);
           if (isOpen) setActiveCategoryId(null);
         }}
-        className={`h-8 px-2.5 gap-1.5 text-xs transition-colors cursor-pointer shrink-0 ${
+        className={`h-8 ${iconOnly ? 'w-8 px-0 justify-center' : 'px-2.5 gap-1.5'} text-xs transition-colors cursor-pointer shrink-0 ${
           isOpen || activeCount > 0
             ? 'border-[var(--accent-color)] text-[var(--text-primary)] bg-[var(--accent-color)]/10 font-semibold'
             : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
         }`}
         title="Filter options"
       >
-        <SlidersHorizontal size={13} />
-        <span className="font-medium">{triggerLabel}</span>
+        <SlidersHorizontal size={14} />
+        {!iconOnly && <span className="font-medium">{triggerLabel}</span>}
         {activeCount > 0 && (
-          <span className="min-w-[16px] h-4 px-1 rounded-full bg-[var(--accent-color)] text-[var(--bg-primary)] text-[10px] font-bold flex items-center justify-center">
+          <span className={`h-4 px-1 rounded-full bg-[var(--accent-color)] text-[var(--bg-primary)] text-[10px] font-bold flex items-center justify-center ${iconOnly ? 'absolute -top-1 -right-1 text-[9px] min-w-[14px] h-3.5' : 'min-w-[16px]'}`}>
             {activeCount}
           </span>
         )}
-        <ChevronDown
-          size={12}
-          className={`transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
-        />
+        {!iconOnly && (
+          <ChevronDown
+            size={12}
+            className={`transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
+          />
+        )}
       </Button>
 
       {/* Primary Categories Dropdown */}

@@ -11,8 +11,7 @@ import {
   ArrowDownWideNarrow, ArrowLeft, ArrowUpRight, Boxes, CheckCircle2, 
   Download, Globe, Layers, LayoutGrid, LayoutList, Sparkles 
 } from 'lucide-react';
-import { MultiLevelDropdown, type MultiLevelCategory } from '../../components/ui/dropdown';
-import { CatalogueCard, CatalogueChips, CatalogueLogo, CatalogueStickyHeader, CatalogueTags } from './CatalogueUI';
+import { CatalogueCard, CatalogueChips, CatalogueLogo, CatalogueTags } from './CatalogueUI';
 import { 
   catalogueImage, chooseModelVariant, filterModels, installedModelForVariant, cleanModelDescription, 
   extractFamilyCapabilities, type CatalogueSort 
@@ -21,6 +20,7 @@ import { resumeModelDownload } from '../../api/engine/models/actions';
 import { useCatalogueTask } from './useCatalogueTask';
 import { CatalogueTaskStatus } from './CatalogueTaskStatus';
 import { FamilyModelSliderRow } from './FamilyModelSliderRow';
+import { useModelCatalogueStore } from './modelCatalogueStore';
 
 const resumeDownload: Parameters<typeof useCatalogueTask<Awaited<ReturnType<typeof resumeModelDownload>>>>[1] =
   (_target, id, signal, observer) => resumeModelDownload(id, signal, observer);
@@ -28,16 +28,32 @@ const resumeDownload: Parameters<typeof useCatalogueTask<Awaited<ReturnType<type
 export function ModelCatalogue() {
   const catalogue = useCatalogue(modelCatalogue.list);
   const download = useCatalogueTask('models.download', resumeDownload);
-  const [query, setQuery] = useState(''), [task, setTask] = useState(''), [format, setFormat] = useState('');
-  const [providers, setProviders] = useState<string[]>([]), [sort, setSort] = useState<CatalogueSort>('popular');
+
+  const {
+    family,
+    setFamily,
+    selectedModel,
+    setSelectedModel,
+    query,
+    setQuery,
+    providers,
+    setProviders,
+    task,
+    setTask,
+    format,
+    setFormat,
+    sort,
+    setSort,
+    view,
+    setView,
+    clearFilters,
+  } = useModelCatalogueStore();
+
   const [source, setSource] = useState<ModelInstallSource>('catalogue');
   const [installed, setInstalled] = useState<ModelRegistryEntry[]>([]), [engineError, setEngineError] = useState('');
   const [inventoryReady, setInventoryReady] = useState(false);
   const busy = download.busy || download.cancelling;
   const [limit, setLimit] = useState(24);
-  const [view, setView] = useState<'families' | 'models'>('families');
-  const [family, setFamily] = useState('');
-  const [selectedModel, setSelectedModel] = useState<PublicModel | null>(null);
   const [familyViewLayout, setFamilyViewLayout] = useState<'list' | 'grid'>('list');
   const scope = useRef(0);
   const [connection, setConnection] = useState(0);
@@ -74,169 +90,47 @@ export function ModelCatalogue() {
   const tasks = [...new Set(models.flatMap(model => model.tasks))].sort();
   const filtered = filterModels(models, { query, providers, capabilities: task ? [task] : [], format, sort, family });
 
-  const clearFilters = () => { 
-    setQuery(''); setTask(''); setFormat(''); setProviders([]); 
-    setFamily(''); setSelectedModel(null); setLimit(24); 
-  };
-
   async function install(model: PublicModel, variant: PublicVariant) {
     if (!inventoryReady) return;
     const reference = modelInstallReference(model, variant, source);
     await download.start(reference, (signal, observer) => modelsApi.downloadModel({ model_id: reference }, signal, observer));
   }
 
-  const categories: MultiLevelCategory[] = [
-    {
-      id: 'view',
-      label: 'View Mode',
-      icon: LayoutGrid,
-      options: [
-        { value: 'families', label: 'Model Families' },
-        { value: 'models', label: 'All Models (Flat Grid)' },
-      ],
-      selectedValue: view,
-      onSelect: (val) => {
-        setView(val as 'families' | 'models');
-        setFamily('');
-        setSelectedModel(null);
-        setLimit(24);
-      },
-    },
-    {
-      id: 'format',
-      label: 'Model Format',
-      icon: Layers,
-      options: [
-        { value: '', label: 'All Formats' },
-        { value: 'gguf', label: 'GGUF' },
-        { value: 'onnx', label: 'ONNX' },
-      ],
-      selectedValue: format,
-      onSelect: (val) => {
-        setFormat(val);
-        setLimit(24);
-      },
-    },
-    {
-      id: 'task',
-      label: 'Capabilities',
-      icon: Sparkles,
-      options: [
-        { value: '', label: 'All Capabilities' },
-        ...tasks.map(t => ({ value: t, label: t })),
-      ],
-      selectedValue: task,
-      onSelect: (val) => {
-        setTask(val);
-        setLimit(24);
-      },
-    },
-    {
-      id: 'providers',
-      label: 'Providers',
-      icon: Globe,
-      isMultiSelect: true,
-      options: [...new Set(models.map(m => m.provider).filter(Boolean))].sort().map(p => ({
-        value: p,
-        label: p,
-      })),
-      selectedValue: providers,
-      onSelect: (val) => {
-        setProviders(prev => prev.includes(val) ? prev.filter(p => p !== val) : [...prev, val]);
-        setLimit(24);
-      },
-    },
-    {
-      id: 'sort',
-      label: 'Sort By',
-      icon: ArrowDownWideNarrow,
-      options: [
-        { value: 'popular', label: 'Popular' },
-        { value: 'newest', label: 'Newest' },
-        { value: 'oldest', label: 'Oldest' },
-        { value: 'name', label: 'Name' },
-      ],
-      selectedValue: sort,
-      onSelect: (val) => {
-        setSort(val as CatalogueSort);
-        setLimit(24);
-      },
-    },
+  const activeChips = [
+    ...providers.map(provider => ({
+      key: `provider:${provider}`,
+      label: provider,
+      remove: () => setProviders(values => values.filter(value => value !== provider)),
+    })),
+    ...(task ? [{ key: 'task', label: task, remove: () => setTask('') }] : []),
+    ...(format ? [{ key: 'format', label: format.toUpperCase(), remove: () => setFormat('') }] : []),
   ];
-
-  const activeFilterCount = (format ? 1 : 0) + (task ? 1 : 0) + providers.length + (sort !== 'popular' ? 1 : 0) + (view !== 'families' ? 1 : 0);
-
-  // Dynamic header titles based on navigation hierarchy
-  const pageTitle = selectedModel
-    ? (selectedModel.name || selectedModel.id)
-    : family
-    ? `${family} Models`
-    : 'AI Models';
-
-  const pageSubtitle = selectedModel
-    ? `Publisher: ${selectedModel.provider} · Architecture: ${selectedModel.architecture || 'Neural'} · Package Explorer`
-    : family
-    ? `Available neural packages and quantized variants in the ${family} family.`
-    : 'Find a model and choose a package for your Engine.';
 
   return (
     <div className="w-full flex flex-col min-h-full">
-      <CatalogueStickyHeader
-        title={pageTitle}
-        subtitle={pageSubtitle}
-        breadcrumbs={
-          (selectedModel || family) ? (
-            <div className="flex items-center gap-2 text-xs sm:text-sm text-[var(--text-muted)] font-mono">
-              <button
-                type="button"
-                onClick={() => { setFamily(''); setSelectedModel(null); }}
-                className="hover:text-[var(--text-primary)] cursor-pointer flex items-center gap-1.5 font-medium transition-colors"
-              >
-                <ArrowLeft size={14} /> All Families
-              </button>
-              {family && (
-                <>
-                  <span className="text-[var(--border-color)]">/</span>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedModel(null)}
-                    className={`hover:text-[var(--text-primary)] cursor-pointer font-bold tracking-tight transition-colors ${!selectedModel ? 'text-[var(--text-primary)]' : ''}`}
-                  >
-                    {family}
-                  </button>
-                </>
-              )}
-              {selectedModel && (
-                <>
-                  <span className="text-[var(--border-color)]">/</span>
-                  <span className="text-[var(--accent-color)] font-bold truncate max-w-[200px]">
-                    {selectedModel.name || selectedModel.id}
-                  </span>
-                </>
-              )}
-            </div>
-          ) : null
-        }
-        searchQuery={query}
-        onSearchChange={value => { setQuery(value); setLimit(24); }}
-        searchPlaceholder="Search models, families, architectures or tasks…"
-        filterElement={
-          <MultiLevelDropdown
-            categories={categories}
-            activeCount={activeFilterCount}
-            onClearAll={clearFilters}
-          />
-        }
-        chips={
-          <CatalogueChips clear={clearFilters} values={[
-            ...providers.map(provider => ({ key: `provider:${provider}`, label: provider, remove: () => { setProviders(values => values.filter(value => value !== provider)); setLimit(24); } })),
-            ...(task ? [{ key: 'task', label: task, remove: () => { setTask(''); setLimit(24); } }] : []),
-            ...(format ? [{ key: 'format', label: format.toUpperCase(), remove: () => { setFormat(''); setLimit(24); } }] : []),
-          ]} />
-        }
-      />
-
       <div className="mx-auto w-full max-w-7xl p-6 space-y-5">
+        {/* Navigation Breadcrumb back to Family when inside a Model Detail page */}
+        {selectedModel && (
+          <div className="flex items-center gap-2 text-xs font-mono text-[var(--text-muted)]">
+            <button
+              type="button"
+              onClick={() => setSelectedModel(null)}
+              className="hover:text-[var(--text-primary)] cursor-pointer flex items-center gap-1.5 font-medium transition-colors"
+            >
+              <ArrowLeft size={14} /> Back to {family || 'All Families'}
+            </button>
+            <span className="text-[var(--border-color)]">/</span>
+            <span className="text-[var(--accent-color)] font-bold truncate max-w-[200px]">
+              {selectedModel.name || selectedModel.id}
+            </span>
+          </div>
+        )}
+
+        {/* Active Filter Chips (if any are selected in the sidebar) */}
+        {activeChips.length > 0 && (
+          <CatalogueChips clear={clearFilters} values={activeChips} />
+        )}
+
         {catalogue.busy && <p role="status">Loading catalogue…</p>}
         {(catalogue.error || catalogue.reply?.warning) && <p role="alert">{catalogue.error || catalogue.reply?.warning}</p>}
         {engineError && <p role="alert">Installed model status unavailable. {engineError}</p>}
