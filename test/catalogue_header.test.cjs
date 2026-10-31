@@ -220,17 +220,17 @@ test('CatalogueStickyHeader hides title and subtitle when breadcrumbs are active
   assert.equal(detailMode.renderSubtitle, false);
 });
 
-test('Family Hero Banner watermark dissolves smoothly without neon glow', () => {
+test('Family Hero Banner logo has ambient shadow and no neon glow', () => {
   const heroConfig = {
     minHeight: 'min-h-[220px]',
     hasNeonGlowBulb: false,
-    maskImage: 'radial-gradient(ellipse at center, rgba(0,0,0,0.85) 15%, rgba(0,0,0,0.35) 55%, transparent 92%)',
+    filter: 'drop-shadow(0 15px 35px rgba(0,0,0,0.9))',
     referrerPolicy: 'no-referrer',
   };
 
   assert.equal(heroConfig.hasNeonGlowBulb, false, 'Fake neon light bulb must not be present');
   assert.ok(heroConfig.minHeight.includes('220px'), 'Hero card should have expanded vertical height');
-  assert.ok(heroConfig.maskImage.includes('radial-gradient'), 'Watermark must use smooth radial gradient fade on all sides');
+  assert.ok(heroConfig.filter.includes('drop-shadow'), 'Logo must use ambient drop shadow');
   assert.equal(heroConfig.referrerPolicy, 'no-referrer', 'Image should have no-referrer policy');
 });
 

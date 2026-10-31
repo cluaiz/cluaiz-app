@@ -47,6 +47,10 @@ export const useModelCatalogueStore = create<ModelCatalogueState>((set) => ({
   setTask: (task) => set({ task }),
   setFormat: (format) => set({ format }),
   setSort: (sort) => set({ sort }),
-  setView: (view) => set({ view, family: '', selectedModel: null }),
+  setView: (view) => set((state) => ({ 
+    view, 
+    family: view === 'families' ? '' : state.family, 
+    selectedModel: null 
+  })),
   clearFilters: () => set({ query: '', providers: [], task: '', format: '', sort: 'popular' }),
 }));
