@@ -11,7 +11,6 @@ import { pushViewRoute, pushChatRoute } from '../../core/router';
 import { ApiSidebar } from '../../features/api/components/ApiSidebar';
 import { ToolkitSidebar } from '../../features/extensions/ToolkitSidebar';
 import { useToolkitNavStore } from '../../features/extensions/toolkitStore';
-import { Tabs } from '../ui/Tabs';
 import { ChatRibbon } from '../ui/ChatRibbon';
 import { SwipeableChatCard } from './SwipeableChatCard';
 import { ChatContextMenu } from '../ui/context-menu/ChatContextMenu';
@@ -348,32 +347,6 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
         }
     }, [sessions]);
 
-    // Filter tabs: standard categories + dynamic user tags (only show tags actively assigned to >=1 chat)
-    const filterTabs = useMemo(() => {
-        const hasPinnedChats = chats.some(c => c.pinned && !c.archived);
-        const baseTabs = hasPinnedChats ? ['All', 'Pinned', 'Old', 'Archive'] : ['All', 'Old', 'Archive'];
-
-        // Tags actively assigned to non-archived chats
-        const activeChatTags = new Set(
-            chats
-                .filter(c => !c.archived)
-                .flatMap(c => (c.tags || []).map(t => t.split(':')[0].toLowerCase()))
-        );
-
-        const userTags = poolRibbons
-            .map(t => t.split(':')[0])
-            .filter(t => Boolean(t) && activeChatTags.has(t.toLowerCase()) && !baseTabs.some(b => b.toLowerCase() === t.toLowerCase()));
-
-        return [...baseTabs, ...Array.from(new Set(userTags))];
-    }, [poolRibbons, chats]);
-
-    // Gracefully reset filter to 'All' if active filter tab is no longer in filterTabs
-    useEffect(() => {
-        if (!filterTabs.some(t => t.toLowerCase() === activeFilter.toLowerCase())) {
-            setActiveFilter('All');
-        }
-    }, [filterTabs, activeFilter]);
-
     // Context Menu State
     const [contextMenu, setContextMenu] = useState<{
         x: number;
@@ -704,21 +677,6 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                 </div>
             </div>
 
-            {/* Horizontal Filter Tabs: All, Favourites, Old, Archive + User custom labels */}
-            <Tabs
-                items={filterTabs}
-                value={activeFilter}
-                onChange={(tab) => {
-                    if (activeFilter.toLowerCase() === tab.toLowerCase()) {
-                        setActiveFilter('All');
-                    } else {
-                        setActiveFilter(tab);
-                    }
-                }}
-                className={`mb-1 ${inFlyout ? 'px-3' : 'px-4'}`}
-            />
-
-
             {/* Chat list viewport */}
             <div className={`flex-1 overflow-y-auto py-1 space-y-3 custom-scrollbar ${inFlyout ? 'px-1' : 'px-2'}`}>
                 {groupedChats.map((group) => (
@@ -837,44 +795,71 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                 style={{ fontFamily: 'var(--font-family)' }}
             >
 
-                {/* Web-only Header: Logo, Name, Toggle, More Menu */}
-                {!inTauri && (
+                {/* Sidebar Header: Section Title when expanded, Expand Toggle when collapsed */}
+                {sidebarCollapsed ? (
                     <div
                         onMouseEnter={() => setIsLogoHovered(true)}
                         onMouseLeave={() => setIsLogoHovered(false)}
-                        className={`p-4 flex items-center border-b border-[var(--border-color)] ${sidebarCollapsed ? 'justify-center' : 'justify-between'}`}
-                        style={{ borderStyle: 'var(--border-style)' }}
+                        className="p-4 flex items-center justify-center"
                     >
-                        <div className="flex items-center gap-2">
-                            <div className="w-10 h-10 flex items-center justify-center select-none flex-shrink-0">
-                                <Tooltip disabled={!sidebarCollapsed} title="Expand Sidebar" position="right">
-                                    {sidebarCollapsed && isLogoHovered ? (
-                                        <ExpandSidebarButton
-                                            sidebarPosition={sidebarPosition}
-                                            onClick={() => setSidebarCollapsed(false)}
-                                        />
-                                    ) : (
-                                        <CluaizLogo size={36} glow alt="Cluaiz Logo" />
-                                    )}
-                                </Tooltip>
-                            </div>
-                            {!sidebarCollapsed && <span className="font-extrabold text-lg tracking-widest text-[var(--text-primary)]">Cluaiz</span>}
+                        <div className="w-10 h-10 flex items-center justify-center select-none flex-shrink-0">
+                            <Tooltip disabled={!sidebarCollapsed} title="Expand Sidebar" position="right">
+                                {isLogoHovered ? (
+                                    <ExpandSidebarButton
+                                        sidebarPosition={sidebarPosition}
+                                        onClick={() => setSidebarCollapsed(false)}
+                                    />
+                                ) : (
+                                    <CluaizLogo size={36} glow alt="Cluaiz Logo" />
+                                )}
+                            </Tooltip>
                         </div>
-                        {!sidebarCollapsed && (
-                            <div className="flex items-center gap-1">
-                                <MenuButton onClick={(e) => onOpenLauncher(e)} />
-                                <CloseSidebarButton
-                                    sidebarPosition={sidebarPosition}
-                                    onClick={() => {
-                                        if (sidebarPeeked) {
-                                            setSidebarPeeked(false);
-                                        } else {
-                                            setSidebarCollapsed(true);
-                                        }
-                                    }}
-                                />
-                            </div>
+                    </div>
+                ) : (
+                    <div className="px-4 py-3 flex items-center justify-between">
+                        {activeView === 'toolkit' && !toolkitShowHub ? (
+                            <button
+                                type="button"
+                                onClick={() => toolkitBackToHub()}
+                                className="flex items-center gap-1.5 text-lg font-extrabold tracking-wide text-[var(--text-primary)] hover:text-[var(--accent-color)] transition-colors cursor-pointer group"
+                                title="Back to Toolkit Hub"
+                            >
+                                <Icons.ArrowLeft className="w-4 h-4 text-[var(--text-muted)] group-hover:text-[var(--accent-color)] transition-colors" />
+                                <span>Toolkit Hub</span>
+                            </button>
+                        ) : (
+                            <h2 className="text-xl font-extrabold tracking-wide text-[var(--text-primary)]">
+                                {activeView === 'apis' ? 'APIs' : activeView === 'toolkit' ? 'Toolkit' : 'Chats'}
+                            </h2>
                         )}
+                        <div className="flex items-center gap-1">
+                            {activeView !== 'apis' && activeView !== 'toolkit' && (
+                                <Tooltip title="New Chat" position="bottom">
+                                    <button
+                                        ref={plusBtnRef}
+                                        onClick={() => {
+                                            useLayoutStore.getState().setActiveView('chat');
+                                            pushViewRoute('chat');
+                                            document.dispatchEvent(new CustomEvent('start-new-chat'));
+                                        }}
+                                        className="p-1.5 rounded hover:bg-[var(--bg-tertiary)] text-[var(--text-primary)] transition-colors active:scale-95 cursor-pointer"
+                                    >
+                                        <Icons.Plus className="w-4 h-4" />
+                                    </button>
+                                </Tooltip>
+                            )}
+                            <MenuButton onClick={(e) => onOpenLauncher(e)} />
+                            <CloseSidebarButton
+                                sidebarPosition={sidebarPosition}
+                                onClick={() => {
+                                    if (sidebarPeeked) {
+                                        setSidebarPeeked(false);
+                                    } else {
+                                        setSidebarCollapsed(true);
+                                    }
+                                }}
+                            />
+                        </div>
                     </div>
                 )}
 
@@ -1043,68 +1028,7 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                             />
                         </div>
                     </div>
-                ) : (
-                    <div className={`px-4 ${inTauri ? 'py-3 border-b border-[var(--border-color)]' : 'py-2 pb-1'} flex items-center justify-between`} style={{ borderStyle: 'var(--border-style)' }}>
-                        {activeView === 'toolkit' && !toolkitShowHub ? (
-                            <button
-                                type="button"
-                                onClick={() => toolkitBackToHub()}
-                                className="flex items-center gap-1.5 text-lg font-extrabold tracking-wide text-[var(--text-primary)] hover:text-[var(--accent-color)] transition-colors cursor-pointer group"
-                                title="Back to Toolkit Hub"
-                            >
-                                <Icons.ArrowLeft className="w-4 h-4 text-[var(--text-muted)] group-hover:text-[var(--accent-color)] transition-colors" />
-                                <span>Toolkit Hub</span>
-                            </button>
-                        ) : (
-                            <h2 className="text-xl font-extrabold tracking-wide text-[var(--text-primary)]">
-                                {activeView === 'apis' ? 'APIs' : activeView === 'toolkit' ? 'Toolkit' : 'Chats'}
-                            </h2>
-                        )}
-                        <div className="flex items-center gap-1">
-                            {activeView !== 'apis' && activeView !== 'toolkit' && (
-                                <Tooltip title="New Chat" position="bottom">
-                                    <button
-                                        ref={plusBtnRef}
-                                        onClick={() => {
-                                            useLayoutStore.getState().setActiveView('chat');
-                                            pushViewRoute('chat');
-                                            document.dispatchEvent(new CustomEvent('start-new-chat'));
-                                        }}
-                                        className="p-1.5 rounded hover:bg-[var(--bg-tertiary)] text-[var(--text-primary)] transition-colors active:scale-95 cursor-pointer"
-                                    >
-                                        <Icons.Plus className="w-4 h-4" />
-                                    </button>
-                                </Tooltip>
-                            )}
-                            {inTauri && (
-                                <>
-                                    <Tooltip title="Menu" position="bottom">
-                                        <button
-                                            onClick={(e) => onOpenLauncher(e)}
-                                            className="p-1.5 rounded hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
-                                        >
-                                            <Icons.MoreVertical className="w-4 h-4" />
-                                        </button>
-                                    </Tooltip>
-                                    <Tooltip title="Close Sidebar" position="bottom">
-                                        <button
-                                            onClick={() => {
-                                                if (sidebarPeeked) {
-                                                    setSidebarPeeked(false);
-                                                } else {
-                                                    setSidebarCollapsed(true);
-                                                }
-                                            }}
-                                            className="p-1.5 rounded hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
-                                        >
-                                            {sidebarPosition === 'left' ? <Icons.ChevronLeft className="w-4 h-4" /> : <Icons.ChevronRight className="w-4 h-4" />}
-                                        </button>
-                                    </Tooltip>
-                                </>
-                            )}
-                        </div>
-                    </div>
-                )}
+                ) : null}
 
                 {/* Search & List Body (Chats, APIs, or Toolkit) */}
                 {!sidebarCollapsed && (
