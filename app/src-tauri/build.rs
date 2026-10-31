@@ -4,6 +4,8 @@ macro_rules! build_permissions {
     (main [$($main:ident),*] guest [$($guest:ident),*]) => {
         fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("cargo:rerun-if-changed=commands.rs");
+            println!("cargo:rerun-if-changed=tauri.conf.json");
+            println!("cargo:rerun-if-changed=icons/icon.ico");
             let directory = std::path::PathBuf::from(std::env::var("OUT_DIR")?).join("app-permissions");
             std::fs::create_dir_all(&directory)?;
             let allowed = [$(stringify!($main)),*].map(|name| format!("\"{name}\"")).join(", ");
