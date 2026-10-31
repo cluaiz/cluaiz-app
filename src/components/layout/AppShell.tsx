@@ -35,6 +35,7 @@ export function AppShell({ sidebarContent, mainContent, rightPanelContent }: App
             const getBinding = useShortcutStore.getState().getBindingForAction;
 
             if (bindingsMatch(currentBinding, getBinding('hideSidebar'))) {
+                if (useLayoutStore.getState().activeView === 'toolkit') return;
                 e.preventDefault();
                 toggleSidebar();
                 setSidebarPeeked(false);
@@ -42,6 +43,7 @@ export function AppShell({ sidebarContent, mainContent, rightPanelContent }: App
             }
 
             if (bindingsMatch(currentBinding, getBinding('toggleSidebar'))) {
+                if (useLayoutStore.getState().activeView === 'toolkit') return;
                 e.preventDefault();
                 if (!useLayoutStore.getState().sidebarOpen) {
                     // If it was hidden via Ctrl+B, opening it via Ctrl+Shift+B should show it and toggle collapse
@@ -77,6 +79,7 @@ export function AppShell({ sidebarContent, mainContent, rightPanelContent }: App
     // 2. Mouse Move Edge Detection (<= 5px to peek, > width + 40px to hide)
     useEffect(() => {
         const handleMouseMove = (e: MouseEvent) => {
+            if (useLayoutStore.getState().activeView === 'toolkit') return;
             const currentWidth = sidebarCollapsed ? 68 : sidebarWidth;
 
             // If sidebar is fully hidden, check if cursor is near the edge to peek
