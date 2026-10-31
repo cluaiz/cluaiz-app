@@ -1,9 +1,7 @@
 import React, { useState } from 'react';
-import { ArrowUpRight, CheckCircle2, Download } from 'lucide-react';
+import { CheckCircle2 } from 'lucide-react';
 import type { PublicModel, PublicVariant } from '../../api/catalogue/models';
 import type { ModelRegistryEntry } from '../../api/engine/models/models.types';
-import { Badge } from '../../components/ui/Badge';
-import { Button } from '../../components/ui/Button';
 import { CatalogueLogo } from './CatalogueUI';
 import { cleanModelDescription, installedModelForVariant } from './catalogueView';
 
@@ -13,17 +11,14 @@ export interface ModelSliderCardProps {
   isBusy: boolean;
   downloadingTarget?: string;
   className?: string;
-  onDownload: (model: PublicModel, variant: PublicVariant) => void;
+  onDownload?: (model: PublicModel, variant: PublicVariant) => void;
   onSelectModel: (model: PublicModel) => void;
 }
 
 export const ModelSliderCard: React.FC<ModelSliderCardProps> = ({
   model,
   installed,
-  isBusy,
-  downloadingTarget,
   className,
-  onDownload,
   onSelectModel,
 }) => {
   const [selectedVariant, setSelectedVariant] = useState<PublicVariant | null>(null);
@@ -31,19 +26,7 @@ export const ModelSliderCard: React.FC<ModelSliderCardProps> = ({
   const variants = model.variants || [];
   const currentVariant = selectedVariant || variants[0] || null;
 
-  const isCurrentInstalled = currentVariant
-    ? !!installedModelForVariant(installed, model, currentVariant)
-    : false;
-
-  const isDownloadingCurrent = Boolean(
-    isBusy && downloadingTarget && currentVariant && downloadingTarget.includes(currentVariant.quant)
-  );
-
   const cleanDesc = cleanModelDescription(model.description);
-
-  const deploySpec = currentVariant
-    ? `${model.id.toLowerCase()}:latest:${currentVariant.format.toLowerCase()}:${currentVariant.quant.toLowerCase()}`
-    : `${model.id.toLowerCase()}:latest:gguf:q4_k_m`;
 
   const containerClasses = className
     ? `group relative flex flex-col justify-between gap-3 p-3 sm:p-5 border-2 border-[var(--border-color)] bg-[var(--bg-secondary)] transition-colors text-left rounded-xl select-none overflow-hidden ${className}`
@@ -177,48 +160,6 @@ export const ModelSliderCard: React.FC<ModelSliderCardProps> = ({
           </div>
         </div>
       )}
-
-      {/* Bottom Section: 2-Tier Layout on Mobile (< sm), Single Line on Desktop (>= sm) */}
-      <div className="pt-2 border-t border-[var(--border-color)] flex flex-col sm:flex-row sm:items-center justify-between gap-2 mt-auto w-full">
-        {/* Tier 1: Deploy ID (Never squeezed on 300px) */}
-        <div className="min-w-0 overflow-hidden w-full sm:w-auto">
-          <span className="text-[9px] sm:text-[10px] font-mono font-bold text-[var(--text-muted)] tracking-wider uppercase block truncate">
-            {deploySpec}
-          </span>
-        </div>
-
-        {/* Tier 2: Details on Left, Download on Right */}
-        <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0 w-full sm:w-auto">
-          <button
-            type="button"
-            onClick={() => onSelectModel(model)}
-            className="text-[11px] text-[var(--accent-color)] hover:underline flex items-center gap-0.5 cursor-pointer font-medium whitespace-nowrap"
-          >
-            Details <ArrowUpRight size={11} />
-          </button>
-
-          {currentVariant && (
-            isCurrentInstalled ? (
-              <Badge variant="outline" className="text-[11px] text-[var(--status-success)] border-[var(--status-success)]/40 flex items-center gap-1 font-semibold py-0.5 px-2">
-                <CheckCircle2 size={11} /> Installed
-              </Badge>
-            ) : (
-              <Button
-                size="sm"
-                disabled={isDownloadingCurrent}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onDownload(model, currentVariant);
-                }}
-                className="text-xs font-semibold gap-1 py-1 px-3 h-7 cursor-pointer shrink-0"
-              >
-                <Download size={11} />
-                {isDownloadingCurrent ? 'Downloading…' : 'Download'}
-              </Button>
-            )
-          )}
-        </div>
-      </div>
     </div>
   );
 };
