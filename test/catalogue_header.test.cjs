@@ -290,3 +290,27 @@ test('ModelCatalogue maintains List Page (Level 1) when family is selected via s
 
 
 
+
+
+test('ModelCatalogue URL synchronization reflects family and model search params', () => {
+  function computeCatalogueUrl(family, modelId) {
+    const params = new URLSearchParams();
+    params.set('section', 'models');
+    if (family) params.set('family', family);
+    if (modelId) params.set('model', modelId);
+    return `/toolkit?${params.toString()}`;
+  }
+
+  assert.equal(computeCatalogueUrl('', ''), '/toolkit?section=models');
+  assert.equal(computeCatalogueUrl('Qwen', ''), '/toolkit?section=models&family=Qwen');
+  assert.equal(computeCatalogueUrl('Qwen', 'qwen-27b'), '/toolkit?section=models&family=Qwen&model=qwen-27b');
+});
+
+test('cleanEngineError sanitizes internal localhost API URLs', () => {
+  function cleanEngineError(raw) {
+    return raw ? raw.replace(/\s*\([^)]*https?:\/\/[^)]*\)/gi, '').replace(/^ApiError:\s*/i, '') : '';
+  }
+
+  const raw = 'ApiError: Engine connection failed (http://127.0.0.1:8000/v1/cep): Failed to fetch';
+  assert.equal(cleanEngineError(raw), 'Engine connection failed: Failed to fetch');
+});

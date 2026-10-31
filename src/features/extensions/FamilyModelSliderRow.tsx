@@ -1,10 +1,9 @@
 import React, { useRef } from 'react';
 import { motion, useTransform, type MotionValue, useMotionValue } from 'framer-motion';
-import { ArrowUpRight, Boxes } from 'lucide-react';
+import { Boxes } from 'lucide-react';
 import type { PublicModel, PublicVariant } from '../../api/catalogue/models';
 import type { ModelRegistryEntry } from '../../api/engine/models/models.types';
 import { Badge } from '../../components/ui/Badge';
-import { Button } from '../../components/ui/Button';
 import { CatalogueLogo, CatalogueTags } from './CatalogueUI';
 import { cleanModelDescription, extractFamilyCapabilities } from './catalogueView';
 import { ModelSliderCard } from './ModelSliderCard';
@@ -150,15 +149,19 @@ export const FamilyModelSliderRow: React.FC<FamilyModelSliderRowProps> = ({
   return (
     <div className="w-full rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-color)] p-3 sm:p-5 space-y-3 sm:space-y-4 text-left">
       {/* ------------------------------------------------------------------ */}
-      {/* SECTION 1: FAMILY HEADER (RESPONSIVE STACK)                         */}
+      {/* SECTION 1: FAMILY HEADER (CLICKABLE TO OPEN FAMILY DETAIL)         */}
       {/* ------------------------------------------------------------------ */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 pb-3 border-b border-[var(--border-color)]">
+      <div
+        onClick={() => onViewAll(family)}
+        className="group/family-header flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 pb-3 border-b border-[var(--border-color)] cursor-pointer hover:bg-[var(--bg-tertiary)]/30 -mx-2 px-2 -mt-1 pt-1 rounded-xl transition-colors"
+        title={`View ${family} details`}
+      >
         {/* Left Side: Logo, Name, Publisher, Description, Tags, Count */}
-        <div className="flex items-start gap-2.5 sm:gap-3.5 min-w-0">
+        <div className="flex items-start gap-2.5 sm:gap-3.5 min-w-0 flex-1">
           <CatalogueLogo source={firstModel?.logo} name={family} large icon={Boxes} />
           <div className="space-y-1 min-w-0 flex-1">
             <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-              <h3 className="text-base sm:text-lg font-bold font-mono uppercase text-[var(--text-primary)] tracking-tight">
+              <h3 className="text-base sm:text-lg font-bold font-mono uppercase text-[var(--text-primary)] group-hover/family-header:text-[var(--accent-color)] transition-colors tracking-tight">
                 {family}
               </h3>
               <Badge variant="outline" className="text-[10px] font-mono font-bold uppercase tracking-wider">
@@ -179,18 +182,6 @@ export const FamilyModelSliderRow: React.FC<FamilyModelSliderRowProps> = ({
               <CatalogueTags values={distinctCapabilities} />
             </div>
           </div>
-        </div>
-
-        {/* Right Side: View All Action */}
-        <div className="shrink-0 w-full sm:w-auto">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => onViewAll(family)}
-            className="text-xs font-semibold font-mono gap-1.5 cursor-pointer hover:border-[var(--accent-color)]/60 w-full sm:w-auto justify-center"
-          >
-            View All Models <ArrowUpRight size={13} />
-          </Button>
         </div>
       </div>
 

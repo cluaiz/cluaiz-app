@@ -51,9 +51,13 @@ export const ModelSliderCard: React.FC<ModelSliderCardProps> = ({
 
   return (
     <div className={containerClasses}>
-      {/* Top Section: Logo + Header Details */}
-      <div className="flex flex-row items-start sm:items-center gap-2.5 sm:gap-3.5 w-full overflow-hidden">
-        <div className="relative w-11 h-11 sm:w-14 sm:h-14 border-2 border-[var(--border-color)] bg-[var(--bg-tertiary)] overflow-hidden shrink-0 flex items-center justify-center rounded-lg">
+      {/* Top Section: Logo + Header Details (Clickable to open model details) */}
+      <div
+        onClick={() => onSelectModel(model)}
+        className="flex flex-row items-start sm:items-center gap-2.5 sm:gap-3.5 w-full overflow-hidden cursor-pointer group/cardheader"
+        title={`View ${model.name || model.id} details`}
+      >
+        <div className="relative w-11 h-11 sm:w-14 sm:h-14 border-2 border-[var(--border-color)] bg-[var(--bg-tertiary)] overflow-hidden shrink-0 flex items-center justify-center rounded-lg group-hover/cardheader:border-[var(--accent-color)]/60 transition-colors">
           <CatalogueLogo source={model.logo} name={model.name || model.id} large />
         </div>
 
@@ -69,7 +73,7 @@ export const ModelSliderCard: React.FC<ModelSliderCardProps> = ({
           </div>
 
           {/* Title (Fluid text scaling down to 300px viewports) */}
-          <span className="font-bold text-sm sm:text-lg font-mono uppercase text-[var(--text-primary)] leading-tight tracking-tight truncate">
+          <span className="font-bold text-sm sm:text-lg font-mono uppercase text-[var(--text-primary)] group-hover/cardheader:text-[var(--accent-color)] transition-colors leading-tight tracking-tight truncate">
             {model.name || model.id}
           </span>
 
@@ -92,9 +96,12 @@ export const ModelSliderCard: React.FC<ModelSliderCardProps> = ({
         </div>
       </div>
 
-      {/* Short Description */}
+      {/* Short Description (Clickable) */}
       {cleanDesc && (
-        <p className="text-xs text-[var(--text-secondary)] line-clamp-1 truncate">
+        <p
+          onClick={() => onSelectModel(model)}
+          className="text-xs text-[var(--text-secondary)] line-clamp-1 truncate cursor-pointer hover:text-[var(--text-primary)] transition-colors"
+        >
           {cleanDesc}
         </p>
       )}
@@ -147,7 +154,10 @@ export const ModelSliderCard: React.FC<ModelSliderCardProps> = ({
                   key={v.id}
                   type="button"
                   title={`${v.quant} · ${(v.bytes / 1024 ** 3).toFixed(1)} GiB`}
-                  onClick={() => setSelectedVariant(v)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedVariant(v);
+                  }}
                   className={`h-6 px-1.5 rounded-[4px] text-[10px] font-mono font-bold transition-all cursor-pointer flex items-center justify-center gap-0.5 shrink-0 border ${
                     isSelected
                       ? 'bg-[var(--accent-color)] text-[var(--bg-primary)] border-[var(--accent-color)] shadow-xs scale-105 z-10'
@@ -196,7 +206,10 @@ export const ModelSliderCard: React.FC<ModelSliderCardProps> = ({
               <Button
                 size="sm"
                 disabled={isDownloadingCurrent}
-                onClick={() => onDownload(model, currentVariant)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDownload(model, currentVariant);
+                }}
                 className="text-xs font-semibold gap-1 py-1 px-3 h-7 cursor-pointer shrink-0"
               >
                 <Download size={11} />

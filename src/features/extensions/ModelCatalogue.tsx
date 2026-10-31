@@ -50,7 +50,8 @@ export function ModelCatalogue() {
   } = useModelCatalogueStore();
 
   const [source, setSource] = useState<ModelInstallSource>('catalogue');
-  const [installed, setInstalled] = useState<ModelRegistryEntry[]>([]), [engineError, setEngineError] = useState('');
+  const [installed, setInstalled] = useState<ModelRegistryEntry[]>([]);
+  const [engineError, setEngineError] = useState('');
   const [inventoryReady, setInventoryReady] = useState(false);
   const busy = download.busy || download.cancelling;
   const [limit, setLimit] = useState(24);
@@ -96,6 +97,60 @@ export function ModelCatalogue() {
     await download.start(reference, (signal, observer) => modelsApi.downloadModel({ model_id: reference }, signal, observer));
   }
 
+  // Synchronize URL search params with family and model selection
+  const updateUrl = (newFamily: string, newModelId: string) => {
+    try {
+      const url = new URL(window.location.href);
+      if (newFamily) {
+        url.searchParams.set('family', newFamily);
+      } else {
+        url.searchParams.delete('family');
+      }
+
+      if (newModelId) {
+        url.searchParams.set('model', newModelId);
+      } else {
+        url.searchParams.delete('model');
+      }
+
+      window.history.pushState(window.history.state, '', url);
+    } catch { /* ignore in non-browser envs */ }
+  };
+
+  // Sync state from URL on initial load and on browser popstate (back/forward)
+  useEffect(() => {
+    const syncFromUrl = () => {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const urlFamily = params.get('family');
+        const urlModel = params.get('model');
+
+        if (urlModel && models.length > 0) {
+          const found = models.find(m => m.id.toLowerCase() === urlModel.toLowerCase());
+          if (found) {
+            setSelectedModel(found);
+            if (found.family) setFamily(found.family);
+            return;
+          }
+        }
+
+        if (urlFamily) {
+          setFamily(urlFamily);
+          setView('models');
+          setSelectedModel(null);
+        } else {
+          setFamily('');
+          setView('families');
+          setSelectedModel(null);
+        }
+      } catch { /* ignore */ }
+    };
+
+    syncFromUrl();
+    window.addEventListener('popstate', syncFromUrl);
+    return () => window.removeEventListener('popstate', syncFromUrl);
+  }, [models]);
+
   const activeChips = [
     ...providers.map(provider => ({
       key: `provider:${provider}`,
@@ -106,6 +161,10 @@ export function ModelCatalogue() {
     ...(format ? [{ key: 'format', label: format.toUpperCase(), remove: () => setFormat('') }] : []),
   ];
 
+  const cleanEngineError = engineError
+    ? engineError.replace(/\s*\([^)]*https?:\/\/[^)]*\)/gi, '').replace(/^ApiError:\s*/i, '')
+    : '';
+
   return (
     <div className="w-full flex flex-col min-h-full">
       <div className="mx-auto w-full max-w-7xl p-6 space-y-5">
@@ -114,7 +173,10 @@ export function ModelCatalogue() {
           <div className="flex items-center gap-2 text-xs font-mono text-[var(--text-muted)]">
             <button
               type="button"
-              onClick={() => setSelectedModel(null)}
+              onClick={() => {
+                setSelectedModel(null);
+                updateUrl(family, '');
+              }}
               className="hover:text-[var(--text-primary)] cursor-pointer flex items-center gap-1.5 font-medium transition-colors"
             >
               <ArrowLeft size={14} /> Back to {family || 'All Families'}
@@ -126,6 +188,27 @@ export function ModelCatalogue() {
           </div>
         )}
 
+        {/* Navigation Breadcrumb back to All Families when inside Family Overview (Level 2) */}
+        {!selectedModel && family && view === 'models' && (
+          <div className="flex items-center gap-2 text-xs font-mono text-[var(--text-muted)]">
+            <button
+              type="button"
+              onClick={() => {
+                setFamily('');
+                setView('families');
+                updateUrl('', '');
+              }}
+              className="hover:text-[var(--text-primary)] cursor-pointer flex items-center gap-1.5 font-medium transition-colors"
+            >
+              <ArrowLeft size={14} /> Back to All Families
+            </button>
+            <span className="text-[var(--border-color)]">/</span>
+            <span className="text-[var(--accent-color)] font-bold">
+              {family}
+            </span>
+          </div>
+        )}
+
         {/* Active Filter Chips (if any are selected in the sidebar) */}
         {activeChips.length > 0 && (
           <CatalogueChips clear={clearFilters} values={activeChips} />
@@ -133,7 +216,7 @@ export function ModelCatalogue() {
 
         {catalogue.busy && <p role="status">Loading catalogue…</p>}
         {(catalogue.error || catalogue.reply?.warning) && <p role="alert">{catalogue.error || catalogue.reply?.warning}</p>}
-        {engineError && <p role="alert">Installed model status unavailable. {engineError}</p>}
+        {cleanEngineError && <p role="alert">Installed model status unavailable: {cleanEngineError}</p>}
 
         {/* ------------------------------------------------------------------ */}
         {/* LEVEL 3: Dedicated Model Detail & Quantization Download Page      */}
@@ -380,43 +463,50 @@ export function ModelCatalogue() {
                     </div>
                   </div>
 
-                  {familyModels.length === 0 ? (
-                    <p className="text-xs text-[var(--text-secondary)]">No models match current filters in this family.</p>
-                  ) : familyViewLayout === 'list' ? (
+                  {familyViewLayout === 'list' ? (
                     /* -------------------------------------------------------- */
-                    /* LIST VIEW: Detailed rows with specs & direct quants pills*/
+                    /* LIST VIEW: Detailed model breakdown with quick quants    */
                     /* -------------------------------------------------------- */
-                    <div className="border border-[var(--border-color)] rounded-2xl overflow-hidden bg-[var(--bg-secondary)]/50 divide-y divide-[var(--border-color)]">
-                      {familyModels.map(model => {
+                    <div className="space-y-3">
+                      {familyModels.map((model) => {
                         const distinctQuants = [...new Set(model.variants.map(v => v.quant))];
 
                         return (
                           <div
                             key={model.id}
-                            onClick={() => setSelectedModel(model)}
-                            className="p-4 sm:p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4 hover:bg-[var(--bg-secondary)]/90 transition-colors cursor-pointer group text-left"
+                            onClick={() => {
+                              setSelectedModel(model);
+                              updateUrl(family, model.id);
+                            }}
+                            className="p-4 rounded-xl border border-[var(--border-color)]/80 bg-[var(--bg-secondary)]/50 hover:bg-[var(--bg-secondary)] transition-all flex flex-col lg:flex-row lg:items-center justify-between gap-4 text-left group cursor-pointer"
                           >
-                            {/* Left: Model Logo, Name & Specs */}
-                            <div className="flex items-start gap-3.5 min-w-0 flex-1">
+                            {/* Left: Identity & Specs */}
+                            <div className="flex items-start gap-3 min-w-0 flex-1">
                               <CatalogueLogo source={model.logo} name={model.name || model.id} />
-                              <div className="min-w-0 space-y-1">
-                                <h4 className="text-sm sm:text-base font-bold font-mono uppercase text-[var(--text-primary)] group-hover:text-[var(--accent-color)] transition-colors truncate">
-                                  {model.name || model.id}
-                                </h4>
-                                <div className="flex items-center gap-2 text-xs text-[var(--text-muted)] font-mono flex-wrap">
+                              <div className="space-y-1 min-w-0 flex-1">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <h4 className="text-sm font-bold font-mono uppercase text-[var(--text-primary)] group-hover:text-[var(--accent-color)] transition-colors">
+                                    {model.name || model.id}
+                                  </h4>
                                   {model.parameters && (
-                                    <span className="font-bold text-[var(--text-secondary)] bg-[var(--bg-tertiary)] px-1.5 py-0.5 rounded border border-[var(--border-color)]">
+                                    <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded bg-[var(--bg-tertiary)] text-[var(--text-secondary)] border border-[var(--border-color)]">
                                       {model.parameters}
                                     </span>
                                   )}
-                                  {model.architecture && <span>· {model.architecture}</span>}
-                                  {model.context && <span>· {model.context} ctx</span>}
+                                  {model.context && (
+                                    <span className="text-[10px] font-mono text-[var(--text-muted)]">
+                                      {model.context} ctx
+                                    </span>
+                                  )}
                                 </div>
+                                <p className="text-xs text-[var(--text-secondary)] line-clamp-1 max-w-xl">
+                                  {cleanModelDescription(model.description || model.familyDescription)}
+                                </p>
                               </div>
                             </div>
 
-                            {/* Middle: Quantization Variants Pills Preview */}
-                            <div className="flex items-center gap-1.5 flex-wrap min-w-0 max-w-md">
+                            {/* Middle: Available Quantizations Pills */}
+                            <div className="flex items-center gap-1.5 flex-wrap shrink-0">
                               <span className="text-[10px] font-mono uppercase font-bold text-[var(--text-muted)] mr-1">
                                 Quants:
                               </span>
@@ -455,12 +545,20 @@ export function ModelCatalogue() {
                     /* -------------------------------------------------------- */
                     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                       {familyModels.map(model => (
-                        <Card key={model.id} className="min-w-0" style={{ padding: 16 }}>
+                        <Card 
+                          key={model.id} 
+                          onClick={() => {
+                            setSelectedModel(model);
+                            updateUrl(family, model.id);
+                          }}
+                          className="min-w-0 cursor-pointer hover:border-[var(--accent-color)]/60 transition-colors" 
+                          style={{ padding: 16 }}
+                        >
                           <CardHeader>
                             <div className="flex items-center gap-3">
                               <CatalogueLogo source={model.logo} name={model.name || model.id} />
                               <div className="min-w-0 flex-1">
-                                <CardTitle className="text-sm font-semibold truncate">
+                                <CardTitle className="text-sm font-semibold truncate hover:text-[var(--accent-color)] transition-colors">
                                   {model.name || model.id}
                                 </CardTitle>
                                 <p className="text-xs text-[var(--text-muted)] mt-0.5 truncate">
@@ -478,7 +576,10 @@ export function ModelCatalogue() {
                               <span className="text-xs font-mono text-[var(--text-muted)]">
                                 {model.variants.length} packages
                               </span>
-                              <Button size="sm" variant="outline" onClick={() => setSelectedModel(model)} className="text-xs gap-1">
+                              <Button size="sm" variant="outline" onClick={() => {
+                                setSelectedModel(model);
+                                updateUrl(family, model.id);
+                              }} className="text-xs gap-1">
                                 Select <ArrowUpRight size={12} />
                               </Button>
                             </div>
@@ -498,7 +599,15 @@ export function ModelCatalogue() {
           <div className="space-y-4">
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {filtered.slice(0, limit).map(model => (
-                <Card key={model.id} className="min-w-0" style={{ padding: 16 }}>
+                <Card 
+                  key={model.id} 
+                  onClick={() => {
+                    setSelectedModel(model);
+                    updateUrl(model.family, model.id);
+                  }}
+                  className="min-w-0 cursor-pointer hover:border-[var(--accent-color)]/60 transition-colors" 
+                  style={{ padding: 16 }}
+                >
                   <CardHeader>
                     <div className="flex items-center gap-3">
                       <CatalogueLogo source={model.logo} name={model.name || model.id} />
@@ -519,7 +628,10 @@ export function ModelCatalogue() {
                       <span className="text-xs font-mono text-[var(--text-muted)]">
                         {model.variants.length} packages
                       </span>
-                      <Button size="sm" variant="outline" onClick={() => setSelectedModel(model)} className="text-xs gap-1">
+                      <Button size="sm" variant="outline" onClick={() => {
+                        setSelectedModel(model);
+                        updateUrl(model.family, model.id);
+                      }} className="text-xs gap-1">
                         View Details <ArrowUpRight size={12} />
                       </Button>
                     </div>
@@ -550,12 +662,15 @@ export function ModelCatalogue() {
                   onDownload={(model, variant) => void install(model, variant)}
                   onViewAll={(fam) => {
                     setFamily(fam);
+                    setView('models');
                     setSelectedModel(null);
                     setLimit(24);
+                    updateUrl(fam, '');
                   }}
                   onSelectModel={(model) => {
                     setSelectedModel(model);
                     setFamily(model.family);
+                    updateUrl(model.family, model.id);
                   }}
                 />
               );
