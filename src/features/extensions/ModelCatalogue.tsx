@@ -4,7 +4,6 @@ import { modelsApi } from '../../api/engine/models/models.api';
 import type { ModelRegistryEntry } from '../../api/engine/models/models.types';
 import { useConnectionStore } from '../../store/engine/useConnectionStore';
 import { Button } from '../../components/ui/Button';
-import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
 import { useCatalogue } from './useCatalogue';
 import { 
@@ -449,57 +448,6 @@ export function ModelCatalogue() {
                 />
               );
             })()}
-          </div>
-        ) : view === 'models' ? (
-          /* ------------------------------------------------------------------ */
-          /* FLAT GRID OF ALL MODELS                                            */
-          /* ------------------------------------------------------------------ */
-          <div className="space-y-4">
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              {filtered.slice(0, limit).map(model => (
-                <Card 
-                  key={model.id} 
-                  onClick={() => {
-                    setSelectedModel(model);
-                    updateUrl(model.family, model.id);
-                  }}
-                  className="min-w-0 cursor-pointer hover:border-[var(--accent-color)]/60 transition-colors" 
-                  style={{ padding: 16 }}
-                >
-                  <CardHeader>
-                    <div className="flex items-center gap-3">
-                      <CatalogueLogo source={model.logo} name={model.name || model.id} />
-                      <div className="min-w-0 flex-1">
-                        <CardTitle className="text-sm font-semibold truncate">
-                          {model.name || model.id}
-                        </CardTitle>
-                        <p className="text-xs text-[var(--text-muted)] mt-0.5 truncate">{model.provider}</p>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-3 pt-2">
-                    <CatalogueTags values={model.tasks} />
-                    <p className="text-xs text-[var(--text-secondary)] line-clamp-2">
-                      {cleanModelDescription(model.description || model.familyDescription)}
-                    </p>
-                    <div className="flex items-center justify-between pt-1 border-t border-[var(--border-color)]/50">
-                      <span className="text-xs font-mono text-[var(--text-muted)]">
-                        {model.variants.length} packages
-                      </span>
-                      <Button size="sm" variant="outline" onClick={() => {
-                        setSelectedModel(model);
-                        updateUrl(model.family, model.id);
-                      }} className="text-xs gap-1">
-                        View Details <ArrowUpRight size={12} />
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-            {filtered.length > limit && (
-              <Button variant="outline" onClick={() => setLimit(value => value + 24)}>Show more models</Button>
-            )}
           </div>
         ) : (
           /* ------------------------------------------------------------------ */
