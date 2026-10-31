@@ -229,7 +229,7 @@ export function ModelCatalogue() {
 
               return (
                 <div className="relative pt-0 pb-6 min-h-[220px] sm:min-h-[280px] flex items-center text-left">
-                  {/* Right Side: Model Logo Flush to Top with Ambient Shadow */}
+                  {/* Right Side: Model Logo Flush to Top with Seamless Background Blend */}
                   {modelLogoUrl && (
                     <div className="absolute right-0 top-0 pointer-events-none select-none z-0 pr-0 sm:pr-4 flex items-start justify-end">
                       <img
@@ -238,9 +238,11 @@ export function ModelCatalogue() {
                         aria-hidden="true"
                         loading="lazy"
                         referrerPolicy="no-referrer"
-                        className="w-64 h-64 sm:w-80 sm:h-80 md:w-96 md:h-96 object-contain opacity-65 transition-opacity"
+                        className="w-64 h-64 sm:w-80 sm:h-80 md:w-96 md:h-96 object-contain opacity-45 transition-opacity"
                         style={{
                           filter: 'drop-shadow(0 15px 35px rgba(0,0,0,0.9))',
+                          maskImage: 'radial-gradient(ellipse 70% 70% at 50% 50%, rgba(0,0,0,1) 40%, rgba(0,0,0,0.6) 70%, transparent 95%)',
+                          WebkitMaskImage: 'radial-gradient(ellipse 70% 70% at 50% 50%, rgba(0,0,0,1) 40%, rgba(0,0,0,0.6) 70%, transparent 95%)',
                         }}
                       />
                     </div>
@@ -373,7 +375,7 @@ export function ModelCatalogue() {
 
               return (
                 <div className="relative pt-0 pb-6 min-h-[220px] sm:min-h-[280px] flex items-center text-left">
-                  {/* Right Side: Family Logo Flush to Top with Ambient Shadow */}
+                  {/* Right Side: Family Logo Flush to Top with Seamless Background Blend */}
                   {heroLogoUrl && (
                     <div className="absolute right-0 top-0 pointer-events-none select-none z-0 pr-0 sm:pr-4 flex items-start justify-end">
                       <img
@@ -382,9 +384,11 @@ export function ModelCatalogue() {
                         aria-hidden="true"
                         loading="lazy"
                         referrerPolicy="no-referrer"
-                        className="w-64 h-64 sm:w-80 sm:h-80 md:w-96 md:h-96 object-contain opacity-65 transition-opacity"
+                        className="w-64 h-64 sm:w-80 sm:h-80 md:w-96 md:h-96 object-contain opacity-45 transition-opacity"
                         style={{
                           filter: 'drop-shadow(0 15px 35px rgba(0,0,0,0.9))',
+                          maskImage: 'radial-gradient(ellipse 70% 70% at 50% 50%, rgba(0,0,0,1) 40%, rgba(0,0,0,0.6) 70%, transparent 95%)',
+                          WebkitMaskImage: 'radial-gradient(ellipse 70% 70% at 50% 50%, rgba(0,0,0,1) 40%, rgba(0,0,0,0.6) 70%, transparent 95%)',
                         }}
                       />
                     </div>
