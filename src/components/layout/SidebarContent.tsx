@@ -398,18 +398,13 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
     const flyoutCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const flyoutRef = useRef<HTMLDivElement>(null);
 
-    // In Toolkit view, the sidebar must ALWAYS remain permanently active and fixed, never collapsed or in a popup
+    // When switching to Toolkit view, by default open the sidebar expanded (matching APIs behavior)
     useEffect(() => {
         if (activeView === 'toolkit') {
-            if (sidebarCollapsed) {
-                setSidebarCollapsed(false);
-            }
-            if (!useLayoutStore.getState().sidebarOpen) {
-                useLayoutStore.setState({ sidebarOpen: true });
-            }
+            useLayoutStore.setState({ sidebarOpen: true, sidebarCollapsed: false });
             setIsFlyoutOpen(false);
         }
-    }, [activeView, sidebarCollapsed, setSidebarCollapsed]);
+    }, [activeView]);
 
     const handleFlyoutOpen = () => {
         if (flyoutCloseTimerRef.current) {
@@ -992,10 +987,12 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                                 />
                             </div>
 
-                            {/* 7. Toolkit (Always fixed in-dock expanded sidebar, never a flyout) */}
+                            {/* 7. Toolkit (Matches APIs behavior: default expanded, flyout on hover/click when collapsed) */}
                             <div
                                 onMouseEnter={() => {
-                                    // Never open floating flyout popup for toolkit
+                                    if (activeView === 'toolkit') {
+                                        handleFlyoutOpen();
+                                    }
                                 }}
                                 onMouseLeave={handleFlyoutLeave}
                                 className="relative flex items-center justify-center"
@@ -1005,11 +1002,17 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                                     icon={Icons.Boxes}
                                     isActive={activeView === 'toolkit'}
                                     onClick={() => {
+                                        const isCurrent = activeView === 'toolkit';
                                         useLayoutStore.getState().setActiveView('toolkit');
-                                        useLayoutStore.setState({ sidebarOpen: true, sidebarCollapsed: false });
                                         pushViewRoute('toolkit');
                                         document.dispatchEvent(new CustomEvent('open-toolkit'));
-                                        setIsFlyoutOpen(false);
+                                        if (isCurrent) {
+                                            setIsFlyoutOpen(prev => !prev);
+                                        } else {
+                                            // By default, switching to Toolkit opens the expanded sidebar
+                                            useLayoutStore.setState({ sidebarOpen: true, sidebarCollapsed: false });
+                                            setIsFlyoutOpen(false);
+                                        }
                                     }}
                                 />
                             </div>
@@ -1083,22 +1086,20 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                                             <Icons.MoreVertical className="w-4 h-4" />
                                         </button>
                                     </Tooltip>
-                                    {activeView !== 'toolkit' && (
-                                        <Tooltip title="Close Sidebar" position="bottom">
-                                            <button
-                                                onClick={() => {
-                                                    if (sidebarPeeked) {
-                                                        setSidebarPeeked(false);
-                                                    } else {
-                                                        setSidebarCollapsed(true);
-                                                    }
-                                                }}
-                                                className="p-1.5 rounded hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
-                                            >
-                                                {sidebarPosition === 'left' ? <Icons.ChevronLeft className="w-4 h-4" /> : <Icons.ChevronRight className="w-4 h-4" />}
-                                            </button>
-                                        </Tooltip>
-                                    )}
+                                    <Tooltip title="Close Sidebar" position="bottom">
+                                        <button
+                                            onClick={() => {
+                                                if (sidebarPeeked) {
+                                                    setSidebarPeeked(false);
+                                                } else {
+                                                    setSidebarCollapsed(true);
+                                                }
+                                            }}
+                                            className="p-1.5 rounded hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
+                                        >
+                                            {sidebarPosition === 'left' ? <Icons.ChevronLeft className="w-4 h-4" /> : <Icons.ChevronRight className="w-4 h-4" />}
+                                        </button>
+                                    </Tooltip>
                                 </>
                             )}
                         </div>
