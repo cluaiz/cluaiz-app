@@ -248,33 +248,62 @@ export function ModelCatalogue() {
           <div className="space-y-6">
 
             {/* Model Hero Info Card */}
-            <Card className="p-6">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div className="flex items-center gap-4">
-                  <CatalogueLogo source={selectedModel.logo} name={selectedModel.name || selectedModel.id} large />
-                  <div>
-                    <h2 className="text-lg font-bold text-[var(--text-primary)] tracking-tight">
-                      {selectedModel.name || selectedModel.id}
-                    </h2>
-                    <p className="text-xs text-[var(--text-muted)] mt-0.5">
-                      Published by <span className="text-[var(--text-secondary)] font-medium">{selectedModel.provider}</span>
+            {(() => {
+              const modelLogoUrl = catalogueImage(selectedModel.logo || '');
+              const cleanDesc = cleanModelDescription(selectedModel.description || selectedModel.familyDescription);
+
+              return (
+                <div className="relative overflow-hidden rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-color)] p-6 sm:px-10 sm:py-10 min-h-[200px] flex items-center text-left">
+                  {/* Right Side: Model Logo Watermark seamlessly dissolved into card background on all sides */}
+                  {modelLogoUrl && (
+                    <div className="absolute right-0 top-0 bottom-0 w-1/2 sm:w-2/5 flex items-center justify-end pointer-events-none select-none overflow-hidden z-0 pr-6 sm:pr-12">
+                      <img
+                        src={modelLogoUrl}
+                        alt=""
+                        aria-hidden="true"
+                        loading="lazy"
+                        referrerPolicy="no-referrer"
+                        className="w-56 h-56 sm:w-72 sm:h-72 object-contain opacity-45 filter contrast-125 transition-opacity"
+                        style={{
+                          maskImage: 'radial-gradient(ellipse at center, rgba(0,0,0,0.85) 15%, rgba(0,0,0,0.35) 55%, transparent 92%)',
+                          WebkitMaskImage: 'radial-gradient(ellipse at center, rgba(0,0,0,0.85) 15%, rgba(0,0,0,0.35) 55%, transparent 92%)',
+                        }}
+                      />
+                    </div>
+                  )}
+
+                  {/* Left Side: Model Title, Publisher, Specs, Tags, Description */}
+                  <div className="relative z-10 space-y-3 max-w-2xl text-left">
+                    <div className="flex items-center gap-2.5 flex-wrap">
+                      <h2 className="text-xl sm:text-2xl font-bold font-mono uppercase text-[var(--text-primary)] tracking-tight">
+                        {selectedModel.name || selectedModel.id}
+                      </h2>
+                      {selectedModel.parameters && (
+                        <Badge variant="outline" className="text-xs font-mono font-bold uppercase tracking-wider">
+                          {selectedModel.parameters}
+                        </Badge>
+                      )}
+                    </div>
+
+                    <p className="text-xs sm:text-sm text-[var(--text-muted)] font-mono">
+                      Published by <span className="text-[var(--text-secondary)] font-bold">{selectedModel.provider}</span>
                       {selectedModel.architecture ? ` · Architecture: ${selectedModel.architecture}` : ''}
-                      {selectedModel.parameters ? ` · ${selectedModel.parameters}` : ''}
                       {selectedModel.context ? ` · ${selectedModel.context} context window` : ''}
                     </p>
+
+                    <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                      <CatalogueTags values={selectedModel.tasks} />
+                    </div>
+
+                    {cleanDesc && (
+                      <p className="text-xs sm:text-sm leading-relaxed text-[var(--text-secondary)] pt-1 max-w-xl">
+                        {cleanDesc}
+                      </p>
+                    )}
                   </div>
                 </div>
-
-                <div className="flex items-center gap-2 flex-wrap">
-                  <CatalogueTags values={selectedModel.tasks} />
-                </div>
-              </div>
-
-              {/* Clean Sanitized Description */}
-              <p className="mt-4 text-xs leading-5 text-[var(--text-secondary)] border-t border-[var(--border-color)]/60 pt-3">
-                {cleanModelDescription(selectedModel.description || selectedModel.familyDescription) || 'No detailed overview provided for this package.'}
-              </p>
-            </Card>
+              );
+            })()}
 
             {/* Active Download Status (ONLY when download is actively in progress) */}
             {download.busy && <CatalogueTaskStatus {...download} />}
