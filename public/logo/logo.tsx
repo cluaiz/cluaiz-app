@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import logo from './logo-bg-black.png';
+import logo from './logo.png';
 
 const VERTEX = `#version 300 es
 in vec2 aPosition;

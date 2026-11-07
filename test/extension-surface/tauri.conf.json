@@ -12,5 +12,5 @@
       "assetProtocol": { "enable": true, "scope": [] }
     }
   },
-  "bundle": { "active": false, "icon": ["../../public/logo.ico"] }
+  "bundle": { "active": false, "icon": ["../../public/logo/logo.ico"] }
 }

@@ -408,7 +408,7 @@ export interface Logo3DProps {
 }
 
 export function Logo3D({
-  src = '/logo/favicon.svg',
+  src = '/logo/logo.svg',
   className,
   style,
   colorA = '#ffffff',

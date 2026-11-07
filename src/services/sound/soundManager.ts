@@ -194,7 +194,7 @@ class SoundManager {
             try {
                 const n = new Notification(title, {
                     body: options?.body || 'Cluaiz assistant response is ready.',
-                    icon: options?.icon || '/favicon.ico',
+                    icon: options?.icon || '/logo/logo.png',
                 });
                 n.onclick = () => {
                     window.focus();

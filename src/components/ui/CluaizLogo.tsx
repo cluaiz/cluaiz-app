@@ -1,5 +1,4 @@
 import React from 'react';
-import { useThemeStore, isThemeDark } from '../../store/ui/useThemeStore';
 
 export interface CluaizLogoProps {
     size?: number | string;
@@ -7,6 +6,7 @@ export interface CluaizLogoProps {
     glow?: boolean;
     interactive?: boolean;
     alt?: string;
+    /** Kept so callers still compile; every variant shows the same logo */
     variant?: 'auto' | 'dark' | 'light';
 }
 
@@ -16,21 +16,9 @@ export const CluaizLogo: React.FC<CluaizLogoProps> = ({
     glow = false,
     interactive = false,
     alt = 'Cluaiz Logo',
-    variant = 'auto',
 }) => {
-    const theme = useThemeStore((s) => s.theme);
-    const isDark = isThemeDark(theme);
-
-    // Dynamic SVG resolution based on current theme:
-    // On dark themes (dark/oled/etc.), cluaiz-light.svg gives crisp high-contrast white contour on dark background.
-    // On light themes, cluaiz-dark.svg gives crisp high-contrast dark contour on light background.
-    const logoSrc = variant === 'dark'
-        ? '/logo/cluaiz-dark.svg'
-        : variant === 'light'
-            ? '/logo/cluaiz-mascot.svg'
-            : isDark
-                ? '/logo/cluaiz-mascot.svg'
-                : '/logo/cluaiz-dark.svg';
+    // One logo for every theme: its dark outline shows on light backgrounds and its white body on dark ones
+    const logoSrc = '/logo/logo.svg';
 
     const dim = typeof size === 'number' ? `${size}px` : size;
 
