@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="public/assets/app.png" alt="Cluaiz App" width="100%">
+  <img src="public/logo/logo.png" alt="Cluaiz App" width="30%">
 </p>
 
 <h3 align="center">
@@ -27,24 +27,25 @@ The desktop app for Cluaiz: chat with your models, manage models and tools, expl
 
 ## About the Cluaiz App
 
-[Cluaiz](https://github.com/cluaiz/cluaiz) is one system for working with AI, for personal use and for business
-use. The **Engine** runs and serves the models. The **App** is the window you use them from: no terminal and no
-configuration files needed.
+The [Cluaiz Engine](https://github.com/cluaiz/cluaiz) runs and serves the models. The **App** is a desktop window
+for the same work: chats, models, tools and settings.
 
 The App does not run models itself. It talks to a running Cluaiz Engine, so a model is loaded once and shared by the
 App, the terminal and your own programs at the same time.
 
-## What you can do
+## Screens in development
 
-| Area | What it does |
+These screens exist in the code and change often. None of them is released yet.
+
+| Screen | Purpose |
 | :--- | :--- |
-| **Chat** | Conversations with any installed model: streaming answers, thinking, images and files, tool calls with approvals, chat history, and memory of earlier messages that no longer fit the context |
-| **Models** | Browse the model catalogue with a recommendation for your hardware, download a model and its quantization, and load or unload it |
-| **Toolkit** | Install and manage skills, plugins and MCP servers from [Cluaiz Tools](https://github.com/cluaiz/cluaiz-tools), and their settings |
-| **API** | An explorer for every Engine route and CEP method, with examples you can run, and an interactive architecture view |
-| **Notebook and Library** | Notes and documents kept next to your chats |
-| **Settings** | Engine settings, hardware, permissions and API tokens, themes and shortcuts |
-| **Extensions** | Experimental: local UI packages that you approve, in an isolated workspace. See [local packages](src/extensions/packages/README.md) |
+| **Chat** | Conversations with the models installed in the Engine |
+| **Models** | The model catalogue, downloads, and loading a model |
+| **Toolkit** | Skills, plugins and MCP servers from [Cluaiz Tools](https://github.com/cluaiz/cluaiz-tools) |
+| **API** | An explorer for the Engine's routes and CEP methods |
+| **Notebook and Library** | Notes and documents |
+| **Settings** | Engine settings, permissions and API tokens, appearance |
+| **Extensions** | Experimental local UI packages. See [local packages](src/extensions/packages/README.md) |
 
 ## How the App reaches the Engine
 
@@ -71,7 +72,7 @@ Details: [transport](src/api/client/README.md) and [native connector](app/src-ta
 
 ## Run it from source
 
-You need **Node.js 20 or newer**, **Rust** (stable), the
+You need **Node.js 20.19 or newer** (for Vite 7), **Rust** (stable), the
 [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) for your OS, and the
 [Cluaiz Engine](https://github.com/cluaiz/cluaiz#quick-start) installed. The App needs an Engine build that
 supports `--native-endpoint`.
@@ -108,7 +109,6 @@ is listed in [Files.md](Files.md).
 - **Found a security problem?** Report it privately, as [SECURITY.md](SECURITY.md) describes.
 
 Until it is released, the App takes issues and feedback but not pull requests. See [CONTRIBUTING.md](CONTRIBUTING.md).
-What Cluaiz is building toward: [VISION.md](VISION.md).
 
 ## License
 
