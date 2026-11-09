@@ -174,7 +174,7 @@ export function SettingsOverlay({ isOpen, initialTab = 'general', onClose, onTab
                                         <ExternalLink size={13} />
                                     </a>
                                     <div className="text-[10px] text-[var(--text-muted)] font-mono pt-2 border-t border-[var(--border-color)]/60">
-                                        © 2026 Cluaiz Technologies. All rights reserved.
+                                        © 2026 Cluaiz. All rights reserved.
                                     </div>
                                 </div>
                             </div>
