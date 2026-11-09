@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: A problem in the Engine (models, API, install)
+    url: https://github.com/cluaiz/cluaiz/issues/new/choose
+    about: Bugs and hardware reports for the Cluaiz Engine belong in that repository
+  - name: A tool, plugin, skill or MCP server
+    url: https://github.com/cluaiz/cluaiz-tools/issues/new/choose
+    about: Bugs in a tool from Cluaiz Tools belong in that repository
+  - name: Discord
+    url: https://discord.gg/mab8kBURz
+    about: Questions, ideas and talking with the Cluaiz team

@@ -1,0 +1,37 @@
+name: Bug report
+description: Something in the App does not work as it should
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for trying the App. Remove tokens, API keys and personal paths from anything you paste.
+  - type: input
+    id: commit
+    attributes:
+      label: App commit
+      description: The commit you built (git rev-parse --short HEAD)
+    validations:
+      required: true
+  - type: input
+    id: engine
+    attributes:
+      label: Engine version
+      description: The output of `cluaiz --version`
+      placeholder: cluaiz 0.1.0 (pre-release)
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: OS
+      placeholder: Windows 11, macOS 15, Ubuntu 24.04
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead. Screenshots help.
+    validations:
+      required: true
