@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
-const ts = require('../app/node_modules/typescript');
+const ts = require(require.resolve('typescript', { paths: [path.join(__dirname, '../app')] }));
 
 // Execute the actual component; only hooks/DOM are deterministic boundaries.
 // Browser acceptance separately checks real React warnings and UI behavior.

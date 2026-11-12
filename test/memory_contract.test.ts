@@ -2,9 +2,6 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { memoryApi } from '../src/api/engine/memory/memory.api';
 import { useMemoryStore } from '../src/api/engine/memory/memory.store';
-import { useApiStore } from '../src/store/api/useApiStore';
-import { endpointUsesModel, getFilteredModelsForEndpoint } from '../src/features/api/utils/modelFilter';
-import type { ApiEndpoint } from '../src/features/api/types';
 
 test('ingest retains partial content and omissions without reporting complete success', async t => {
     const partial = { status: 'partial', total_sources: 1, processed_sources: [{
@@ -41,24 +38,5 @@ test('embedding adapter preserves image/text parts, float encoding and retention
     assert.deepEqual(useMemoryStore.getState().lastEmbeddings, []);
 });
 
-test('native extraction never receives a model from the explorer model selector', () => {
-    for (const path of ['/v1/ingest', '/v1/ingest/file']) {
-        const endpoint: ApiEndpoint = { method: 'POST', path, desc: 'Extract documents' };
-        assert.equal(endpointUsesModel(endpoint), false);
-        assert.deepEqual(getFilteredModelsForEndpoint(path, [{ id: 'image-model', category: 'ingest' }]), []);
-        useApiStore.setState({ activeEndpoint: endpoint, reqBody: JSON.stringify({ source: 'document.pdf' }) });
-        useApiStore.getState().setSelectedModel('image-model');
-        assert.deepEqual(JSON.parse(useApiStore.getState().reqBody), { source: 'document.pdf' });
-    }
-    assert.equal(endpointUsesModel({ method: 'POST', path: '/v1/embeddings', desc: '' }), true);
-});
-
-test('embedding selector includes supported ONNX and GGUF backends', () => {
-    const models = [
-        { id: 'text', category: 'embedding', format_type: 'onnx' },
-        { id: 'image', category: 'ingest', format_type: 'ONNX', supported_tasks: ['image-feature-extraction'] },
-        { id: 'native', category: 'embedding', format_type: 'gguf' },
-        { id: 'unsupported', category: 'embedding', format_type: 'safetensors' },
-    ];
-    assert.deepEqual(getFilteredModelsForEndpoint('/v1/embeddings', models).map(model => model.id), ['text', 'image', 'native']);
-});
+// The Explorer's ingest (optional model) and embedding (text vs image parts) model choices are tested in
+// test/api_explorer.test.cjs, which follows the current /v1/ingest contract.
