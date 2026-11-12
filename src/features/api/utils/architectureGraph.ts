@@ -66,6 +66,11 @@ const copy: Record<string, Copy> = {
         input: 'A read request or a deliberate validated settings/action request.', output: 'The Engine data or acknowledgment, without guessed telemetry.',
         state: 'Settings, storage and applicable process/task state.', model: 'Most inspection and settings operations do not run inference.',
         caution: 'Browsing is read-only. A displayed API is not proof that its user-facing App control is complete.' },
+    automation: { title: 'Automation', subtitle: 'Flows · triggers · runs', lane: 'engine',
+        purpose: 'A separate layer that runs saved flows on a trigger. Its steps call the same Engine methods, tools and models as any other client.',
+        input: 'A flow file, a trigger (time, file, webhook, event or call) or a deliberate flows.run request.', output: 'Run records, step results or validation problems.',
+        state: 'Flow files and run journals belong to Automation; tasks and approvals stay with the Engine.', model: 'Only ask and agent steps use a model.',
+        caution: 'Automation is a draft and its methods may change before a release. Browsing does not save or run a flow.' },
     runtime: { title: 'Model & runtime', subtitle: 'Compatible GGUF / ONNX execution', lane: 'runtime',
         purpose: 'The runtime processes prepared input. A capable model may request a tool; the Engine executes it and feeds the result back for the next step.',
         input: 'Prepared context, compatible model data and tool results.', output: 'Generated output or a structured tool request.',
@@ -78,7 +83,7 @@ const copy: Record<string, Copy> = {
         caution: 'Saved must follow an actual acknowledgment. Deleting a chat does not imply physical removal of all shared blobs or global notes.' },
 };
 
-const categories: Record<string, string> = { 'ai-inference': 'inference', 'agents-tools': 'tools', filesystem: 'files', models: 'models', system: 'system' };
+const categories: Record<string, string> = { 'ai-inference': 'inference', 'agents-tools': 'tools', filesystem: 'files', models: 'models', system: 'system', automation: 'automation' };
 const memoryDomains = new Set(['memory', 'notes', 'context', 'kv']);
 const makeNode = (id: string, groups: ArchitectureGroup[] = []): ArchitectureNode => ({ id, ...copy[id], groups });
 
@@ -96,12 +101,12 @@ export function buildArchitectureGraph(catalog: ApiGroup[]): ArchitectureGraph {
     };
     for (const pillar of catalogPillars(catalog)) {
         for (const group of pillar.subgroups) {
-            add(pillar.category === 'ai-inference' && memoryDomains.has(group.title.toLowerCase()) ? 'memory' : categories[pillar.category], group);
+            add(pillar.category === 'ai-inference' && memoryDomains.has(group.title.toLowerCase()) ? 'memory' : categories[pillar.category] || 'other', group);
         }
     }
     // A newly documented category must remain reachable even before presentation metadata exists.
     for (const group of catalog) add('other', { id: `other/${group.group}`, title: group.group, endpoints: group.endpoints });
-    const domains = ['inference', 'memory', 'tools', 'files', 'models', 'system'].filter(id => buckets.has(id)).map(id => makeNode(id, buckets.get(id)));
+    const domains = ['inference', 'memory', 'tools', 'files', 'models', 'system', 'automation'].filter(id => buckets.has(id)).map(id => makeNode(id, buckets.get(id)));
     if (buckets.has('other')) domains.push({ ...makeNode('system', buckets.get('other')), id: 'other', title: 'Other APIs', subtitle: 'Additional documented groups' });
     const nodes = [makeNode('client'), makeNode('transport'), makeNode('guard'), ...domains, makeNode('runtime'), makeNode('saved')];
     const edges: ArchitectureEdge[] = [
@@ -115,6 +120,8 @@ export function buildArchitectureGraph(catalog: ApiGroup[]): ArchitectureGraph {
         { from: 'memory', to: 'saved', label: 'Read / write' },
         { from: 'files', to: 'saved', label: 'Filesystem' },
         { from: 'system', to: 'saved', label: 'Config / storage' },
+        { from: 'automation', to: 'tools', label: 'Tool and method steps' },
+        { from: 'automation', to: 'inference', label: 'Ask and agent steps' },
         { from: 'runtime', to: 'saved', label: 'Compatible saved KV' },
     ].filter(edge => nodes.some(node => node.id === edge.from) && nodes.some(node => node.id === edge.to));
     return { nodes, edges, count: seen.size };

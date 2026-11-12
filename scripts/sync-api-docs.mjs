@@ -1,11 +1,12 @@
 /** Build-time docs -> Explorer data. Markdown is the source; no Engine is started. */
-import { readFile, mkdir, writeFile, access } from 'node:fs/promises';
+import { readFile, readdir, mkdir, writeFile, access } from 'node:fs/promises';
 import { resolve, dirname, relative, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseDocument } from 'yaml';
 
 export const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const defaultEngine = resolve(appRoot, '../cluaiz');
+const automationMethods = 'docs/automation/methods';
 const outputFile = resolve(appRoot, 'public/data/api-catalog.json');
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 
@@ -85,11 +86,8 @@ export async function buildCatalog(engineRoot = defaultEngine) {
     const groups = new Map();
     const identities = new Set();
     const documented = new Set();
-    for (const path of paths) {
+    const addPage = async (path, engineMethod) => {
         const absolute = resolve(engineRoot, path);
-        if (relative(resolve(engineRoot, 'docs/api'), absolute).split(sep)[0] === '..') {
-            throw Error(`API page is outside docs/api: ${path}`);
-        }
         const text = await readFile(absolute, 'utf8');
         // Check moved references even in overview pages (which have no request metadata).
         const prose = text.replace(/```[\s\S]*?```/g, '');
@@ -101,7 +99,7 @@ export async function buildCatalog(engineRoot = defaultEngine) {
             }
         }
         const page = readPage(text, path);
-        if (!page) continue;
+        if (!page) return;
         const { header, isCep, body } = page;
         const group = header.group || header.standard || 'HTTP';
         const key = `${header.category}/${group}`;
@@ -118,8 +116,22 @@ export async function buildCatalog(engineRoot = defaultEngine) {
         const identity = `${endpoint.method} ${endpoint.path}`;
         if (identities.has(identity)) throw Error(`Duplicate documented request: ${identity}`);
         identities.add(identity);
-        if (isCep) documented.add(header.method);
+        if (isCep && engineMethod) documented.add(header.method);
         groups.get(key).endpoints.push(endpoint);
+    };
+    for (const path of paths) {
+        if (relative(resolve(engineRoot, 'docs/api'), resolve(engineRoot, path)).split(sep)[0] === '..') {
+            throw Error(`API page is outside docs/api: ${path}`);
+        }
+        await addPage(path, true);
+    }
+    // Automation is a separate layer at the same /v1/cep; its methods are not in openrpc.json.
+    const automation = await readdir(resolve(engineRoot, automationMethods)).catch(error => {
+        if (error.code === 'ENOENT') return [];
+        throw error;
+    });
+    for (const file of automation.filter(file => file.endsWith('.md') && file !== 'README.md').sort()) {
+        await addPage(`${automationMethods}/${file}`, false);
     }
     const discovery = JSON.parse(await readFile(resolve(engineRoot, 'docs/api/cep/openrpc.json'), 'utf8'));
     const methods = discovery.methods.map(method => method.name);

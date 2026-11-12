@@ -260,7 +260,7 @@ test('CEP audio voice controls preserve method and filter TTS versus STT by inpu
     assert.equal(store.getState().selectedVoice,'default');
 });
 
-test('Explorer loads the generated catalog once and both views project the same five categories', async () => {
+test('Explorer loads the generated catalog once and both views project every documented category', async () => {
     const {buildCatalog} = await import('../scripts/sync-api-docs.mjs');
     const catalog = await buildCatalog();
     const fetched = [];
@@ -273,10 +273,11 @@ test('Explorer loads the generated catalog once and both views project the same 
     const {catalogPillars} = load('src/features/api/utils/catalogGroups.ts', {'lucide-react':require('lucide-react')});
     const original = JSON.stringify(store.getState().apiData);
     const pillars = catalogPillars(store.getState().apiData);
-    assert.equal(pillars.length,5);
-    assert.equal(pillars.reduce((sum,pillar)=>sum+pillar.totalEndpoints,0),87);
+    assert.equal(pillars.length,new Set(catalog.map(group => group.category)).size);
+    const total = catalog.flatMap(group => group.endpoints).length;
+    assert.equal(pillars.reduce((sum,pillar)=>sum+pillar.totalEndpoints,0),total);
     const paths = pillars.flatMap(pillar=>pillar.subgroups.flatMap(group=>group.endpoints.map(ep=>ep.path)));
-    assert.equal(new Set(paths).size,87);
+    assert.equal(new Set(paths).size,total);
     assert.ok(paths.includes('fs.read') && paths.includes('/v1/ingest') && paths.includes('/v1/models'));
     const ai = pillars.find(pillar => pillar.category === 'ai-inference');
     const groupPaths = title => Array.from(ai.subgroups.find(group => group.title === title).endpoints, endpoint => endpoint.path);

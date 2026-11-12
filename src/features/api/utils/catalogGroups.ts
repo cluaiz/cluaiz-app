@@ -1,5 +1,5 @@
 import { Activity, Bot, Boxes, Brain, FolderGit2, Folder, Mic, Layers, Sliders,
-    ShieldCheck, MessageSquare, Wrench } from 'lucide-react';
+    ShieldCheck, MessageSquare, Wrench, Workflow } from 'lucide-react';
 import type { ApiGroup } from '../types';
 
 // Shared presentation metadata; method membership comes from the Engine docs.
@@ -19,6 +19,9 @@ const categories = [
     { category: 'system', id: 'pillar_system', title: 'System & Infrastructure', icon: Activity,
         iconColor: 'text-cyan-400', badgeStyle: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20',
         accentColor: '#06b6d4', borderGlow: 'border-cyan-500/50 shadow-cyan-500/10', badge: 'OBSERVABILITY & TUNING' },
+    { category: 'automation', id: 'pillar_automation', title: 'Automation', icon: Workflow,
+        iconColor: 'text-rose-400', badgeStyle: 'bg-rose-500/10 text-rose-400 border-rose-500/20',
+        accentColor: '#f43f5e', borderGlow: 'border-rose-500/50 shadow-rose-500/10', badge: 'FLOWS & TRIGGERS' },
 ];
 
 const icons: Record<string, typeof Activity> = { audio: Mic, tts: Mic, stt: Mic, chat: MessageSquare, memory: Layers,

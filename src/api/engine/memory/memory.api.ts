@@ -21,11 +21,4 @@ export const memoryApi = {
   ingest: async (payload: IngestPayload): Promise<IngestResponse> => {
     return client.post<IngestResponse>(MEMORY_ENDPOINTS.INGEST, payload);
   },
-
-  /**
-   * File-specific ingestion endpoint.
-   */
-  ingestFile: async (payload: IngestPayload): Promise<IngestResponse> => {
-    return client.post<IngestResponse>(MEMORY_ENDPOINTS.INGEST_FILE, payload);
-  },
 };

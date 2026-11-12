@@ -6,7 +6,7 @@ export const dialogApi = {
   /**
    * Triggers host native folder picker dialog.
    * - Desktop Mode (Tauri WebView): Direct Tauri IPC to pick_folder.
-   * - Web Browser Mode: Cluaiz Engine native endpoint POST /v1/fs/pick_folder.
+   * - Web Browser Mode: the Engine's `fs.pick_folder` CEP method.
    */
   pickFolder: async (): Promise<string | null> => {
     // 1. Desktop Mode (Tauri WebView) — Direct IPC
