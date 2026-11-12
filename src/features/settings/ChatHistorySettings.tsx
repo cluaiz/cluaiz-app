@@ -11,6 +11,7 @@ import { useSavedChatMemory } from './useSavedChatMemory';
 import { deleteSessionBatch } from '../../store/chat/deletion';
 import { toast } from '../../components/ui/toast';
 import { errorMessage } from '../../api/client/errors';
+import { AppChatImportSection } from './EngineMaintenance';
 
 const PERIOD_LABELS: Record<number, string> = { 7: '7 days', 30: '30 days', 90: '3 months', 180: '6 months', 365: '1 year' };
 const days = (values: number[], never: string): SelectOption[] =>
@@ -281,6 +282,8 @@ export function ChatHistorySettings() {
                     )}
                 </div>
             </SettingSection>
+
+            <AppChatImportSection />
 
             <SettingSection title="Archive">
                 <SettingItem

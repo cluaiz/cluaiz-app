@@ -46,6 +46,15 @@ export async function getCepTask(method: string, id: string, signal?: AbortSigna
   return taskView(await callCep<unknown>('tasks.get', { task_id: id, after: Number.MAX_SAFE_INTEGER }, { signal }), method, id);
 }
 
+/** The caller's tasks that have not expired, newest first. */
+export async function listCepTasks(signal?: AbortSignal): Promise<TaskView[]> {
+  const result = await callCep<unknown>('tasks.list', {}, { signal });
+  if (!object(result) || !Array.isArray(result.tasks)) {
+    throw new ApiError('Engine returned an invalid task list', 200, 'INVALID_CEP_TASK', 'tasks.list');
+  }
+  return result.tasks.map(task => taskView(task, object(task) ? String(task.method) : ''));
+}
+
 /** Engine cancellation is cooperative and is not an uninstall or filesystem rollback. */
 export async function cancelCepTask(method: string, id: string, signal?: AbortSignal): Promise<TaskView> {
   if (!id.trim()) throw new ApiError('A task id is required', 400, 'INVALID_TASK_ID', method);

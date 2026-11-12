@@ -7,8 +7,9 @@ import { MarkdownRenderer } from '../../components/ui/MarkdownRenderer';
 import { 
     Zap, Blocks, Cpu, Trash2, X, Folder, FolderOpen,
     FileText, FileCode, Image as ImageIcon, Palette, Eye, Code, 
-    Copy, Check, ChevronRight, Loader2, AlertTriangle
+    Copy, Check, ChevronRight, Loader2, AlertTriangle, ExternalLink
 } from 'lucide-react';
+import { openToolFile } from '../../api/engine/tools/files';
 
 export interface ToolComponent {
     id: string;
@@ -594,6 +595,14 @@ export function ToolInspectorModal({ tool, onClose, onDeleteTool }: ToolInspecto
                                                 </button>
                                             </div>
                                         )}
+                                        {toolId && toolCategory && <button
+                                            type="button"
+                                            title="Open this file in the editor of the Engine's computer"
+                                            onClick={() => openToolFile(toolCategory, toolId, selectedFile.path).catch(reason => toast.error(errorMessage(reason)))}
+                                            className="flex items-center gap-1.5 px-3 py-1 bg-[var(--bg-tertiary)] hover:bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg text-xs font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all cursor-pointer"
+                                        >
+                                            <ExternalLink size={12} /> Open
+                                        </button>}
                                         <button
                                             type="button"
                                             onClick={handleCopyContent}

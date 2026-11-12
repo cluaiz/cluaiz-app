@@ -183,6 +183,7 @@ test('the existing Engine settings screen marks unsupported Brain Mode disabled'
         './SettingsHealthValidator':{validateSettings:()=>[],getOverallHealth:()=> 'green'},
         './ModelInfoCard':{ModelInfoCard:empty},'./ModelInspectorModal':{ModelInspectorModal:empty},
         './TtsVoiceSelector':{TtsVoiceSelector:empty},'./SttLanguageSelector':{SttLanguageSelector:empty},
+        './EngineMaintenance':{TasksSection:empty,UpdateCheckSection:empty},
         '../../components/ui/dropdown/CustomDropdown':{CustomDropdown:empty},'lucide-react':require('lucide-react'),
     });
     require('react-dom/server').renderToStaticMarkup(React.createElement(screen.EngineSettings));

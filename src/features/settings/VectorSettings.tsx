@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { SettingSection, SettingItem } from './SharedComponents';
 import { systemApi } from '../../api';
 import { toast } from '../../components/ui/toast';
+import { EmbeddingRoomSection } from './EngineMaintenance';
 
 // Only settings the engine stores and uses (permission.json). The embedding model's GPU layers and
 // batch size are the shared GGUF settings on the Inference page; ONNX settings are on the Inference page too.
@@ -75,6 +76,7 @@ export function VectorSettings() {
                     disabled={pendingKey === 'vectorizeAiResponse'}
                 />
             </SettingSection>
+            <EmbeddingRoomSection />
         </div>
     );
 }

@@ -11,3 +11,5 @@ export * from './audio';
 export * from './memory';
 export * from './tools';
 export * from './notes';
+export * from './automation';
+export * from './prompts';

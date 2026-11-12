@@ -15,6 +15,8 @@ export type SettingsTabId =
     | 'engine'
     | 'inference'
     | 'vector'
+    | 'prompts'
+    | 'project'
     | 'security'
     | 'theme'
     | 'notifications'
@@ -27,6 +29,8 @@ export const VALID_SETTINGS_TABS: SettingsTabId[] = [
     'engine',
     'inference',
     'vector',
+    'prompts',
+    'project',
     'security',
     'theme',
     'notifications',
@@ -34,7 +38,7 @@ export const VALID_SETTINGS_TABS: SettingsTabId[] = [
     'help'
 ];
 
-export type MainViewId = 'chat' | 'notebook' | 'settings' | 'tools' | 'apis' | 'toolkit' | 'library' | 'components' | 'extensions';
+export type MainViewId = 'chat' | 'notebook' | 'settings' | 'tools' | 'automation' | 'apis' | 'toolkit' | 'library' | 'components' | 'extensions';
 
 export interface RouteState {
     view: MainViewId;
@@ -118,6 +122,8 @@ export function parseCurrentRoute(): RouteState {
         view = 'notebook';
     } else if (pathname.includes('/tools')) {
         view = 'tools';
+    } else if (pathname.includes('/automation')) {
+        view = 'automation';
     } else if (pathname.includes('/apis')) {
         view = 'apis';
     } else if (pathname === '/components' || hash.split('?')[0] === '#/components') {

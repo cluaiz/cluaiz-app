@@ -945,6 +945,17 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                                 }}
                             />
 
+                            <DockIconButton
+                                tooltip="Automation"
+                                icon={Icons.Workflow}
+                                isActive={activeView === 'automation'}
+                                onClick={() => {
+                                    useLayoutStore.getState().setActiveView('automation');
+                                    pushViewRoute('automation');
+                                    setIsFlyoutOpen(false);
+                                }}
+                            />
+
                             {/* 6. APIs */}
                             <div
                                 onMouseEnter={() => {

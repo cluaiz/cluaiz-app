@@ -91,3 +91,24 @@ test('RPC permission/not-found failures and unknown transport outcomes are prese
   await assert.rejects(h.notesApi.create({text:'A fact',scope:'global'}),error=>error===failure);
   assert.equal(h.requests.length,1);
 });
+
+test('a moved note is a valid record, is not current, and move reports the project fact',async()=>{
+  const list=setup(body=>reply(body,{workspace:'/work',notes:[record({status:'moved',moved_to:'/work/.agents/memory/lang.md'})]}));
+  const [moved]=(await list.notesApi.list()).notes;
+  assert.equal(moved.status,'moved');assert.equal(list.isCurrentNote(moved),false);assert.equal(list.isCurrentNote(record()),true);
+  const h=setup(body=>{assert.equal(body.method,'notes.move');assert.equal(body.params.id,'n:1');
+    return reply(body,{note:{id:'n:1',status:'moved',moved_to:'/work/.agents/memory/lang.md'},project_fact:{name:'lang',path:'/work/.agents/memory/lang.md',replaced:[]}});});
+  const result=await h.notesApi.move('n:1');
+  assert.equal(result.fact,'lang');assert.equal(result.moved_to,'/work/.agents/memory/lang.md');
+  const wrong=setup(body=>reply(body,{note:{id:'n:2',status:'moved',moved_to:'x'},project_fact:{name:'lang'}}));
+  await assert.rejects(wrong.notesApi.move('n:1'),{statusText:'INVALID_NOTES_RESPONSE'});
+});
+
+test('in a project, a created workspace note comes back as a project fact and is accepted',async()=>{
+  const h=setup(body=>reply(body,{note:record({id:'n:2',text:'Use tabs',status:'moved',moved_to:'/work/.agents/memory/use-tabs.md'}),superseded:null,
+    project_fact:{name:'use-tabs',path:'/work/.agents/memory/use-tabs.md',replaced:[]},similar:[]}));
+  const result=await h.notesApi.create({text:'Use tabs',scope:'workspace'});
+  assert.equal(result.note.moved_to,'/work/.agents/memory/use-tabs.md');
+  const chat=setup(body=>reply(body,{note:record({text:'x',scope:'chat',owner:'c1',status:'moved',moved_to:'y'}),superseded:null}));
+  await assert.rejects(chat.notesApi.create({text:'x',scope:'chat',chat_id:'c1'}),{statusText:'INVALID_NOTES_RESPONSE'});
+});

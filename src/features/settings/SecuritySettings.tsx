@@ -5,6 +5,7 @@ import { useEngineStore } from '../../store/engine/useEngineStore';
 import { Key, Copy, Check, Trash2, Shield, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { AlertBanner } from '../../components/ui/AlertBanner';
 import { toast } from '../../components/ui/toast';
+import { AuditLogSection } from './EngineMaintenance';
 
 interface ModalConfig {
     title: string;
@@ -427,6 +428,8 @@ export function SecuritySettings() {
                     disabled={Boolean(pendingKeys['model_header_info']) || !isEngineOnline}
                 />
             </SettingSection>
+
+            <AuditLogSection />
 
             {/* 5. Context & Memory Permissions */}
             <SettingSection title="Context & Memory Permissions">

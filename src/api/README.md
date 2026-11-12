@@ -1,7 +1,7 @@
 # 🏛️ Cluaiz App — Enterprise API Layer Architecture & Developer Guide
 
 > **Directory:** `src/api/`  
-> **Source of Truth:** `cluaiz/inference-engine/api/src/routes.rs`  
+> **Source of Truth:** `cluaiz/api/src/routes.rs` (routes) and `cluaiz/docs/api/cep/openrpc.json` (CEP methods)  
 > **Design Pattern:** The 5-File Duck Domain Standard (Stateless API + Reactive Zustand Stores)  
 > **Guiding Principle:** Domain Sovereignty, Zero-Khichdi, 100% Type-Safe Contracts, Zero Raw Fetch
 
@@ -11,8 +11,8 @@
 1. [Architectural Overview (The 2-Pane System)](#1-architectural-overview-the-2-pane-system)
 2. [The Unified Transport Pipe (`src/api/client/`)](#2-the-unified-transport-pipe-srcapiclient)
 3. [The 5-File Duck Pattern Standard](#3-the-5-file-duck-pattern-standard)
-4. [Master Domain Tree & 100% Route Mapping Matrix](#4-master-domain-tree--100-route-mapping-matrix)
-5. [The Unified Tools Subsystem (`src/api/engine/tools/`)](#5-the-unified-tools-subsystem-srcapienginetools)
+4. [Domain map: what each folder calls on the Engine](#4-domain-map-what-each-folder-calls-on-the-engine)
+5. [Tools subsystem (`src/api/engine/tools/`)](#5-tools-subsystem-srcapienginetools)
 6. [Developer Usage & Code Examples](#6-developer-usage--code-examples)
 7. [Team Workflow for 20–30 Engineers](#7-team-workflow-for-2030-engineers)
 
@@ -96,111 +96,47 @@ src/api/engine/[domain]/
 
 ---
 
-## 4. Master Domain Tree & 100% Route Mapping Matrix
+## 4. Domain map: what each folder calls on the Engine
 
-Every single route declared in `cluaiz/inference-engine/api/src/routes.rs` is mapped below:
+The Engine has a few direct routes (chat, embeddings, audio, ingest, model lists, health) and every
+other control is a CEP method at `POST /v1/cep` ([client/cep.ts](client/cep.ts); tasks through
+[client/cepTask.ts](client/cepTask.ts), which also lists them with `tasks.list`). Each domain's README has the details.
 
-| Domain Folder | Backend Route (`routes.rs`) | HTTP Method | API Function (`[domain].api.ts`) | Reactive Store (`[domain].store.ts`) |
-|---|---|---|---|---|
-| **`system/`** | `/health` | `GET` | `systemApi.getHealth()` | `useSystemStore` |
-| | `/info` | `GET` | `systemApi.getSystemInfo()` | |
-| | `system.exec` via `/v1/cep` | `POST` | `systemApi.executeCommand()` / `executeProgram()` | |
-| | `/v1/system/ps` | `GET` | `systemApi.getProcesses()` | |
-| | `/v1/system/control` | `GET` | `systemApi.getSystemControl()` | |
-| **`permission/`** | `config.get` via `/v1/cep` | `POST` | `permissionApi.getPermission()` | `usePermissionStore` |
-| | `config.set` via `/v1/cep` | `POST` | `permissionApi.updatePermission()` | |
-| | `tokens.list` via `/v1/cep` | `POST` | `permissionApi.listAuthTokens()` | |
-| | `tokens.create` via `/v1/cep` | `POST` | `permissionApi.generateAuthToken()` | |
-| | `tokens.revoke` via `/v1/cep` | `POST` | `permissionApi.revokeAuthToken()` | |
-| | `approvals.list` via `/v1/cep` | `POST` | `permissionApi.getPendingPermissions()` | |
-| | `approvals.approve` via `/v1/cep` | `POST` | `permissionApi.approvePermission()` | |
-| | `approvals.reject` via `/v1/cep` | `POST` | `permissionApi.rejectPermission()` | |
-| **`chat/`** | `/v1/chat/completions` | `POST` | `chatApi.createCompletion()` / `streamCompletion()` | `useChatStore` |
-| | `/v1/chat/context_telemetry` | `GET` | `chatApi.getContextTelemetry()` | |
-| | `/v1/chat/cancel` | `POST` | `chatApi.cancelStream()` | |
-| | `/v1/chat/skip-reasoning` | `POST` | `chatApi.skipReasoning()` | |
-| **`models/`** | `/v1/models` | `GET` | `modelsApi.getListV1()` | `useModelsStore` |
-| | `/v1/models/installed` | `GET` | `modelsApi.getInstalled()` | |
-| | `/models/available` | `GET` | `modelsApi.getAvailable()` | |
-| | `/hardware` | `GET` | `modelsApi.getHardware()` | |
-| | `/models/load` | `POST` | `modelsApi.loadModel()` | |
-| | `/models/download` | `POST` | `modelsApi.downloadModel()` | |
-| | `/api/tags` | `GET` | `modelsApi.getTags()` | |
-| | `/api/pull` | `POST` | `modelsApi.pullModel()` | |
-| | `/v1/models/{id}/inspect_raw_header` | `GET` | `modelsApi.inspectHeader()` | |
-| | `/v1/models/{id}` | `DELETE` | `modelsApi.deleteModel()` | |
-| **`inference/`** | `/v1/system/gguf_config` | `GET` / `POST` | `inferenceApi.getGguf()` / `saveGguf()` | `useInferenceStore` |
-| | `/v1/system/onnx_config` | `GET` / `POST` | `inferenceApi.getOnnx()` / `saveOnnx()` | |
-| | `/v1/hardware/calibrate` | `POST` | `inferenceApi.calibrateHardware()` | |
-| **`llm-optimization/`**| `/v1/optimization/status` | `GET` | `optimizationApi.getStatus()` | `useOptimizationStore` |
-| | `/v1/optimization/update` | `POST` | `optimizationApi.update()` | |
-| **`storage/`** | `/v1/system/storage/temp_media` | `GET` | `storageApi.getTempMediaStatus()` | `useStorageStore` |
-| | `/v1/system/storage/temp_media/clean` | `POST` | `storageApi.cleanTempMedia()` | |
-| | `/v1/system/storage/settings` | `GET` / `POST` | `storageApi.getStorageSettings()` / `updateStorageSettings()` | |
-| **`fs/`** | `/v1/fs/read` | `POST` | `fsApi.readFile()` | `useFsStore` |
-| | `/v1/fs/write` | `POST` | `fsApi.writeFile()` | |
-| | `/v1/fs/list` | `POST` | `fsApi.listDir()` | |
-| | `/v1/fs/delete` | `POST` | `fsApi.deletePath()` | |
-| | `/v1/fs/rename` | `POST` | `fsApi.renamePath()` | |
-| | `/v1/fs/copy` | `POST` | `fsApi.copyPath()` | |
-| | `/v1/fs/mkdir` | `POST` | `fsApi.createDir()` | |
-| | `/v1/fs/pick_folder` | `POST` | `fsApi.pickFolder()` | |
-| | `/v1/workspace` | `GET` / `POST` | `fsApi.getWorkspace()` / `setWorkspace()` | |
-| **`audio/`** | `/v1/audio/speech` | `POST` | `audioApi.speech()` | `useAudioStore` |
-| | `/v1/audio/transcriptions` | `POST` | `audioApi.transcriptions()` | |
-| | `/v1/audio/execute` | `POST` | `audioApi.execute()` | |
-| **`memory/`** | `/v1/embeddings` | `POST` | `memoryApi.generateEmbeddings()` | `useMemoryStore` |
-| | `/v1/ingest` | `POST` | `memoryApi.ingest()` | |
-| | `/v1/ingest/file` | `POST` | `memoryApi.ingestFile()` | |
-| **`control/`** | `/v1/cel/execute` | `POST` | `controlApi.executeCel()` | `useControlStore` |
-| | `/v1/benchmark/run` | `POST` | `controlApi.runBenchmark()` | |
+| Folder | Direct routes | CEP methods |
+|---|---|---|
+| [`system/`](engine/system/) | `/health` | `system.info`, `system.live`, `system.ps`, `system.plan`, `system.exec`, `system.audit` and `system.update_check` ([maintenance.ts](engine/system/maintenance.ts)) |
+| [`config/`](engine/config/) | | `config.get`, `config.set` (shared by `permission/`, `inference/`, `llm-optimization/`, `models/`) |
+| [`permission/`](engine/permission/) | | `tokens.list/create/revoke`, `approvals.list/approve/reject` |
+| [`chat/`](engine/chat/) | `/v1/chat/completions` (SSE) | `chat.cancel`, `chat.skip_reasoning`, `chat.telemetry`, `chat.import_app` ([importApp.ts](engine/chat/importApp.ts)), `context.*`, `memory.*` (history) |
+| [`chat-memory/`](engine/chat-memory/) | | `kv.status/delete/clear`, `config.set` (section `kv`) |
+| [`models/`](engine/models/) | `/v1/models`, `/api/tags` | `models.list/load/remove/inspect/download`, `models.embedding_room` ([embeddingRoom.ts](engine/models/embeddingRoom.ts)), `fs.read` (metadata files) |
+| [`inference/`](engine/inference/) | | `config.get/set` (sections `gguf`, `onnx`) |
+| [`llm-optimization/`](engine/llm-optimization/) | | `config.get/set` (section `optimization`) |
+| [`storage/`](engine/storage/) | | `storage.status`, `storage.clean` |
+| [`fs/`](engine/fs/) | | `fs.*`, `workspace.get/set`; the project's agent files `workspace.index/item/memory/remember/forget` ([projectAgent.ts](engine/fs/projectAgent.ts)) |
+| [`audio/`](engine/audio/) | `/v1/audio/speech`, `/v1/audio/transcriptions` | `audio.voices`, `audio.languages` |
+| [`memory/`](engine/memory/) | `/v1/embeddings`, `/v1/ingest` | |
+| [`notes/`](engine/notes/) | | `notes.list/create/confirm/pin/invalidate/move` |
+| [`tools/`](engine/tools/) | | `tools.*`, `chat.tools`, `chat.set_tools` (section 5) |
+| [`automation/`](engine/automation/) | | `flows.list/get/validate/save/remove/enable/disable/run/rerun_from/runs/run_get/schema` (Automation's methods, served at the same `/v1/cep`) |
+| [`prompts/`](engine/prompts/) | | `prompts.list/get/set/reset/history` |
 
 ---
 
-## 5. The Unified Tools Subsystem (`src/api/engine/tools/`)
+## 5. Tools subsystem (`src/api/engine/tools/`)
 
-All Tool, Agent, Skill, Plugin, and Dynamic Execution routes (from `routes.rs:50-84`) are organized in `src/api/engine/tools/`:
+One owner per action; the skills, plugins, MCP and components facades delegate to them.
 
-```text
-src/api/engine/tools/
-├── 📁 session/                  # Lines 50–53: Chat Session Tools Governance
-│   ├── session-tools.endpoints.ts # /v1/tools, /v1/chat/{session_id}/tools
-│   ├── session-tools.types.ts
-│   ├── session-tools.api.ts     # sessionToolsApi.getAllTools(), getSessionTools(), updateSessionTools()
-│   ├── session-tools.store.ts   # useSessionToolsStore
-│   └── index.ts
-│
-├── 📁 skills/                   # Lines 54–60: WASM Skills & Agents
-│   ├── skills.endpoints.ts      # /v1/skills/list, /install, /remove, /cache
-│   ├── skills.types.ts
-│   ├── skills.api.ts            # skillsApi.listSkills(), installSkill(), removeSkill(), listCache(), clearCache()
-│   ├── skills.store.ts          # useSkillsStore
-│   └── index.ts
-│
-├── 📁 plugins/                  # Lines 61–67: Engine Plugins
-│   ├── plugins.endpoints.ts     # /v1/plugins/list, /install, /remove, /cache
-│   ├── plugins.types.ts
-│   ├── plugins.api.ts            # pluginsApi.listPlugins(), installPlugin(), removePlugin(), listCache(), clearCache()
-│   ├── plugins.store.ts         # usePluginsStore
-│   └── index.ts
-│
-├── 📁 mcp/                      # Lines 68–74: Model Context Protocol (MCP)
-│   ├── mcp.endpoints.ts         # /v1/mcp/list, /install, /remove, /cache
-│   ├── mcp.types.ts
-│   ├── mcp.api.ts            # mcpApi.listMcp(), installMcp(), removeMcp(), listCache(), clearCache()
-│   ├── mcp.store.ts         # useMcpStore
-│   └── index.ts
-│
-├── 📁 components/               # Lines 75–84: Dashboard Components & Dynamic Execution
-│   ├── components.endpoints.ts  # /api/components/*, /v1/execute/{comp}/{func}
-│   ├── components.types.ts
-│   ├── components.api.ts        # componentsApi.listComponents(), getSettings(), updateSettings(), getFiles(), getFile(), updateFile(), clearCache(), executeDynamic()
-│   ├── components.store.ts      # useComponentsStore
-│   └── index.ts
-│
-├── tools.store.ts               # useToolsStore (Aggregates counts & global tools health)
-└── index.ts                     # Master barrel re-exporting all tool APIs
-```
+| File | CEP methods |
+|---|---|
+| [`catalog.ts`](engine/tools/catalog.ts) | `tools.list` |
+| [`lifecycle.ts`](engine/tools/lifecycle.ts) | `tools.install`, `tools.remove` (as tasks) |
+| [`settings.ts`](engine/tools/settings.ts) | `tools.get_settings`, `tools.set_settings` |
+| [`cache.ts`](engine/tools/cache.ts) | `tools.cache`, `tools.clear_cache` |
+| [`files.ts`](engine/tools/files.ts) | `tools.files`, `tools.read_file`, `tools.write_file`, `tools.open_file` |
+| [`execution.ts`](engine/tools/execution.ts) | `tools.call` |
+| [`discover.ts`](engine/tools/discover.ts) | `tools.discover` |
+| [`session/`](engine/tools/session/) | `chat.tools`, `chat.set_tools` |
 
 ---
 

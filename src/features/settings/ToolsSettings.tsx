@@ -11,6 +11,7 @@ import { ToolComponent, ToolInspectorModal } from './ToolInspectorModal';
 import { CustomDropdown, DropdownOption } from '../../components/ui/dropdown/CustomDropdown';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
+import { ToolMatchTester } from './ToolMatchTester';
 
 const PAGE_SIZE = 20;
 
@@ -237,6 +238,7 @@ export function ToolsSettings({
 
     return (
         <div className="space-y-6 select-none pb-12">
+            {!hideToolbar && <ToolMatchTester />}
             {/* Unified Responsive Toolbar: Tabs + Search + Actions (hidden when embedded in catalogue) */}
             {!hideToolbar && (
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 p-1.5 bg-[var(--bg-secondary)]/40 border border-[var(--border-color)]/70 rounded-2xl shadow-sm">

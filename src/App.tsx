@@ -15,6 +15,7 @@ import { DesktopLifecycleBootstrap } from './core/DesktopLifecycleBootstrap';
 import { bundledWorkspaceRoutes } from './extensions/bundled';
 import { ApiWorkspace } from './features/api/ApiWorkspace';
 import { ToolsWorkspace } from './features/tools';
+import { AutomationWorkspace } from './features/automation';
 import { AssetPreviewModal } from './features/library';
 import { ComponentShowcase } from './components/ComponentShowcase';
 import { ToolkitWorkspace } from './features/extensions/ToolkitWorkspace';
@@ -190,6 +191,8 @@ function MainAppContent() {
                         <ApiWorkspace />
                     ) : activeView === 'tools' ? (
                         <ToolsWorkspace />
+                    ) : activeView === 'automation' ? (
+                        <AutomationWorkspace />
                     ) : activeView === 'library' ? (
                         <ExtensionWorkspaceHost {...bundledWorkspaceRoutes.library} />
                     ) : activeView === 'extensions' ? (

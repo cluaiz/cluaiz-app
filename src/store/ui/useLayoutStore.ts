@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { ExtensionRoute } from '../../extensions/routes';
+import type { MainViewId } from '../../core/router';
 
 export type SidebarPosition = 'left' | 'right';
 
@@ -43,7 +44,7 @@ interface LayoutState {
     setDateRange: (range: DateRange | undefined) => void;
     activeChatData: ActiveChatData | null;
     setActiveChatData: (data: ActiveChatData | null) => void;
-    activeView: 'chat' | 'notebook' | 'settings' | 'tools' | 'apis' | 'toolkit' | 'library' | 'components' | 'extensions';
+    activeView: MainViewId;
     setActiveView: (view: LayoutState['activeView']) => void;
     activeExtension: ExtensionRoute | null;
     setActiveExtension: (route: ExtensionRoute | null) => void;

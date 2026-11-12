@@ -31,6 +31,13 @@ Promise<{status: string; content: string; path: string; message?: string}> {
   return {status: 'success', content: value.text, path: value.path};
 }
 
+/** Asks the Engine machine's own file editor to open a file of the tool (owner only). */
+export async function openToolFile(kind: string, name: string, path: string, signal?: AbortSignal): Promise<void> {
+  if (!isPackageRelativePath(path)) throw new ApiError('Choose a relative path inside this tool package', 400, 'INVALID_TOOL_FILE_PATH', 'tools.open_file');
+  const value = await callCep<unknown>('tools.open_file', {...toolTarget(kind, name), path}, {signal});
+  if (!object(value) || value.opened !== true) throw invalid('tools.open_file');
+}
+
 /** Engine chooses the main file (SKILL.md or package.json). Arbitrary file writes are not exposed. */
 export async function writeToolFile(payload: UpdateComponentFilePayload) {
   if (!object(payload) || typeof payload.content !== 'string'
