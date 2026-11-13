@@ -187,8 +187,8 @@ class SoundManager {
         const store = useNotificationStore.getState();
         if (!store.desktopPush) return;
 
-        // Only send desktop push if window is hidden / backgrounded
-        if (typeof document !== 'undefined' && !document.hidden) return;
+        // Only when the App is out of sight: another tab, minimised, or another window on top
+        if (typeof document !== 'undefined' && !document.hidden && document.hasFocus()) return;
 
         if (Notification.permission === 'granted') {
             try {

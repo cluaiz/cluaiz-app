@@ -108,7 +108,7 @@ export function ToolPermissionsPanel({ kind, name }: { kind: string; name: strin
                                 <span className="text-xs font-semibold text-[var(--text-primary)]">{permission.title}</span>
                                 <span className="text-[9px] font-mono text-[var(--text-muted)]">{permission.kind}</span>
                                 {permission.sensitive && (
-                                    <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/30">
+                                    <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-[var(--accent-color)]/10 text-[var(--accent-color)] border border-[var(--accent-color)]/30">
                                         sensitive
                                     </span>
                                 )}
@@ -158,7 +158,7 @@ export function ToolPermissionsPanel({ kind, name }: { kind: string; name: strin
                                     <span className="text-[9px] font-mono text-[var(--text-muted)]">{setting.required ? 'required' : 'optional'}</span>
                                     <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border ${
                                         setting.set
-                                            ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                                            ? 'bg-[var(--accent-color)]/10 text-[var(--accent-color)] border-[var(--accent-color)]/30'
                                             : 'bg-white/[0.04] text-[var(--text-muted)] border-[var(--border-color)]/50'
                                     }`}>
                                         {setting.in_system ? 'from system environment' : setting.set ? 'saved' : 'not set'}

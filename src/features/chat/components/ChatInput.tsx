@@ -8,6 +8,13 @@ import { useEngineStore } from '../../../store/engine/useEngineStore';
 import { useConnectionStore } from '../../../store/engine/useConnectionStore';
 import { useLayoutStore } from '../../../store/ui/useLayoutStore';
 import { navigateTo } from '../../../core/router';
+import { toolkitSectionUrl, type ToolkitSectionId } from '../../extensions/toolkitNavigation';
+
+function openToolkitSection(section: ToolkitSectionId) {
+    window.history.pushState(window.history.state, '', toolkitSectionUrl(section, window.location.href));
+    navigateTo({ view: 'toolkit' });
+    window.dispatchEvent(new CustomEvent('toolkit-section-change', { detail: { section } }));
+}
 import { componentsApi } from '../../../api/engine/tools/components/components.api';
 import type { ToolKind } from '../../../api/engine/tools/catalog';
 import { useChatModels } from '../hooks/useChatModels';
@@ -20,6 +27,7 @@ import { VoiceInputControl, VoiceInputHandle, VoiceMode } from '../../../compone
 import { extractBaseName } from '../../../utils/filePath';
 import { AttachmentStagingDeck, StagedAttachment } from './AttachmentStagingDeck';
 import { EngineReconnectNotice } from './EngineReconnectNotice';
+import { ApprovalTabs, usePendingApprovals } from './ApprovalTabs';
 import { serializeStagedAttachments } from '../utils/attachmentSerializer';
 import { chatComposerOptions } from '../utils/chatRequest';
 import { useChatPreviewOptions, type ChatPreviewOptionsRef } from '../hooks/useChatPreviewOptions';
@@ -226,6 +234,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     }>>([]);
 
     const pendingQueueRef = useRef(pendingQueue);
+    // Tool calls of this chat waiting for the user's yes or no, shown as cards on the input
+    const pendingApprovals = usePendingApprovals();
     pendingQueueRef.current = pendingQueue;
 
     const handleSendMessageRef = useRef(handleSendMessage);
@@ -929,7 +939,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                             <button
                                 onClick={() => {
                                     setIsAttachOpen(false);
-                                    navigateTo({ view: 'tools' });
+                                    openToolkitSection('skills');
                                 }}
                                 className="w-full flex items-center justify-between px-2 py-1.5 text-xs font-medium text-[var(--text-muted)] hover:text-[var(--accent-color)] hover:bg-[var(--bg-secondary)] transition-colors rounded-md text-left cursor-pointer"
                             >
@@ -1030,7 +1040,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                             <button
                                 onClick={() => {
                                     setIsAttachOpen(false);
-                                    navigateTo({ view: 'tools' });
+                                    openToolkitSection('plugins');
                                 }}
                                 className="w-full flex items-center justify-between px-2 py-1.5 text-xs font-medium text-[var(--text-muted)] hover:text-[var(--accent-color)] hover:bg-[var(--bg-secondary)] transition-colors rounded-md text-left cursor-pointer"
                             >
@@ -1082,7 +1092,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                             <button
                                 onClick={() => {
                                     setIsAttachOpen(false);
-                                    navigateTo({ view: 'tools' });
+                                    openToolkitSection('mcp');
                                 }}
                                 className="w-full flex items-center justify-between px-2 py-1.5 text-xs font-medium text-[var(--text-muted)] hover:text-[var(--accent-color)] hover:bg-[var(--bg-secondary)] transition-colors rounded-md text-left cursor-pointer"
                             >
@@ -2149,9 +2159,10 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             {/* Top Fade-Out Shadow Effect */}
 
 
-            {/* Attached Tabs Stack: Replying & Pending Queue (Flush Inset within Input Shoulders) */}
-            {(replyingTo || pendingQueue.length > 0) && (
+            {/* Attached Tabs Stack: Approvals, Replying & Pending Queue (Flush Inset within Input Shoulders) */}
+            {(replyingTo || pendingQueue.length > 0 || pendingApprovals.length > 0) && (
                 <div className="mx-5 -mb-[1px] z-20 relative flex flex-col gap-1">
+                    <ApprovalTabs approvals={pendingApprovals} />
                     {/* [P1, P2, P4, P5, P6, P7] Attached Replying Tab */}
                     {replyingTo && (
                         <div className="w-full flex items-center justify-between px-3.5 py-1.5 rounded-t-[14px] bg-[var(--bg-secondary)] border border-b-0 border-[var(--border-color)] text-xs text-[var(--text-secondary)] shadow-sm select-none">
@@ -2164,7 +2175,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                                 <span className="text-[10px] uppercase font-bold text-[var(--accent-color)] tracking-wider shrink-0">
                                     Reply
                                 </span>
-                                <span className="text-zinc-500 shrink-0 select-none">|</span>
+                                <span className="text-[var(--text-muted)] shrink-0 select-none">|</span>
                                 <span className="truncate text-[12px] font-medium text-[var(--text-primary)] group-hover/reply:underline underline-offset-2">
                                     {replyingTo.text}
                                 </span>
@@ -2176,7 +2187,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                                         e.stopPropagation();
                                         setReplyingTo?.(null);
                                     }}
-                                    className="text-zinc-500 hover:text-red-400 transition-colors cursor-pointer bg-transparent border-0 p-0 flex items-center justify-center"
+                                    className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer bg-transparent border-0 p-0 flex items-center justify-center"
                                     title="Cancel reply"
                                 >
                                     <X className="w-3.5 h-3.5" />
@@ -2192,7 +2203,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                             className="w-full flex items-center justify-between px-3.5 py-1.5 rounded-t-[14px] bg-[var(--bg-secondary)] border border-b-0 border-[var(--border-color)] text-xs text-[var(--text-secondary)] shadow-sm select-none"
                         >
                             <div className="flex items-center gap-2 min-w-0 flex-1 mr-3">
-                                <CornerDownRight className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+                                <CornerDownRight className="w-3.5 h-3.5 text-[var(--text-secondary)] shrink-0" />
                                 <span className="truncate text-[12px] font-medium text-[var(--text-primary)]">
                                     {item.text || 'Attached prompt'}
                                 </span>
@@ -2201,7 +2212,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                                 <button
                                     type="button"
                                     onClick={() => handleSteer(item)}
-                                    className="flex items-center gap-1 text-[11px] font-medium text-zinc-400 hover:text-white transition-colors cursor-pointer bg-transparent border-0 p-0"
+                                    className="flex items-center gap-1 text-[11px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors cursor-pointer bg-transparent border-0 p-0"
                                     title="Steer"
                                 >
                                     <span>↳ Steer</span>
@@ -2209,7 +2220,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                                 <button
                                     type="button"
                                     onClick={() => handleEditQueued(item)}
-                                    className="text-zinc-500 hover:text-[var(--accent-color)] transition-colors cursor-pointer bg-transparent border-0 p-0"
+                                    className="text-[var(--text-muted)] hover:text-[var(--accent-color)] transition-colors cursor-pointer bg-transparent border-0 p-0"
                                     title="Edit prompt"
                                 >
                                     <Pencil className="w-3.5 h-3.5" />
@@ -2217,7 +2228,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                                 <button
                                     type="button"
                                     onClick={() => handleRemoveQueued(item.id)}
-                                    className="text-zinc-500 hover:text-red-400 transition-colors cursor-pointer bg-transparent border-0 p-0"
+                                    className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer bg-transparent border-0 p-0"
                                     title="Cancel"
                                 >
                                     <Trash2 className="w-3.5 h-3.5" />
