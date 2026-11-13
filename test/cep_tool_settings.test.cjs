@@ -82,3 +82,29 @@ test('settings/cache permission and approval failures preserve domain details',a
         }
     }
 });
+
+test('permissions and the values a tool reads come from the Engine; choices must be acknowledged',async()=>{
+    const permission=on=>({kind:'network',title:'Internet',info:'Reads pages',sensitive:false,default:true,on,chosen:true,options:{access:'strict',hosts:['api.github.com']}});
+    let net=true,key=false;
+    const answer=()=>({...settings(),permissions:[permission(net),{kind:'bad'}],
+        user_settings:[{name:'GH_TOKEN',info:'A token',required:false,secret:true,set:key,in_system:false},{name:'lower',set:true}]});
+    const h=toolHarness((url,body)=>{
+        const patch=body.params.patch||{};
+        if(patch.permissions)net=patch.permissions.network;
+        if(patch.user_settings)key=patch.user_settings.GH_TOKEN!=='';
+        return reply(body,answer());
+    });
+    const read=await h.getToolSettings('skill','github');
+    assert.equal(read.permissions.length,1);assert.deepEqual(wire(read.permissions[0].options),{access:'strict',hosts:['api.github.com']});
+    assert.deepEqual(wire(read.user_settings),[{name:'GH_TOKEN',info:'A token',required:false,set:false,in_system:false}]);
+    const off=await h.setToolPermission('skill','github','network',false);
+    assert.equal(off.permissions[0].on,false);assert.deepEqual(wire(h.requests.at(-1).body.params.patch),{permissions:{network:false}});
+    const saved=await h.setToolUserSetting('skill','github','GH_TOKEN','secret-value');
+    assert.equal(saved.user_settings[0].set,true);assert.ok(!JSON.stringify(saved).includes('secret-value'));
+    await h.setToolUserSetting('skill','github','GH_TOKEN','');assert.equal(key,false);
+    const older=toolHarness((url,body)=>reply(body,settings()));
+    const plain=await older.getToolSettings('skill','owned');assert.deepEqual(wire(plain.permissions),[]);assert.deepEqual(wire(plain.user_settings),[]);
+    const ignoring=toolHarness((url,body)=>reply(body,{...settings(),permissions:[permission(true)]}));
+    await assert.rejects(ignoring.setToolPermission('skill','github','network',false),e=>e.statusText==='TOOL_SETTINGS_NOT_SAVED');
+    await assert.rejects(ignoring.setToolUserSetting('skill','github','lower-case','x'),e=>e.statusText==='INVALID_TOOL_SETTINGS_PATCH');
+});

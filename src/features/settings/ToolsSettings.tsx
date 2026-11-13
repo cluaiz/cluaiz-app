@@ -4,8 +4,9 @@ import { componentsApi, skillsApi, pluginsApi, mcpApi } from '../../api';
 import { toast } from '../../components/ui/toast';
 import { 
     Zap, Blocks, Cpu, CheckCircle2, ExternalLink, RefreshCw, Loader2, 
-    Search, X, Bot, UserCheck
+    Search, X, Bot, UserCheck, ShieldCheck
 } from 'lucide-react';
+import { ToolPermissionsPanel } from './ToolPermissionsPanel';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ToolComponent, ToolInspectorModal } from './ToolInspectorModal';
 import { CustomDropdown, DropdownOption } from '../../components/ui/dropdown/CustomDropdown';
@@ -45,6 +46,8 @@ export function ToolsSettings({
     const [selectedTool, setSelectedTool] = useState<ToolComponent | null>(null);
     const [pendingTools, setPendingTools] = useState<Record<string, boolean>>({});
     const [pendingExecTarget, setPendingExecTarget] = useState<Record<string, 'auto' | 'manual'>>({});
+    // The tool whose permissions and settings are open below its row
+    const [permissionsOf, setPermissionsOf] = useState<string | null>(null);
 
     // Fetch tools list from engine backend (100% single source of truth from tools_registry.json)
     const loadTools = useCallback(async () => {
@@ -355,9 +358,10 @@ export function ToolsSettings({
                             const isTogglePending = Boolean(pendingTools[`${tool.id}_toggle`]);
                             const isAnyPending = isExecPending || isSecPending || isTogglePending;
 
+                            const permissionsOpen = permissionsOf === `${tool.category}:${tool.id}`;
                             return (
+                                <div key={tool.id} className="space-y-1.5">
                                 <div
-                                    key={tool.id}
                                     onClick={() => setSelectedTool(tool)}
                                     className="p-4 bg-[var(--bg-secondary)]/50 hover:bg-[var(--bg-secondary)]/80 border border-[var(--border-color)] hover:border-[var(--accent-color)]/30 rounded-2xl transition-all cursor-pointer flex flex-col md:flex-row md:items-center justify-between gap-4 group"
                                 >
@@ -423,6 +427,19 @@ export function ToolsSettings({
                                         className="flex items-center gap-2.5 shrink-0 self-end md:self-center"
                                         onClick={(e) => e.stopPropagation()}
                                     >
+                                        {/* Permissions and the values the tool reads, from the Engine */}
+                                        <Button
+                                            type="button"
+                                            variant="secondary"
+                                            size="sm"
+                                            onClick={() => setPermissionsOf(permissionsOpen ? null : `${tool.category}:${tool.id}`)}
+                                            title="Permissions and settings this tool asks for"
+                                            aria-expanded={permissionsOpen}
+                                        >
+                                            <ShieldCheck size={12} />
+                                            <span className="hidden sm:inline">Permissions</span>
+                                        </Button>
+
                                         {/* Execution Mode (Auto vs Manual) */}
                                         <div 
                                             className="flex items-center p-0.5 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-xl"
@@ -480,6 +497,12 @@ export function ToolsSettings({
                                             disabled={isTogglePending}
                                         />
                                     </div>
+                                </div>
+                                {permissionsOpen && (
+                                    <div className="ml-4 md:ml-14">
+                                        <ToolPermissionsPanel kind={tool.category} name={tool.id} />
+                                    </div>
+                                )}
                                 </div>
                             );
                         })}
