@@ -1,5 +1,12 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
+import {
+    Plus as LucidePlus,
+    MoreVertical as LucideMoreVertical,
+    ChevronLeft as LucideChevronLeft,
+    ChevronRight as LucideChevronRight,
+    X as LucideX
+} from 'lucide-react';
 import { useLayoutStore } from '../../store/ui/useLayoutStore';
 import { useThemeStore } from '../../store/ui/useThemeStore';
 import { useChatStore } from '../../store/chat/useChatStore';
@@ -11,11 +18,11 @@ import { pushViewRoute, pushChatRoute } from '../../core/router';
 import { ApiSidebar } from '../../features/api/components/ApiSidebar';
 import { ToolkitSidebar } from '../../features/extensions/ToolkitSidebar';
 import { useToolkitNavStore } from '../../features/extensions/toolkitStore';
+import { Tabs } from '../ui/Tabs';
 import { ChatRibbon } from '../ui/ChatRibbon';
 import { SwipeableChatCard } from './SwipeableChatCard';
 import { ChatContextMenu } from '../ui/context-menu/ChatContextMenu';
 import { LabelModal } from '../ui/LabelModal';
-import { EditChatModal } from '../ui/EditChatModal';
 import { CluaizLogo } from '../ui/CluaizLogo';
 
 interface DockIconButtonProps {
@@ -88,17 +95,14 @@ const ExpandSidebarButton: React.FC<{
 const MenuButton: React.FC<{
     onClick: (e: React.MouseEvent) => void;
 }> = ({ onClick }) => {
-    const { ref: iconRef, triggerProps } = useIconHover();
     return (
         <Tooltip title="Menu" position="bottom">
             <button
                 type="button"
                 onClick={onClick}
-                onMouseEnter={triggerProps.onMouseEnter}
-                onMouseLeave={triggerProps.onMouseLeave}
-                className="w-7 h-7 rounded-lg hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer flex items-center justify-center shrink-0"
+                className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[var(--bg-tertiary)] text-[var(--text-primary)] transition-colors active:scale-95 cursor-pointer shrink-0"
             >
-                <Icons.MoreVertical ref={iconRef} className="w-4 h-4" />
+                <LucideMoreVertical className="w-4 h-4 text-[var(--text-primary)]" strokeWidth={2.2} />
             </button>
         </Tooltip>
     );
@@ -108,20 +112,17 @@ const CloseSidebarButton: React.FC<{
     sidebarPosition: 'left' | 'right';
     onClick: () => void;
 }> = ({ sidebarPosition, onClick }) => {
-    const { ref: iconRef, triggerProps } = useIconHover();
     return (
         <Tooltip title="Close Sidebar" position="bottom">
             <button
                 type="button"
                 onClick={onClick}
-                onMouseEnter={triggerProps.onMouseEnter}
-                onMouseLeave={triggerProps.onMouseLeave}
-                className="w-7 h-7 rounded-lg hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer flex items-center justify-center shrink-0"
+                className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[var(--bg-tertiary)] text-[var(--text-primary)] transition-colors active:scale-95 cursor-pointer shrink-0"
             >
                 {sidebarPosition === 'left' ? (
-                    <Icons.ChevronLeft ref={iconRef} className="w-4 h-4" />
+                    <LucideChevronLeft className="w-4 h-4 text-[var(--text-primary)]" strokeWidth={2.2} />
                 ) : (
-                    <Icons.ChevronRight ref={iconRef} className="w-4 h-4" />
+                    <LucideChevronRight className="w-4 h-4 text-[var(--text-primary)]" strokeWidth={2.2} />
                 )}
             </button>
         </Tooltip>
@@ -139,6 +140,8 @@ interface MockChat {
     time: string;
     message: string;
     tags: string[];
+    model?: string;
+    modelProvider?: string;
     unread: number;
     pinned: boolean;
     pinnedAt?: number;
@@ -246,6 +249,13 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                 previewMsg = session.lastMessagePreview;
             }
 
+            const lastAssistantMsg = session.messages
+                ? [...session.messages].reverse().find(m => m.sender === 'assistant' && m.model)
+                : null;
+            const chatModel = session.model || lastAssistantMsg?.model;
+            // Set when the message was sent, from the Engine's providers; never guessed from a model name.
+            const chatProvider = session.modelProvider || 'local';
+
             const displayName = session.title?.trim() || session.lastMessagePreview?.slice(0, 24) || 'New Chat';
             return {
                 id: session.id,
@@ -254,6 +264,8 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                 time: timeStr,
                 message: previewMsg,
                 tags: session.tags || [],
+                model: chatModel,
+                modelProvider: chatProvider,
                 unread: session.unread || 0,
                 pinned: session.pinned || false,
                 pinnedAt: session.pinnedAt,
@@ -347,6 +359,32 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
         }
     }, [sessions]);
 
+    // Filter tabs: standard categories + dynamic user tags (only show tags actively assigned to >=1 chat)
+    const filterTabs = useMemo(() => {
+        const hasPinnedChats = chats.some(c => c.pinned && !c.archived);
+        const baseTabs = hasPinnedChats ? ['All', 'Pinned', 'Old', 'Archive'] : ['All', 'Old', 'Archive'];
+
+        // Tags actively assigned to non-archived chats
+        const activeChatTags = new Set(
+            chats
+                .filter(c => !c.archived)
+                .flatMap(c => (c.tags || []).map(t => t.split(':')[0].toLowerCase()))
+        );
+
+        const userTags = poolRibbons
+            .map(t => t.split(':')[0])
+            .filter(t => Boolean(t) && activeChatTags.has(t.toLowerCase()) && !baseTabs.some(b => b.toLowerCase() === t.toLowerCase()));
+
+        return [...baseTabs, ...Array.from(new Set(userTags))];
+    }, [poolRibbons, chats]);
+
+    // Gracefully reset filter to 'All' if active filter tab is no longer in filterTabs
+    useEffect(() => {
+        if (!filterTabs.some(t => t.toLowerCase() === activeFilter.toLowerCase())) {
+            setActiveFilter('All');
+        }
+    }, [filterTabs, activeFilter]);
+
     // Context Menu State
     const [contextMenu, setContextMenu] = useState<{
         x: number;
@@ -358,13 +396,8 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
     const [isLabelModalOpen, setIsLabelModalOpen] = useState(false);
     const [labelTargetId, setLabelTargetId] = useState<string | null>(null);
 
-    // Edit Modal State
-    const [editModalData, setEditModalData] = useState<{
-        isOpen: boolean;
-        chatId: string;
-        initialName: string;
-        initialEmoji: string;
-    } | null>(null);
+    // Inline Edit Chat State
+    const [editingChatId, setEditingChatId] = useState<string | null>(null);
 
     // 🚀 Collapsed Sidebar Floating Flyout State
     const [isFlyoutOpen, setIsFlyoutOpen] = useState(false);
@@ -389,7 +422,7 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
 
     const handleFlyoutLeave = () => {
         // Guard: Do not auto-close flyout if user is interacting with context menu or modals
-        if (contextMenu !== null || isLabelModalOpen || editModalData?.isOpen) {
+        if (contextMenu !== null || isLabelModalOpen || editingChatId !== null) {
             return;
         }
         if (flyoutCloseTimerRef.current) clearTimeout(flyoutCloseTimerRef.current);
@@ -402,7 +435,7 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
         if (!isFlyoutOpen) return;
         const handleClickOutside = (e: MouseEvent) => {
             // Guard: Do not close flyout if clicking inside context menu or child modals
-            if (contextMenu !== null || isLabelModalOpen || editModalData?.isOpen) {
+            if (contextMenu !== null || isLabelModalOpen || editingChatId !== null) {
                 return;
             }
             if (flyoutRef.current && !flyoutRef.current.contains(e.target as Node)) {
@@ -415,8 +448,8 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                     setContextMenu(null);
                 } else if (isLabelModalOpen) {
                     setIsLabelModalOpen(false);
-                } else if (editModalData?.isOpen) {
-                    setEditModalData(null);
+                } else if (editingChatId) {
+                    setEditingChatId(null);
                 } else {
                     setIsFlyoutOpen(false);
                 }
@@ -428,7 +461,7 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
             document.removeEventListener('mousedown', handleClickOutside);
             document.removeEventListener('keydown', handleKeyDown);
         };
-    }, [isFlyoutOpen, contextMenu, isLabelModalOpen, editModalData]);
+    }, [isFlyoutOpen, contextMenu, isLabelModalOpen, editingChatId]);
 
     // ✅ Select Mode State
     const [selectMode, setSelectMode] = useState(false);
@@ -677,6 +710,23 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                 </div>
             </div>
 
+            {/* Horizontal Filter Tabs: All, Pinned, Old, Archive + User custom labels */}
+            <div className={`mb-1 ${inFlyout ? 'px-3' : 'px-4'}`}>
+                <Tabs
+                    variant="tags"
+                    bordered={false}
+                    items={filterTabs}
+                    value={activeFilter}
+                    onChange={(tab) => {
+                        if (activeFilter.toLowerCase() === tab.toLowerCase()) {
+                            setActiveFilter('All');
+                        } else {
+                            setActiveFilter(tab);
+                        }
+                    }}
+                />
+            </div>
+
             {/* Chat list viewport */}
             <div className={`flex-1 overflow-y-auto py-1 space-y-3 custom-scrollbar ${inFlyout ? 'px-1' : 'px-2'}`}>
                 {groupedChats.map((group) => (
@@ -698,6 +748,12 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                                     selectMode={selectMode}
                                     isStreaming={streamingSessionId === chat.id}
                                     selectedIds={selectedIds}
+                                    isEditing={editingChatId === chat.id}
+                                    onSaveTitle={(newTitle) => {
+                                        updateSession(chat.id, s => ({ ...s, title: newTitle }));
+                                        setEditingChatId(null);
+                                    }}
+                                    onCancelEdit={() => setEditingChatId(null)}
                                     onSelectChat={() => {
                                         useLayoutStore.getState().setActiveView('chat');
                                         pushViewRoute('chat');
@@ -842,9 +898,9 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                                             pushViewRoute('chat');
                                             document.dispatchEvent(new CustomEvent('start-new-chat'));
                                         }}
-                                        className="p-1.5 rounded hover:bg-[var(--bg-tertiary)] text-[var(--text-primary)] transition-colors active:scale-95 cursor-pointer"
+                                        className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[var(--bg-tertiary)] text-[var(--text-primary)] transition-colors active:scale-95 cursor-pointer shrink-0"
                                     >
-                                        <Icons.Plus className="w-4 h-4" />
+                                        <LucidePlus className="w-4 h-4 text-[var(--text-primary)]" strokeWidth={2.2} />
                                     </button>
                                 </Tooltip>
                             )}
@@ -1072,15 +1128,8 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                         onClose={() => setContextMenu(null)}
                         onEdit={() => {
                             if (contextMenu?.chatId) {
-                                const chat = chats.find(c => c.id === contextMenu.chatId);
-                                if (chat) {
-                                    setEditModalData({
-                                        isOpen: true,
-                                        chatId: chat.id,
-                                        initialName: chat.name,
-                                        initialEmoji: chat.avatar
-                                    });
-                                }
+                                setEditingChatId(contextMenu.chatId);
+                                setContextMenu(null);
                             }
                         }}
                         onPin={() => {
@@ -1122,17 +1171,6 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                         onApply={handleApplyLabel}
                         onCreate={handleCreateLabel}
                         onDelete={handleDeleteLabel}
-                    />
-
-                    <EditChatModal
-                        isOpen={editModalData?.isOpen || false}
-                        chatId={editModalData?.chatId || null}
-                        initialName={editModalData?.initialName || ''}
-                        initialEmoji={editModalData?.initialEmoji || ''}
-                        onClose={() => setEditModalData(null)}
-                        onSave={(id, name, emoji) => {
-                            updateSession(id, c => ({ ...c, title: name, avatar: emoji }));
-                        }}
                     />
 
                     {/* Floating Flyout Drawer for Collapsed Sidebar */}
@@ -1180,18 +1218,18 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                                                     document.dispatchEvent(new CustomEvent('start-new-chat'));
                                                     setIsFlyoutOpen(false);
                                                 }}
-                                                className="p-1.5 rounded-lg hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
+                                                className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[var(--bg-tertiary)] text-[var(--text-primary)] transition-colors active:scale-95 cursor-pointer shrink-0"
                                             >
-                                                <Icons.Plus className="w-4 h-4" />
+                                                <LucidePlus className="w-4 h-4 text-[var(--text-primary)]" strokeWidth={2.2} />
                                             </button>
                                         </Tooltip>
                                     )}
                                     <Tooltip title="Close" position="bottom">
                                         <button
                                             onClick={() => setIsFlyoutOpen(false)}
-                                            className="p-1.5 rounded-lg hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
+                                            className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[var(--bg-tertiary)] text-[var(--text-primary)] transition-colors active:scale-95 cursor-pointer shrink-0"
                                         >
-                                            <Icons.X className="w-4 h-4" />
+                                            <LucideX className="w-4 h-4 text-[var(--text-primary)]" strokeWidth={2.2} />
                                         </button>
                                     </Tooltip>
                                 </div>

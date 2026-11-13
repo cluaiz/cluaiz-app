@@ -141,7 +141,7 @@ export const MultiLevelDropdown: React.FC<MultiLevelDropdownProps> = ({
           setIsOpen(prev => !prev);
           if (isOpen) setActiveCategoryId(null);
         }}
-        className={`h-8 ${iconOnly ? 'w-8 px-0 justify-center' : 'px-2.5 gap-1.5'} text-xs transition-colors cursor-pointer shrink-0 ${
+        className={`h-8 ${iconOnly ? 'w-8 !px-0 justify-center' : 'px-2.5 gap-1.5'} text-xs transition-colors cursor-pointer shrink-0 ${
           isOpen || activeCount > 0
             ? 'border-[var(--accent-color)] text-[var(--text-primary)] bg-[var(--accent-color)]/10 font-semibold'
             : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'

@@ -1,7 +1,15 @@
 /** Public metadata is never sent through the authenticated Engine client. */
 const DAY_MS = 24 * 60 * 60 * 1000;
 const MIN_REFRESH_MS = 60 * 1000;
-const MAX_BYTES = 8 * 1024 * 1024;
+const MAX_BYTES = 16 * 1024 * 1024;
+const SOURCES = ['cluaiz.com', 'raw.githubusercontent.com', 'models.dev'];
+declare const __CLUAIZ_MODEL_REGISTRY_ORIGIN__: string;
+/** Vite supplies a loopback override only during explicitly configured local development. */
+export const MODEL_REGISTRY_ORIGIN = typeof __CLUAIZ_MODEL_REGISTRY_ORIGIN__ === 'string'
+  ? __CLUAIZ_MODEL_REGISTRY_ORIGIN__ : 'https://cluaiz.com';
+const MODELS_PATH = '/api/v1/registry/models';
+/** The only source read with a query (family and model) */
+const README_SOURCE = `${MODEL_REGISTRY_ORIGIN}${MODELS_PATH}/readme`;
 const TIMEOUT_MS = 15000;
 const PREFIX = 'cluaiz_public_catalogue_v1:';
 const MAX_CACHE_CHARS = 8 * 1024 * 1024;
@@ -57,16 +65,23 @@ async function readJson(response: Response) {
   } finally { await reader.cancel().catch(() => {}); reader.releaseLock(); }
 }
 
-/** One shared, bounded read; search/filter/render never initiate their own requests. */
-export async function readPublicCatalogue<T>(url: string, parse: (value: unknown) => T, refresh = false): Promise<CatalogueReply<T>> {
+/**
+ * One shared, bounded read; search/filter/render never initiate their own requests.
+ * `keep` reduces a large response to the part the App uses before it is saved.
+ */
+export async function readPublicCatalogue<T>(url: string, parse: (value: unknown) => T, refresh = false,
+  keep: (value: unknown) => unknown = value => value): Promise<CatalogueReply<T>> {
   const target = new URL(url);
-  if (target.protocol !== 'https:' || !['cluaiz.com', 'raw.githubusercontent.com'].includes(target.hostname)
-    || target.username || target.password || target.port || target.hash || target.search) throw new Error('Unsupported catalogue source');
+  const modelSource = target.origin === MODEL_REGISTRY_ORIGIN && [MODELS_PATH, `${MODELS_PATH}/readme`].includes(target.pathname);
+  const localModelSource = modelSource && ['http:', 'https:'].includes(target.protocol) && ['localhost', '127.0.0.1', '[::1]'].includes(target.hostname);
+  const officialSource = target.protocol === 'https:' && SOURCES.includes(target.hostname) && !target.port;
+  if ((!officialSource && !localModelSource) || target.username || target.password || target.hash
+    || (target.search && target.href.split('?')[0] !== README_SOURCE)) throw new Error('Unsupported catalogue source');
   const key = target.href, previous = storage(key), now = Date.now();
   let cached: T | undefined;
   try { if (previous.data !== undefined) cached = parse(previous.data); }
   catch { delete previous.data; previous.saved = 0; save(key, previous); }
-  if (!refresh && cached !== undefined && now - previous.saved < DAY_MS) return { data: cached, saved: previous.saved };
+  if (!refresh && cached !== undefined && now - previous.saved < (modelSource ? MIN_REFRESH_MS : DAY_MS)) return { data: cached, saved: previous.saved };
   if (now < previous.retryAt && !pending.has(key)) {
     const data = cached;
     if (data !== undefined) return { data, saved: previous.saved, warning: 'Using saved catalogue; refresh is temporarily limited.' };
@@ -89,7 +104,7 @@ export async function readPublicCatalogue<T>(url: string, parse: (value: unknown
           await response.body?.cancel();
           throw new Error(`Catalogue unavailable (HTTP ${response.status}).`);
         }
-        const data = await readJson(response); parse(data);
+        const data = keep(await readJson(response)); parse(data);
         const value = { data, saved: Date.now(), retryAt: Date.now() + MIN_REFRESH_MS };
         save(key, value); return value;
       } finally { clearTimeout(timer); }

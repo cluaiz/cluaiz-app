@@ -3,6 +3,7 @@ import { motion, PanInfo, useMotionValue, animate } from 'framer-motion';
 import { useScrollReveal } from '../../hooks/useScrollReveal';
 import { Icons } from '../animate-ui/icons';
 import { HoldButton } from '../HoldButton/HoldButton';
+import { DANGER_HOLD } from '../HoldButton/dangerHold';
 import { ChatRibbon } from '../ui/ChatRibbon';
 
 export interface ChatItemCardData {
@@ -13,9 +14,19 @@ export interface ChatItemCardData {
     message?: string;
     lastPreview?: string;
     tags?: string[];
+    model?: string;
+    modelProvider?: string;
     pinned?: boolean;
     archived?: boolean;
     status?: any;
+}
+
+/** A short tag from the model's own id (the part after a provider prefix); never guessed from known names. */
+export function formatModelTag(raw?: string): string {
+    if (!raw) return '';
+    const trimmed = raw.trim();
+    const base = trimmed.split(/[/\\:]/).pop() || trimmed;
+    return base.replace(/\.(gguf|bin|onnx)$/i, '').replace(/[-_]instruct/i, '').replace(/[-_]chat/i, '').slice(0, 16);
 }
 
 export interface SwipeableChatCardProps {
@@ -24,6 +35,9 @@ export interface SwipeableChatCardProps {
     selectMode: boolean;
     isStreaming: boolean;
     selectedIds: Set<string>;
+    isEditing?: boolean;
+    onSaveTitle?: (newTitle: string) => void;
+    onCancelEdit?: () => void;
     onSelectChat: () => void;
     onToggleSelect: () => void;
     onContextMenu: (e: React.MouseEvent) => void;
@@ -38,6 +52,9 @@ export const SwipeableChatCard: React.FC<SwipeableChatCardProps> = ({
     selectMode,
     isStreaming,
     selectedIds,
+    isEditing = false,
+    onSaveTitle,
+    onCancelEdit,
     onSelectChat,
     onToggleSelect,
     onContextMenu,
@@ -49,6 +66,24 @@ export const SwipeableChatCard: React.FC<SwipeableChatCardProps> = ({
     const x = useMotionValue(0);
     const scrollReveal = useScrollReveal();
     const [isOpened, setIsOpened] = useState<boolean>(false);
+    const [editTitle, setEditTitle] = useState(chat.name || '');
+    const editInputRef = React.useRef<HTMLInputElement>(null);
+
+    React.useEffect(() => {
+        if (isEditing) {
+            setEditTitle(chat.name || '');
+            setTimeout(() => {
+                editInputRef.current?.focus();
+                editInputRef.current?.select();
+            }, 50);
+        }
+    }, [isEditing, chat.name]);
+
+    const handleSaveTitle = () => {
+        if (onSaveTitle) {
+            onSaveTitle(editTitle.trim() || chat.name || 'New Chat');
+        }
+    };
     const [isDragging, setIsDragging] = useState<boolean>(false);
 
     const snapTo = (target: number) => {
@@ -153,13 +188,9 @@ export const SwipeableChatCard: React.FC<SwipeableChatCardProps> = ({
                 {/* Hold to Delete Button (Icon Only, 40px, NO TEXT, Liquid Wave Fill Animation Effect) */}
                 <div onClick={(e) => e.stopPropagation()} className="h-full flex items-stretch w-10">
                     <HoldButton
-                        holdTime={1200}
+                        {...DANGER_HOLD}
                         radius={0}
                         size="sm"
-                        backgroundColor="color-mix(in srgb, #ef4444 18%, var(--bg-primary))"
-                        fillColor="#ef4444"
-                        textColor="#f87171"
-                        fillTextColor="#ffffff"
                         icon={<Icons.Trash2 className="w-4 h-4" />}
                         doneIcon={<Icons.Trash2 className="w-4 h-4" />}
                         doneLabel={<></>}
@@ -217,12 +248,45 @@ export const SwipeableChatCard: React.FC<SwipeableChatCardProps> = ({
 
                 {/* Center Content: Title & Subtitle Preview (NO Left Icon) */}
                 <div className={`flex flex-col flex-1 min-w-0 ${chat.archived ? 'opacity-60' : ''}`}>
-                    <span className="text-[13px] font-semibold text-[var(--text-primary)] truncate leading-snug">
-                        {chat.name || 'New Chat'}
-                    </span>
-                    <span className="text-[11px] text-[var(--text-secondary)] truncate leading-snug font-normal mt-0.5">
-                        {subtitleText}
-                    </span>
+                    <div className="flex items-center gap-1.5 min-w-0">
+                        {isEditing ? (
+                            <input
+                                ref={editInputRef}
+                                type="text"
+                                value={editTitle}
+                                onChange={e => setEditTitle(e.target.value)}
+                                onKeyDown={e => {
+                                    if (e.key === 'Enter') {
+                                        e.preventDefault();
+                                        handleSaveTitle();
+                                    } else if (e.key === 'Escape') {
+                                        e.preventDefault();
+                                        onCancelEdit?.();
+                                    }
+                                }}
+                                onBlur={handleSaveTitle}
+                                onClick={e => e.stopPropagation()}
+                                className="w-full text-xs font-semibold text-[var(--text-primary)] bg-[var(--bg-primary)] border border-[var(--accent-color)] rounded px-1.5 py-0.5 outline-none focus:ring-1 focus:ring-[var(--accent-color)]"
+                            />
+                        ) : (
+                            <span className="text-[13px] font-semibold text-[var(--text-primary)] truncate leading-snug">
+                                {chat.name || 'New Chat'}
+                            </span>
+                        )}
+                        {chat.model && !isEditing && (
+                            <span
+                                className="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold shrink-0 truncate max-w-[85px] leading-tight border bg-[var(--bg-tertiary)] text-[var(--accent-color)] border-[var(--border-color)]"
+                                title={`${chat.modelProvider === 'cloud' ? 'Cloud model' : 'Model'}: ${chat.model}`}
+                            >
+                                {formatModelTag(chat.model)}
+                            </span>
+                        )}
+                    </div>
+                    {!isEditing && (
+                        <span className="text-[11px] text-[var(--text-secondary)] truncate leading-snug font-normal mt-0.5">
+                            {subtitleText}
+                        </span>
+                    )}
                 </div>
 
                 {/* Right Content: Pin/Status on TOP, Timestamp on BOTTOM */}

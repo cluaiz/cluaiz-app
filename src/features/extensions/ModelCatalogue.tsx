@@ -1,16 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
-import { modelCatalogue, modelInstallReference, type ModelInstallSource, type PublicModel, type PublicVariant } from '../../api/catalogue/models';
+import { modelCatalogue, modelInstallReference, type PublicModel, type PublicVariant } from '../../api/catalogue/models';
 import { modelsApi } from '../../api/engine/models/models.api';
 import type { ModelRegistryEntry } from '../../api/engine/models/models.types';
 import { useConnectionStore } from '../../store/engine/useConnectionStore';
 import { Button } from '../../components/ui/Button';
-import { Input } from '../../components/ui/Input';
 import { Badge } from '../../components/ui/Badge';
 import { useCatalogue } from './useCatalogue';
-import { ArrowLeft, ArrowUpDown, Check, CheckCircle2, Download, Search, X } from 'lucide-react';
-import { CatalogueChips, CatalogueTags } from './CatalogueUI';
+import { ArrowLeft } from 'lucide-react';
+import { MultiLevelDropdown } from '../../components/ui/dropdown';
+import { CatalogueChips, CatalogueHero, CatalogueImageFilters, CatalogueHeroImage, CatalogueTags, CatalogueToolbar } from './CatalogueUI';
 import {
-  catalogueImage, filterModels, installedModelForVariant, cleanModelDescription,
+  catalogueImage, filterModels, cleanModelDescription,
   extractFamilyCapabilities
 } from './catalogueView';
 import { resumeModelDownload } from '../../api/engine/models/actions';
@@ -18,8 +18,10 @@ import { useCatalogueTask } from './useCatalogueTask';
 import { CatalogueTaskStatus } from './CatalogueTaskStatus';
 import { FamilyModelSliderRow } from './FamilyModelSliderRow';
 import { ModelPackagePanel } from './ModelPackagePanel';
+import { useFamilyFilter } from './familyFilter';
+import { downloadPercent, useModelDownloadStore } from './modelDownloadStore';
 import { useModelCatalogueStore } from './modelCatalogueStore';
-import { MarkdownRenderer } from '../../components/ui/MarkdownRenderer';
+import { onToolkitHistory, setToolkitParams, toolkitParam } from './toolkitNavigation';
 import { getSystemHardwareProfile, calculateModelHardwareScore, type CachedHardwareProfile } from './hardwareRecommendation';
 
 const resumeDownload: Parameters<typeof useCatalogueTask<Awaited<ReturnType<typeof resumeModelDownload>>>>[1] =
@@ -65,8 +67,10 @@ export function ModelCatalogue() {
 
   const [familyModelQuery, setFamilyModelQuery] = useState('');
   const [familySort, setFamilySort] = useState<'recommended' | 'latest' | 'popular' | 'random' | 'oldest' | 'big' | 'small'>('recommended');
-  const [familySortOpen, setFamilySortOpen] = useState(false);
-  const [activeModelId, setActiveModelId] = useState<string>('');
+  /** The card picked on a family page (its packages show below); kept in the URL as pick=<model id> */
+  const [activeModelId, setActiveModelState] = useState<string>(() => toolkitParam('pick'));
+  const setActiveModelId = (id: string) => { setToolkitParams({ pick: id }); setActiveModelState(id); };
+  useEffect(() => onToolkitHistory(() => setActiveModelState(toolkitParam('pick'))), []);
   const [selectedVariantByModel, setSelectedVariantByModel] = useState<Record<string, string>>({});
   const [hardwareProfile, setHardwareProfile] = useState<CachedHardwareProfile | null>(null);
 
@@ -74,7 +78,6 @@ export function ModelCatalogue() {
     void getSystemHardwareProfile().then(setHardwareProfile);
   }, []);
 
-  const [source] = useState<ModelInstallSource>('catalogue');
   const [installed, setInstalled] = useState<ModelRegistryEntry[]>([]);
   const [engineError, setEngineError] = useState('');
   const [installError, setInstallError] = useState('');
@@ -103,14 +106,21 @@ export function ModelCatalogue() {
     return () => controller.abort();
   }, [connection]);
 
-  useEffect(() => { if (download.result) setConnection(value => value + 1); }, [download.result]);
+  /* The running download, for the sidebar, the model cards and the Download button */
+  const downloading = download.busy && !download.result && download.receipt ? download.receipt.target : '';
+  const percent = downloadPercent(download.task);
+  useEffect(() => { useModelDownloadStore.getState().setDownload(downloading ? { target: downloading, percent } : null); }, [downloading, percent]);
+  const installedChanged = () => { setConnection(value => value + 1); useModelDownloadStore.getState().installedChanged(); };
+  useEffect(() => { if (download.result) installedChanged(); }, [download.result]);
 
 
   const models = catalogue.reply?.data ?? [];
   const tasks = [...new Set(models.flatMap(model => model.tasks))].sort();
   const filtered = filterModels(models, { query, providers, capabilities: task ? [task] : [], format, sort, family });
 
-  const activeFamilyModels = family ? filtered.filter(m => m.family === family) : [];
+  const familyFilter = useFamilyFilter(filtered.filter(model => model.family === family), installed);
+  const inFamily = (model: PublicModel) => model.family === family && familyFilter.matches(model);
+  const activeFamilyModels = family ? filtered.filter(inFamily) : [];
   const effectiveActiveId = (activeModelId && activeFamilyModels.some(m => m.id === activeModelId))
     ? activeModelId
     : (activeFamilyModels[0]?.id || '');
@@ -119,32 +129,21 @@ export function ModelCatalogue() {
     setInstallError('');
     if (!inventoryReady) { setInstallError('Connect to your Engine before downloading a package.'); return; }
     try {
-      const reference = modelInstallReference(model, variant, source);
+      const reference = modelInstallReference(model, variant);
       await download.start(reference, (signal, observer) => modelsApi.downloadModel({ model_id: reference }, signal, observer));
     } catch (error) {
       setInstallError(error instanceof Error ? error.message : String(error));
     }
   }
 
+  async function uninstall(entry: ModelRegistryEntry) {
+    setInstallError('');
+    try { await modelsApi.deleteModel(entry.id); installedChanged(); }
+    catch (error) { setInstallError(error instanceof Error ? error.message : String(error)); }
+  }
+
   // Synchronize URL search params with family and model selection
-  const updateUrl = (newFamily: string, newModelId: string) => {
-    try {
-      const url = new URL(window.location.href);
-      if (newFamily) {
-        url.searchParams.set('family', newFamily);
-      } else {
-        url.searchParams.delete('family');
-      }
-
-      if (newModelId) {
-        url.searchParams.set('model', newModelId);
-      } else {
-        url.searchParams.delete('model');
-      }
-
-      window.history.pushState(window.history.state, '', url);
-    } catch { /* ignore in non-browser envs */ }
-  };
+  const updateUrl = (newFamily: string, newModelId: string) => setToolkitParams({ family: newFamily, model: newModelId });
 
   // Sync state from URL on initial load and on browser popstate (back/forward)
   useEffect(() => {
@@ -253,22 +252,7 @@ export function ModelCatalogue() {
         {installError && <p role="alert" className="text-sm text-[var(--status-error)]">{installError}</p>}
         <CatalogueTaskStatus {...download} />
 
-        {/* Global GPU SVG Filter to eliminate white box/background from any model logo */}
-        <svg className="absolute w-0 h-0 pointer-events-none opacity-0 overflow-hidden" aria-hidden="true">
-          <defs>
-            <filter id="remove-white-bg" colorInterpolationFilters="sRGB">
-              <feColorMatrix
-                type="matrix"
-                values="1 0 0 0 0
-                        0 1 0 0 0
-                        0 0 1 0 0
-                        -2 -2 -2 0 5.5"
-                result="filtered"
-              />
-              <feComposite in="filtered" in2="SourceGraphic" operator="in" />
-            </filter>
-          </defs>
-        </svg>
+        <CatalogueImageFilters />
 
         {/* ------------------------------------------------------------------ */}
         {/* LEVEL 3: Dedicated Model Detail & Quantization Download Page      */}
@@ -286,33 +270,8 @@ export function ModelCatalogue() {
                 <div className="relative pt-0 pb-6 min-h-[220px] sm:min-h-[280px] flex items-center text-left">
                   {/* Right Side: Seamless Logo (White Background Removed, Uniformly Dimmed) */}
                   {transparentModelLogoUrl && (
-                    <div
-                      className="
-                        absolute inset-y-0 right-0
-                        w-[40%] pointer-events-none
-                        select-none z-0
-                        flex items-center justify-end
-                        overflow-hidden
-                      "
-                      aria-hidden="true"
-                    >
-                      <img
-                        src={transparentModelLogoUrl}
-                        alt=""
-                        loading="lazy"
-                        referrerPolicy="no-referrer"
-                        className="
-                          absolute right-[8%] top-1/2
-                          -translate-y-1/2
-                          w-72 h-72
-                          object-contain
-                          opacity-40
-                          transition-opacity duration-300
-                        "
-                        style={{
-                          filter: 'url(#remove-white-bg)',
-                        }}
-                      />
+                    <div className="absolute inset-y-0 right-0 w-[40%] pointer-events-none select-none z-0 flex items-center justify-end overflow-hidden" aria-hidden="true">
+                      <CatalogueHeroImage src={transparentModelLogoUrl} />
                     </div>
                   )}
 
@@ -350,74 +309,11 @@ export function ModelCatalogue() {
             })()}
 
 
-            {/* Quantizations & Packages Table */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
-                  Available Packages & Quantizations ({selectedModel.variants.length})
-                </h3>
-                <span className="text-xs text-[var(--text-muted)]">
-                  Select a quantization to download directly to your local Engine
-                </span>
-              </div>
-
-              <div className="border border-[var(--border-color)]/80 rounded-2xl overflow-hidden bg-[var(--bg-secondary)]/40 divide-y divide-[var(--border-color)]/60">
-                {selectedModel.variants.length === 0 ? (
-                  <p className="p-5 text-xs text-[var(--text-muted)]">No downloadable packages found for this model.</p>
-                ) : (
-                  selectedModel.variants.map((v) => {
-                    const isInstalled = !!installedModelForVariant(installed, selectedModel, v);
-                    let reference = '';
-                    try { reference = modelInstallReference(selectedModel, v, source); } catch { /* ignore */ }
-                    const isDownloadingThis = busy && download.receipt?.target === reference;
-
-                    return (
-                      <div
-                        key={v.id}
-                        className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-[var(--bg-secondary)]/80 transition-colors"
-                      >
-                        <div className="flex items-center gap-3">
-                          <Badge variant="outline" className="font-mono text-xs font-bold uppercase tracking-wider shrink-0">
-                            {v.format}
-                          </Badge>
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-bold text-[var(--text-primary)] font-mono">
-                                {v.quant}
-                              </span>
-                              <span className="text-xs font-mono text-[var(--text-muted)]">
-                                · {(v.bytes / 1024 ** 3).toFixed(2)} GiB
-                              </span>
-                            </div>
-                            <p className="text-[11px] text-[var(--text-secondary)] font-mono truncate max-w-md mt-0.5">
-                              {v.file}
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-2 shrink-0">
-                          {isInstalled ? (
-                            <Badge variant="outline" className="text-xs text-[var(--status-success)] border-[var(--status-success)]/40 flex items-center gap-1 font-semibold">
-                              <CheckCircle2 size={13} /> Installed
-                            </Badge>
-                          ) : (
-                            <Button
-                              size="sm"
-                              disabled={!reference || !download.canStart || !inventoryReady || !!engineError || isDownloadingThis}
-                              onClick={() => void install(selectedModel, v)}
-                              className="text-xs font-semibold flex items-center gap-1.5"
-                            >
-                              <Download size={13} />
-                              {isDownloadingThis ? 'Downloading…' : 'Download package'}
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </div>
+            <ModelPackagePanel key={selectedModel.id} model={selectedModel} installed={installed}
+              selectedVariantId={selectedVariantByModel[selectedModel.id]}
+              onSelectVariant={id => setSelectedVariantByModel(previous => ({ ...previous, [selectedModel.id]: id }))}
+              onInstall={install} onUninstall={uninstall} canStart={download.canStart} inventoryReady={inventoryReady}
+              hardware={hardwareProfile} />
 
             {/* Technical Metadata Section */}
             <div className="p-4 rounded-xl border border-[var(--border-color)]/60 bg-[var(--bg-tertiary)]/30 space-y-1.5 text-xs text-[var(--text-muted)]">
@@ -435,81 +331,15 @@ export function ModelCatalogue() {
             {(() => {
               const familyModels = filtered.filter(m => m.family === family);
               const first = familyModels[0];
-              const capabilities = extractFamilyCapabilities(familyModels);
-              const cleanDesc = cleanModelDescription(first?.familyDescription || first?.description);
               const heroLogoUrl = catalogueImage(first?.logo || '');
-
-              return (
-                <div className="relative pt-0 pb-6 min-h-[220px] sm:min-h-[280px] flex items-center text-left">
-                  {/* Right Side: Seamless Logo (White Background Removed, Uniformly Dimmed) */}
-                  {heroLogoUrl && (
-                    <div
-                      className="
-                        absolute inset-y-0 right-0
-                        w-[40%] pointer-events-none
-                        select-none z-0
-                        flex items-center justify-end
-                        overflow-hidden
-                      "
-                      aria-hidden="true"
-                    >
-                      <img
-                        src={heroLogoUrl}
-                        alt=""
-                        loading="lazy"
-                        referrerPolicy="no-referrer"
-                        className="
-                          absolute right-[8%] top-1/2
-                          -translate-y-1/2
-                          w-72 h-72
-                          object-contain
-                          opacity-40
-                          transition-opacity duration-300
-                        "
-                        style={{
-                          filter: 'url(#remove-white-bg)',
-                        }}
-                      />
-                    </div>
-                  )}
-
-                  {/* Left Side: Family Title, Company Name + Total Models, Description, Tags */}
-                  <div className="relative z-10 space-y-3 max-w-2xl text-left">
-                    {/* Big Title */}
-                    <h1 className="text-3xl sm:text-4xl font-extrabold font-mono uppercase text-[var(--text-primary)] tracking-tight">
-                      {family}
-                    </h1>
-
-                    {/* Company name in gray + Model count */}
-                    <div className="flex items-center gap-2.5 text-xs sm:text-sm font-mono flex-wrap">
-                      <span className="text-[var(--text-muted)]">
-                        by <span className="text-[var(--text-secondary)] font-semibold">{first?.provider || 'Open Source'}</span>
-                      </span>
-                      <span className="text-[var(--border-color)]">·</span>
-                      <Badge variant="outline" className="text-xs font-mono font-bold uppercase tracking-wider">
-                        {familyModels.length} {familyModels.length === 1 ? 'Model' : 'Models'}
-                      </Badge>
-                    </div>
-
-                    {/* Description */}
-                    {cleanDesc && (
-                      <p className="text-xs sm:text-sm leading-relaxed text-[var(--text-secondary)] pt-0.5 max-w-xl">
-                        {cleanDesc}
-                      </p>
-                    )}
-
-                    {/* Tags */}
-                    <div className="flex items-center gap-1.5 flex-wrap pt-1">
-                      <CatalogueTags values={capabilities} />
-                    </div>
-                  </div>
-                </div>
-              );
+              return <CatalogueHero title={family} by={first?.provider || 'Open Source'} count={familyModels.length}
+                description={cleanModelDescription(first?.familyDescription || first?.description)}
+                tags={extractFamilyCapabilities(familyModels)} logo={heroLogoUrl && <CatalogueHeroImage src={heroLogoUrl} />} />;
             })()}
 
             {/* Models in Family - Search, Sort & Slider Row */}
             {(() => {
-              const baseFamilyModels = filtered.filter(m => m.family === family);
+              const baseFamilyModels = filtered.filter(inFamily);
 
               // 1. Search filter
               const searchedModels = familyModelQuery.trim()
@@ -564,83 +394,21 @@ export function ModelCatalogue() {
 
               return (
                 <div className="space-y-4">
-                  {/* Toolbar: Reusable Design-System Search (Left) + Sort Filter Button (Right) */}
-                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-1 pb-1">
-                    {/* Left: Reusable Design-System Search Input */}
-                    <div className="relative flex-1 max-w-sm">
-                      <Input
-                        value={familyModelQuery}
-                        onChange={(e) => setFamilyModelQuery(e.target.value)}
-                        placeholder={`Search ${family} models...`}
-                        sizeVariant="sm"
-                        leftIcon={<Search size={14} />}
-                        rightElement={
-                          familyModelQuery ? (
-                            <button
-                              type="button"
-                              onClick={() => setFamilyModelQuery('')}
-                              className="text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer p-0.5"
-                              title="Clear search"
-                            >
-                              <X size={12} />
-                            </button>
-                          ) : null
-                        }
-                      />
-                    </div>
-
-                    {/* Right: Reusable Design-System Sort Button with Dropdown Menu */}
-                    <div className="relative flex items-center gap-2 self-end sm:self-auto">
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => setFamilySortOpen(!familySortOpen)}
-                        className="flex items-center gap-1.5 font-mono text-xs cursor-pointer shadow-xs"
-                      >
-                        <ArrowUpDown size={12} className="text-[var(--accent-color)]" />
-                        <span className="text-[var(--text-muted)]">Sort:</span>
-                        <span className="font-semibold text-[var(--text-primary)]">{sortLabels[familySort]}</span>
-                      </Button>
-
-                      {/* Dropdown Menu */}
-                      {familySortOpen && (
-                        <>
-                          <div className="fixed inset-0 z-30" onClick={() => setFamilySortOpen(false)} />
-                          <div className="absolute right-0 top-full mt-1.5 w-44 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl shadow-xl z-40 py-1 font-mono text-xs overflow-hidden animate-in fade-in zoom-in-95 duration-100">
-                            {(['recommended', 'latest', 'popular', 'random', 'oldest', 'big', 'small'] as const).map((opt) => (
-                              <button
-                                key={opt}
-                                type="button"
-                                onClick={() => {
-                                  setFamilySort(opt);
-                                  setFamilySortOpen(false);
-                                }}
-                                className={`w-full text-left px-3 py-2 flex items-center justify-between hover:bg-[var(--bg-tertiary)] cursor-pointer transition-colors ${
-                                  familySort === opt
-                                    ? 'text-[var(--accent-color)] font-bold bg-[var(--bg-tertiary)]/50'
-                                    : 'text-[var(--text-secondary)]'
-                                }`}
-                              >
-                                <span>{sortLabels[opt]}</span>
-                                {familySort === opt && <Check size={12} />}
-                              </button>
-                            ))}
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  </div>
+                  <CatalogueToolbar query={familyModelQuery} onQuery={setFamilyModelQuery} placeholder={`Search ${family} models...`}
+                    sort={familySort} sorts={sortLabels} onSort={setFamilySort}
+                    filter={<MultiLevelDropdown iconOnly activeCount={familyFilter.chips.length} onClearAll={familyFilter.clear} categories={familyFilter.categories} />} />
+                  <CatalogueChips clear={familyFilter.clear} values={familyFilter.chips} />
 
                   {/* Empty Search State */}
                   {sortedModels.length === 0 ? (
                     <div className="py-12 text-center border border-dashed border-[var(--border-color)] rounded-2xl bg-[var(--bg-tertiary)]/20">
-                      <p className="text-xs font-mono text-[var(--text-muted)]">No models matched &ldquo;{familyModelQuery}&rdquo;</p>
+                      <p className="text-xs font-mono text-[var(--text-muted)]">{familyModelQuery ? <>No models matched &ldquo;{familyModelQuery}&rdquo;</> : 'No models match the selected filters.'}</p>
                       <button
                         type="button"
-                        onClick={() => setFamilyModelQuery('')}
+                        onClick={() => { setFamilyModelQuery(''); familyFilter.clear(); }}
                         className="mt-2 text-xs font-mono text-[var(--accent-color)] hover:underline cursor-pointer"
                       >
-                        Clear search
+                        Clear search and filters
                       </button>
                     </div>
                   ) : (
@@ -670,9 +438,9 @@ export function ModelCatalogue() {
                       {(() => {
                         const model = sortedModels.find(item => item.id === effectiveActiveId) || sortedModels[0];
                         return model ? <ModelPackagePanel key={model.id} model={model} installed={installed}
-                          source={source} selectedVariantId={selectedVariantByModel[model.id]}
+                          selectedVariantId={selectedVariantByModel[model.id]}
                           onSelectVariant={id => setSelectedVariantByModel(previous => ({ ...previous, [model.id]: id }))}
-                          onInstall={install} canStart={download.canStart} inventoryReady={inventoryReady}
+                          onInstall={install} onUninstall={uninstall} canStart={download.canStart} inventoryReady={inventoryReady}
                           hardware={hardwareProfile} /> : null;
                       })()}
                     </div>

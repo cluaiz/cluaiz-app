@@ -7,6 +7,8 @@ import { workspaceExtensions } from '../../extensions/bundled';
 import { openExtensionWorkspace } from '../../extensions/navigation';
 import { InstalledExtensions } from './InstalledExtensions';
 import { CatalogueStickyHeader } from './CatalogueStickyHeader';
+import { ProviderPanel } from './ProviderPanel';
+import { useModelCatalogueStore } from './modelCatalogueStore';
 
 const DeveloperPreview = lazy(() => import('./DeveloperExtensionWorkspace'));
 const Models = lazy(() => import('./ModelCatalogue').then(module => ({ default: module.ModelCatalogue })));
@@ -18,6 +20,7 @@ export { TOOLKIT_SECTIONS, toolkitSection, type ToolkitSectionId };
 export function ToolkitWorkspace() {
     const [section, setSection] = useState<ToolkitSectionId>(() => toolkitSection(location.search));
     const [preview, setPreview] = useState(false);
+    const modelPlace = useModelCatalogueStore(state => state.place);
 
     useEffect(() => {
         const restore = () => { setSection(toolkitSection(location.search)); setPreview(false); };
@@ -44,7 +47,8 @@ export function ToolkitWorkspace() {
         <section className="flex flex-col h-full min-h-0 bg-[var(--bg-primary)] text-[var(--text-primary)]">
             {/* Main Content Area — No rigid top header; navigation driven by primary Sidebar */}
             <div className="flex-1 min-h-0 overflow-auto">
-                {section === 'models' && (
+                {section === 'models' && modelPlace === 'cloud' && <ProviderPanel />}
+                {section === 'models' && modelPlace !== 'cloud' && (
                     <Suspense fallback={<p className="p-5 text-xs text-[var(--text-secondary)]">Opening models catalogue…</p>}>
                         <Models />
                     </Suspense>

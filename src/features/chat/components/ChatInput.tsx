@@ -1,9 +1,12 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Send, Square, FileCode, FileText, Plus, ChevronDown, Mic, Zap, Sparkles, Globe, Brain, Image as ImageIcon, Video, X, Clock, ChevronRight, UploadCloud, Link as LinkIcon, Layers, FolderUp, Database, BookOpen, ZapOff, Telescope, CornerDownRight, Check, AlignLeft, AlignJustify, Box, Server, Info, SlidersHorizontal, Trash2, Pencil, Flame, Wand2 } from 'lucide-react';
+import { Send, Square, FileCode, FileText, Plus, ChevronDown, Mic, Zap, Sparkles, Globe, Brain, Image as ImageIcon, Video, X, Clock, ChevronRight, UploadCloud, Link as LinkIcon, Layers, FolderUp, Database, BookOpen, ZapOff, Telescope, CornerDownRight, Check, AlignLeft, AlignJustify, Box, Server, Info, SlidersHorizontal, Trash2, Pencil, Flame, Wand2, Cloud } from 'lucide-react';
+import { chatRequestModel, providerChatModels, useProvidersStore } from '../../../store/cloud/useProvidersStore';
+import { useModelCatalogueStore } from '../../extensions/modelCatalogueStore';
 import BorderGlow from '../../../components/ui/BorderGlow';
 import { Backlight } from '../../../components/ui/Backlight';
 import { useEngineStore } from '../../../store/engine/useEngineStore';
 import { useConnectionStore } from '../../../store/engine/useConnectionStore';
+import { useLayoutStore } from '../../../store/ui/useLayoutStore';
 import { navigateTo } from '../../../core/router';
 import { componentsApi } from '../../../api/engine/tools/components/components.api';
 import type { ToolKind } from '../../../api/engine/tools/catalog';
@@ -610,7 +613,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         }
 
         const options: import('../../../core/engine').SendChatOptions = {
-            ...chatComposerOptions(permissions?.chat_models?.text, thinkMode, effort, contextData.skills),
+            ...chatComposerOptions(chatRequestModel(permissions?.chat_models?.text), thinkMode, effort, contextData.skills),
             parts: finalParts,
             attachments: attachmentsMeta
         };
@@ -682,10 +685,33 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         return () => window.removeEventListener('resize', calculateWidth);
     }, [selectedSkills.length]);
 
-    const currentModel = modelOptions.find(m => m.id === activeModelId) || {
-        id: '', fullName: chatModels.error || 'Select a chat model',
-        shortName: chatModels.loading ? 'Loading models…' : chatModels.error ? 'Models unavailable' : 'Select model'
+    // Provider models come from the Engine's providers; the chosen one is sent as the request's model.
+    const cloudModels = providerChatModels(useProvidersStore(state => state.providers));
+    const chosenCloudModel = useProvidersStore(state => state.chatModel);
+    const activeCloudModel = cloudModels.find(m => m.model === chosenCloudModel);
+    const connectionKey = useConnectionStore(state => state.getBaseUrl());
+    useEffect(() => { void useProvidersStore.getState().refresh(); }, [connectionKey]);
+    useEffect(() => { if (isModelOpen) void useProvidersStore.getState().refresh(); }, [isModelOpen]);
+    const selectCloudModel = (id: string) => {
+        useProvidersStore.getState().setChatModel(id);
+        setIsModelOpen(false);
     };
+
+    const currentModel = activeCloudModel
+        ? {
+            id: activeCloudModel.model,
+            fullName: activeCloudModel.model,
+            shortName: activeCloudModel.id,
+            isCloud: true,
+          }
+        : {
+            ...(modelOptions.find(m => m.id === activeModelId) || {
+                id: '',
+                fullName: chatModels.error || 'Select a chat model',
+                shortName: chatModels.loading ? 'Loading models…' : chatModels.error ? 'Models unavailable' : 'Select model',
+            }),
+            isCloud: false,
+          };
 
     const [isVisionSupported, setIsVisionSupported] = useState<boolean>(() => {
         return checkModelVisionSupport(currentModel?.id || activeModelId, installedModelsMap);
@@ -1706,23 +1732,40 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 className={`flex items-center gap-1 sm:gap-1.5 px-2 py-1.5 rounded-lg transition-colors text-[0.7rem] sm:text-xs font-medium shrink min-w-0 max-w-[130px] sm:max-w-[160px] md:max-w-[200px] border border-transparent cursor-pointer ${isModelOpen ? 'bg-[var(--bg-tertiary)] text-[var(--text-primary)]' : 'hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}
                 title={currentModel.fullName}
             >
+                {currentModel.isCloud ? (
+                    <Cloud className="w-3.5 h-3.5 shrink-0 text-[var(--accent-color)]" />
+                ) : (
+                    <Box className="w-3.5 h-3.5 shrink-0 text-[var(--accent-color)]" />
+                )}
                 <span className="truncate min-w-0 block">{currentModel.shortName}</span>
                 <ChevronDown className="w-3.5 h-3.5 ml-0.5 flex-shrink-0 opacity-70" />
             </button>
 
             {isModelOpen && (
-                <div className="absolute bottom-full left-0 mb-2 w-64 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl shadow-2xl overflow-hidden p-1.5 z-50 flex flex-col gap-1 max-h-64 overflow-y-auto custom-scrollbar">
-                    <div className="px-2 py-1 text-[10px] uppercase tracking-wider font-semibold text-[var(--text-muted)] select-none border-b border-[var(--border-color)]/40 pb-1.5 mb-0.5">
-                        Select Model
+                <div className="absolute bottom-full left-0 mb-2 w-72 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl shadow-2xl overflow-hidden p-1.5 z-50 flex flex-col gap-1 max-h-72 overflow-y-auto custom-scrollbar">
+                    {/* Header */}
+                    <div className="px-2 py-1 text-[10px] uppercase tracking-wider font-semibold text-[var(--text-muted)] select-none border-b border-[var(--border-color)]/40 pb-1.5 mb-0.5 flex items-center justify-between">
+                        <span>Select AI Model</span>
+                        <span className="text-[9px] font-mono text-[var(--text-muted)]">Local & Cloud</span>
                     </div>
-                    {chatModels.error && <button type="button" onClick={chatModels.retry}
-                        className="px-2 py-1 text-xs text-[var(--text-muted)]" title={chatModels.error}>
-                        Model list failed. Retry
-                    </button>}
-                    {!chatModels.loading && !chatModels.error && modelOptions.length === 0 &&
-                        <p className="px-2 py-1 text-xs text-[var(--text-muted)]">No chat models installed.</p>}
+
+                    {/* Group 1: Local Engine Models */}
+                    <div className="px-2 pt-1 pb-0.5 text-[9px] uppercase font-bold text-[var(--text-muted)] flex items-center justify-between">
+                        <span>Local Models</span>
+                        <span className="text-[9px] font-mono text-[var(--accent-color)]">{modelOptions.length}</span>
+                    </div>
+
+                    {chatModels.error && (
+                        <button type="button" onClick={chatModels.retry}
+                            className="px-2 py-1 text-xs text-[var(--text-muted)] text-left" title={chatModels.error}>
+                            Model list failed. Retry
+                        </button>
+                    )}
+                    {!chatModels.loading && !chatModels.error && modelOptions.length === 0 && (
+                        <p className="px-2 py-1 text-xs text-[var(--text-muted)]">No local models installed.</p>
+                    )}
                     {modelOptions.map(model => {
-                        const isSelected = currentModel.id === model.id;
+                        const isSelected = !currentModel.isCloud && currentModel.id === model.id;
                         return (
                             <button
                                 type="button"
@@ -1730,6 +1773,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                                 disabled={chatModels.selecting}
                                 onClick={async () => {
                                     try {
+                                        useProvidersStore.getState().setChatModel(null);
                                         if (await chatModels.select(model.id)) {
                                             setIsModelOpen(false);
                                         }
@@ -1737,15 +1781,57 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                                         toast.error(e instanceof Error ? e.message : 'Failed to select model');
                                     }
                                 }}
-                                className={`w-full flex items-center justify-between px-2.5 py-2 text-[0.7rem] sm:text-xs font-medium rounded-lg transition-colors cursor-pointer ${isSelected ? 'bg-[var(--bg-tertiary)] text-[var(--accent-color)] font-semibold' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]'}`}
+                                className={`w-full flex items-center justify-between px-2.5 py-1.5 text-[0.7rem] sm:text-xs font-medium rounded-lg transition-colors cursor-pointer ${isSelected ? 'bg-[var(--bg-tertiary)] text-[var(--accent-color)] font-semibold' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]'}`}
                             >
-                                <div className="flex items-center gap-2 truncate">
+                                <div className="flex items-center gap-1.5 truncate">
+                                    <Box size={13} className="shrink-0 text-[var(--accent-color)]" />
                                     <span className="truncate">{model.fullName}</span>
                                 </div>
-                                {isSelected && <Check className="w-3.5 h-3.5 flex-shrink-0 text-[var(--accent-color)]" />}
+                                {isSelected && <Check className="w-3.5 h-3.5 shrink-0 text-[var(--accent-color)]" />}
                             </button>
                         );
                     })}
+
+                    {/* Group 2: models of the Engine's providers */}
+                    <div className="mt-2 pt-1 border-t border-[var(--border-color)]/50">
+                        <div className="px-2 pt-1 pb-0.5 text-[9px] uppercase font-bold text-[var(--text-muted)] flex items-center justify-between">
+                            <span>Cloud Models</span>
+                            <span className="text-[9px] font-mono text-[var(--accent-color)]">{cloudModels.length}</span>
+                        </div>
+                        {cloudModels.length === 0 && (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setIsModelOpen(false);
+                                    useModelCatalogueStore.getState().setPlace('cloud'); useModelCatalogueStore.getState().setListing('browse');
+                                    useLayoutStore.getState().setActiveView('toolkit');
+                                    navigateTo({ view: 'toolkit' });
+                                }}
+                                className="w-full px-2 py-1 text-xs text-left text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
+                            >
+                                Add a provider in Toolkit → AI Models → Cloud
+                            </button>
+                        )}
+                        {cloudModels.map(model => {
+                            const isSelected = currentModel.isCloud && currentModel.id === model.model;
+                            return (
+                                <button
+                                    type="button"
+                                    key={model.model}
+                                    onClick={() => selectCloudModel(model.model)}
+                                    title={model.model}
+                                    className={`w-full flex items-center justify-between px-2.5 py-1.5 text-[0.7rem] sm:text-xs font-medium rounded-lg transition-colors cursor-pointer ${isSelected ? 'bg-[var(--bg-tertiary)] text-[var(--accent-color)] font-semibold' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]'}`}
+                                >
+                                    <div className="flex items-center gap-1.5 truncate">
+                                        <Cloud size={13} className="shrink-0 text-[var(--accent-color)]" />
+                                        <span className="truncate">{model.id}</span>
+                                        <span className="text-[10px] text-[var(--text-muted)] truncate">{model.provider}</span>
+                                    </div>
+                                    {isSelected && <Check className="w-3.5 h-3.5 shrink-0 text-[var(--accent-color)]" />}
+                                </button>
+                            );
+                        })}
+                    </div>
                 </div>
             )}
         </div>

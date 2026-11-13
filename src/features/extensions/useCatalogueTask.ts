@@ -10,6 +10,8 @@ interface State<T> {
   scope: string; receipt: TaskReceipt | null; task?: TaskView; result?: T;
   busy: boolean; cancelling: boolean; error?: string; warning?: string;
 }
+/** The Engine's CEP answer for a task id it does not hold */
+const taskGone = (failure: unknown) => (failure as { data?: { type?: unknown } } | null)?.data?.type === 'task_not_found';
 const terminal = (task?: TaskView) => task && !['working', 'input_required'].includes(task.status);
 
 /** View-owned observation of an Engine-owned operation; remount resumes the saved id, never its start. */
@@ -70,7 +72,9 @@ export function useCatalogueTask<T>(method: CatalogueTaskMethod, resume: Resume<
         : await resume(receipt.target, receipt.taskId!, active.controller.signal, observe);
       if (valid()) setState(previous => ({ ...previous, result, busy: false, error: undefined }));
     } catch (failure) {
-      if (valid()) setState(previous => ({ ...previous, busy: false,
+      /* The Engine no longer has the saved task (restart or expiry): nothing is left to watch, so the reference goes */
+      if (valid() && !operation && taskGone(failure)) setState({ scope, ...forgetTaskReceipt(scope, method), busy: false, cancelling: false });
+      else if (valid()) setState(previous => ({ ...previous, busy: false,
         error: previous.task?.status === 'cancelled' ? undefined : errorMessage(failure) }));
     } finally {
       if (job.current === active) job.current = null;

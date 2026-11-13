@@ -5,21 +5,30 @@ import type { ModelRegistryEntry } from '../../api/engine/models/models.types';
 export type CatalogueSort = 'popular' | 'newest' | 'oldest' | 'name';
 export interface ModelFilters { query: string; providers: string[]; capabilities: string[]; format: string; sort: CatalogueSort; family: string; }
 /** Keep explicit choices, but do not default to an unusable metadata/imatrix entry. */
-export function chooseModelVariant(model: PublicModel, variants: PublicVariant[], chosen?: string): PublicVariant | undefined {
-  const selected = variants.find(variant => variant.id === chosen);
+/** The chosen package, else an installed one, else the first the downloader can fetch */
+export function chooseModelVariant(model: PublicModel, variants: PublicVariant[], chosen?: string, installed: ModelRegistryEntry[] = []): PublicVariant | undefined {
+  const selected = variants.find(variant => variant.id === chosen)
+    ?? variants.find(variant => installedModelForVariant(installed, model, variant));
   if (selected) return selected;
   return variants.find(variant => {
     try { modelInstallReference(model, variant); return true; }
     catch { return false; }
   }) ?? variants[0];
 }
-/** Catalogue references and Engine-installed IDs differ; match actual repo/primary file. */
+const fileName = (path: string) => path.slice(path.lastIndexOf('/') + 1);
+/** Catalogue references and Engine-installed IDs differ; match the repo and primary file (the Engine keeps file names, not repo paths). */
 export function installedModelForVariant(installed: ModelRegistryEntry[], model: PublicModel, variant?: PublicVariant): ModelRegistryEntry | undefined {
   if (!variant) return;
   return installed.find(entry => entry.huggingface_repo === model.repo
     && (entry.format_type ?? entry.format) === variant.format
-    && Array.isArray(entry.files) && entry.files.some(file => file?.is_primary === true && file.name === variant.file));
+    && Array.isArray(entry.files) && entry.files.some(file => file?.is_primary === true && fileName(file.name) === fileName(variant.file)));
 }
+/** A catalogue model with any of its packages installed on the connected Engine */
+export const isModelInstalled = (installed: ModelRegistryEntry[], model: PublicModel) =>
+  installed.some(entry => entry.huggingface_repo === model.repo);
+/** The catalogue model an installed entry was downloaded from */
+export const catalogueModelFor = (entry: ModelRegistryEntry, models: PublicModel[]) =>
+  models.find(model => model.repo === entry.huggingface_repo);
 const lower = (value: string) => value.toLocaleLowerCase().trim();
 const date = (value: string) => { const result = Date.parse(value); return Number.isFinite(result) ? result : null; };
 function compareOptional(a: number | null, b: number | null, descending: boolean) {
@@ -91,4 +100,18 @@ export function filterTools(rows: ToolRow[], filters: { query: string; kind: str
     && (!query || lower([tool.id, details?.name, details?.description, details?.author, ...(details?.tags ?? [])].join(' ')).includes(query)))
     .sort((a, b) => (filters.sort === 'newest' ? compareOptional(date(a.details?.updated ?? ''), date(b.details?.updated ?? ''), true) : 0)
       || (a.details?.name || a.tool.id).localeCompare(b.details?.name || b.tool.id));
+}
+
+export interface InstalledFamily { family: string; provider: string; logo: string; entries: { entry: ModelRegistryEntry; model?: PublicModel }[] }
+/** Installed models grouped under their catalogue family; ones the catalogue does not list go under `otherFamily`. */
+export function groupInstalled(installed: ModelRegistryEntry[], models: PublicModel[], otherFamily: string): InstalledFamily[] {
+  const groups = new Map<string, InstalledFamily>();
+  for (const entry of installed) {
+    const model = catalogueModelFor(entry, models);
+    const family = model?.family || otherFamily;
+    const group = groups.get(family) ?? { family, provider: model?.provider ?? '', logo: model?.logo ?? '', entries: [] };
+    group.entries.push({ entry, model });
+    groups.set(family, group);
+  }
+  return [...groups.values()].sort((a, b) => Number(a.family === otherFamily) - Number(b.family === otherFamily) || a.family.localeCompare(b.family));
 }

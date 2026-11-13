@@ -9,6 +9,7 @@ import { errorMessage } from '../../../api/client/errors';
 import { buildChatHistory, chatHistoryOptions, processingLabel, selectChatContext } from '../utils/chatRequest';
 import type { useChatTelemetry } from './useChatTelemetry';
 import { soundManager } from '../../../services/sound/soundManager';
+import { chatRequestModel, isProviderModel, useProvidersStore } from '../../../store/cloud/useProvidersStore';
 
 type Reply = { text: string; messageIndex: number; type?: 'message' | 'selection' } | null;
 interface SendState {
@@ -67,14 +68,24 @@ export function useChatSend({ inputValue, setInputValue, replyingTo, setReplying
         });
         const userId = useChatStore.getState().sessions[sessionId]?.messages.slice(-1)[0]?.id;
 
+        // The model this request runs on, the same one the composer sends: a provider's model or the Engine's chat model.
+        const currentModelName = chatRequestModel(useEngineStore.getState().permissions?.chat_models?.text);
+        const modelProvider = isProviderModel(currentModelName, useProvidersStore.getState().providers) ? 'cloud' : 'local';
+
         // Create the assistant row before waiting for the engine.
         store.addMessage(sessionId, {
             sender: 'assistant',
             text: '',
             thinking: '',
+            model: currentModelName,
             time: '',
             date: now.getTime()
         });
+        store.updateSession(sessionId, s => ({
+            ...s,
+            model: currentModelName,
+            modelProvider,
+        }));
         const assistantId = useChatStore.getState().sessions[sessionId]?.messages.slice(-1)[0]?.id;
         let terminalSeen = false;
         const failRequest = (detail: string) => {

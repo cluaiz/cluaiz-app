@@ -1,11 +1,21 @@
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 
 const host = process.env.TAURI_DEV_HOST;
 
 // https://vite.dev/config/
-export default defineConfig({
+export default defineConfig(({ command, mode }) => {
+  const configured = command === "serve" ? loadEnv(mode, process.cwd(), "CLUAIZ_").CLUAIZ_MODEL_REGISTRY_ORIGIN : undefined;
+  let registryOrigin = "https://cluaiz.com";
+  if (configured) {
+    const target = new URL(configured);
+    if (!["http:", "https:"].includes(target.protocol) || !["localhost", "127.0.0.1", "[::1]"].includes(target.hostname)
+      || target.username || target.password || target.pathname !== "/" || target.search || target.hash) throw new Error("Development model registry must be a loopback origin");
+    registryOrigin = target.origin;
+  }
+  return {
+  define: { __CLUAIZ_MODEL_REGISTRY_ORIGIN__: JSON.stringify(registryOrigin) },
   plugins: [react(), tailwindcss()] as any,
   publicDir: "../public",
 
@@ -30,4 +40,5 @@ export default defineConfig({
       ignored: ["**/src-tauri/**"],
     },
   },
+  };
 });

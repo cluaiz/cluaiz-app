@@ -13,3 +13,4 @@ export * from './tools';
 export * from './notes';
 export * from './automation';
 export * from './prompts';
+export * from './providers';

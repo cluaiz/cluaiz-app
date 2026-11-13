@@ -4,15 +4,12 @@ import { useApiStore } from '../../../store/api/useApiStore';
 import { ApiEndpoint, HttpMethod } from '../types';
 import {
     Search,
-    ChevronDown,
-    ChevronRight,
     X,
     ChevronsDownUp,
     ChevronsUpDown
 } from 'lucide-react';
 import { Input } from '../../../components/ui/Input';
-import { motion } from 'framer-motion';
-import { useScrollReveal } from '../../../hooks/useScrollReveal';
+import { AccordionGroup, AccordionItem } from '../../../components/ui/Accordion';
 
 // Storage keys for persistent state across page reloads
 const LS_PILLARS_COLLAPSED = 'cluaiz_api_collapsed_pillars';
@@ -38,7 +35,6 @@ interface PillarGroup {
 }
 
 export const ApiSidebar: React.FC = () => {
-    const scrollReveal = useScrollReveal();
     const {
         apiData,
         isLoadingData,
@@ -306,115 +302,50 @@ export const ApiSidebar: React.FC = () => {
                         : pillarIndex !== 0;
 
                     return (
-                        <div
+                        <AccordionGroup
                             key={pillar.id}
-                            className="rounded-lg border border-[var(--border-color)]/40 bg-white/[0.015] overflow-hidden transition-all shadow-sm"
+                            icon={<PillarIcon className={`w-4 h-4 shrink-0 ${pillar.iconColor}`} />}
+                            title={pillar.title}
+                            count={pillar.totalEndpoints}
+                            open={!isPillarCollapsed}
+                            onToggle={() => togglePillar(pillar.id)}
                         >
-                            {/* Level 1: Main Pillar Accordion Header */}
-                            <button
-                                type="button"
-                                onClick={() => togglePillar(pillar.id)}
-                                className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-[var(--text-primary)] hover:bg-white/[0.04] transition-colors cursor-pointer"
-                            >
-                                <div className="flex items-center gap-2 truncate">
-                                    <PillarIcon className={`w-4 h-4 shrink-0 ${pillar.iconColor}`} />
-                                    <span className="truncate tracking-wide">{pillar.title}</span>
-                                </div>
+                            {pillar.subgroups.map((sub, subIndex) => {
+                                const SubIcon = sub.icon;
+                                // Default behavior: when search active -> auto-expand; otherwise persistent state (default first subgroup open, others closed)
+                                const isSubCollapsed = searchQuery
+                                    ? false
+                                    : collapsedSubgroups[sub.id] !== undefined
+                                    ? collapsedSubgroups[sub.id]
+                                    : subIndex !== 0;
 
-                                <div className="flex items-center gap-1.5 shrink-0 ml-2">
-                                    <span className="text-[10px] px-1.5 py-0.2 rounded-full font-mono font-medium opacity-70 bg-white/[0.06] text-[var(--text-secondary)]">
-                                        {pillar.totalEndpoints}
-                                    </span>
-                                    {isPillarCollapsed ? (
-                                        <ChevronRight className="w-3.5 h-3.5 text-[var(--text-muted)]" />
-                                    ) : (
-                                        <ChevronDown className="w-3.5 h-3.5 text-[var(--text-muted)]" />
-                                    )}
-                                </div>
-                            </button>
-
-                            {/* Level 2: Nested Sub-Categories */}
-                            {!isPillarCollapsed && (
-                                <div className="border-t border-[var(--border-color)]/30 p-1.5 space-y-1.5 bg-black/10">
-                                    {pillar.subgroups.map((sub, subIndex) => {
-                                        const SubIcon = sub.icon;
-                                        // Default behavior: when search active -> auto-expand; otherwise persistent state (default first subgroup open, others closed)
-                                        const isSubCollapsed = searchQuery
-                                            ? false
-                                            : collapsedSubgroups[sub.id] !== undefined
-                                            ? collapsedSubgroups[sub.id]
-                                            : subIndex !== 0;
-
-                                        return (
-                                            <div
-                                                key={sub.id}
-                                                className="rounded-md border border-[var(--border-color)]/25 bg-white/[0.01] overflow-hidden"
+                                return (
+                                    <AccordionGroup
+                                        key={sub.id}
+                                        level="subgroup"
+                                        icon={<SubIcon className={`w-3.5 h-3.5 shrink-0 ${sub.iconColor}`} />}
+                                        title={sub.title}
+                                        count={sub.endpoints.length}
+                                        open={!isSubCollapsed}
+                                        onToggle={() => toggleSubgroup(sub.id)}
+                                    >
+                                        {sub.endpoints.map((ep: ApiEndpoint) => (
+                                            <AccordionItem
+                                                key={`${ep.method}-${ep.path}`}
+                                                selected={activeEndpoint?.path === ep.path && activeEndpoint?.method === ep.method}
+                                                onClick={() => handleSelectEndpoint(ep)}
+                                                title={ep.desc || ep.path}
                                             >
-                                                {/* Subgroup Header */}
-                                                <button
-                                                    type="button"
-                                                    onClick={() => toggleSubgroup(sub.id)}
-                                                    className="w-full flex items-center justify-between px-2.5 py-1.5 text-[11px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/[0.03] transition-colors cursor-pointer"
-                                                >
-                                                    <div className="flex items-center gap-1.5 truncate">
-                                                        <SubIcon className={`w-3.5 h-3.5 shrink-0 ${sub.iconColor}`} />
-                                                        <span className="truncate">{sub.title}</span>
-                                                    </div>
-
-                                                    <div className="flex items-center gap-1 shrink-0 ml-1.5">
-                                                        <span className="text-[9px] font-mono opacity-60">
-                                                            {sub.endpoints.length}
-                                                        </span>
-                                                        {isSubCollapsed ? (
-                                                            <ChevronRight className="w-3 h-3 text-[var(--text-muted)]" />
-                                                        ) : (
-                                                            <ChevronDown className="w-3 h-3 text-[var(--text-muted)]" />
-                                                        )}
-                                                    </div>
-                                                </button>
-
-                                                {/* Level 3: Individual Endpoints List */}
-                                                {!isSubCollapsed && (
-                                                    <div className="p-1 space-y-0.5 border-t border-[var(--border-color)]/20 bg-black/20">
-                                                        {sub.endpoints.map((ep: ApiEndpoint) => {
-                                                            const isSelected =
-                                                                activeEndpoint?.path === ep.path &&
-                                                                activeEndpoint?.method === ep.method;
-
-                                                            return (
-                                                                <motion.button
-                                                                    key={`${ep.method}-${ep.path}`}
-                                                                    {...scrollReveal}
-                                                                    type="button"
-                                                                    onClick={() => handleSelectEndpoint(ep)}
-                                                                    className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-left text-xs transition-all cursor-pointer ${
-                                                                        isSelected
-                                                                            ? 'bg-[var(--accent-color)]/15 border border-[var(--accent-color)]/40 text-[var(--text-primary)] font-medium shadow-sm'
-                                                                            : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/[0.04]'
-                                                                    }`}
-                                                                    title={ep.desc || ep.path}
-                                                                >
-                                                                    <span
-                                                                        className={`px-1.5 py-0.5 text-[9px] font-mono font-bold uppercase rounded border shrink-0 ${getMethodBadgeStyle(
-                                                                            ep.method
-                                                                        )}`}
-                                                                    >
-                                                                        {ep.method}
-                                                                    </span>
-                                                                    <span className="truncate font-mono text-[11px] leading-tight">
-                                                                        {ep.path}
-                                                                    </span>
-                                                                </motion.button>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            )}
-                        </div>
+                                                <span className={`px-1.5 py-0.5 text-[9px] font-mono font-bold uppercase rounded border shrink-0 ${getMethodBadgeStyle(ep.method)}`}>
+                                                    {ep.method}
+                                                </span>
+                                                <span className="truncate font-mono text-[11px] leading-tight">{ep.path}</span>
+                                            </AccordionItem>
+                                        ))}
+                                    </AccordionGroup>
+                                );
+                            })}
+                        </AccordionGroup>
                     );
                 })}
             </div>

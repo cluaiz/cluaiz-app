@@ -30,7 +30,7 @@ test('default package skips unknown, incomplete and ambiguous variants using the
   ];
   const item = model('catalog-model', { variants });
   assert.equal(chooseModelVariant(item, variants).id, 'ready');
-  assert.equal(modelApi.modelInstallReference(item, chooseModelVariant(item, variants)), 'catalog-model:Q5');
+  assert.equal(modelApi.modelInstallReference(item, chooseModelVariant(item, variants)), 'owner/repo:Q5');
   assert.equal(variants[0].id, 'matrix');
 });
 

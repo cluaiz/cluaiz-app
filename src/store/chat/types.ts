@@ -4,6 +4,7 @@ export interface ChatMessage {
     id: string;
     sender: 'user' | 'assistant' | 'system';
     text: string;
+    model?: string;
     thinking?: string;
     thinkingDuration?: number | string;
     postToolThinking?: string;
@@ -64,6 +65,8 @@ export interface ChatSession {
     title: string;
     avatar?: string;
     tags: string[];
+    model?: string;
+    modelProvider?: string;
     unread: number;
     pinned: boolean;
     pinnedAt?: number;

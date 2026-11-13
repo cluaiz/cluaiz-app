@@ -15,9 +15,18 @@ import {
   ArrowDownWideNarrow,
   Loader2,
   Download,
+  Cloud,
+  CheckCircle2,
+  HardDrive,
 } from 'lucide-react';
+import { CloudModelsTab } from './CloudModelsTab';
+import { InstalledFamilies } from './InstalledFamilies';
+import { DirectoryRow } from './DirectoryRow';
+import { modelsApi } from '../../api/engine/models/models.api';
+import type { ModelRegistryEntry } from '../../api/engine/models/models.types';
+import { useChatStore } from '../../store/chat/useChatStore';
 import { useConnectionStore } from '../../store/engine/useConnectionStore';
-import { readTaskReceipt } from './catalogueTaskReceipt';
+import { downloadRepo, useModelDownloadStore } from './modelDownloadStore';
 import { Input } from '../../components/ui/Input';
 import { useScrollReveal } from '../../hooks/useScrollReveal';
 import { useToolkitSummary } from './useToolkitSummary';
@@ -27,8 +36,9 @@ import { useLayoutStore } from '../../store/ui/useLayoutStore';
 import { pushViewRoute } from '../../core/router';
 import { useCatalogue } from './useCatalogue';
 import { modelCatalogue, type PublicModel } from '../../api/catalogue/models';
-import { catalogueImage } from './catalogueView';
+import { catalogueImage, catalogueModelFor } from './catalogueView';
 import { useModelCatalogueStore } from './modelCatalogueStore';
+import { ListingTabs, PlaceTab } from './ModelListingTabs';
 import { MultiLevelDropdown, type MultiLevelCategory } from '../../components/ui/dropdown';
 
 interface NavItem {
@@ -113,12 +123,11 @@ const NAV_ITEMS: NavItem[] = [
 function ModelsSidebarDirectory({ onBack }: { onBack?: () => void }) {
   const catalogue = useCatalogue(modelCatalogue.list);
   const models = catalogue.reply?.data ?? [];
-  const scrollReveal = useScrollReveal({ amount: 0.15, scale: 0.96 });
 
   const {
     family,
-    setFamily,
-    setSelectedModel,
+    openFamily,
+    setInstalledOnly,
     query,
     setQuery,
     providers,
@@ -133,17 +142,27 @@ function ModelsSidebarDirectory({ onBack }: { onBack?: () => void }) {
   } = useModelCatalogueStore();
 
   const scope = useConnectionStore(s => JSON.stringify([s.protocol, s.host, s.port]));
-  const [hasActiveDownload, setHasActiveDownload] = useState(false);
+  const download = useModelDownloadStore(state => state.download);
+  const installedRevision = useModelDownloadStore(state => state.revision);
+  const downloadingFamily = download ? models.find(model => model.repo === downloadRepo(download.target))?.family : undefined;
+  const { place, listing, setPlace, setListing } = useModelCatalogueStore();
+  const [installedList, setInstalledList] = useState<ModelRegistryEntry[]>([]);
+  const installedFamilies = new Set(installedList.map(entry => catalogueModelFor(entry, models)?.family));
+  const [installedLoading, setInstalledLoading] = useState(false);
 
   useEffect(() => {
-    const check = () => {
-      const receipt = readTaskReceipt(scope, 'models.download').receipt;
-      setHasActiveDownload(!!(receipt && receipt.taskId));
-    };
-    check();
-    const interval = setInterval(check, 1500);
-    return () => clearInterval(interval);
-  }, [scope]);
+    let isMounted = true;
+    setInstalledLoading(true);
+    modelsApi.getInstalled().then(res => {
+      if (isMounted) setInstalledList(res.installed || []);
+    }).catch(() => {
+      if (isMounted) setInstalledList([]);
+    }).finally(() => {
+      if (isMounted) setInstalledLoading(false);
+    });
+    return () => { isMounted = false; };
+  }, [scope, installedRevision]);
+
 
   const families = useMemo(() => {
     const map = new Map<string, { family: string; provider: string; logo: string; count: number }>();
@@ -244,115 +263,140 @@ function ModelsSidebarDirectory({ onBack }: { onBack?: () => void }) {
           <h2 className="text-base font-bold text-[var(--text-primary)] tracking-tight">
             AI Models
           </h2>
-          {hasActiveDownload && (
+          {download && (
             <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-[var(--accent-color)]/10 border border-[var(--accent-color)]/30 text-[10px] font-mono text-[var(--accent-color)] font-semibold animate-pulse">
               <Loader2 size={11} className="animate-spin" />
-              Downloading
+              Downloading{download.percent === undefined ? '' : ` ${download.percent}%`}
             </span>
           )}
         </div>
         <p className="text-xs text-[var(--text-muted)]">
-          Find a model for your Engine.
+          Find, run, or connect AI models for your Engine.
         </p>
       </div>
 
-      {/* 2. Search & Filters Bar */}
-      <div className="p-2.5 flex items-center gap-2 border-b border-[var(--border-color)]">
-        <div className="flex-1 min-w-0">
-          <Input
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-            placeholder="Search families…"
-            leftIcon={<Search className="w-3.5 h-3.5 text-[var(--text-muted)]" />}
-            wrapperClassName="w-full"
-          />
-        </div>
-        <MultiLevelDropdown
-          categories={categories}
-          activeCount={activeFilterCount}
-          onClearAll={clearFilters}
-          iconOnly
-        />
+      {/* 2. Where models run: Local | Cloud */}
+      <div className="p-2 border-b border-[var(--border-color)] bg-[var(--bg-secondary)] flex items-center gap-1">
+        <PlaceTab icon={HardDrive} label="Local" active={place === 'local'} onClick={() => setPlace('local')} />
+        <PlaceTab icon={Cloud} label="Cloud" active={place === 'cloud'} onClick={() => setPlace('cloud')} />
       </div>
 
-      {/* 3. Families Directory List */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1">
-        {filteredFamilies.map((item) => {
-          const isSelected = family === item.family;
-          const resolvedLogo = catalogueImage(item.logo || '');
-
-          return (
-            <motion.button
-              key={item.family}
-              {...scrollReveal}
-              type="button"
-              onClick={() => {
-                const nextFamily = family === item.family ? '' : item.family;
-                setFamily(nextFamily);
-                setSelectedModel(null);
-                try {
-                  const url = new URL(window.location.href);
-                  if (nextFamily) {
-                    url.searchParams.set('family', nextFamily);
-                  } else {
-                    url.searchParams.delete('family');
-                  }
-                  url.searchParams.delete('model');
-                  window.history.pushState(window.history.state, '', url);
-                } catch { /* ignore */ }
-              }}
-              className={`w-full flex items-center justify-between p-2 rounded-xl text-left transition-all cursor-pointer group ${
-                isSelected
-                  ? 'bg-[var(--bg-tertiary)] text-[var(--text-primary)] border border-[var(--border-color)] shadow-xs'
-                  : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]/60 border border-transparent'
-              }`}
-            >
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 bg-[var(--bg-tertiary)] border border-[var(--border-color)]/60 overflow-hidden">
-                  {resolvedLogo ? (
-                    <img
-                      src={resolvedLogo}
-                      alt=""
-                      aria-hidden="true"
-                      loading="lazy"
-                      referrerPolicy="no-referrer"
-                      className="w-5 h-5 object-contain"
-                    />
-                  ) : (
-                    <Sparkles className="w-4 h-4 text-[var(--accent-color)]" />
-                  )}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="text-xs font-semibold leading-4 truncate text-[var(--text-primary)]">
-                    {item.family}
-                  </div>
-                  <div className="text-[10px] text-[var(--text-muted)] leading-3 truncate mt-0.5">
-                    {item.provider}
-                  </div>
-                </div>
+      {/* 3. Body: Browse | Installed of the chosen place */}
+      {place === 'cloud' ? (
+        <CloudModelsTab />
+      ) : (
+        <>
+          <ListingTabs value={listing} onChange={setListing} browse={models.length} installed={installedList.length} />
+          {listing === 'installed' ? (
+            <>
+              {/* Installed Search */}
+              <div className="p-2.5 border-b border-[var(--border-color)]">
+                <Input
+                  value={query}
+                  onChange={e => setQuery(e.target.value)}
+                  placeholder="Filter installed models…"
+                  leftIcon={<Search className="w-3.5 h-3.5 text-[var(--text-muted)]" />}
+                  wrapperClassName="w-full"
+                />
               </div>
 
-              <span className="text-[11px] font-mono font-bold px-1.5 py-0.5 rounded text-[var(--text-muted)] shrink-0 ml-2">
-                {item.count}
-              </span>
-            </motion.button>
-          );
-        })}
+              <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1.5">
+                {installedLoading && (
+                  <div className="p-4 text-center text-xs text-[var(--text-muted)] flex items-center justify-center gap-2">
+                    <Loader2 size={13} className="animate-spin" />
+                    <span>Checking installed models…</span>
+                  </div>
+                )}
 
-        {filteredFamilies.length === 0 && (
-          <div className="p-4 text-center text-xs text-[var(--text-muted)]">
-            No families match &ldquo;{query}&rdquo;
-          </div>
-        )}
-      </div>
+                {!installedLoading && installedList.length === 0 && (
+                  <div className="p-6 text-center space-y-2">
+                    <HardDrive size={24} className="mx-auto text-[var(--text-muted)] opacity-50" />
+                    <p className="text-xs font-semibold text-[var(--text-primary)]">No local models installed</p>
+                    <p className="text-[11px] text-[var(--text-muted)]">
+                      Browse the catalogue in the &ldquo;Browse&rdquo; tab to download and install local weights.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setListing('browse')}
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-[var(--accent-color)] text-[var(--accent-contrast)] cursor-pointer"
+                    >
+                      Browse Catalogue
+                    </button>
+                  </div>
+                )}
+
+                {!installedLoading && <InstalledFamilies installed={installedList} models={models} query={query} />}
+              </div>
+            </>
+          ) : (
+            <>
+              {/* Browse Search & Filters Bar */}
+              <div className="p-2.5 flex items-center gap-2 border-b border-[var(--border-color)]">
+                <div className="flex-1 min-w-0">
+                  <Input
+                    value={query}
+                    onChange={e => setQuery(e.target.value)}
+                    placeholder="Search families…"
+                    leftIcon={<Search className="w-3.5 h-3.5 text-[var(--text-muted)]" />}
+                    wrapperClassName="w-full"
+                  />
+                </div>
+                <MultiLevelDropdown
+                  categories={categories}
+                  activeCount={activeFilterCount}
+                  onClearAll={clearFilters}
+                  iconOnly
+                />
+              </div>
+
+              {/* Families Directory List */}
+              <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1">
+                {filteredFamilies.map((item) => {
+                  const resolvedLogo = catalogueImage(item.logo || '');
+                  return (
+                    <DirectoryRow
+                      key={item.family}
+                      title={item.family}
+                      subtitle={item.provider}
+                      tag="GGUF"
+                      count={item.count}
+                      selected={family === item.family}
+                      done={installedFamilies.has(item.family) ? 'Has installed models' : undefined}
+                      downloading={downloadingFamily === item.family ? (download?.percent === undefined ? '' : `${download.percent}%`) : undefined}
+                      icon={resolvedLogo
+                        ? <img src={resolvedLogo} alt="" aria-hidden="true" loading="lazy" referrerPolicy="no-referrer" className="w-5 h-5 object-contain" />
+                        : <Sparkles className="w-4 h-4 text-[var(--accent-color)]" />}
+                      onClick={() => { setInstalledOnly(false); openFamily(family === item.family ? '' : item.family); }}
+                    />
+                  );
+                })}
+
+                {filteredFamilies.length === 0 && (
+                  <div className="p-4 text-center text-xs text-[var(--text-muted)]">
+                    No families match &ldquo;{query}&rdquo;
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </>
+      )}
 
       {/* 4. Footer Status Indicator */}
       <div className="p-2.5 border-t border-[var(--border-color)] flex items-center justify-between text-[11px] text-[var(--text-muted)]">
         <span className="flex items-center gap-1.5">
           <span className="w-2 h-2 rounded-full bg-emerald-400" />
-          <span>{families.length} Families</span>
+          <span>
+            {place === 'cloud'
+              ? 'Model providers'
+              : listing === 'installed'
+              ? `${installedList.length} Installed Models`
+              : `${families.length} Families`}
+          </span>
         </span>
-        <span className="text-[10px] font-mono">{models.length} models</span>
+        <span className="text-[10px] font-mono">
+          {place === 'cloud' ? 'models.dev' : `${models.length} models`}
+        </span>
       </div>
     </div>
   );
@@ -369,18 +413,8 @@ export const ToolkitSidebar: React.FC = () => {
   } = useToolkitNavStore();
   const [search, setSearch] = useState('');
 
-  const scope = useConnectionStore(s => JSON.stringify([s.protocol, s.host, s.port]));
-  const [hasActiveDownload, setHasActiveDownload] = useState(false);
+  const hasActiveDownload = useModelDownloadStore(state => Boolean(state.download));
 
-  useEffect(() => {
-    const check = () => {
-      const receipt = readTaskReceipt(scope, 'models.download').receipt;
-      setHasActiveDownload(!!(receipt && receipt.taskId));
-    };
-    check();
-    const interval = setInterval(check, 1500);
-    return () => clearInterval(interval);
-  }, [scope]);
 
   // Listen to popstate or custom section changes
   useEffect(() => {

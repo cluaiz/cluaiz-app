@@ -153,3 +153,14 @@ test('receipt replacement while start is pending ends observation with an explic
   waiting.resolve({ model: 'old-result' }); await starting;
   assert.equal(h.render().result, undefined);
 });
+
+test('a saved task the Engine no longer holds is forgotten instead of shown as a failure', async () => {
+  const gone = Object.assign(Error('No task owned-task'), { data: { type: 'task_not_found' } });
+  const h = setup({ resume: async () => { throw gone; } });
+  h.receipts.saveTaskReceipt(h.scope(), method, null, { target: 'target', taskId: 'owned-task' });
+  h.render(); await tick();
+  const view = h.render();
+  assert.equal(view.receipt, null);
+  assert.equal(view.error, undefined);
+  assert.equal(view.canStart, true);
+});

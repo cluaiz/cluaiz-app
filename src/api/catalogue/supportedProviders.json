@@ -1,0 +1,16 @@
+{
+  "openai": { "base_url": "https://api.openai.com/v1", "tested": true },
+  "anthropic": { "base_url": "https://api.anthropic.com/v1", "tested": true },
+  "google": { "base_url": "https://generativelanguage.googleapis.com/v1beta/openai", "tested": true },
+  "groq": { "base_url": "https://api.groq.com/openai/v1", "tested": true },
+  "deepseek": { "tested": true },
+  "mistral": { "base_url": "https://api.mistral.ai/v1", "tested": true },
+  "openrouter": { "tested": true },
+  "xai": { "base_url": "https://api.x.ai/v1" },
+  "togetherai": { "base_url": "https://api.together.xyz/v1" },
+  "zai": {},
+  "zhipuai": {},
+  "alibaba": {},
+  "moonshotai": {},
+  "nvidia": {}
+}
