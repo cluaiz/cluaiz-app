@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowDown, ArrowUp, Copy, Play, Sparkles, Trash2 } from 'lucide-react';
 import type { FlowProblem, FlowSummary, RunStep } from '../../../api/engine/automation';
 import { CodeEditor } from '../../../components/ui/CodeEditor';
@@ -6,8 +6,11 @@ import { ActionListMenu } from '../../../components/ui/context-menu/ActionListMe
 import { ConfirmationModal } from '../../../components/ui/modal/ConfirmationModal';
 import { FlowCanvas } from '../canvas/FlowCanvas';
 import type { StepStatus } from '../canvas/canvasContext';
-import { lineRange, setValue, type InsertAt } from '../model/flowDoc';
-import { askContext, flowGraph, type GraphNode } from '../model/flowGraph';
+import { lineRange, readFlow, setValue, type InsertAt } from '../model/flowDoc';
+import { useFlowApplyTarget } from '../applyTarget';
+import { ReviewBanner } from './ReviewBanner';
+import { toast } from '../../../components/ui/toast';
+import { askContext, flowGraph, reviewChanges, type GraphNode, type Review } from '../model/flowGraph';
 import { describePermissions } from '../useFlows';
 import { addItem, connect, duplicate, insertPlace, move, paletteValue, pinnedPositions, removeNeed, removeNodes, tidy } from './flowActions';
 import { Inspector } from './Inspector';
@@ -43,6 +46,9 @@ export function FlowStudio({ target, onClose }: { target?: FlowSummary; onClose:
     const [yamlView, setYamlView] = useState(false);
     const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
     const [savedOnce, setSavedOnce] = useState(false);
+    /** A change applied from the chat: what it touched, and the text before it */
+    const [review, setReview] = useState<(Review & { before: string }) | null>(null);
+    const setApplyTarget = useFlowApplyTarget(state => state.setTarget);
 
     const graph = useMemo(() => doc.value ? flowGraph(doc.value) : EMPTY_GRAPH, [doc.value]);
     const pinned = useMemo(() => pinnedPositions(doc.value), [doc.value]);
@@ -93,6 +99,23 @@ export function FlowStudio({ target, onClose }: { target?: FlowSummary; onClose:
             detail: { name: `Flow ${flowName} · ${target.data.title}`, text: askContext(doc.text, flowName, target, lines) },
         }));
     };
+
+    /** A whole flow file from a chat answer replaces the open one, as one undo step, and is marked for review */
+    const applyFromChat = (incoming: string) => {
+        const next = readFlow(incoming);
+        if (!next.value || !doc.value || doc.text === null) { toast.error(next.error || 'The flow is not open'); return; }
+        const text = doc.format === 'json' ? `${JSON.stringify(next.value, null, 2)}\n` : incoming.endsWith('\n') ? incoming : `${incoming}\n`;
+        const changes = reviewChanges(doc.value, next.value);
+        setReview({ ...changes, before: doc.text });
+        doc.replace(text, 'chat');
+        setYamlView(false); setSelected(null);
+    };
+    const applyRef = useRef(applyFromChat);
+    applyRef.current = applyFromChat;
+    useEffect(() => {
+        setApplyTarget({ name: flowName, apply: text => applyRef.current(text) });
+        return () => setApplyTarget(null);
+    }, [flowName, setApplyTarget]);
 
     const save = useCallback(async () => {
         const result = await doc.save();
@@ -155,8 +178,10 @@ export function FlowStudio({ target, onClose }: { target?: FlowSummary; onClose:
                     filePath={doc.summary?.path} fileName={doc.summary?.path?.split(/[\\/]/).pop()} />
             </div>}
             {doc.text !== null && !yamlView && !doc.parseError && <>
+                {review && <ReviewBanner review={review} onKeep={() => setReview(null)}
+                    onUndo={() => { doc.replace(review.before, 'chat-undo'); setReview(null); }} />}
                 <FlowCanvas graph={graph} pinned={pinned} selected={selected} miniMap={miniMap} statuses={statuses} problems={problems}
-                    insertTarget={insertTarget}
+                    insertTarget={insertTarget} review={review?.marks ?? {}}
                     onInsert={at => { setInsertTarget(at); setPaletteOpen(true); }}
                     onRemoveNeed={edge => { const edit = doc.value && removeNeed(edge, doc.value); if (edit) doc.change(edit); }}
                     onSelect={setSelected}

@@ -32,12 +32,29 @@ function Problems({ id }: { id: string }) {
     const problems = useCanvas().problems[id];
     if (!problems?.length) return null;
     const errors = problems.filter(problem => problem.severity === 'error').length;
-    return <Tooltip title={errors ? `${errors} problem${errors === 1 ? '' : 's'}` : 'Warnings'} subtitle={problems.map(problem => problem.message).join('\n')}>
-        <span className={`absolute -top-2 -right-2 flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-[10px] font-semibold bg-[var(--bg-primary)] ${
+    return <Tooltip className="!absolute -top-2 -right-2" title={errors ? `${errors} problem${errors === 1 ? '' : 's'}` : 'Warnings'} subtitle={problems.map(problem => problem.message).join('\n')}>
+        <span className={`flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-[10px] font-semibold bg-[var(--bg-primary)] ${
             errors ? 'border-red-500/60 text-red-400' : 'border-amber-500/60 text-amber-400'}`}>
             <TriangleAlert className="w-3 h-3" />{problems.length}
         </span>
     </Tooltip>;
+}
+
+const REVIEW = {
+    added: { ring: 'border-green-500/70 shadow-[0_0_0_3px_rgb(34_197_94_/_0.15)]', pill: 'border-green-500/50 text-green-400', label: 'new' },
+    changed: { ring: 'border-amber-500/70 shadow-[0_0_0_3px_rgb(245_158_11_/_0.15)]', pill: 'border-amber-500/50 text-amber-400', label: 'changed' },
+};
+
+/** The ring of a node: a change under review first, then its run state */
+function useRing(id: string) {
+    const { review, statuses } = useCanvas();
+    const mark = review[id];
+    return { ring: mark ? REVIEW[mark].ring : statuses[id] ? STATUS[statuses[id]].ring : '', mark, status: statuses[id] };
+}
+
+function ReviewPill({ mark }: { mark?: keyof typeof REVIEW }) {
+    if (!mark) return null;
+    return <span className={`absolute -top-2 left-3 rounded-full border bg-[var(--bg-primary)] px-1.5 text-[9px] leading-4 font-semibold ${REVIEW[mark].pill}`}>{REVIEW[mark].label}</span>;
 }
 
 function StatusMark({ status }: { status?: StepStatus }) {
@@ -48,12 +65,12 @@ function StatusMark({ status }: { status?: StepStatus }) {
 
 /** A step: its kind, name and what it does; branching kinds send along one handle per branch */
 export const StepNode = memo(({ id, data, selected }: NodeProps<Node<StepData>>) => {
-    const { statuses } = useCanvas();
+    const { ring, mark, status } = useRing(id);
     const view = STEP_KINDS[data.kind];
-    const status = statuses[id];
     const branches = data.outlets.filter(outlet => outlet.tone !== 'error');
     const error = data.outlets.find(outlet => outlet.tone === 'error');
-    return <div className={`${shell(selected, status ? STATUS[status].ring : '')} rounded-xl`} style={NODE_SIZE.step}>
+    return <div className={`${shell(selected, ring)} rounded-xl`} style={NODE_SIZE.step}>
+        <ReviewPill mark={mark} />
         <Handle type="target" position={Position.Top} />
         {data.loops && <Handle type="target" id="loop" position={Position.Left} />}
         <div className="flex items-start gap-3 p-3">
@@ -88,7 +105,9 @@ export const StepNode = memo(({ id, data, selected }: NodeProps<Node<StepData>>)
 /** A trigger: what starts the flow */
 export const TriggerNode = memo(({ id, data, selected }: NodeProps<Node<TriggerData>>) => {
     const view = TRIGGER_KINDS[data.kind];
-    return <div className={`${shell(selected, '')} rounded-l-[32px] rounded-r-xl ${data.off ? 'opacity-50' : ''}`} style={NODE_SIZE.trigger}>
+    const { ring, mark } = useRing(id);
+    return <div className={`${shell(selected, ring)} rounded-l-[32px] rounded-r-xl ${data.off ? 'opacity-50' : ''}`} style={NODE_SIZE.trigger}>
+        <ReviewPill mark={mark} />
         <div className="flex items-center gap-3 h-full pl-3 pr-3">
             <KindIcon view={view} />
             <div className="min-w-0 flex-1">

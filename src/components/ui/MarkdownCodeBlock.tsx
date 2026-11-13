@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
-import { Check, Copy, ArrowUpRight, Loader2, Maximize2, Minimize2 } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { Check, Copy, ArrowUpRight, Loader2, Maximize2, Minimize2, Workflow } from 'lucide-react';
 import { FileIcon } from 'react-material-icon-theme';
 import { ProjectCard } from '../../features/workspace/components/ProjectCard';
 import { useProjectStore } from '../../store/workspace/useProjectStore';
 import { useLayoutStore } from '../../store/ui/useLayoutStore';
+import { isFlowText, useFlowApplyTarget } from '../../features/automation/applyTarget';
 import { cn } from '../../lib/utils';
 import hljs from 'highlight.js';
 // @ts-ignore
@@ -43,6 +44,8 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({ language, value, allowWork
     const [isExpanded, setIsExpanded] = useState(false);
     const [isOpeningWorkspace, setIsOpeningWorkspace] = useState(false);
     const { setSplitPaneWidth } = useLayoutStore();
+    const flowTarget = useFlowApplyTarget(state => state.target);
+    const isFlow = useMemo(() => Boolean(flowTarget) && /^(ya?ml|json)$/i.test(language) && isFlowText(value), [flowTarget, language, value]);
 
     // 1. Detect Multi-File Project Manifest Block (Mode 1)
     if (language === 'project' || language === 'workspace') {
@@ -206,6 +209,18 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({ language, value, allowWork
                                 ) : (
                                     <ArrowUpRight className="w-3.5 h-3.5" />
                                 )}
+                            </button>
+                        )}
+
+                        {/* A whole flow file, while a flow is open in the Automation builder */}
+                        {isFlow && flowTarget && (
+                            <button
+                                type="button"
+                                onClick={() => flowTarget.apply(value)}
+                                className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium text-[var(--accent-color)] hover:bg-[var(--bg-tertiary)] border border-[var(--accent-color)]/40 hover:border-[var(--accent-color)] transition-all select-none cursor-pointer"
+                                title={`Apply to the flow ${flowTarget.name}`}
+                            >
+                                <Workflow className="w-3.5 h-3.5" /> Apply to flow
                             </button>
                         )}
 

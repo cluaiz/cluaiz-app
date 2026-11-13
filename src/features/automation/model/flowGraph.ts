@@ -1,5 +1,5 @@
 import { STEP_KINDS, stepKind, TRIGGER_KINDS, triggerKind } from './kinds';
-import { pointerOf, type FlowPath, type FlowValue, type InsertAt } from './flowDoc';
+import { pointerOf, valueAt, type FlowPath, type FlowValue, type InsertAt } from './flowDoc';
 
 /** A source handle a step sends along: a branch of `if`/`switch`/`parallel`, a loop's body, or its error steps */
 export interface Outlet { id: string; label: string; tone?: 'error' | 'loop' }
@@ -199,4 +199,26 @@ export function askContext(text: string, flow: string, node: GraphNode, lines: s
     const what = node.type === 'step' ? `the ${node.data.kind} step "${node.data.stepId}"` : node.type === 'trigger' ? `the ${node.data.kind} trigger` : 'the flow';
     return [`# The Cluaiz Automation flow "${flow}" (cluaiz.flow/1). The question is about ${what}${lines ? ` at lines ${lines}` : ''}.`,
         '# To suggest a change, answer with the whole changed flow file in one yaml code block.', text.trimEnd()].join('\n');
+}
+
+export type ReviewMark = 'added' | 'changed';
+
+/** A step's own part: the step lists inside it are left out, since their steps are compared on their own */
+const ownPart = (key: string, value: unknown) =>
+    key !== '' && Array.isArray(value) && value.some(item => stepKind(item)) ? 'steps' : value;
+export interface Review { marks: Record<string, ReviewMark>; removed: string[] }
+
+/** What a whole new file changes, step by step (by id; triggers by place), so the owner sees it before keeping it */
+export function reviewChanges(before: FlowValue, after: FlowValue): Review {
+    const steps = (flow: FlowValue) => new Map(flowGraph(flow).nodes
+        .filter((node): node is Extract<GraphNode, { type: 'step' | 'trigger' }> => node.type === 'step' || node.type === 'trigger')
+        .map(node => [node.id, { title: node.data.title, raw: JSON.stringify(valueAt(flow, node.data.path), ownPart) }]));
+    const old = steps(before), now = steps(after);
+    const marks: Record<string, ReviewMark> = {};
+    for (const [id, step] of now) {
+        const was = old.get(id);
+        if (!was) marks[id] = 'added';
+        else if (was.raw !== step.raw) marks[id] = 'changed';
+    }
+    return { marks, removed: [...old].filter(([id]) => !now.has(id)).map(([, step]) => step.title) };
 }

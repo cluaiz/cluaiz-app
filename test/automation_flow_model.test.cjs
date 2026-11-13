@@ -86,3 +86,25 @@ test('every step kind and trigger has a look and a template that names its own k
   for(const [key,view] of Object.entries(kinds.TRIGGER_KINDS))assert.equal(kinds.triggerKind(view.template),key);
   assert.equal(kinds.stepKind({each:[],parallel:2,do:[]}),'each','a field named like a later kind does not change the kind');
 });
+
+test('a whole new file from the chat is reviewed step by step; a container is not marked for a change inside it',()=>{
+  const before=doc.readFlow(FLOW).value;
+  const after=JSON.parse(JSON.stringify(before));
+  after.steps[1].then.push({id:'extra',set:{a:1}});
+  after.steps[0].tool='mcp:mail/all';
+  after.steps.splice(3,1);
+  const review=graph.reviewChanges(before,after);
+  assert.deepEqual(plain(review.marks),{mails:'changed',extra:'added'});
+  assert.deepEqual(plain(review.removed),['report','Fail'],'removed steps are named by their title');
+  const ask=graph.askContext(FLOW,'mail',graph.flowGraph(before).nodes.find(node=>node.id==='judge'),'L9-L14');
+  assert.match(ask,/the if step "judge" at lines L9-L14/);
+  assert.ok(ask.endsWith(FLOW.trimEnd()));
+});
+
+test('only a whole flow file can be applied to the open flow',()=>{
+  const apply=load('src/features/automation/applyTarget.ts',{zustand:{create:()=>()=>({})},'./model/flowDoc':doc});
+  assert.equal(apply.isFlowText(FLOW),true);
+  assert.equal(apply.isFlowText('id: x\nset: { a: 1 }'),false);
+  assert.equal(apply.isFlowText('{"flow":"cluaiz.flow/1","name":"j","steps":[]}'),true);
+  assert.equal(apply.isFlowText('steps: [unclosed'),false);
+});
