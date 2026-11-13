@@ -357,10 +357,20 @@ export const useEngineStore = create<EngineState>()((set, get) => ({
         try {
             await toast.promise(
                 async () => {
-                    await systemApi.updatePermission({ [key]: value });
-                    // Only update local state after backend successfully responds
+                    const saved = (await systemApi.updatePermission({ [key]: value })).permission as Record<string, unknown> | undefined;
+                    // The screen shows what the Engine saved, never what was asked for: an Engine
+                    // that drops a field (older builds dropped the security mode) must not look saved
+                    const savedValue = saved?.[keyStr];
+                    if (value === null || typeof value !== 'object') {
+                        if (savedValue !== value) {
+                            set((state) => ({
+                                permissions: state.permissions && saved ? { ...state.permissions, [key]: savedValue } : state.permissions
+                            }));
+                            throw new Error(`The Engine did not save ${label}: it still has "${String(savedValue)}". Update the Engine.`);
+                        }
+                    }
                     set((state) => ({
-                        permissions: state.permissions ? { ...state.permissions, [key]: value } : null
+                        permissions: state.permissions ? { ...state.permissions, [key]: savedValue ?? value } : null
                     }));
                 },
                 {
