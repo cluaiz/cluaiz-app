@@ -6,7 +6,8 @@ import { Button } from '../../components/ui/Button';
 import { ConfirmationModal } from '../../components/ui/modal/ConfirmationModal';
 import { EngineOfflineGuard } from '../settings/EngineOfflineGuard';
 import type { FlowSummary } from '../../api/engine/automation';
-import { FlowEditor } from './FlowEditor';
+import { FlowStudio } from './studio/FlowStudio';
+import { ChatWorkspace } from '../chat/components/ChatWorkspace';
 import { FlowList } from './FlowList';
 import { RunList } from './RunList';
 import { describePermissions, useFlows } from './useFlows';
@@ -21,9 +22,12 @@ function AutomationContent() {
     const { flows, runs, error, busy, confirmation, refresh, setEnabled, run, remove, rerunFrom, confirm, cancelConfirmation } = useFlows();
 
     if (editing !== undefined) {
-        return <FlowEditor target={editing ?? undefined} onClose={saved => { setEditing(undefined); if (saved) void refresh(); }} />;
+        return <FlowStudio target={editing ?? undefined} onClose={saved => { setEditing(undefined); if (saved) void refresh(); }} />;
     }
-    return <div className="space-y-4">
+    return <div className="flex flex-col h-full min-h-0">
+        <WorkspaceHeader icon={Workflow} title="Automation"
+            description="Flows that run on a time, a file, a webhook or an event, and the record of every run." />
+        <main className="flex-1 overflow-y-auto custom-scrollbar p-5 space-y-4">
         <div className="flex items-center justify-between gap-3">
             <Tabs items={[{ id: 'flows', label: 'Flows', count: flows?.length }, { id: 'runs', label: 'Runs', count: runs?.length }]}
                 value={section} onChange={setSection} />
@@ -44,19 +48,15 @@ function AutomationContent() {
         <ConfirmationModal open={Boolean(removing)} title={`Remove ${removing?.name ?? 'flow'}?`} isDestructive confirmText="Remove"
             message="The flow file and its run records are deleted. Runs in progress are not cancelled."
             onCancel={() => setRemoving(null)} onConfirm={() => { const flow = removing; setRemoving(null); if (flow) void remove(flow); }} />
+        </main>
     </div>;
 }
 
+/** Automation beside the chat, as the code workspace is: the same chat can be asked about the flow open here */
 export function AutomationWorkspace() {
-    return <div className="flex flex-col h-full w-full min-w-0 overflow-hidden bg-[var(--bg-primary)] font-sans">
-        <WorkspaceHeader icon={Workflow} title="Automation"
-            description="Flows that run on a time, a file, a webhook or an event, and the record of every run." />
-        <main className="flex-1 overflow-y-auto custom-scrollbar p-6 bg-[var(--bg-primary)]">
-            <div className="max-w-7xl mx-auto">
-                <EngineOfflineGuard><AutomationContent /></EngineOfflineGuard>
-            </div>
-        </main>
-    </div>;
+    return <ChatWorkspace workspace={<div className="flex flex-col h-full w-full min-w-0 overflow-hidden bg-[var(--bg-primary)] font-sans">
+        <EngineOfflineGuard><AutomationContent /></EngineOfflineGuard>
+    </div>} />;
 }
 
 export default AutomationWorkspace;

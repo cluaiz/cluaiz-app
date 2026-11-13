@@ -23,6 +23,7 @@ export interface FlowRun {
 export interface RunStep {
     id: string; kind: string; status: string; place?: string;
     attempts?: { started_at?: string; ms?: number; error?: { message?: string } | null }[];
+    input?: unknown; output?: unknown; error?: { message?: string; kind?: string } | null;
 }
 
 export interface RunDetail { run: FlowRun; steps: RunStep[] }
@@ -37,3 +38,19 @@ export interface FlowSave extends FlowSource { scope: FlowScope; overwrite?: boo
 
 /** `data.permissions_missing` of a `permissions_unconfirmed` error: kind → names */
 export type MissingPermissions = Record<string, string[]>;
+
+/** A JSON Schema as Automation sends it */
+export type JsonSchema = Record<string, unknown>;
+
+/** Something a `tool` or `call` step can run, from `flows.nodes` */
+export interface FlowNodeRef {
+    ref: string; step: 'tool' | 'call'; source: string; title?: string; description?: string;
+    input_schema?: JsonSchema | null; output_schema?: JsonSchema | null;
+    scope?: string; sends?: boolean; destructive?: boolean; needs_approval?: boolean;
+}
+export interface FlowKindInfo { kind: string; fields: string[]; description?: string }
+export interface FlowOperator { name: string; group?: string; arguments?: number; returns?: string }
+/** The palette of `flows.nodes`: what steps can run here, and the step kinds, triggers and operators */
+export interface FlowNodes { nodes: FlowNodeRef[]; steps: FlowKindInfo[]; triggers: FlowKindInfo[]; operators: FlowOperator[] }
+/** `flows.schema`: the flow-file version and the file's JSON Schema */
+export interface FlowSchema { version: string; schema: JsonSchema }

@@ -1,0 +1,54 @@
+/* React Flow in the App's theme: every colour is a theme variable */
+.flow-canvas .react-flow {
+    --xy-background-color: var(--bg-primary);
+    --xy-background-pattern-dots-color-default: var(--border-color);
+    --xy-edge-stroke-default: var(--text-muted);
+    --xy-edge-stroke-selected-default: var(--accent-color);
+    --xy-edge-stroke-width-default: 1.5;
+    --xy-connectionline-stroke-default: var(--accent-color);
+    --xy-connectionline-stroke-width-default: 2;
+    --xy-handle-background-color-default: var(--bg-tertiary);
+    --xy-handle-border-color-default: var(--text-muted);
+    --xy-node-border-radius-default: 12px;
+    --xy-minimap-background-color-default: var(--bg-secondary);
+    --xy-minimap-mask-background-color-default: color-mix(in srgb, var(--bg-primary) 70%, transparent);
+    --xy-minimap-node-background-color-default: var(--bg-tertiary);
+    --xy-minimap-node-stroke-color-default: var(--border-color);
+    --xy-controls-button-background-color-default: var(--bg-secondary);
+    --xy-controls-button-background-color-hover-default: var(--bg-tertiary);
+    --xy-controls-button-color-default: var(--text-secondary);
+    --xy-controls-button-color-hover-default: var(--text-primary);
+    --xy-controls-button-border-color-default: var(--border-color);
+    --xy-controls-box-shadow-default: none;
+    --xy-selection-background-color-default: color-mix(in srgb, var(--accent-color) 10%, transparent);
+    --xy-selection-border-default: 1px dashed var(--accent-color);
+}
+
+.flow-canvas .react-flow__controls {
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.flow-canvas .react-flow__minimap {
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.flow-canvas .react-flow__handle {
+    width: 10px;
+    height: 10px;
+    border-width: 2px;
+    transition: transform 120ms ease, border-color 120ms ease;
+}
+
+.flow-canvas .react-flow__handle:hover,
+.flow-canvas .react-flow__handle.connectingfrom {
+    transform: scale(1.35);
+    border-color: var(--accent-color);
+}
+
+.flow-canvas .react-flow__edge.animated path.react-flow__edge-path {
+    stroke: var(--accent-color);
+}

@@ -39,6 +39,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
     showLineNumbers = true,
     showMinimap = false,
     showToolbar = true,
+    showStatusBar = true,
     allowLanguageChange = true,
     onLanguageChange,
     onMount: userOnMount,
@@ -776,7 +777,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
             </div>
 
             {/* Bottom Status Bar Strip */}
-            <StatusBar
+            {showStatusBar && <StatusBar
                 cursorLine={cursorPosition.line}
                 cursorColumn={cursorPosition.column}
                 selectedCount={selectedLength}
@@ -789,7 +790,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
                 onToggleWordWrap={toggleWordWrap}
                 isWhitespace={isWhitespaceEnabled}
                 onToggleWhitespace={toggleWhitespace}
-            />
+            />}
 
             {/* Floating Selection "Ask AI" Action Popover */}
             {floatingAiAction && (

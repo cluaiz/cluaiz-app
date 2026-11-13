@@ -422,12 +422,13 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         });
     };
 
-    const handlePasteLargeText = (text: string) => {
+    /** A text staged as an attachment: pasted text, or context another screen hands the chat (`name` titles it) */
+    const handlePasteLargeText = (text: string, name?: string) => {
         if (textOnly) return false; // Keep pasted text in the editor; do not convert it to an attachment.
         const lines = text.split('\n').length;
         const snippetId = `snippet-${Date.now()}-${Math.random().toString(36).substring(2, 5)}`;
         const firstLine = text.trim().split('\n')[0].slice(0, 24);
-        const snippetName = firstLine ? `Pasted: "${firstLine}..."` : `Pasted Document (${lines} lines)`;
+        const snippetName = name || (firstLine ? `Pasted: "${firstLine}..."` : `Pasted Document (${lines} lines)`);
 
         const newSnippet: StagedAttachment = {
             id: snippetId,
@@ -575,7 +576,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         const handleInsertContext = (e: any) => {
             const detail = e.detail;
             if (!detail) return;
-            if (detail.path) {
+            if (typeof detail.text === 'string') {
+                handlePasteLargeText(detail.text, detail.name);
+            } else if (detail.path) {
                 addPathChip(detail.path, Boolean(detail.isFolder), detail.name, detail.lineRange);
             }
             inlineInputRef.current?.focus();

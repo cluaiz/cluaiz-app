@@ -1,6 +1,7 @@
 import { callCep, CepError } from '../../client/cep';
 import { ApiError } from '../../client/errors';
-import type { FlowFile, FlowRef, FlowRun, FlowSave, FlowSource, FlowSummary, FlowValidation, MissingPermissions, RunDetail, RunStatus } from './flows.types';
+import type { FlowFile, FlowNodes, FlowRef, FlowRun, FlowSave, FlowSchema, FlowSource, FlowSummary, FlowValidation, MissingPermissions, RunDetail,
+    RunStatus } from './flows.types';
 
 const object = (value: unknown): value is Record<string, unknown> =>
     value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -62,11 +63,29 @@ export const flowsApi = {
         if (!object(result) || typeof result.text !== 'string' || !formats.has(result.format as string)) throw invalid('flows.get');
         return { flow: changed(result, ref, 'flows.get'), format: result.format as FlowFile['format'], text: result.text };
     },
+    /** The flow-file version this Automation writes and the file's JSON Schema */
+    schema: async (signal?: AbortSignal): Promise<FlowSchema> => {
+        const result = await callCep<unknown>('flows.schema', {}, { signal });
+        if (!object(result) || !text(result.version) || !object(result.schema)) throw invalid('flows.schema');
+        return { version: result.version, schema: result.schema };
+    },
     /** The flow-file version this Automation writes, e.g. for a new file. */
     schemaVersion: async (signal?: AbortSignal): Promise<string> => {
         const result = await callCep<unknown>('flows.schema', {}, { signal });
         if (!object(result) || !text(result.version)) throw invalid('flows.schema');
         return result.version;
+    },
+    /** What steps can run on this Engine (installed tools, CEP methods), with the step kinds, triggers and operators */
+    nodes: async (signal?: AbortSignal): Promise<FlowNodes> => {
+        const result = await callCep<unknown>('flows.nodes', {}, { signal });
+        if (!object(result) || !Array.isArray(result.nodes)) throw invalid('flows.nodes');
+        const list = (value: unknown) => Array.isArray(value) ? value.filter(object) : [];
+        return {
+            nodes: result.nodes.filter(node => object(node) && text(node.ref) && (node.step === 'tool' || node.step === 'call')) as unknown as FlowNodes['nodes'],
+            steps: list(result.steps) as unknown as FlowNodes['steps'],
+            triggers: list(result.triggers) as unknown as FlowNodes['triggers'],
+            operators: list(result.operators) as unknown as FlowNodes['operators'],
+        };
     },
     validate: async (source: FlowSource, signal?: AbortSignal): Promise<FlowValidation> => {
         const result = await callCep<unknown>('flows.validate', source, { signal });

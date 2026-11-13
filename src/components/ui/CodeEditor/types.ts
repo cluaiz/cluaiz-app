@@ -16,6 +16,8 @@ export interface CodeEditorProps {
     showLineNumbers?: boolean;
     showMinimap?: boolean;
     showToolbar?: boolean;
+    /** The line, column and settings strip under the editor (default shown) */
+    showStatusBar?: boolean;
     allowLanguageChange?: boolean;
     onLanguageChange?: (language: CodeEditorLanguage) => void;
     onMount?: (editor: any, monaco: any) => void;
