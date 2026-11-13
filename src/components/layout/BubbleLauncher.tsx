@@ -2,7 +2,6 @@ import { Icons } from '../animate-ui/icons';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLayoutStore } from '../../store/ui/useLayoutStore';
 import { useProjectStore } from '../../store/workspace/useProjectStore';
-import { pushViewRoute } from '../../core/router';
 
 interface BubbleLauncherProps {
     isOpen: boolean;
@@ -23,10 +22,6 @@ export function BubbleLauncher({ isOpen, coords, onClose, onOpenSettings }: Bubb
             useLayoutStore.getState().setActiveView('chat');
             useProjectStore.getState().openWorkspace();
             useLayoutStore.getState().setSplitPaneWidth(50);
-        } else if (action === 'tools') {
-            useLayoutStore.getState().setActiveView('tools');
-            pushViewRoute('tools');
-            document.dispatchEvent(new CustomEvent('open-tools'));
         } else if (action === 'apis') {
             useLayoutStore.getState().setActiveView('apis');
             document.dispatchEvent(new CustomEvent('open-apis'));
@@ -73,7 +68,6 @@ export function BubbleLauncher({ isOpen, coords, onClose, onOpenSettings }: Bubb
                     >
                         <MenuItem icon={Icons.MessageSquare} label="New Chat" onClick={() => handleSelect('new_chat')} />
                         <MenuItem icon={Icons.FolderGit2} label="Open Workspace" onClick={() => handleSelect('workspace')} />
-                        <MenuItem icon={Icons.Wrench} label="Tools" onClick={() => handleSelect('tools')} />
                         <MenuItem icon={Icons.Code2} label="APIs" onClick={() => handleSelect('apis')} />
                         <MenuItem icon={Icons.Boxes} label="Toolkit" onClick={() => handleSelect('toolkit')} />
                         

@@ -1,3 +1,3 @@
 import { ShowcaseShell } from './showcase/ShowcaseShell';
-/** One gallery owner shared by the App route and Toolkit. */
+/** The design system gallery of Toolkit → UI SDK; the Toolkit sidebar shows its directory. */
 export function ComponentShowcase() { return <ShowcaseShell />; }

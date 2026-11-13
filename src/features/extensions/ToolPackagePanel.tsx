@@ -15,6 +15,7 @@ import { MarkdownRenderer, parseMarkdownWithFrontmatter } from '../../components
 import { ToggleSwitch } from '../../components/ui/ToggleSwitch';
 import { toast } from '../../components/ui/toast';
 import { ToolInspectorModal, type PackageFiles, type ToolComponent } from '../settings/ToolInspectorModal';
+import { ToolPermissionsPanel } from '../settings/ToolPermissionsPanel';
 import { CatalogueHero, SpecList } from './CatalogueUI';
 import { catalogueImage } from './catalogueView';
 import { DownloadingButton } from './ModelPackagePanel';
@@ -156,6 +157,8 @@ export function ToolPackagePanel({ item, installing, canInstall, onInstall }: {
         <Card><CardHeader><CardTitle>Specifications</CardTitle></CardHeader>
             <CardContent><SpecList specs={specs} /></CardContent>
         </Card>
+
+        {installed && <Card><CardContent className="pt-4"><ToolPermissionsPanel kind={installed.category} name={installed.id} /></CardContent></Card>}
 
         {(installed || published) && <section className="space-y-2" aria-label="Package files">
             <h3 className="flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]"><FolderOpen size={15} /> Files</h3>

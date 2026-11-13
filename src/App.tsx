@@ -14,10 +14,8 @@ import { ExtensionActivities } from './features/extensions/ExtensionActivities';
 import { DesktopLifecycleBootstrap } from './core/DesktopLifecycleBootstrap';
 import { bundledWorkspaceRoutes } from './extensions/bundled';
 import { ApiWorkspace } from './features/api/ApiWorkspace';
-import { ToolsWorkspace } from './features/tools';
 import { AutomationWorkspace } from './features/automation';
 import { AssetPreviewModal } from './features/library';
-import { ComponentShowcase } from './components/ComponentShowcase';
 import { ToolkitWorkspace } from './features/extensions/ToolkitWorkspace';
 import { openAttachmentInWorkspace } from './features/chat/utils/workspaceAttachmentOpener';
 import { ElasticSlider } from './components/ui/cursor/ElasticSlider';
@@ -181,16 +179,12 @@ function MainAppContent() {
                     />
                 }
                 mainContent={
-                    activeView === 'components' ? (
-                        <ComponentShowcase />
-                    ) : activeView === 'toolkit' ? (
+                    activeView === 'toolkit' ? (
                         <ToolkitWorkspace />
                     ) : activeView === 'notebook' ? (
                         <ExtensionWorkspaceHost {...bundledWorkspaceRoutes.notebook} />
                     ) : activeView === 'apis' ? (
                         <ApiWorkspace />
-                    ) : activeView === 'tools' ? (
-                        <ToolsWorkspace />
                     ) : activeView === 'automation' ? (
                         <AutomationWorkspace />
                     ) : activeView === 'library' ? (

@@ -2,18 +2,20 @@ import { lazy, Suspense, useEffect, useState } from 'react';
 import { Button } from '../../components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card';
 import { ComponentShowcase } from '../../components/ComponentShowcase';
-import { ToolsWorkspace } from '../tools';
 import { workspaceExtensions } from '../../extensions/bundled';
 import { openExtensionWorkspace } from '../../extensions/navigation';
 import { InstalledExtensions } from './InstalledExtensions';
 import { CatalogueStickyHeader } from './CatalogueStickyHeader';
 import { ProviderPanel } from './ProviderPanel';
 import { useModelCatalogueStore } from './modelCatalogueStore';
+import { isToolSection, SECTION_KIND } from './toolPackages';
 
 const DeveloperPreview = lazy(() => import('./DeveloperExtensionWorkspace'));
+const Tools = lazy(() => import('./ToolCatalogue').then(module => ({ default: module.ToolCatalogue })));
 const Models = lazy(() => import('./ModelCatalogue').then(module => ({ default: module.ModelCatalogue })));
 
-import { TOOLKIT_SECTIONS, toolkitSection, type ToolkitSectionId, toolkitSectionUrl } from './toolkitNavigation';
+import { TOOLKIT_SECTIONS, toolkitParam, toolkitSection, type ToolkitSectionId, toolkitSectionUrl } from './toolkitNavigation';
+import { useToolkitUrl } from './useToolkitUrl';
 export { TOOLKIT_SECTIONS, toolkitSection, type ToolkitSectionId };
 
 /** Central Toolkit Hub; contextual drill-down without tabs isolation. */
@@ -53,14 +55,10 @@ export function ToolkitWorkspace() {
                         <Models />
                     </Suspense>
                 )}
-                {section === 'mcp' && (
-                    <ToolsWorkspace defaultKind="mcp" embedded />
-                )}
-                {section === 'skills' && (
-                    <ToolsWorkspace defaultKind="skill" embedded />
-                )}
-                {section === 'plugins' && (
-                    <ToolsWorkspace defaultKind="plugin" embedded />
+                {isToolSection(section) && (
+                    <Suspense fallback={<p className="p-5 text-xs text-[var(--text-secondary)]">Opening tools catalogue…</p>}>
+                        <Tools key={section} initialKind={SECTION_KIND[section]} />
+                    </Suspense>
                 )}
                 {section === 'components' && (
                     <ComponentShowcase />
@@ -90,8 +88,13 @@ export function ToolkitWorkspace() {
 
 function AppExtensionsSection({ onOpenPreview }: { onOpenPreview: () => void }) {
     const [searchQuery, setSearchQuery] = useState('');
+    /* The extension opened in the sidebar shows on its own */
+    useToolkitUrl();
+    const open = toolkitParam('package');
     const allBundled = workspaceExtensions.list();
+    const openBundled = allBundled.some(entry => entry.id === open);
     const filteredBundled = allBundled.filter(entry => {
+        if (open) return entry.id === open;
         if (!searchQuery.trim()) return true;
         const q = searchQuery.toLowerCase();
         return entry.name.toLowerCase().includes(q) || entry.id.toLowerCase().includes(q);
@@ -114,7 +117,7 @@ function AppExtensionsSection({ onOpenPreview }: { onOpenPreview: () => void }) 
                 }
             />
             <div className="mx-auto w-full max-w-7xl p-6 space-y-6">
-                <div>
+                {(!open || openBundled) && <div>
                     <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)] mb-3">
                         Bundled Core Extensions ({filteredBundled.length})
                     </h3>
@@ -149,8 +152,8 @@ function AppExtensionsSection({ onOpenPreview }: { onOpenPreview: () => void }) 
                             ))}
                         </div>
                     )}
-                </div>
-                <InstalledExtensions />
+                </div>}
+                {!openBundled && <InstalledExtensions />}
             </div>
         </div>
     );

@@ -988,19 +988,6 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                                 }}
                             />
 
-                            {/* 5. Tools */}
-                            <DockIconButton
-                                tooltip="Tools"
-                                icon={Icons.Wrench}
-                                isActive={activeView === 'tools'}
-                                onClick={() => {
-                                    useLayoutStore.getState().setActiveView('tools');
-                                    pushViewRoute('tools');
-                                    document.dispatchEvent(new CustomEvent('open-tools'));
-                                    setIsFlyoutOpen(false);
-                                }}
-                            />
-
                             <DockIconButton
                                 tooltip="Automation"
                                 icon={Icons.Workflow}
@@ -1068,18 +1055,6 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                                     }}
                                 />
                             </div>
-
-                            {/* 8. UI Components Showroom */}
-                            <DockIconButton
-                                tooltip="UI Components Showroom"
-                                icon={Icons.Layers}
-                                isActive={activeView === 'components'}
-                                onClick={() => {
-                                    useLayoutStore.getState().setActiveView('components');
-                                    pushViewRoute('components');
-                                    setIsFlyoutOpen(false);
-                                }}
-                            />
                         </div>
 
                         {/* Bottom Pinned Icon: Settings */}

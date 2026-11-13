@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { motion } from 'framer-motion';
 import {
   Sparkles,
   Cpu,
@@ -7,7 +6,6 @@ import {
   Blocks,
   Boxes,
   Search,
-  ChevronRight,
   Wrench,
   ArrowLeft,
   Layers,
@@ -22,6 +20,8 @@ import {
 import { CloudModelsTab } from './CloudModelsTab';
 import { InstalledFamilies } from './InstalledFamilies';
 import { ToolSidebarDirectory } from './ToolSidebarDirectory';
+import { ExtensionsSidebarDirectory } from './ExtensionsSidebarDirectory';
+import { ShowcaseDirectory } from '../../components/showcase/ShowcaseDirectory';
 import { isToolSection } from './toolPackages';
 import { ActivityPill, DirectoryRow } from './DirectoryRow';
 import { modelsApi } from '../../api/engine/models/models.api';
@@ -30,7 +30,6 @@ import { useChatStore } from '../../store/chat/useChatStore';
 import { useConnectionStore } from '../../store/engine/useConnectionStore';
 import { downloadRepo, useModelDownloadStore } from './modelDownloadStore';
 import { Input } from '../../components/ui/Input';
-import { useScrollReveal } from '../../hooks/useScrollReveal';
 import { useToolkitSummary } from './useToolkitSummary';
 import { toolkitSection, type ToolkitSectionId } from './toolkitNavigation';
 import { useToolkitNavStore } from './toolkitStore';
@@ -403,7 +402,6 @@ function ModelsSidebarDirectory({ onBack }: { onBack?: () => void }) {
 
 export const ToolkitSidebar: React.FC = () => {
   const summary = useToolkitSummary();
-  const scrollReveal = useScrollReveal({ amount: 0.15, scale: 0.96 });
   const {
     activeSection,
     showSectionPicker,
@@ -454,6 +452,8 @@ export const ToolkitSidebar: React.FC = () => {
     return <ModelsSidebarDirectory onBack={() => setShowSectionPicker(true)} />;
   }
   if (isToolSection(activeSection) && !showSectionPicker) return <ToolSidebarDirectory section={activeSection} />;
+  if (activeSection === 'components' && !showSectionPicker) return <ShowcaseDirectory className="flex-1 bg-[var(--bg-secondary)]" />;
+  if (activeSection === 'extensions' && !showSectionPicker) return <ExtensionsSidebarDirectory />;
 
   const query = search.trim().toLowerCase();
   const filteredItems = NAV_ITEMS.filter(
@@ -483,58 +483,9 @@ export const ToolkitSidebar: React.FC = () => {
 
         {filteredItems.map((item) => {
           const Icon = item.icon;
-          const { count } = item.getCount(summary);
-          const isActive = activeSection === item.id;
-
-          return (
-            <motion.button
-              key={`${item.id}-${item.title}`}
-              {...scrollReveal}
-              type="button"
-              onClick={() => handleSelect(item.id)}
-              className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-left transition-all cursor-pointer group ${
-                isActive
-                  ? 'bg-[var(--accent-color)]/10 text-[var(--text-primary)] font-semibold border-l-2 border-[var(--accent-color)]'
-                  : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]'
-              }`}
-            >
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div
-                  className={`w-6 h-6 rounded-md flex items-center justify-center shrink-0 transition-colors ${
-                    isActive ? 'bg-[var(--accent-color)]/20' : 'bg-[var(--bg-tertiary)] group-hover:bg-[var(--bg-primary)]'
-                  }`}
-                >
-                  <Icon className={`w-3.5 h-3.5 ${item.iconColor}`} />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="text-xs leading-4 truncate font-medium">{item.title}</div>
-                  <div className="text-[10px] text-[var(--text-muted)] leading-3 truncate mt-0.5">
-                    {item.subtitle}
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-1 shrink-0 ml-2">
-                {item.id === 'models' && hasActiveDownload && (
-                  <span className="flex items-center gap-1 text-[10px] font-mono text-[var(--accent-color)] font-semibold animate-pulse mr-0.5">
-                    <Loader2 size={12} className="animate-spin" />
-                  </span>
-                )}
-                {count > 0 && (
-                  <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-[var(--bg-tertiary)] text-[var(--text-muted)] border border-[var(--border-color)]">
-                    {count}
-                  </span>
-                )}
-                <ChevronRight
-                  className={`w-3 h-3 transition-transform ${
-                    isActive
-                      ? 'text-[var(--accent-color)] translate-x-0.5'
-                      : 'text-[var(--text-muted)] opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5'
-                  }`}
-                />
-              </div>
-            </motion.button>
-          );
+          return <DirectoryRow key={item.id} title={item.title} subtitle={item.subtitle} count={item.getCount(summary).count || undefined}
+            icon={<Icon className={`w-5 h-5 ${item.iconColor}`} />} selected={activeSection === item.id}
+            downloading={item.id === 'models' && hasActiveDownload ? '' : undefined} onClick={() => handleSelect(item.id)} />;
         })}
 
         {filteredItems.length === 0 && (

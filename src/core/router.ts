@@ -38,7 +38,7 @@ export const VALID_SETTINGS_TABS: SettingsTabId[] = [
     'help'
 ];
 
-export type MainViewId = 'chat' | 'notebook' | 'settings' | 'tools' | 'automation' | 'apis' | 'toolkit' | 'library' | 'components' | 'extensions';
+export type MainViewId = 'chat' | 'notebook' | 'settings' | 'automation' | 'apis' | 'toolkit' | 'library' | 'extensions';
 
 export interface RouteState {
     view: MainViewId;
@@ -90,10 +90,10 @@ export function parseCurrentRoute(): RouteState {
 
     const rawTab = searchParams.get('tab') || extractTabFromPath(pathname) || extractTabFromHash(hash);
 
-    // Redirect legacy settings tools tab to standalone /tools page
+    // Redirect the legacy settings tools tab to the Toolkit
     if (rawTab === 'tools' || pathname === '/settings/tools') {
         return {
-            view: 'tools',
+            view: 'toolkit',
             isSettingsOpen: false,
             settingsTab: 'general',
         };
@@ -120,14 +120,10 @@ export function parseCurrentRoute(): RouteState {
         view = 'extensions';
     } else if (pathname.includes('/notebook') || hash.includes('/notebook')) {
         view = 'notebook';
-    } else if (pathname.includes('/tools')) {
-        view = 'tools';
     } else if (pathname.includes('/automation')) {
         view = 'automation';
     } else if (pathname.includes('/apis')) {
         view = 'apis';
-    } else if (pathname === '/components' || hash.split('?')[0] === '#/components') {
-        view = 'components';
     } else if (pathname.includes('/toolkit')) {
         view = 'toolkit';
     } else if (pathname.includes('/library') || hash.includes('/library')) {

@@ -3,7 +3,7 @@ import { Sun, Moon, Contrast } from 'lucide-react';
 import { DateRange } from '../ui/dropdown/CalendarDropdown';
 import { useThemeStore, AppTheme } from '../../store/ui/useThemeStore';
 import { COMPONENT_GROUPS } from './catalog';
-import type { ComponentId } from './types';
+import { filterGroups, useShowcaseSelection } from './selection';
 export function useShowcaseState(){
 const {
         theme,
@@ -17,8 +17,7 @@ const {
         borderRadius,
         setBorderRadius
     } = useThemeStore();
-const [selectedId, setSelectedId] = useState<ComponentId>('typography');
-const [searchQuery, setSearchQuery] = useState('');
+const { selectedId, setSelectedId, searchQuery, setSearchQuery } = useShowcaseSelection();
 const [inputVal, setInputVal] = useState('Interactive editable input');
 const [inputError, setInputError] = useState('');
 const [toggle1, setToggle1] = useState(true);
@@ -58,15 +57,7 @@ const copyToClipboard = async (text: string) => {
         setCopyError('Clipboard access is unavailable. Select and copy the displayed text manually.');
     }
 };
-const filteredGroups = COMPONENT_GROUPS.map((grp) => ({
-        ...grp,
-        items: grp.items.filter(
-            (item) =>
-                item.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                item.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                item.path.toLowerCase().includes(searchQuery.toLowerCase())
-        )
-    })).filter((grp) => grp.items.length > 0);
+const filteredGroups = filterGroups(searchQuery);
 const activeItem = COMPONENT_GROUPS.flatMap((g) => g.items).find((i) => i.id === selectedId) || COMPONENT_GROUPS[0].items[0];
 const accentOptions = [
         { label: 'Cyan Cyber', dark: '#00f0ff', light: '#0891b2' },
