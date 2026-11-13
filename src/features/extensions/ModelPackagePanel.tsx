@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { Check, CheckCircle2, Copy, Download, FileText, Loader2, Trash2 } from 'lucide-react';
+import { Check, CheckCircle2, Copy, Download, FileText, Loader2, Pause, Play, Trash2, X } from 'lucide-react';
 import { isCompanion, modelInstallReference, modelReadme, variantTag, type PublicModel, type PublicVariant } from '../../api/catalogue/models';
 import type { ModelRegistryEntry } from '../../api/engine/models/models.types';
 import { HoldButton } from '../../components/HoldButton/HoldButton';
@@ -22,6 +22,12 @@ interface Props {
   onSelectVariant(id: string): void;
   onInstall(model: PublicModel, variant: PublicVariant): Promise<void>;
   onUninstall(entry: ModelRegistryEntry): Promise<void>;
+  /** Pauses the running download (what arrived is kept) */
+  onPause(): void;
+  /** Stops the running download and deletes what arrived */
+  onCancel(): void;
+  /** Deletes what a paused download of this reference left */
+  onDiscard(reference: string): void;
   canStart: boolean;
   inventoryReady: boolean;
   hardware: CachedHardwareProfile | null;
@@ -37,13 +43,41 @@ function quantChoice(model: PublicModel, item: PublicVariant) {
   return { value: item.id, label: item.quant, description: gib(item.bytes) + detail };
 }
 
-/** The Download button while its package downloads: the background fills with the current transfer */
-function DownloadingButton({ percent }: { percent?: number }) {
-  return <Button variant="secondary" size="sm" disabled aria-busy="true" className="relative overflow-hidden !opacity-100">
+/** A paused download: a click continues it from what arrived, a hold deletes that */
+function PausedButton({ percent, onResume, onDiscard }: { percent: number | null; onResume: () => void; onDiscard: () => void }) {
+  return <span className="inline-flex" title="Click to resume, hold to cancel and delete what was downloaded">
+    <HoldButton {...DANGER_HOLD} backgroundColor="var(--bg-tertiary)" textColor="var(--text-primary)" size="sm" radius={8} glow={false}
+      icon={<Play size={14} />} doneLabel="Cancelling…" onTap={onResume} onHold={onDiscard}>
+      Resume{percent === null ? '' : ` · ${percent}%`}
+    </HoldButton>
+  </span>;
+}
+
+/**
+ * The Download (or Install) button while it runs: the background fills with its progress. With `onCancel`, a pointer
+ * over it offers to stop it: a click (`cancel="click"`) or a hold (`cancel="hold"`, the red hold look).
+ */
+export function DownloadingButton({ percent, label = 'Downloading', progressText, onCancel, onPause, cancel = 'click' }: {
+  percent?: number; label?: string; /** Shown after the label instead of the percent ('2/3') */ progressText?: string;
+  onCancel?: () => void; cancel?: 'click' | 'hold';
+  /** With `cancel="hold"`: a click pauses (what arrived is kept), a hold cancels */
+  onPause?: () => void;
+}) {
+  const [over, setOver] = useState(false);
+  const offer = Boolean(onCancel) && over;
+  if (offer && cancel === 'hold') return <span onMouseLeave={() => setOver(false)} className="inline-flex"
+    title={onPause ? 'Click to pause, hold to cancel' : 'Hold to cancel'}>
+    <HoldButton {...DANGER_HOLD} size="sm" radius={8} glow={false} icon={onPause ? <Pause size={14} /> : <X size={14} />} doneLabel="Cancelling…"
+      onTap={onPause} onHold={() => onCancel?.()}>{onPause ? 'Pause · hold to cancel' : 'Hold to cancel'}</HoldButton>
+  </span>;
+  return <Button variant="secondary" size="sm" disabled={!onCancel} aria-busy="true" className="relative overflow-hidden !opacity-100"
+    onMouseEnter={() => setOver(true)} onMouseLeave={() => setOver(false)} onClick={cancel === 'click' ? onCancel : undefined}
+    title={onCancel ? (cancel === 'click' ? 'Click to cancel' : 'Hold to cancel') : undefined}>
     <span aria-hidden="true" style={percent === undefined ? undefined : { width: `${percent}%` }}
       className={`absolute inset-y-0 left-0 bg-[var(--accent-color)]/40 transition-[width] duration-500 ${percent === undefined ? 'w-1/3 animate-pulse' : ''}`} />
-    <span className="relative flex items-center gap-1.5"><Loader2 size={14} className="animate-spin" />
-      Downloading{percent === undefined ? '…' : ` · ${percent}%`}</span>
+    <span className="relative flex items-center gap-1.5">{offer
+      ? <><X size={14} /> Cancel</>
+      : <><Loader2 size={14} className="animate-spin" />{label}{progressText ? ` · ${progressText}` : percent === undefined ? '…' : ` · ${percent}%`}</>}</span>
   </Button>;
 }
 
@@ -74,6 +108,7 @@ export function ModelPackagePanel(props: Props) {
   }
   const installed = installedModelForVariant(props.installed, model, variant);
   const download = useModelDownloadStore(state => state.download);
+  const paused = useModelDownloadStore(state => state.paused);
   const packages = model.variants.filter(item => !isCompanion(model, item));
   const command = reference ? `cluaiz run ${reference}` : '';
   const size = variant ? gib(variant.bytes) : 'Unknown';
@@ -114,7 +149,9 @@ export function ModelPackagePanel(props: Props) {
             <Badge variant="outline"><CheckCircle2 size={14} className="text-emerald-400" /> Installed</Badge>
             <HoldButton {...DANGER_HOLD} size="sm" radius={8} glow={false} icon={<Trash2 size={14} />} doneLabel="Uninstalling…"
               onHold={() => void props.onUninstall(installed)}>Hold to uninstall</HoldButton>
-          </> : download?.target === reference && reference ? <DownloadingButton percent={download.percent} /> :
+          </> : download?.target === reference && reference ? <DownloadingButton percent={download.percent} cancel="hold" onPause={props.onPause} onCancel={props.onCancel} />
+            : reference && Object.prototype.hasOwnProperty.call(paused, reference) ? <PausedButton percent={paused[reference]}
+              onResume={() => { if (variant && !download) void props.onInstall(model, variant); }} onDiscard={() => props.onDiscard(reference)} /> :
             <Button size="sm" disabled={!reference || !props.inventoryReady || !props.canStart || Boolean(download)}
               title={download ? 'Another model is downloading; one download runs at a time' : undefined}
               onClick={() => { if (variant) void props.onInstall(model, variant); }}>

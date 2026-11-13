@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { CheckCircle2, Download } from 'lucide-react';
+import { CheckCircle2, Download, Loader2 } from 'lucide-react';
 import { useScrollReveal } from '../../hooks/useScrollReveal';
 
 interface DirectoryRowProps {
@@ -27,6 +27,13 @@ export function DirectoryMarks({ selected, done, downloading }: { selected: bool
         {done && <CheckCircle2 size={12} role="img" aria-label={done} className="text-emerald-400 shrink-0"><title>{done}</title></CheckCircle2>}
         {selected && <span title="Open" className="w-1.5 h-1.5 rounded-full bg-[var(--accent-color)] shrink-0" />}
     </>;
+}
+
+/** A sidebar header's pill while something runs in it ('Downloading 42%', 'Installing 2/3') */
+export function ActivityPill({ children }: { children: React.ReactNode }) {
+    return <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-[var(--accent-color)]/10 border border-[var(--accent-color)]/30 text-[10px] font-mono text-[var(--accent-color)] font-semibold animate-pulse">
+        <Loader2 size={11} className="animate-spin" />{children}
+    </span>;
 }
 
 /** One row of a Toolkit sidebar directory (model families, providers): opens its detail in the content pane. */

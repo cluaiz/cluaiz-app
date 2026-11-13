@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Cloud } from 'lucide-react';
 import { providerLogo } from '../../api/catalogue/providers';
 import { CatalogueHeroImage, LogoBox } from './CatalogueUI';
@@ -35,19 +35,30 @@ function Mark({ url, oneColour, className }: { url: string; oneColour: boolean; 
     return <span aria-hidden="true" className={`${className} bg-[var(--text-primary)]`} style={{ mask, WebkitMask: mask }} />;
 }
 
-/** A provider's logo in the catalogue's logo box, or bare where the row draws its own box; custom providers get the cloud icon. */
-export function ProviderLogo({ id, large = false, boxed = true }: { id: string; large?: boolean; boxed?: boolean }) {
-    const url = providerLogo(id), oneColour = useOneColour(url);
-    const mark = !url ? <Cloud className="w-4 h-4 text-[var(--accent-color)]" aria-hidden="true" />
-        : oneColour !== undefined && <Mark url={url} oneColour={oneColour} className={boxed ? 'w-3/5 h-3/5' : 'w-5 h-5'} />;
+/** A logo image, boxed or bare; a one-colour logo is drawn in the theme's text colour so it shows in light and dark */
+export function ThemedLogo({ url, fallback, large = false, boxed = true, className }: {
+    url: string; fallback: React.ReactNode; large?: boolean; boxed?: boolean; className?: string;
+}) {
+    const oneColour = useOneColour(url);
+    const mark = !url ? fallback
+        : oneColour !== undefined && <Mark url={url} oneColour={oneColour} className={className ?? (boxed ? 'w-3/5 h-3/5' : large ? 'w-8 h-8' : 'w-5 h-5')} />;
     return boxed ? <LogoBox large={large}>{mark}</LogoBox> : <>{mark}</>;
 }
 
-/** A provider's logo, large and dimmed, for the page head. */
-export function ProviderHeroLogo({ id }: { id: string }) {
-    const url = providerLogo(id), oneColour = useOneColour(url);
+/** A provider's logo in the catalogue's logo box, or bare where the row draws its own box; custom providers get the cloud icon. */
+export function ProviderLogo({ id, large = false, boxed = true }: { id: string; large?: boolean; boxed?: boolean }) {
+    return <ThemedLogo url={providerLogo(id)} large={large} boxed={boxed}
+        fallback={<Cloud className="w-4 h-4 text-[var(--accent-color)]" aria-hidden="true" />} />;
+}
+
+/** A logo, large and dimmed, for the page head */
+export function HeroLogo({ url }: { url: string }) {
+    const oneColour = useOneColour(url);
     if (!url || oneColour === undefined) return null;
     return oneColour
         ? <Mark url={url} oneColour className="absolute right-[8%] top-1/2 -translate-y-1/2 w-56 h-56 opacity-20" />
         : <CatalogueHeroImage src={url} />;
 }
+
+/** A provider's logo, large and dimmed, for the page head. */
+export const ProviderHeroLogo = ({ id }: { id: string }) => <HeroLogo url={providerLogo(id)} />;

@@ -21,7 +21,9 @@ import {
 } from 'lucide-react';
 import { CloudModelsTab } from './CloudModelsTab';
 import { InstalledFamilies } from './InstalledFamilies';
-import { DirectoryRow } from './DirectoryRow';
+import { ToolSidebarDirectory } from './ToolSidebarDirectory';
+import { isToolSection } from './toolPackages';
+import { ActivityPill, DirectoryRow } from './DirectoryRow';
 import { modelsApi } from '../../api/engine/models/models.api';
 import type { ModelRegistryEntry } from '../../api/engine/models/models.types';
 import { useChatStore } from '../../store/chat/useChatStore';
@@ -264,10 +266,7 @@ function ModelsSidebarDirectory({ onBack }: { onBack?: () => void }) {
             AI Models
           </h2>
           {download && (
-            <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-[var(--accent-color)]/10 border border-[var(--accent-color)]/30 text-[10px] font-mono text-[var(--accent-color)] font-semibold animate-pulse">
-              <Loader2 size={11} className="animate-spin" />
-              Downloading{download.percent === undefined ? '' : ` ${download.percent}%`}
-            </span>
+            <ActivityPill>Downloading{download.percent === undefined ? '' : ` ${download.percent}%`}</ActivityPill>
           )}
         </div>
         <p className="text-xs text-[var(--text-muted)]">
@@ -443,6 +442,7 @@ export const ToolkitSidebar: React.FC = () => {
     url.pathname = '/toolkit';
     url.hash = '';
     url.searchParams.set('section', sectionId);
+    for (const param of ['package', 'list']) url.searchParams.delete(param);
     window.history.pushState(window.history.state, '', url);
 
     // 3. Dispatch notification event for ToolkitWorkspace
@@ -453,6 +453,7 @@ export const ToolkitSidebar: React.FC = () => {
   if (activeSection === 'models' && !showSectionPicker) {
     return <ModelsSidebarDirectory onBack={() => setShowSectionPicker(true)} />;
   }
+  if (isToolSection(activeSection) && !showSectionPicker) return <ToolSidebarDirectory section={activeSection} />;
 
   const query = search.trim().toLowerCase();
   const filteredItems = NAV_ITEMS.filter(

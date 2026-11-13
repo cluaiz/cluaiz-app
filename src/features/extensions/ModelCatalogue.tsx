@@ -15,7 +15,6 @@ import {
 } from './catalogueView';
 import { resumeModelDownload } from '../../api/engine/models/actions';
 import { useCatalogueTask } from './useCatalogueTask';
-import { CatalogueTaskStatus } from './CatalogueTaskStatus';
 import { FamilyModelSliderRow } from './FamilyModelSliderRow';
 import { ModelPackagePanel } from './ModelPackagePanel';
 import { useFamilyFilter } from './familyFilter';
@@ -111,7 +110,38 @@ export function ModelCatalogue() {
   const percent = downloadPercent(download.task);
   useEffect(() => { useModelDownloadStore.getState().setDownload(downloading ? { target: downloading, percent } : null); }, [downloading, percent]);
   const installedChanged = () => { setConnection(value => value + 1); useModelDownloadStore.getState().installedChanged(); };
+  /* Paused downloads of the connected Engine; downloading the same reference continues from its `.part` */
+  const engineScope = useConnectionStore(state => state.getBaseUrl());
+  const setPaused = useModelDownloadStore(state => state.setPaused);
+  useEffect(() => { useModelDownloadStore.getState().loadPaused(engineScope); }, [engineScope]);
+  useEffect(() => { if (download.result && download.receipt) setPaused(download.receipt.target, undefined); }, [download.result, download.receipt, setPaused]);
+  /** Stops the running download and keeps what arrived */
+  const pause = async () => {
+    if (!downloading) return;
+    const target = downloading, at = percent ?? null;
+    await download.cancel();
+    setPaused(target, at);
+  };
+  /** Deletes what a stopped download of `target` left */
+  const discard = async (target: string) => {
+    try { await modelsApi.discardDownload(target); setPaused(target, undefined); }
+    catch (error) { setInstallError(`The partial download could not be deleted: ${error instanceof Error ? error.message : String(error)}`); }
+  };
+  /** Stops the running download and deletes what arrived */
+  const cancelDownload = async () => {
+    if (!downloading) return;
+    const target = downloading;
+    await download.cancel();
+    await discard(target);
+  };
   useEffect(() => { if (download.result) installedChanged(); }, [download.result]);
+  /* The Download button is the only progress shown: an ended download is forgotten, a failed one says why */
+  useEffect(() => {
+    if (download.busy || download.cancelling) return;
+    const failed = download.error || (download.task?.status === 'failed' ? download.task.status_message || 'the Engine stopped it' : '');
+    if (failed) setInstallError(`Download failed: ${failed}`);
+    if (download.receipt || download.error) download.forget();
+  }, [download.busy, download.cancelling, download.error, download.receipt, download.task?.status]);
 
 
   const models = catalogue.reply?.data ?? [];
@@ -130,6 +160,7 @@ export function ModelCatalogue() {
     if (!inventoryReady) { setInstallError('Connect to your Engine before downloading a package.'); return; }
     try {
       const reference = modelInstallReference(model, variant);
+      setPaused(reference, undefined);
       await download.start(reference, (signal, observer) => modelsApi.downloadModel({ model_id: reference }, signal, observer));
     } catch (error) {
       setInstallError(error instanceof Error ? error.message : String(error));
@@ -243,14 +274,13 @@ export function ModelCatalogue() {
         )}
 
         {catalogue.busy && <p role="status">Loading catalogue…</p>}
-        {(catalogue.error || catalogue.reply?.warning) && <p role="alert">{catalogue.error || catalogue.reply?.warning}</p>}
+        {catalogue.error && !catalogue.reply && <p role="alert" className="text-sm text-[var(--status-error)]">The model list could not be loaded. Check your internet connection.</p>}
 
         {!inventoryReady && <div className="flex flex-wrap items-center gap-3 text-sm text-[var(--text-secondary)]">
           <p role={engineError ? 'alert' : 'status'}>{cleanEngineError || 'Checking installed models…'}</p>
           {engineError && <Button variant="secondary" size="sm" onClick={() => setConnection(value => value + 1)}>Retry Engine connection</Button>}
         </div>}
         {installError && <p role="alert" className="text-sm text-[var(--status-error)]">{installError}</p>}
-        <CatalogueTaskStatus {...download} />
 
         <CatalogueImageFilters />
 
@@ -312,7 +342,7 @@ export function ModelCatalogue() {
             <ModelPackagePanel key={selectedModel.id} model={selectedModel} installed={installed}
               selectedVariantId={selectedVariantByModel[selectedModel.id]}
               onSelectVariant={id => setSelectedVariantByModel(previous => ({ ...previous, [selectedModel.id]: id }))}
-              onInstall={install} onUninstall={uninstall} canStart={download.canStart} inventoryReady={inventoryReady}
+              onInstall={install} onUninstall={uninstall} onPause={() => void pause()} onCancel={() => void cancelDownload()} onDiscard={target => void discard(target)} canStart={download.canStart} inventoryReady={inventoryReady}
               hardware={hardwareProfile} />
 
             {/* Technical Metadata Section */}
@@ -440,7 +470,7 @@ export function ModelCatalogue() {
                         return model ? <ModelPackagePanel key={model.id} model={model} installed={installed}
                           selectedVariantId={selectedVariantByModel[model.id]}
                           onSelectVariant={id => setSelectedVariantByModel(previous => ({ ...previous, [model.id]: id }))}
-                          onInstall={install} onUninstall={uninstall} canStart={download.canStart} inventoryReady={inventoryReady}
+                          onInstall={install} onUninstall={uninstall} onPause={() => void pause()} onCancel={() => void cancelDownload()} onDiscard={target => void discard(target)} canStart={download.canStart} inventoryReady={inventoryReady}
                           hardware={hardwareProfile} /> : null;
                       })()}
                     </div>

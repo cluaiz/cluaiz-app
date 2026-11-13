@@ -29,6 +29,13 @@ export async function removeInstalledModel(model: string, signal?: AbortSignal) 
   return {status: 'success', model, dir: value.dir};
 }
 
+/** Deletes what a stopped download left (its `.part` and finished files); an installed model is never touched */
+export async function discardDownload(model: string, signal?: AbortSignal) {
+  const value = await callCep<unknown>('models.discard', {model}, {signal, timeoutMs: 0});
+  if (!object(value) || value.model !== model || (value.removed !== null && !text(value.removed))) throw invalid('models.discard');
+  return {model, removed: value.removed as string | null};
+}
+
 /** Current Engine probes GGUF headers. ONNX errors remain explicit, never a fabricated header. */
 export async function inspectInstalledModel(model: string, file?: string, signal?: AbortSignal): Promise<InspectHeaderResponse> {
   const target = modelTarget(model);

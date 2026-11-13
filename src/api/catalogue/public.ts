@@ -2,7 +2,9 @@
 const DAY_MS = 24 * 60 * 60 * 1000;
 const MIN_REFRESH_MS = 60 * 1000;
 const MAX_BYTES = 16 * 1024 * 1024;
-const SOURCES = ['cluaiz.com', 'raw.githubusercontent.com', 'models.dev'];
+const SOURCES = ['cluaiz.com', 'raw.githubusercontent.com', 'models.dev', 'api.github.com'];
+/** A repository's file list (GitHub's git tree), the only GitHub API read */
+const GIT_TREE = /^https:\/\/api\.github\.com\/repos\/[\w.-]+\/[\w.-]+\/git\/trees\/[\w.-]+\?recursive=1$/;
 declare const __CLUAIZ_MODEL_REGISTRY_ORIGIN__: string;
 /** Vite supplies a loopback override only during explicitly configured local development. */
 export const MODEL_REGISTRY_ORIGIN = typeof __CLUAIZ_MODEL_REGISTRY_ORIGIN__ === 'string'
@@ -48,7 +50,8 @@ function save(key: string, value: Entry) {
   remember(key, value, encoded.length);
   try { localStorage.setItem(PREFIX + key, encoded); } catch { /* Quota does not hide a real response. */ }
 }
-async function readJson(response: Response) {
+/** The response body: parsed JSON, or the text itself for a package's other files (README.md, SKILL.md, sources) */
+async function readBody(response: Response, asText: boolean) {
   const size = response.headers.get('content-length');
   if (size && Number(size) > MAX_BYTES) throw new Error('Catalogue response is too large');
   if (!response.body) throw new Error('Catalogue response has no body');
@@ -61,7 +64,8 @@ async function readJson(response: Response) {
       if (bytes > MAX_BYTES) throw new Error('Catalogue response is too large');
       text += decoder.decode(part.value, { stream: true });
     }
-    return JSON.parse(text + decoder.decode()) as unknown;
+    text += decoder.decode();
+    return asText ? text : JSON.parse(text) as unknown;
   } finally { await reader.cancel().catch(() => {}); reader.releaseLock(); }
 }
 
@@ -76,7 +80,8 @@ export async function readPublicCatalogue<T>(url: string, parse: (value: unknown
   const localModelSource = modelSource && ['http:', 'https:'].includes(target.protocol) && ['localhost', '127.0.0.1', '[::1]'].includes(target.hostname);
   const officialSource = target.protocol === 'https:' && SOURCES.includes(target.hostname) && !target.port;
   if ((!officialSource && !localModelSource) || target.username || target.password || target.hash
-    || (target.search && target.href.split('?')[0] !== README_SOURCE)) throw new Error('Unsupported catalogue source');
+    || (target.search && target.href.split('?')[0] !== README_SOURCE && !GIT_TREE.test(target.href))
+    || (target.hostname === 'api.github.com' && !GIT_TREE.test(target.href))) throw new Error('Unsupported catalogue source');
   const key = target.href, previous = storage(key), now = Date.now();
   let cached: T | undefined;
   try { if (previous.data !== undefined) cached = parse(previous.data); }
@@ -104,7 +109,7 @@ export async function readPublicCatalogue<T>(url: string, parse: (value: unknown
           await response.body?.cancel();
           throw new Error(`Catalogue unavailable (HTTP ${response.status}).`);
         }
-        const data = keep(await readJson(response)); parse(data);
+        const data = keep(await readBody(response, target.hostname === 'raw.githubusercontent.com' && !target.pathname.endsWith('.json'))); parse(data);
         const value = { data, saved: Date.now(), retryAt: Date.now() + MIN_REFRESH_MS };
         save(key, value); return value;
       } finally { clearTimeout(timer); }

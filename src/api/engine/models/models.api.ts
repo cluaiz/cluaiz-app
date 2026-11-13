@@ -4,7 +4,7 @@ import { ApiError } from '../../client/errors';
 import { permissionApi } from '../permission/permission.api';
 import { readHardwareSummary } from '../system/systemData';
 import { MODELS_ENDPOINTS } from './models.endpoints';
-import { downloadInstalledModel, inspectInstalledModel, loadInstalledModel, removeInstalledModel, modelTarget } from './actions';
+import { discardDownload, downloadInstalledModel, inspectInstalledModel, loadInstalledModel, removeInstalledModel, modelTarget } from './actions';
 import { fsApi } from '../fs/fs.api';
 import type {
   InstalledModelsResponse,
@@ -127,6 +127,11 @@ export const modelsApi = {
    * Physically deletes a model file from the disk vault
    */
   deleteModel: removeInstalledModel,
+
+  /**
+   * Deletes what a stopped (paused) download left, so the next download starts over
+   */
+  discardDownload,
 
   // Aliases for seamless backwards compatibility
   getInstalledModels: (): Promise<InstalledModelsResponse> => modelsApi.getInstalled(),

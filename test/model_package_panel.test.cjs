@@ -4,14 +4,14 @@ const { load } = require('./cepHarness.cjs');
 const api = load('src/api/catalogue/models.ts', { './public': {} });
 const view = load('src/features/extensions/catalogueView.ts', { '../../api/catalogue/models': api }, { URL });
 const jsx = (type, props) => ({ type, props });
-let running = null;
+let running = null, paused = {};
 const shared = {
   react: { useState: initial => [initial, () => {}], useCallback: fn => fn },
   'react/jsx-runtime': { jsx, jsxs: jsx },
-  'lucide-react': { Check: 'Check', CheckCircle2: 'Installed', Copy: 'Copy', Download: 'Download', FileText: 'FileText', Loader2: 'Loader', Trash2: 'Trash' },
+  'lucide-react': { Check: 'Check', CheckCircle2: 'Installed', Copy: 'Copy', Download: 'Download', FileText: 'FileText', Loader2: 'Loader', Trash2: 'Trash', Pause: 'Pause', Play: 'Play', X: 'X' },
   '../../components/HoldButton/HoldButton': { HoldButton: 'HoldButton' },
   '../../components/HoldButton/dangerHold': { DANGER_HOLD: {} },
-  './modelDownloadStore': { useModelDownloadStore: select => select({ download: running }), useRepoDownload: () => null },
+  './modelDownloadStore': { useModelDownloadStore: select => select({ download: running, paused }), useRepoDownload: () => null },
   '../../components/ui/dropdown': { CustomDropdown: 'Quantization' },
   '../../components/ui/MarkdownRenderer': { MarkdownRenderer: 'Markdown', parseMarkdownWithFrontmatter: text => ({ cleanBody: text }) },
   './useCatalogue': { useCatalogue: () => ({ busy: false, reply: { data: '' } }) },
@@ -118,4 +118,18 @@ test('repeated selected quant tags count as one quantization and preserve distin
  const options=quantization(p.items).props.options;
  assert.match(options[0].description,/folder-a\/model-Q4_K_M.gguf/);
  assert.match(options[1].description,/folder-b\/model-Q4_K_M.gguf/);
+});
+
+test('a paused package offers Resume at its percent: a click continues the same reference, a hold deletes what arrived', async () => {
+  paused = { 'owner/repo:Q8_0': 42 };
+  const discarded = [];
+  const p = panel({ selectedVariantId: 'large', onDiscard: reference => discarded.push(reference) });
+  const resume = p.items.find(item => typeof item.type === 'function' && item.props.percent === 42);
+  const hold = nodes(resume.type(resume.props)).find(item => item.type === 'HoldButton');
+  assert.match(text(hold), /Resume · 42%/);
+  hold.props.onTap();
+  assert.equal(p.requests[0][1].id, 'large');
+  hold.props.onHold();
+  assert.deepEqual(discarded, ['owner/repo:Q8_0']);
+  paused = {};
 });

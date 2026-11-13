@@ -11,6 +11,10 @@ export interface TaskView {
   poll_ms?: number;
   status_message?: string;
   progress?: { done: number; total?: number; unit?: string; message?: string };
+  /** The `stage` of the task's latest event that names one (tools.install: planned, approval, installing, installed) */
+  stage?: string;
+  /** That event, as the Engine sent it */
+  stageEvent?: Record<string, unknown>;
 }
 export type TaskObserver = (task: TaskView) => void;
 const object = (value: unknown): value is Record<string, unknown> =>
@@ -89,10 +93,18 @@ export async function callCepTask<T>(method: string, params: object, signal?: Ab
 export async function resumeCepTask<T>(method: string, id: string, signal?: AbortSignal, observer?: TaskObserver): Promise<T> {
   if (!id.trim()) throw new ApiError('A task id is required', 400, 'INVALID_TASK_ID', method);
   const target = { task_id: id };
+  /* Event cursor: only events after it are read on each poll; the latest stage is kept */
+  let after = 0, stage: Record<string, unknown> | undefined;
   for (;;) {
     signal?.throwIfAborted();
     if (observer) {
-      const current = await getCepTask(method, id, signal);
+      const raw = await callCep<unknown>('tasks.get', { task_id: id, after }, { signal });
+      const current = taskView(raw, method, id);
+      if (object(raw) && Array.isArray(raw.events)) {
+        for (const event of raw.events) if (object(event) && typeof event.stage === 'string') stage = event;
+        if (Number.isSafeInteger(raw.next) && Number(raw.next) >= after) after = Number(raw.next);
+      }
+      if (stage) { current.stage = String(stage.stage); current.stageEvent = stage; }
       notify(observer, current);
       if (current.status === 'working' || current.status === 'input_required') {
         await waitForPoll(Math.max(500, Math.min(5_000, current.poll_ms ?? 1_000)), signal);

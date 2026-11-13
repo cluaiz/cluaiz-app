@@ -5,11 +5,15 @@ import { errorMessage } from '../../api/client/errors';
 import { toast } from '../../components/ui/toast';
 import { MarkdownRenderer } from '../../components/ui/MarkdownRenderer';
 import { 
-    Zap, Blocks, Cpu, Trash2, X, Folder, FolderOpen,
-    FileText, FileCode, Image as ImageIcon, Palette, Eye, Code, 
+    Zap, Blocks, Cpu, Trash2, X, Folder,
+    FileText, FileCode, Eye, Code, 
     Copy, Check, ChevronRight, Loader2, AlertTriangle, ExternalLink
 } from 'lucide-react';
 import { openToolFile } from '../../api/engine/tools/files';
+import { FileIcon, FolderIcon } from 'react-material-icon-theme';
+import { CodeEditor } from '../../components/ui/CodeEditor';
+import { getFileExtension } from '../workspace/components/WorkspaceFileTree';
+import { detectLanguageFromPath } from '../../store/workspace/useProjectStore';
 
 export interface ToolComponent {
     id: string;
@@ -163,9 +167,19 @@ interface ToolInspectorModalProps {
     onClose: () => void;
     onDeleteTool?: (tool: ToolComponent) => Promise<void> | void;
     getBaseUrl?: () => string;
+    /** Shown in the page (the source tree and reader only) instead of a dialog */
+    embedded?: boolean;
+    /** Reads the files from elsewhere than the Engine (a published, not installed, package) */
+    source?: PackageFiles;
 }
 
-export function ToolInspectorModal({ tool, onClose, onDeleteTool }: ToolInspectorModalProps) {
+/** Where a package's files are listed and read from */
+export interface PackageFiles {
+    list: (signal: AbortSignal) => Promise<ComponentFile[]>;
+    read: (path: string, signal: AbortSignal) => Promise<string>;
+}
+
+export function ToolInspectorModal({ tool, onClose, onDeleteTool, embedded = false, source }: ToolInspectorModalProps) {
     const [files, setFiles] = useState<ComponentFile[]>([]);
     const [isLoadingFiles, setIsLoadingFiles] = useState(false);
     const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
@@ -212,7 +226,8 @@ export function ToolInspectorModal({ tool, onClose, onDeleteTool }: ToolInspecto
         let isSubscribed = true;
         const controller = new AbortController();
 
-        componentsApi.getFiles(toolCategory, toolId, controller.signal)
+        (source ? source.list(controller.signal).then(files => ({ status: 'success', files, cache: undefined, truncated: false, skipped: 0 }))
+            : componentsApi.getFiles(toolCategory, toolId, controller.signal))
             .then(data => {
                 if (!isSubscribed) return;
                 if (data?.status === 'success' && Array.isArray(data.files)) {
@@ -235,8 +250,8 @@ export function ToolInspectorModal({ tool, onClose, onDeleteTool }: ToolInspecto
                     // Loading an icon must not delay the initial file and override a later user selection.
                     const iconFile = data.files.find(f => !f.is_dir && f.name.toLowerCase() === 'icon.svg');
                     if (iconFile && !tool?.icon_svg) {
-                        void componentsApi.getFile(toolCategory, toolId, iconFile.path, controller.signal)
-                            .then(iconData => { if (isSubscribed && iconData.content) setRealIconSvg(iconData.content); })
+                        void readContent(iconFile.path, controller.signal)
+                            .then(content => { if (isSubscribed && content) setRealIconSvg(content); })
                             .catch(() => {});
                     }
                 }
@@ -255,7 +270,10 @@ export function ToolInspectorModal({ tool, onClose, onDeleteTool }: ToolInspecto
             fileRead.current?.abort();
             fileRead.current = null;
         };
-    }, [toolId, toolCategory]);
+    }, [toolId, toolCategory, source]);
+
+    const readContent = (path: string, signal: AbortSignal) => source ? source.read(path, signal)
+        : componentsApi.getFile(toolCategory!, toolId!, path, signal).then(data => data.content);
 
     const loadFileContent = async (file: ComponentFile) => {
         if (file.is_dir || !toolId || !toolCategory) return;
@@ -273,8 +291,8 @@ export function ToolInspectorModal({ tool, onClose, onDeleteTool }: ToolInspecto
         setViewMode(isMd || isAsset ? 'preview' : 'raw');
 
         try {
-            const data = await componentsApi.getFile(toolCategory, toolId, file.path, controller.signal);
-            if (current()) setFileContent(data.content);
+            const content = await readContent(file.path, controller.signal);
+            if (current()) setFileContent(content);
         } catch (err) {
             if (current()) setFileContent(`Error: ${errorMessage(err)}`);
         } finally {
@@ -343,13 +361,14 @@ export function ToolInspectorModal({ tool, onClose, onDeleteTool }: ToolInspecto
     const isCurrentFileMarkdown = selectedFile?.name.toLowerCase().endsWith('.md');
     const isCurrentFileSvg = selectedFile?.name.toLowerCase().endsWith('.svg');
     const isCurrentFileImage = selectedFile ? /\.(png|jpe?g|webp|gif)$/i.test(selectedFile.name) : false;
+    /** The code editor fills the reader edge to edge; previews keep their padding */
+    const showsCode = Boolean(selectedFile) && !isLoadingContent
+        && !((isCurrentFileMarkdown || isCurrentFileSvg || isCurrentFileImage) && viewMode === 'preview');
 
     const renderTreeNode = (node: FileTreeNode, depth = 0): React.ReactNode => {
         const isExpanded = expandedFolders.has(node.path);
         const isSelected = selectedFile?.path === node.path;
         const isSkillMd = !node.is_dir && node.name.toLowerCase() === 'skill.md';
-        const isSvg = !node.is_dir && node.name.toLowerCase().endsWith('.svg');
-        const isImage = !node.is_dir && /\.(png|jpe?g|webp|gif)$/i.test(node.name);
 
         if (node.is_dir) {
             return (
@@ -364,11 +383,7 @@ export function ToolInspectorModal({ tool, onClose, onDeleteTool }: ToolInspecto
                             size={13}
                             className={`shrink-0 text-[var(--text-muted)] transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`}
                         />
-                        {isExpanded ? (
-                            <FolderOpen size={14} className="text-[var(--accent-color)] shrink-0" />
-                        ) : (
-                            <Folder size={14} className="text-[var(--text-muted)] shrink-0" />
-                        )}
+                        <FolderIcon folderName={node.name} isOpen={isExpanded} size={15} />
                         <span className="truncate">{node.name}</span>
                     </button>
                     {isExpanded && node.children && (
@@ -392,17 +407,7 @@ export function ToolInspectorModal({ tool, onClose, onDeleteTool }: ToolInspecto
                         : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--text-primary)]/5'
                 }`}
             >
-                {isSkillMd ? (
-                    <FileText size={14} className="text-emerald-400 shrink-0" />
-                ) : isSvg ? (
-                    <Palette size={14} className="text-purple-400 shrink-0" />
-                ) : isImage ? (
-                    <ImageIcon size={14} className="text-blue-400 shrink-0" />
-                ) : node.name.endsWith('.md') ? (
-                    <FileText size={14} className="text-emerald-400/80 shrink-0" />
-                ) : (
-                    <FileCode size={14} className="text-zinc-400 shrink-0" />
-                )}
+                <FileIcon fileName={node.name} fileExtension={getFileExtension(node.name)} languageId={getFileExtension(node.name)} size={15} />
                 <span className="truncate">{node.name}</span>
                 {isSkillMd && (
                     <span className="ml-auto text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0">
@@ -412,6 +417,208 @@ export function ToolInspectorModal({ tool, onClose, onDeleteTool }: ToolInspecto
             </button>
         );
     };
+
+    /* Source tree beside the selected file: inside the dialog, or embedded in a package page */
+    const body = (
+    <div className="flex-1 flex overflow-hidden">
+        {/* Source Tree */}
+        <div className="w-72 border-r border-[var(--border-color)] bg-[var(--bg-secondary)]/60 flex flex-col shrink-0">
+            <div className="p-3 border-b border-[var(--border-color)]/60 flex items-center justify-between">
+                <span className="text-[10px] font-black text-[var(--text-muted)] uppercase tracking-wider">Source Tree</span>
+                <span className="text-[10px] text-[var(--text-muted)] font-mono">{files.filter(f => !f.is_dir).length} files</span>
+            </div>
+            <div className="flex-1 overflow-y-auto p-2 space-y-0.5 custom-scrollbar">
+                {fileListingMessage && <p role="status" className="p-2 text-xs text-[var(--text-muted)]">{fileListingMessage}</p>}
+                {isLoadingFiles ? (
+                    <div className="flex items-center justify-center p-8 text-[var(--text-muted)] gap-2 text-xs">
+                        <Loader2 size={15} className="animate-spin text-[var(--accent-color)]" /> Scanning directory...
+                    </div>
+                ) : files.length === 0 && !fileListingMessage ? (
+                    <div className="flex flex-col items-center justify-center p-8 text-[var(--text-muted)] gap-2">
+                        <Folder size={24} className="opacity-30" />
+                        <span className="text-xs">No files found.</span>
+                    </div>
+                ) : (
+                    fileHierarchy.map(node => renderTreeNode(node))
+                )}
+            </div>
+        </div>
+
+        {/* File Content Preview */}
+        <div className="flex-1 flex flex-col overflow-hidden bg-[var(--bg-primary)]">
+            <div className="px-6 py-2.5 border-b border-[var(--border-color)]/60 flex items-center justify-between bg-[var(--bg-secondary)]/30 shrink-0">
+                <div className="flex items-center gap-2 text-xs text-[var(--text-secondary)] font-mono truncate">
+                    <FileCode size={14} className="text-[var(--text-muted)] shrink-0" />
+                    <span className="truncate">{selectedFile?.path || 'No file selected'}</span>
+                </div>
+                {selectedFile && (
+                    <div className="flex items-center gap-2">
+                        {(isCurrentFileMarkdown || isCurrentFileSvg || isCurrentFileImage) && (
+                            <div className="flex items-center bg-[var(--bg-tertiary)]/70 p-0.5 rounded-lg border border-[var(--border-color)]">
+                                <button
+                                    type="button"
+                                    onClick={() => setViewMode('preview')}
+                                    className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase transition-all cursor-pointer flex items-center gap-1 ${
+                                        viewMode === 'preview'
+                                            ? 'bg-[var(--accent-color)] text-[var(--bg-primary)] shadow-sm'
+                                            : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                                    }`}
+                                >
+                                    <Eye size={12} /> Preview
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setViewMode('raw')}
+                                    className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase transition-all cursor-pointer flex items-center gap-1 ${
+                                        viewMode === 'raw'
+                                            ? 'bg-[var(--accent-color)] text-[var(--bg-primary)] shadow-sm'
+                                            : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                                    }`}
+                                >
+                                    <Code size={12} /> Source
+                                </button>
+                            </div>
+                        )}
+                        {toolId && toolCategory && !source && <button
+                            type="button"
+                            title="Open this file in the editor of the Engine's computer"
+                            onClick={() => openToolFile(toolCategory, toolId, selectedFile.path).catch(reason => toast.error(errorMessage(reason)))}
+                            className="flex items-center gap-1.5 px-3 py-1 bg-[var(--bg-tertiary)] hover:bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg text-xs font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all cursor-pointer"
+                        >
+                            <ExternalLink size={12} /> Open
+                        </button>}
+                        <button
+                            type="button"
+                            onClick={handleCopyContent}
+                            className="flex items-center gap-1.5 px-3 py-1 bg-[var(--bg-tertiary)] hover:bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg text-xs font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all cursor-pointer"
+                        >
+                            {hasCopied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+                            {hasCopied ? 'Copied' : 'Copy'}
+                        </button>
+                    </div>
+                )}
+            </div>
+
+            <div className={`flex-1 custom-scrollbar ${showsCode ? 'overflow-hidden' : 'overflow-y-auto p-6'}`}>
+                {isLoadingContent ? (
+                    <div className="flex items-center justify-center h-full text-[var(--text-muted)] gap-2 text-xs">
+                        <Loader2 size={16} className="animate-spin text-[var(--accent-color)]" /> Loading content...
+                    </div>
+                ) : selectedFile ? (
+                    isCurrentFileMarkdown && viewMode === 'preview' ? (
+                        <div className="space-y-6">
+                            {(() => {
+                                const { metadata, cleanBody } = parseMarkdownWithFrontmatter(fileContent);
+                                return (
+                                    <>
+                                        {metadata && (
+                                            <div className="p-4 rounded-xl bg-[var(--bg-secondary)]/60 border border-[var(--border-color)] space-y-3 select-text shadow-sm">
+                                                <div className="flex items-center justify-between gap-2 border-b border-[var(--border-color)]/60 pb-2.5">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-xs font-bold text-[var(--text-primary)]">
+                                                            {metadata.name || tool.name}
+                                                        </span>
+                                                        {metadata.version && (
+                                                            <span className="text-[10px] font-mono text-[var(--accent-color)] bg-[var(--accent-color)]/10 px-2 py-0.5 rounded border border-[var(--accent-color)]/20 font-bold">
+                                                                v{metadata.version}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    {metadata.author && (
+                                                        <span className="text-[10px] text-[var(--text-muted)] font-mono">
+                                                            author: {metadata.author}
+                                                        </span>
+                                                    )}
+                                                </div>
+
+                                                {metadata.description && (
+                                                    <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
+                                                        {metadata.description}
+                                                    </p>
+                                                )}
+
+                                                {metadata.triggers && Array.isArray(metadata.triggers) && metadata.triggers.length > 0 && (
+                                                    <div className="space-y-1.5 pt-1">
+                                                        <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">
+                                                            Semantic Triggers ({metadata.triggers.length})
+                                                        </span>
+                                                        <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto custom-scrollbar">
+                                                            {metadata.triggers.map((t: string, idx: number) => (
+                                                                <span 
+                                                                    key={idx} 
+                                                                    className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-[var(--bg-tertiary)] text-[var(--text-secondary)] border border-[var(--border-color)]/60"
+                                                                >
+                                                                    {t}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {metadata.allowedTools && Array.isArray(metadata.allowedTools) && metadata.allowedTools.length > 0 && (
+                                                    <div className="space-y-1.5 pt-1 border-t border-[var(--border-color)]/40">
+                                                        <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">
+                                                            Allowed Capabilities
+                                                        </span>
+                                                        <div className="flex flex-wrap gap-1.5">
+                                                            {metadata.allowedTools.map((t: string, idx: number) => (
+                                                                <span 
+                                                                    key={idx} 
+                                                                    className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold"
+                                                                >
+                                                                    ✓ {t}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        <MarkdownRenderer content={cleanBody} />
+                                    </>
+                                );
+                            })()}
+                        </div>
+                    ) : isCurrentFileSvg && viewMode === 'preview' ? (
+                        <div className="flex flex-col items-center justify-center min-h-[360px] p-8 bg-[var(--bg-secondary)]/30 rounded-2xl border border-[var(--border-color)] text-center">
+                            <img 
+                                src={`data:image/svg+xml;utf8,${encodeURIComponent(fileContent)}`}
+                                alt={selectedFile.name}
+                                className="w-40 h-40 object-contain filter drop-shadow-lg p-2"
+                            />
+                            <div className="mt-4 flex items-center gap-2">
+                                <span className="text-xs font-mono font-bold text-[var(--text-primary)]">{selectedFile.name}</span>
+                                <span className="text-[10px] font-mono text-[var(--text-muted)]">({formatBytes(new Blob([fileContent]).size)})</span>
+                            </div>
+                            <span className="text-[10px] font-mono text-[var(--text-muted)] mt-1">{selectedFile.path}</span>
+                        </div>
+                    ) : isCurrentFileImage && viewMode === 'preview' ? (
+                        <div className="flex flex-col items-center justify-center min-h-[360px] p-8 bg-[var(--bg-secondary)]/30 rounded-2xl border border-[var(--border-color)] text-center">
+                            <img 
+                                src={fileContent.startsWith('data:') ? fileContent : `data:image/png;base64,${fileContent}`} 
+                                alt={selectedFile.name} 
+                                className="max-h-64 object-contain rounded-xl shadow-md" 
+                            />
+                            <span className="text-[11px] font-mono text-[var(--text-muted)] mt-4">{selectedFile.path}</span>
+                        </div>
+                    ) : (
+                        <CodeEditor value={fileContent} readOnly language={detectLanguageFromPath(selectedFile.name)}
+                            fileName={selectedFile.name} filePath={selectedFile.path} height="100%" minHeight={0}
+                            className="h-full border-0 rounded-none shadow-none" showToolbar={false} />
+                    )
+                ) : (
+                    <div className="flex flex-col items-center justify-center h-full text-[var(--text-muted)] gap-2">
+                        <FileText size={32} className="opacity-40" />
+                        <span className="text-xs">Select a file from the directory tree to inspect.</span>
+                    </div>
+                )}
+            </div>
+        </div>
+    </div>
+    );
+
+    if (embedded) return <div className="h-[70vh] min-h-[420px] flex flex-col overflow-hidden rounded-2xl border border-[var(--border-color)] bg-[var(--bg-secondary)]">{body}</div>;
 
     return (
         <AnimatePresence>
@@ -536,202 +743,7 @@ export function ToolInspectorModal({ tool, onClose, onDeleteTool }: ToolInspecto
                     </AnimatePresence>
 
                     {/* Body */}
-                    <div className="flex-1 flex overflow-hidden">
-                        {/* Source Tree */}
-                        <div className="w-72 border-r border-[var(--border-color)] bg-[var(--bg-secondary)]/60 flex flex-col shrink-0">
-                            <div className="p-3 border-b border-[var(--border-color)]/60 flex items-center justify-between">
-                                <span className="text-[10px] font-black text-[var(--text-muted)] uppercase tracking-wider">Source Tree</span>
-                                <span className="text-[10px] text-[var(--text-muted)] font-mono">{files.filter(f => !f.is_dir).length} files</span>
-                            </div>
-                            <div className="flex-1 overflow-y-auto p-2 space-y-0.5 custom-scrollbar">
-                                {fileListingMessage && <p role="status" className="p-2 text-xs text-[var(--text-muted)]">{fileListingMessage}</p>}
-                                {isLoadingFiles ? (
-                                    <div className="flex items-center justify-center p-8 text-[var(--text-muted)] gap-2 text-xs">
-                                        <Loader2 size={15} className="animate-spin text-[var(--accent-color)]" /> Scanning directory...
-                                    </div>
-                                ) : files.length === 0 && !fileListingMessage ? (
-                                    <div className="flex flex-col items-center justify-center p-8 text-[var(--text-muted)] gap-2">
-                                        <Folder size={24} className="opacity-30" />
-                                        <span className="text-xs">No files found.</span>
-                                    </div>
-                                ) : (
-                                    fileHierarchy.map(node => renderTreeNode(node))
-                                )}
-                            </div>
-                        </div>
-
-                        {/* File Content Preview */}
-                        <div className="flex-1 flex flex-col overflow-hidden bg-[var(--bg-primary)]">
-                            <div className="px-6 py-2.5 border-b border-[var(--border-color)]/60 flex items-center justify-between bg-[var(--bg-secondary)]/30 shrink-0">
-                                <div className="flex items-center gap-2 text-xs text-[var(--text-secondary)] font-mono truncate">
-                                    <FileCode size={14} className="text-[var(--text-muted)] shrink-0" />
-                                    <span className="truncate">{selectedFile?.path || 'No file selected'}</span>
-                                </div>
-                                {selectedFile && (
-                                    <div className="flex items-center gap-2">
-                                        {(isCurrentFileMarkdown || isCurrentFileSvg || isCurrentFileImage) && (
-                                            <div className="flex items-center bg-[var(--bg-tertiary)]/70 p-0.5 rounded-lg border border-[var(--border-color)]">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setViewMode('preview')}
-                                                    className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase transition-all cursor-pointer flex items-center gap-1 ${
-                                                        viewMode === 'preview'
-                                                            ? 'bg-[var(--accent-color)] text-[var(--bg-primary)] shadow-sm'
-                                                            : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-                                                    }`}
-                                                >
-                                                    <Eye size={12} /> Preview
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setViewMode('raw')}
-                                                    className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase transition-all cursor-pointer flex items-center gap-1 ${
-                                                        viewMode === 'raw'
-                                                            ? 'bg-[var(--accent-color)] text-[var(--bg-primary)] shadow-sm'
-                                                            : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-                                                    }`}
-                                                >
-                                                    <Code size={12} /> Source
-                                                </button>
-                                            </div>
-                                        )}
-                                        {toolId && toolCategory && <button
-                                            type="button"
-                                            title="Open this file in the editor of the Engine's computer"
-                                            onClick={() => openToolFile(toolCategory, toolId, selectedFile.path).catch(reason => toast.error(errorMessage(reason)))}
-                                            className="flex items-center gap-1.5 px-3 py-1 bg-[var(--bg-tertiary)] hover:bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg text-xs font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all cursor-pointer"
-                                        >
-                                            <ExternalLink size={12} /> Open
-                                        </button>}
-                                        <button
-                                            type="button"
-                                            onClick={handleCopyContent}
-                                            className="flex items-center gap-1.5 px-3 py-1 bg-[var(--bg-tertiary)] hover:bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg text-xs font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all cursor-pointer"
-                                        >
-                                            {hasCopied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
-                                            {hasCopied ? 'Copied' : 'Copy'}
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
-
-                            <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
-                                {isLoadingContent ? (
-                                    <div className="flex items-center justify-center h-full text-[var(--text-muted)] gap-2 text-xs">
-                                        <Loader2 size={16} className="animate-spin text-[var(--accent-color)]" /> Loading content...
-                                    </div>
-                                ) : selectedFile ? (
-                                    isCurrentFileMarkdown && viewMode === 'preview' ? (
-                                        <div className="space-y-6">
-                                            {(() => {
-                                                const { metadata, cleanBody } = parseMarkdownWithFrontmatter(fileContent);
-                                                return (
-                                                    <>
-                                                        {metadata && (
-                                                            <div className="p-4 rounded-xl bg-[var(--bg-secondary)]/60 border border-[var(--border-color)] space-y-3 select-text shadow-sm">
-                                                                <div className="flex items-center justify-between gap-2 border-b border-[var(--border-color)]/60 pb-2.5">
-                                                                    <div className="flex items-center gap-2">
-                                                                        <span className="text-xs font-bold text-[var(--text-primary)]">
-                                                                            {metadata.name || tool.name}
-                                                                        </span>
-                                                                        {metadata.version && (
-                                                                            <span className="text-[10px] font-mono text-[var(--accent-color)] bg-[var(--accent-color)]/10 px-2 py-0.5 rounded border border-[var(--accent-color)]/20 font-bold">
-                                                                                v{metadata.version}
-                                                                            </span>
-                                                                        )}
-                                                                    </div>
-                                                                    {metadata.author && (
-                                                                        <span className="text-[10px] text-[var(--text-muted)] font-mono">
-                                                                            author: {metadata.author}
-                                                                        </span>
-                                                                    )}
-                                                                </div>
-
-                                                                {metadata.description && (
-                                                                    <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
-                                                                        {metadata.description}
-                                                                    </p>
-                                                                )}
-
-                                                                {metadata.triggers && Array.isArray(metadata.triggers) && metadata.triggers.length > 0 && (
-                                                                    <div className="space-y-1.5 pt-1">
-                                                                        <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">
-                                                                            Semantic Triggers ({metadata.triggers.length})
-                                                                        </span>
-                                                                        <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto custom-scrollbar">
-                                                                            {metadata.triggers.map((t: string, idx: number) => (
-                                                                                <span 
-                                                                                    key={idx} 
-                                                                                    className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-[var(--bg-tertiary)] text-[var(--text-secondary)] border border-[var(--border-color)]/60"
-                                                                                >
-                                                                                    {t}
-                                                                                </span>
-                                                                            ))}
-                                                                        </div>
-                                                                    </div>
-                                                                )}
-
-                                                                {metadata.allowedTools && Array.isArray(metadata.allowedTools) && metadata.allowedTools.length > 0 && (
-                                                                    <div className="space-y-1.5 pt-1 border-t border-[var(--border-color)]/40">
-                                                                        <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">
-                                                                            Allowed Capabilities
-                                                                        </span>
-                                                                        <div className="flex flex-wrap gap-1.5">
-                                                                            {metadata.allowedTools.map((t: string, idx: number) => (
-                                                                                <span 
-                                                                                    key={idx} 
-                                                                                    className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold"
-                                                                                >
-                                                                                    ✓ {t}
-                                                                                </span>
-                                                                            ))}
-                                                                        </div>
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                        )}
-
-                                                        <MarkdownRenderer content={cleanBody} />
-                                                    </>
-                                                );
-                                            })()}
-                                        </div>
-                                    ) : isCurrentFileSvg && viewMode === 'preview' ? (
-                                        <div className="flex flex-col items-center justify-center min-h-[360px] p-8 bg-[var(--bg-secondary)]/30 rounded-2xl border border-[var(--border-color)] text-center">
-                                            <img 
-                                                src={`data:image/svg+xml;utf8,${encodeURIComponent(fileContent)}`}
-                                                alt={selectedFile.name}
-                                                className="w-40 h-40 object-contain filter drop-shadow-lg p-2"
-                                            />
-                                            <div className="mt-4 flex items-center gap-2">
-                                                <span className="text-xs font-mono font-bold text-[var(--text-primary)]">{selectedFile.name}</span>
-                                                <span className="text-[10px] font-mono text-[var(--text-muted)]">({formatBytes(new Blob([fileContent]).size)})</span>
-                                            </div>
-                                            <span className="text-[10px] font-mono text-[var(--text-muted)] mt-1">{selectedFile.path}</span>
-                                        </div>
-                                    ) : isCurrentFileImage && viewMode === 'preview' ? (
-                                        <div className="flex flex-col items-center justify-center min-h-[360px] p-8 bg-[var(--bg-secondary)]/30 rounded-2xl border border-[var(--border-color)] text-center">
-                                            <img 
-                                                src={fileContent.startsWith('data:') ? fileContent : `data:image/png;base64,${fileContent}`} 
-                                                alt={selectedFile.name} 
-                                                className="max-h-64 object-contain rounded-xl shadow-md" 
-                                            />
-                                            <span className="text-[11px] font-mono text-[var(--text-muted)] mt-4">{selectedFile.path}</span>
-                                        </div>
-                                    ) : (
-                                        <pre className="font-mono text-xs leading-relaxed whitespace-pre-wrap break-words select-text bg-[var(--bg-secondary)]/40 p-4 rounded-xl border border-[var(--border-color)] text-[var(--text-primary)] custom-scrollbar">
-                                            {fileContent}
-                                        </pre>
-                                    )
-                                ) : (
-                                    <div className="flex flex-col items-center justify-center h-full text-[var(--text-muted)] gap-2">
-                                        <FileText size={32} className="opacity-40" />
-                                        <span className="text-xs">Select a file from the directory tree to inspect.</span>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    </div>
+                    {body}
                 </motion.div>
             </div>
         </AnimatePresence>

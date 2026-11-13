@@ -1,220 +1,109 @@
-import { useEffect, useRef, useState } from 'react';
-import { toolCatalogue, type RegistryTool, type RegistryDetails } from '../../api/catalogue/tools';
+import { useEffect, useState } from 'react';
+import { Boxes } from 'lucide-react';
+import type { RegistryKind } from '../../api/catalogue/tools';
 import { installTool, resumeToolInstall } from '../../api/engine/tools/lifecycle';
 import type { ToolKind } from '../../api/engine/tools/catalog';
-import { listTools } from '../../api/engine/tools/catalog';
-import { useConnectionStore } from '../../store/engine/useConnectionStore';
-import { Button } from '../../components/ui/Button';
-import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card';
-import { Tabs } from '../../components/ui/Tabs';
-import { ToolsSettings } from '../settings/ToolsSettings';
-import { EngineOfflineGuard } from '../settings/EngineOfflineGuard';
-import { CustomDropdown } from '../../components/ui/dropdown/CustomDropdown';
-import { useCatalogue } from './useCatalogue';
-import { Boxes } from 'lucide-react';
 import { MultiLevelDropdown, type MultiLevelCategory } from '../../components/ui/dropdown';
-import { CatalogueCard, CatalogueFilter, CatalogueLogo, CatalogueStickyHeader, CatalogueTags } from './CatalogueUI';
-import { filterTools } from './catalogueView';
+import { CatalogueStickyHeader } from './CatalogueUI';
+import { PackageLogo } from './ToolSidebarDirectory';
+import { ToolPackagePanel } from './ToolPackagePanel';
+import { ModelCardFrame } from './ModelSliderCard';
+import { setToolkitParams } from './toolkitNavigation';
+import { installStep, searchPackages, useToolInventory, useToolPackages, useToolView, type ToolPackage } from './toolPackages';
 import { useCatalogueTask } from './useCatalogueTask';
 import { CatalogueTaskStatus } from './CatalogueTaskStatus';
+
 const resumeInstall: Parameters<typeof useCatalogueTask<Awaited<ReturnType<typeof resumeToolInstall>>>>[1] =
   (target, id, signal, observer) => {
     const split = target.indexOf(':');
     return resumeToolInstall(target.slice(0, split) as ToolKind, target.slice(split + 1), id, signal, observer);
   };
 
+const KINDS: Record<RegistryKind, { title: string; subtitle: string; label: string }> = {
+  mcp: { title: 'MCP Servers', subtitle: 'Standard protocol bridging your engine to external databases, APIs and environments.', label: 'MCP' },
+  skill: { title: 'Agent Skills', subtitle: 'Modular agentic capabilities and workflows for tasks.', label: 'Skill' },
+  plugin: { title: 'Plugins & Tools', subtitle: 'Native and community runtime plugins for your workspace.', label: 'Plugin' },
+  extension: { title: 'App Extensions', subtitle: 'Bundled applications.', label: 'Extension' },
+};
+const ENGINE_ID = /^[a-z0-9][a-z0-9._-]{0,63}$/;
+
+/** A package in the catalogue's model card */
+function ToolPackageCard({ item, active }: { item: ToolPackage; active: boolean }) {
+  const kind = (item.tool?.kind ?? item.installed?.category ?? 'plugin') as RegistryKind;
+  const version = item.details?.version || item.installed?.version;
+  return <ModelCardFrame className="w-full" isActive={active}
+    logo={<PackageLogo item={item} large boxed={false} />}
+    badge={version ? `v${version}` : KINDS[kind].label} provider={item.details?.author || 'Local'} title={item.name}
+    tags={(item.details?.tags ?? []).slice(0, 3)} description={item.details?.description || item.installed?.description || ''}
+    footerStart={item.id} footerEnd={KINDS[kind].label} mark={item.installed ? 'Installed' : undefined}
+    onSelect={() => setToolkitParams({ package: active ? null : item.id })} />;
+}
+
+/**
+ * Toolkit → MCP Servers, Agent Skills, Plugins (and the Tools workspace's catalogue): the packages in the
+ * catalogue's model cards (published, or installed with `list=installed`); an open package (`package` in the URL) shows only its page.
+ */
 export function ToolCatalogue({ initialKind }: { initialKind?: string } = {}) {
-  const catalogue = useCatalogue(toolCatalogue.list);
-  const installation = useCatalogueTask('tools.install', resumeInstall);
   const [kind, setKind] = useState(initialKind ?? ''), [query, setQuery] = useState('');
-  const [tab, setTab] = useState<'installed' | 'browse'>('installed');
-
-  useEffect(() => {
-    if (initialKind !== undefined) {
-      setKind(initialKind);
-    }
-  }, [initialKind]);
-  const [selected, setSelected] = useState<RegistryTool | null>(null), [details, setDetails] = useState<RegistryDetails | null>(null);
-  const [openedDetails, setOpenedDetails] = useState<Record<string, RegistryDetails>>({});
-  const [message, setMessage] = useState(''), [installed, setInstalled] = useState<string[]>([]);
-  const [engineError, setEngineError] = useState(''), [inventoryReady, setInventoryReady] = useState(false);
+  useEffect(() => { if (initialKind !== undefined) setKind(initialKind); }, [initialKind]);
+  const registryKind = (kind || undefined) as RegistryKind | undefined;
+  const { catalogue, packages, engineError, inventoryReady } = useToolPackages(registryKind);
+  const { listing, open } = useToolView();
+  const installation = useCatalogueTask('tools.install', resumeInstall);
+  const changed = useToolInventory(state => state.changed);
   const busy = installation.busy || installation.cancelling;
-  const [limit, setLimit] = useState(24);
-  const generation = useRef(0), selection = useRef(0);
-  const [connection, setConnection] = useState(0);
+  useEffect(() => { if (installation.result) changed(); }, [installation.result, changed]);
+  /* The running install, step by step, for this page and the sidebar */
+  const setInstall = useToolInventory(state => state.setInstall);
+  const running = busy && installation.receipt ? installation.receipt.target : '';
+  const { step, label } = installStep(installation.task?.stage);
+  useEffect(() => { setInstall(running ? { target: running, step, label } : null); }, [running, step, label, setInstall]);
+  useEffect(() => () => setInstall(null), [setInstall]);
   useEffect(() => {
-    const unsubscribe = useConnectionStore.subscribe((next, previous) => {
-      if (next.host !== previous.host || next.port !== previous.port || next.protocol !== previous.protocol) {
-        ++generation.current; ++selection.current;
-        setMessage(''); setEngineError(''); setInventoryReady(false); setInstalled([]); setSelected(null); setDetails(null); setConnection(v => v + 1);
-      }
-    });
-    return () => { ++generation.current; ++selection.current; unsubscribe(); };
-  }, []);
-  useEffect(() => {
-    const controller = new AbortController(), version = generation.current;
-    setInventoryReady(false);
-    void listTools(undefined, controller.signal).then(values => {
-      if (!controller.signal.aborted && version === generation.current) {
-        setInstalled(values.map(tool => `${tool.category}:${tool.id}`)); setEngineError(''); setInventoryReady(true);
-      }
-    }).catch(error => { if (!controller.signal.aborted && version === generation.current) setEngineError(`Installed tool status unavailable: ${String(error)}`); });
-    return () => controller.abort();
-  }, [connection]);
-  useEffect(() => { if (installation.result) setConnection(value => value + 1); }, [installation.result]);
-  useEffect(() => {
-    if (installation.error || (installation.receipt && !installation.busy)) {
-      installation.forget();
-    }
+    if (installation.error || (installation.receipt && !installation.busy)) installation.forget();
   }, [installation.error, installation.receipt, installation.busy]);
-  async function inspect(tool: RegistryTool) {
-    const version = ++selection.current;
-    setSelected(tool); setDetails(null); setMessage('Loading package details…');
-    try { const result = await toolCatalogue.details(tool); if (version === selection.current) {
-      setDetails(result.data); setOpenedDetails(previous => ({ ...previous, [`${tool.kind}:${tool.id}`]: result.data })); setMessage(result.warning || '');
-    } }
-    catch (error) { if (version === selection.current) setMessage(String(error)); }
-  }
-  async function install() {
-    if (!selected || !details || selected.kind === 'extension' || !installation.canStart || !inventoryReady) return;
-    const kind = selected.kind;
-    const target = selected;
-    await installation.start(`${kind}:${target.id}`, (signal, observer) => installTool(kind, target.id, signal, observer));
-  }
-  const rows = filterTools((catalogue.reply?.data ?? []).map(tool => ({ tool, details: openedDetails[`${tool.kind}:${tool.id}`] })),
-    { query, kind, build: '', os: '', sort: 'name' });
-  const pageTitle = initialKind === 'mcp'
-    ? 'MCP Servers'
-    : initialKind === 'skill'
-    ? 'Agent Skills'
-    : initialKind === 'plugin'
-    ? 'Plugins & Tools'
-    : 'Available Tools';
 
-  const pageSubtitle = initialKind === 'mcp'
-    ? 'Standard protocol bridging your engine to external databases, APIs and environments.'
-    : initialKind === 'skill'
-    ? 'Modular agentic capabilities and workflows for tasks.'
-    : initialKind === 'plugin'
-    ? 'Native and community runtime plugins for your workspace.'
-    : 'Plugins, MCP servers and skills for your workspace.';
-
-  const toolCategories: MultiLevelCategory[] = [
-    {
-      id: 'kind',
-      label: 'Package Type',
-      icon: Boxes,
-      options: [
-        { value: '', label: 'All Types' },
-        { value: 'plugin', label: 'Plugins' },
-        { value: 'skill', label: 'Skills' },
-        { value: 'mcp', label: 'MCP Servers' },
-        { value: 'extension', label: 'Extensions' },
-      ],
-      selectedValue: kind,
-      onSelect: (val) => {
-        setKind(val);
-        setLimit(24);
-      },
-    },
-  ];
-
-  const activeCategory: 'all' | 'skill' | 'plugin' | 'mcp' =
-    kind === 'skill' ? 'skill' : kind === 'plugin' ? 'plugin' : kind === 'mcp' ? 'mcp' : 'all';
+  const shown = searchPackages(packages.filter(item => item.tool), query);
+  const selected = packages.find(item => item.id === open);
+  const install = async (item: ToolPackage) => {
+    const tool = item.tool;
+    if (!tool || tool.kind === 'extension' || !installation.canStart || !inventoryReady) return;
+    const target = tool.kind;
+    await installation.start(`${target}:${tool.id}`, (signal, observer) => installTool(target, tool.id, signal, observer));
+  };
+  const page = KINDS[registryKind ?? 'plugin'];
+  const categories: MultiLevelCategory[] = [{
+    id: 'kind', label: 'Package Type', icon: Boxes, selectedValue: kind, onSelect: value => setKind(value),
+    options: [{ value: '', label: 'All Types' }, ...(Object.keys(KINDS) as RegistryKind[]).map(value => ({ value, label: KINDS[value].title }))],
+  }];
 
   return <div className="w-full flex flex-col min-h-full">
-    <CatalogueStickyHeader
-      title={pageTitle}
-      subtitle={pageSubtitle}
-      searchQuery={query}
-      onSearchChange={value => { setQuery(value); setLimit(24); }}
-      searchPlaceholder={tab === 'installed' ? 'Search installed tools, skills, or triggers…' : 'Search package IDs or opened details'}
-      filterElement={
-        <MultiLevelDropdown
-          categories={toolCategories}
-          activeCount={kind ? 1 : 0}
-          onClearAll={() => setKind('')}
-        />
-      }
-    />
+    {!selected && <CatalogueStickyHeader title={registryKind ? page.title : 'Available Tools'}
+      subtitle={registryKind ? page.subtitle : 'Plugins, MCP servers and skills for your workspace.'}
+      searchQuery={query} onSearchChange={setQuery}
+      searchPlaceholder={listing === 'installed' ? 'Search installed tools, skills, or triggers…' : 'Search packages…'}
+      filterElement={initialKind ? undefined : <MultiLevelDropdown categories={categories} activeCount={kind ? 1 : 0} onClearAll={() => setKind('')} />} />}
     <div className="mx-auto w-full max-w-7xl p-6 space-y-4">
-      {/* 2 Clean Tabs: Installed (First) & Browse (Second) */}
-      <div className="flex items-center justify-between">
-        <Tabs
-          items={[
-            { id: 'installed', label: 'Installed' },
-            { id: 'browse', label: 'Browse' },
-          ]}
-          value={tab}
-          onChange={value => setTab(value as 'installed' | 'browse')}
-        />
-        {tab === 'browse' ? (
-          <p className="text-xs text-[var(--text-muted)]">{rows.length} packages · Open a package for details</p>
-        ) : (
-          <p className="text-xs text-[var(--text-muted)]">Active engine capabilities & configurations</p>
-        )}
-      </div>
-
-      {tab === 'browse' ? (
-        <>
-          {catalogue.busy && <p role="status">Loading available packages…</p>}
-          {(catalogue.error || catalogue.reply?.warning) && <p role="alert">{catalogue.error || catalogue.reply?.warning}</p>}
-          {engineError && <p role="alert">{engineError}</p>}
-          {message && <p role="status">{message}</p>}
-          {installation.busy && <CatalogueTaskStatus {...installation} />}
+      {catalogue.error && !catalogue.reply && <p role="alert" className="text-xs text-[var(--status-error)]">The package list could not be loaded. Check your internet connection.</p>}
+      {engineError && <p role="alert" className="text-xs text-[var(--status-error)]">{engineError}</p>}
+      {installation.error && <CatalogueTaskStatus {...installation} />}
+      {selected ? <ToolPackagePanel item={selected}
+        installing={running === `${selected.tool?.kind}:${selected.id}` ? { step, label, cancel: () => void installation.cancel(),
+          approval: installation.task?.stage === 'approval' ? installation.task.stageEvent : undefined } : undefined}
+        canInstall={Boolean(selected.tool) && selected.tool!.kind !== 'extension' && installation.canStart && inventoryReady && ENGINE_ID.test(selected.id)}
+        onInstall={() => void install(selected)} /> : <>
+        {catalogue.busy && !packages.length && <p role="status" className="text-xs text-[var(--text-secondary)]">Loading packages…</p>}
+        {listing === 'installed' ? <div className="py-12 text-center border border-dashed border-[var(--border-color)] rounded-2xl bg-[var(--bg-tertiary)]/20">
+          <p className="text-xs font-mono text-[var(--text-muted)]">{packages.some(item => item.installed)
+            ? 'Pick an installed package in the sidebar to manage it.' : 'Nothing installed here yet. Open Browse to install a package.'}</p>
+        </div> : <>
+          <p className="text-xs text-[var(--text-muted)]">{shown.length} packages · open one for its details</p>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {rows.slice(0, limit).map(({ tool, details: metadata }) => (
-              <CatalogueCard
-                key={`${tool.kind}:${tool.id}`}
-                title={metadata?.name || tool.id}
-                subtitle={metadata?.author || ''}
-                source={metadata?.icon}
-                imageBase={tool.manifest}
-                marker={installed.includes(`${tool.kind}:${tool.id}`) ? 'Installed' : tool.kind}
-                description={metadata?.description || 'Open this package to load its published details.'}
-                tags={metadata?.tags || []}
-                identity={tool.id}
-                meta={metadata?.version}
-                onOpen={() => { if (!busy) void inspect(tool); }}
-              />
-            ))}
+            {shown.map(item => <ToolPackageCard key={`${item.tool!.kind}:${item.id}`} item={item} active={false} />)}
           </div>
-          {rows.length > limit && (
-            <Button variant="outline" onClick={() => setLimit(value => value + 24)}>Show more packages</Button>
-          )}
-          {!catalogue.busy && catalogue.reply && !rows.length && <p>No packages match these filters.</p>}
-          {selected && (
-            <Card>
-              <CardHeader><CardTitle>{details?.name || selected.id}</CardTitle></CardHeader>
-              <CardContent className="space-y-3">
-                <CatalogueLogo source={details?.icon} base={selected.manifest} name={details?.name || selected.id} large />
-                <CatalogueTags values={details?.tags || [selected.kind]} />
-                <p className="text-sm whitespace-pre-wrap">{details?.description}</p>
-                <p className="text-xs">{selected.kind} · {details?.version} · {details?.build}</p>
-                {selected.kind === 'extension' ? (
-                  <p>This registry contains legacy extension manifests. They cannot be executed as App UI packages. Use Extensions to import a compatible built package; no automatic scripts or native code will run here.</p>
-                ) : (
-                  <>
-                    <p className="text-xs">Install requests the Engine registry's current release. It may download dependencies. Execution still follows Engine permissions.</p>
-                    {!/^[a-z0-9][a-z0-9._-]{0,63}$/.test(selected.id) && <p>This legacy registry id is not accepted by the current Engine installer.</p>}
-                    <Button disabled={!details || !installation.canStart || !inventoryReady || !/^[a-z0-9][a-z0-9._-]{0,63}$/.test(selected.id) || installed.includes(`${selected.kind}:${selected.id}`)} onClick={() => { void install(); }}>
-                      {busy ? 'Installing…' : installed.includes(`${selected.kind}:${selected.id}`) ? 'Installed' : 'Install current registry release'}
-                    </Button>
-                  </>
-                )}
-              </CardContent>
-            </Card>
-          )}
-        </>
-      ) : (
-        <EngineOfflineGuard>
-          <ToolsSettings
-            searchQuery={query}
-            filterCategory={activeCategory}
-            hideToolbar={true}
-            onBrowseClick={() => setTab('browse')}
-          />
-        </EngineOfflineGuard>
-      )}
-    </div></div>;
+          {!catalogue.busy && catalogue.reply && !shown.length && <p className="text-xs text-[var(--text-muted)]">No packages match these filters.</p>}
+        </>}
+      </>}
+    </div>
+  </div>;
 }

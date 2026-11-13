@@ -31,10 +31,12 @@ export function CatalogueHero({ title, by, count, description, tags, logo }: {
     </div>}
     <div className="relative z-10 space-y-3 max-w-2xl text-left">
       <h1 className="text-3xl sm:text-4xl font-extrabold font-mono uppercase text-[var(--text-primary)] tracking-tight">{title}</h1>
-      {by !== undefined && count !== undefined && <div className="flex items-center gap-2.5 text-xs sm:text-sm font-mono flex-wrap">
+      {by !== undefined && <div className="flex items-center gap-2.5 text-xs sm:text-sm font-mono flex-wrap">
         <span className="text-[var(--text-muted)]">by <span className="text-[var(--text-secondary)] font-semibold">{by}</span></span>
-        <span className="text-[var(--border-color)]">·</span>
-        <Badge variant="outline" className="text-xs font-mono font-bold uppercase tracking-wider">{count} {count === 1 ? 'Model' : 'Models'}</Badge>
+        {count !== undefined && <>
+          <span className="text-[var(--border-color)]">·</span>
+          <Badge variant="outline" className="text-xs font-mono font-bold uppercase tracking-wider">{count} {count === 1 ? 'Model' : 'Models'}</Badge>
+        </>}
       </div>}
       {description && <p className="text-xs sm:text-sm leading-relaxed text-[var(--text-secondary)] pt-0.5 max-w-xl">{description}</p>}
       <div className="flex items-center gap-1.5 flex-wrap pt-1"><CatalogueTags values={tags} /></div>
