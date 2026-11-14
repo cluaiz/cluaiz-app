@@ -9,6 +9,10 @@ interface ToastStore {
     clearToasts: () => void;
 }
 
+/** The same message twice shows once: the newer toast replaces the older, so its timer starts again */
+const same = (a: Omit<ToastItemData, 'id'>, b: Omit<ToastItemData, 'id'>) =>
+    a.type !== 'loading' && a.type === b.type && a.message === b.message && a.title === b.title;
+
 export const useToastStore = create<ToastStore>((set) => ({
     toasts: [],
     addToast: (toast) => {
@@ -17,16 +21,23 @@ export const useToastStore = create<ToastStore>((set) => ({
         
         set((state) => {
             // Keep at most 5 toasts on screen
-            const updated = [...state.toasts, newToast];
+            const updated = [...state.toasts.filter((t) => !same(t, newToast)), newToast];
             return { toasts: updated.slice(-5) };
         });
 
         return id;
     },
     updateToast: (id, updates) => {
-        set((state) => ({
-            toasts: state.toasts.map((t) => (t.id === id ? { ...t, ...updates } : t))
-        }));
+        set((state) => {
+            const current = state.toasts.find((t) => t.id === id);
+            if (!current) return state;
+            const changed = { ...current, ...updates };
+            return {
+                toasts: state.toasts
+                    .filter((t) => t.id === id || !same(t, changed))
+                    .map((t) => (t.id === id ? changed : t))
+            };
+        });
     },
     removeToast: (id) => {
         set((state) => ({
