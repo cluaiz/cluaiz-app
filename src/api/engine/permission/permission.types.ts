@@ -15,6 +15,16 @@ export interface ModelSelection {
   audio?: string | null;
 }
 
+/** One value of `agent_security_mode` as the Engine describes it (`config.get` engine `security_modes`) */
+export interface SecurityModeInfo {
+  id: 'full_access' | 'sandboxed' | 'strict';
+  title: string;
+  /** What runs without asking and what is asked */
+  summary: string;
+  /** The mode a new install starts in */
+  default: boolean;
+}
+
 export interface PermissionSchema {
   active_slots?: Record<string, SlotConfig>;
   vector_models?: ModelSelection;
@@ -31,6 +41,12 @@ export interface PermissionSchema {
   connection_protocol?: string;
   api_auth?: ApiAuth;
   agent_security_mode?: 'full_access' | 'sandboxed' | 'strict';
+  /** The modes and their rules, from the Engine; absent on an Engine older than this list */
+  security_modes?: SecurityModeInfo[];
+  /** Saved fields the Engine does not act on */
+  unused_fields?: string[];
+  /** The fields this Engine sent (set by the App), so a switch it does not have is not offered as working */
+  engine_fields?: string[];
   temporary_chat_ttl_hours?: number;
   require_login_on_boot?: boolean;
   api_key_storage?: string;

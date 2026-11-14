@@ -43,6 +43,8 @@ const DESCRIPTIONS = {
     } as Record<string, string>
 };
 
+const NOT_USED = 'The Engine does not use this setting yet, so changing it does nothing.';
+
 const KEYSTORE_OPTIONS = [
     { value: 'system', label: 'System Keychain (Secure)' },
     { value: 'env', label: '.env File (Legacy)' },
@@ -77,6 +79,14 @@ export function SecuritySettings() {
     const [pendingMode, setPendingMode] = useState<string | null>(null);
 
     const isEngineOnline = permissions !== null && fetchStatus === 'success';
+    // The modes and their rules are the Engine's: the App shows its list, not its own text
+    const modes = permissions?.security_modes ?? [];
+    // A switch this Engine does not have, or keeps without acting on, is not offered as working
+    const gate = (key: string) => {
+        const offered = permissions?.engine_fields?.includes(key) ?? false;
+        const unused = permissions?.unused_fields?.includes(key) ?? false;
+        return offered && !unused ? {} : { disabled: true, dynamicDescription: NOT_USED };
+    };
 
     const handleSelectSecurityMode = async (modeId: 'full_access' | 'sandboxed' | 'strict') => {
         if (permissions?.agent_security_mode === modeId) return;
@@ -186,28 +196,14 @@ export function SecuritySettings() {
                     </div>
                 </div>
 
+                {modes.length === 0 && isEngineOnline && (
+                    <p className="text-[11px] text-[var(--text-muted)]">
+                        This Engine does not describe its modes. Update the Engine to choose one here.
+                    </p>
+                )}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2">
-                    {[
-                        {
-                            id: 'full_access' as const,
-                            title: 'Full Access',
-                            badge: 'Autonomous',
-                            desc: 'Agent executes all tools and file changes automatically without confirmation prompts.'
-                        },
-                        {
-                            id: 'sandboxed' as const,
-                            title: 'Workspace-Gated',
-                            badge: 'Recommended',
-                            desc: 'Safe workspace reads execute automatically. Writes, outside-jail access, and undeclared capabilities require user approval.'
-                        },
-                        {
-                            id: 'strict' as const,
-                            title: 'Strict Approval',
-                            badge: 'Maximum Safety',
-                            desc: 'Every tool execution and write pauses for explicit user approval. Access outside active workspace jail is hard-blocked (403).'
-                        }
-                    ].map((item) => {
-                        const isSelected = (permissions?.agent_security_mode || 'sandboxed') === item.id;
+                    {modes.map((item) => {
+                        const isSelected = permissions?.agent_security_mode === item.id;
                         const isCardPending = pendingMode === item.id || (isSelected && Boolean(pendingKeys['agent_security_mode']));
                         const isAnyModePending = pendingMode !== null || Boolean(pendingKeys['agent_security_mode']);
                         return (
@@ -229,12 +225,14 @@ export function SecuritySettings() {
                                             <Loader2 size={12} className="animate-spin text-[var(--accent-color)]" />
                                         )}
                                     </span>
-                                    <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[var(--text-secondary)]">
-                                        {item.badge}
-                                    </span>
+                                    {item.default && (
+                                        <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[var(--text-secondary)]">
+                                            Default
+                                        </span>
+                                    )}
                                 </div>
                                 <p className="text-[11px] text-[var(--text-muted)] leading-relaxed">
-                                    {item.desc}
+                                    {item.summary}
                                 </p>
                             </button>
                         );
@@ -252,6 +250,7 @@ export function SecuritySettings() {
                     onToggle={() => updatePermission('require_login_on_boot', !permissions?.require_login_on_boot)}
                     loading={Boolean(pendingKeys['require_login_on_boot'])}
                     disabled={Boolean(pendingKeys['require_login_on_boot']) || !isEngineOnline}
+                    {...gate('require_login_on_boot')}
                 />
                 <SettingItem
                     label="API Key Storage"
@@ -261,6 +260,7 @@ export function SecuritySettings() {
                     onChange={(val) => updatePermission('api_key_storage', val)}
                     loading={Boolean(pendingKeys['api_key_storage'])}
                     disabled={Boolean(pendingKeys['api_key_storage']) || !isEngineOnline}
+                    {...gate('api_key_storage')}
                 />
             </SettingSection>
 
@@ -383,6 +383,7 @@ export function SecuritySettings() {
                     onToggle={() => updatePermission('auto_execute_shell', !permissions?.auto_execute_shell)}
                     loading={Boolean(pendingKeys['auto_execute_shell'])}
                     disabled={Boolean(pendingKeys['auto_execute_shell']) || !isEngineOnline}
+                    {...gate('auto_execute_shell')}
                 />
                 <SettingItem
                     label="Workspace Read Access"
@@ -392,6 +393,7 @@ export function SecuritySettings() {
                     onToggle={() => updatePermission('workspace_read_access', !permissions?.workspace_read_access)}
                     loading={Boolean(pendingKeys['workspace_read_access'])}
                     disabled={Boolean(pendingKeys['workspace_read_access']) || !isEngineOnline}
+                    {...gate('workspace_read_access')}
                 />
             </SettingSection>
 
@@ -406,6 +408,7 @@ export function SecuritySettings() {
                     onChange={(val) => updateFirewall(val as any)}
                     loading={Boolean(pendingKeys['wasm_firewall'])}
                     disabled={Boolean(pendingKeys['wasm_firewall']) || !isEngineOnline}
+                    {...gate('wasm_firewall')}
                 />
                 <SettingItem
                     label="Stream Telemetry"
@@ -416,6 +419,7 @@ export function SecuritySettings() {
                     onToggle={() => updateTelemetry(!permissions?.stream_telemetry)}
                     loading={Boolean(pendingKeys['stream_telemetry'])}
                     disabled={Boolean(pendingKeys['stream_telemetry']) || !isEngineOnline}
+                    {...gate('stream_telemetry')}
                 />
                 <SettingItem
                     label="Model Header"
@@ -426,6 +430,7 @@ export function SecuritySettings() {
                     onToggle={() => updateModelHeaderInfo(!permissions?.model_header_info)}
                     loading={Boolean(pendingKeys['model_header_info'])}
                     disabled={Boolean(pendingKeys['model_header_info']) || !isEngineOnline}
+                    {...gate('model_header_info')}
                 />
             </SettingSection>
 
@@ -442,6 +447,7 @@ export function SecuritySettings() {
                     onToggle={() => updateVectorizeUserInput(!permissions?.vectorize_user_input)}
                     loading={Boolean(pendingKeys['vectorize_user_input'])}
                     disabled={Boolean(pendingKeys['vectorize_user_input']) || !isEngineOnline}
+                    {...gate('vectorize_user_input')}
                 />
                 <SettingItem
                     label="Vectorize AI Responses"
@@ -452,6 +458,7 @@ export function SecuritySettings() {
                     onToggle={() => updateVectorizeAiResponse(!permissions?.vectorize_ai_response)}
                     loading={Boolean(pendingKeys['vectorize_ai_response'])}
                     disabled={Boolean(pendingKeys['vectorize_ai_response']) || !isEngineOnline}
+                    {...gate('vectorize_ai_response')}
                 />
                 <SettingItem
                     label="Key-Value Cache (KV Cache)"
@@ -462,6 +469,7 @@ export function SecuritySettings() {
                     onToggle={() => updateKvCache(!permissions?.enable_kvcache)}
                     loading={Boolean(pendingKeys['enable_kvcache'])}
                     disabled={Boolean(pendingKeys['enable_kvcache']) || !isEngineOnline}
+                    {...gate('enable_kvcache')}
                 />
             </SettingSection>
 

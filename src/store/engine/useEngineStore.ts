@@ -261,7 +261,7 @@ export const useEngineStore = create<EngineState>()((set, get) => ({
 
                 const permissions: PermissionSchema = {
                     ...rawPerm,
-                    agent_security_mode: rawPerm.agent_security_mode || 'sandboxed',
+                    engine_fields: Object.keys(rawPerm),
                     api_auth: rawPerm.api_auth || { required: false, tokens: [] },
                     api_key_storage: rawPerm.api_key_storage || 'in_memory',
                     auto_execute_shell: rawPerm.auto_execute_shell ?? false,
