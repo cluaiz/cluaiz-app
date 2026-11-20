@@ -4,6 +4,7 @@ import { permissionApi } from '../permission/permission.api';
 import { callCep } from '../../client/cep';
 import { ApiError } from '../../client/errors';
 import { readSystemInfo, readSystemLive } from './systemData';
+import { readSystemEvents } from './events';
 import { executeSystem } from './execution';
 import type {
   HealthResponse,
@@ -77,6 +78,8 @@ export const systemApi = {
   getProcesses: async (): Promise<ProcessTelemetryResponse> => {
     return callCep<ProcessTelemetryResponse>('system.ps');
   },
+
+  getEvents: readSystemEvents,
 
   /**
    * Fetches active hardware governor control state.

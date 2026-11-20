@@ -6,7 +6,7 @@ import type { ChatMessage } from '../../../store/chat/useChatStore';
 import { useEngineStore } from '../../../store/engine/useEngineStore';
 import { inferChatTopicAndEmoji } from '../../../utils/topicProber';
 import { errorMessage } from '../../../api/client/errors';
-import { buildChatHistory, chatHistoryOptions, processingLabel, selectChatContext } from '../utils/chatRequest';
+import { buildChatHistory, chatHistoryOptions, finalizeChatModelLoad, processingLabel, reduceChatModelLoading, selectChatContext } from '../utils/chatRequest';
 import type { useChatTelemetry } from './useChatTelemetry';
 import { soundManager } from '../../../services/sound/soundManager';
 import { notifyApproval } from '../approvals';
@@ -88,19 +88,35 @@ export function useChatSend({ inputValue, setInputValue, replyingTo, setReplying
             modelProvider,
         }));
         const assistantId = useChatStore.getState().sessions[sessionId]?.messages.slice(-1)[0]?.id;
+        const updateAssistant = (updater: (msg: ChatMessage) => ChatMessage) => {
+            const current = useChatStore.getState();
+            const items = current.sessions[sessionId]?.messages || [];
+            const idx = items.findIndex(message => message.id === assistantId);
+            if (idx >= 0) current.updateMessage(sessionId, idx, updater);
+        };
         let terminalSeen = false;
+        let thinkingStartTime: number | null = null;
+        let thinkingDurationSec: string | undefined = undefined;
         const failRequest = (detail: string) => {
             if (terminalSeen) return;
             terminalSeen = true;
-            endStreaming();
+            const finalStats = endStreaming();
             setProcessing(null);
+            if (thinkingStartTime !== null && thinkingDurationSec === undefined) {
+                thinkingDurationSec = ((performance.now() - thinkingStartTime) / 1000).toFixed(1);
+            }
             const current = useChatStore.getState();
+            if (finalStats && finalStats.tokens > 0) {
+                current.attachTelemetryToLastMessage(sessionId, finalStats);
+            }
             const items = current.sessions[sessionId]?.messages || [];
             const userIndex = items.findIndex(message => message.id === userId);
             const assistantIndex = items.findIndex(message => message.id === assistantId);
             if (userIndex >= 0) current.updateMessage(sessionId, userIndex, message => ({ ...message, finishReason: 'error' }));
             if (assistantIndex >= 0) current.updateMessage(sessionId, assistantIndex, message => ({
                 ...message, finishReason: 'error', time: timeStr,
+                ...(thinkingDurationSec && !message.thinkingDuration ? { thinkingDuration: thinkingDurationSec } : {}),
+                ...(message.modelLoad ? { modelLoad: { ...message.modelLoad, status: 'failed' } } : {}),
                 text: `${message.text ? `${message.text}\n\n` : ''}Request failed: ${detail}`
             }));
             current.finalizeAssistantMessage(sessionId);
@@ -131,9 +147,6 @@ export function useChatSend({ inputValue, setInputValue, replyingTo, setReplying
                 ...chatHistoryOptions(options, isPrivateSession),
                 messages: conversationMessages
             };
-
-            let thinkingStartTime: number | null = null;
-            let thinkingDurationSec: string | undefined = undefined;
 
             const promptToSend = replyContext ? `[In reply to: "${replyContext.text}"]\n\n${messageText}` : messageText;
 
@@ -194,19 +207,38 @@ export function useChatSend({ inputValue, setInputValue, replyingTo, setReplying
                     return;
                 }
                 if (typeof chunk === 'object' && chunk.processing) {
-                    setProcessing(chunk.processing.stage === 'request' ? null : {
-                        sessionId, label: processingLabel(chunk.processing, contextMessages)
+                    const p = chunk.processing;
+                    if (p.stage === 'model_loading') {
+                        updateAssistant(message => ({
+                            ...message,
+                            modelLoad: reduceChatModelLoading(message.modelLoad, p, currentModelName),
+                        }));
+                        if (p.load && p.load.kind !== 'unloaded') {
+                            setProcessing(p.state === 'completed' || p.load.kind === 'loaded' ? null : {
+                                sessionId, label: processingLabel(p, contextMessages)
+                            });
+                        } else if (p.state === 'completed' || p.state === 'failed' || p.state === 'reused') {
+                            setProcessing(prev => prev?.label === 'Loading model' ? null : prev);
+                        }
+                        return;
+                    }
+                    setProcessing(p.stage === 'request' ? null : {
+                        sessionId, label: processingLabel(p, contextMessages)
                     });
                     return;
                 }
                 if (typeof chunk === 'object' && (chunk.engine || chunk.finishReason)) {
-                    const items = liveStore.sessions[sessionId]?.messages || [];
-                    const index = items.findIndex(message => message.id === assistantId);
-                    if (index >= 0) liveStore.updateMessage(sessionId, index, message => ({
-                        ...message,
-                        ...(chunk.engine?.context ? { contextReport: chunk.engine.context } : {}),
-                        ...(chunk.finishReason ? { finishReason: chunk.finishReason } : {})
-                    }));
+                    updateAssistant(message => {
+                        const nextModelLoad = chunk.engine?.load
+                            ? finalizeChatModelLoad(message.modelLoad, chunk.engine.load, currentModelName)
+                            : message.modelLoad;
+                        return {
+                            ...message,
+                            ...(chunk.engine?.context ? { contextReport: chunk.engine.context } : {}),
+                            ...(chunk.engine?.load ? { modelLoad: nextModelLoad } : {}),
+                            ...(chunk.finishReason ? { finishReason: chunk.finishReason } : {})
+                        };
+                    });
                     return;
                 }
 
@@ -243,6 +275,15 @@ export function useChatSend({ inputValue, setInputValue, replyingTo, setReplying
                 if (!reasoning && !content) return;
                 recordToken();
                 setProcessing(null);
+                // Ensure any in-progress load card closes immediately once tokens/thinking begin
+                updateAssistant(message => {
+                    if (!message.modelLoad || message.modelLoad.status !== 'loading') return message;
+                    if (message.modelLoad.steps.length === 0) return { ...message, modelLoad: undefined };
+                    return {
+                        ...message,
+                        modelLoad: { ...message.modelLoad, status: 'loaded', percent: undefined }
+                    };
+                });
 
                 if (reasoning) {
                     if (thinkingStartTime === null) {
@@ -265,20 +306,36 @@ export function useChatSend({ inputValue, setInputValue, replyingTo, setReplying
         } catch (error) {
             failRequest(errorMessage(error));
         } finally {
-            endStreaming();
+            const finalStats = endStreaming();
+            if (thinkingStartTime !== null && thinkingDurationSec === undefined) {
+                thinkingDurationSec = ((performance.now() - thinkingStartTime) / 1000).toFixed(1);
+            }
             if (useChatStore.getState().streamingSessionId === sessionId) {
                 useChatStore.getState().setStreamingSession(null);
             }
             setProcessing(current => current?.sessionId === sessionId ? null : current);
-            // Remove an empty assistant row after cancellation or empty completion.
+            // Finalize partial thinking duration / telemetry or remove an empty assistant row after cancellation.
             const currentStore = useChatStore.getState();
             if (sessionId) {
+                if (finalStats && finalStats.tokens > 0) {
+                    currentStore.attachTelemetryToLastMessage(sessionId, finalStats);
+                }
                 const activeSess = currentStore.sessions[sessionId];
                 if (activeSess?.messages && activeSess.messages.length > 0) {
                     const lastIdx = activeSess.messages.length - 1;
                     const lastMsg = activeSess.messages[lastIdx];
                     if (lastMsg && lastMsg.sender === 'assistant' && !lastMsg.text && !lastMsg.thinking && !lastMsg.toolCalls?.length) {
                         currentStore.deleteMessage(sessionId, lastIdx);
+                    } else if (lastMsg && lastMsg.sender === 'assistant') {
+                        currentStore.updateMessage(sessionId, lastIdx, m => ({
+                            ...m,
+                            ...(!m.time ? { time: timeStr } : {}),
+                            ...(thinkingDurationSec && !m.thinkingDuration ? { thinkingDuration: thinkingDurationSec } : {}),
+                            ...(m.modelLoad && m.modelLoad.status === 'loading'
+                                ? { modelLoad: m.modelLoad.steps.length > 0 ? { ...m.modelLoad, status: 'loaded', percent: undefined } : undefined }
+                                : {}),
+                        }));
+                        currentStore.finalizeAssistantMessage(sessionId);
                     }
                 }
             }

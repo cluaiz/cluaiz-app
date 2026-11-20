@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Download, RefreshCw, Copy, Check, Search, Zap, FileCode, MessageSquare, Dna, FileText } from 'lucide-react';
+import { X, Download, RefreshCw, Copy, Check, Search, Zap, FileCode, MessageSquare, Dna, FileText, History } from 'lucide-react';
 import { InstalledModelDetail } from '../../store/engine/useEngineStore';
 import { useConnectionStore } from '../../store/engine/useConnectionStore';
 import { modelsApi } from '../../api';
 import { errorMessage } from '../../api/client/errors';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
+import { LoadHistoryPanel } from './LoadHistoryPanel';
 
 interface ModelInspectorModalProps {
     isOpen: boolean;
@@ -310,6 +311,19 @@ export function ModelInspectorModal({ isOpen, model, onClose }: ModelInspectorMo
                                 <Dna size={13} />
                                 <span>Structural DNA</span>
                             </button>
+
+                            <button
+                                type="button"
+                                onClick={() => handleTabSwitch('load_history')}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+                                    activeTab === 'load_history'
+                                        ? 'bg-[var(--accent-color)]/15 text-[var(--accent-color)] border border-[var(--accent-color)]/30 shadow-sm'
+                                        : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]'
+                                }`}
+                            >
+                                <History size={13} />
+                                <span>Load History</span>
+                            </button>
                         </div>
 
                         {/* Right Actions: Reload, Copy, Export */}
@@ -368,9 +382,11 @@ export function ModelInspectorModal({ isOpen, model, onClose }: ModelInspectorMo
                                 {activeTab === 'template' && 'Jinja2 Prompt Formatter template extracted from binary'}
                                 {activeTab === 'manifest' && 'Local Manifest: model_manifest.json'}
                                 {activeTab === 'dna' && 'Structural DNA: structural_dna.json'}
+                                {activeTab === 'load_history' && 'Engine Load History (models.load_history)'}
                             </span>
                         </div>
 
+                        {activeTab !== 'load_history' && (
                         <div className="w-64">
                             <Input
                                 placeholder="Search in view..."
@@ -390,10 +406,15 @@ export function ModelInspectorModal({ isOpen, model, onClose }: ModelInspectorMo
                                 ) : undefined}
                             />
                         </div>
+                        )}
                     </div>
 
                     {/* Code Display Area with Zero-Hang Virtualization */}
-                    {isLoading ? (
+                    {activeTab === 'load_history' ? (
+                        <div className="flex-1 overflow-auto p-6 bg-[var(--bg-primary)] custom-scrollbar">
+                            <LoadHistoryPanel modelId={model.id} autoLoad />
+                        </div>
+                    ) : isLoading ? (
                         <div className="flex-1 flex flex-col items-center justify-center gap-3 text-[var(--accent-color)] bg-[var(--bg-primary)]">
                             <div className="w-7 h-7 border-2 border-[var(--accent-color)] border-t-transparent rounded-full animate-spin" />
                             <span className="text-xs text-[var(--text-muted)] font-mono">Reading model data...</span>

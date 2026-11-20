@@ -24,6 +24,7 @@ function harness(handler){
     const filePath=load('src/utils/filePath.ts',{});
     const base={'../../client/cep':cep,'../../client/errors':errors};
     const actions=load('src/api/engine/models/actions.ts',{...base,'../../client/cepTask':tasks,'../../../utils/filePath':filePath});
+    const loadHistory=load('src/api/engine/models/loadHistory.ts',base);
     const config=load('src/api/engine/config/config.api.ts',base);
     const systemData=load('src/api/engine/system/systemData.ts',base);
     const execution=load('src/api/engine/system/execution.ts',base);
@@ -35,9 +36,9 @@ function harness(handler){
     });
     const models=load('src/api/engine/models/models.api.ts',{
         '../../client':{client},...base,'../permission/permission.api':permission,
-        '../system/systemData':systemData,'./models.endpoints':{MODELS_ENDPOINTS:{}},'./actions':actions,'../fs/fs.api':filesystem,
+        '../system/systemData':systemData,'./models.endpoints':{MODELS_ENDPOINTS:{}},'./actions':actions,'./loadHistory':loadHistory,'../fs/fs.api':filesystem,
     });
-    return {...cep,...tasks,...actions,...config,...systemData,...execution,...permission,...filesystem,...models,filePath,errors,requests,client};
+    return {...cep,...tasks,...actions,...loadHistory,...config,...systemData,...execution,...permission,...filesystem,...models,filePath,errors,requests,client};
 }
 function filesystemHarness(handler){
     return harness(handler);

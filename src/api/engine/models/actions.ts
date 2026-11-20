@@ -2,7 +2,7 @@ import { callCep } from '../../client/cep';
 import { callCepTask, resumeCepTask, type TaskObserver } from '../../client/cepTask';
 import { ApiError } from '../../client/errors';
 import { isPackageRelativePath } from '../../../utils/filePath';
-import type { DownloadModelPayload, DownloadModelResponse, InspectHeaderResponse } from './models.types';
+import type { DownloadModelPayload, DownloadModelResponse, InspectHeaderResponse, ModelLoadTaskResult } from './models.types';
 
 const object = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -17,10 +17,20 @@ export function modelTarget(model: string) {
   return {model};
 }
 
-export async function loadInstalledModel(model: string, signal?: AbortSignal) {
-  const value = await callCep<unknown>('models.load', modelTarget(model), {signal, timeoutMs: 0});
-  if (!object(value) || value.model !== model || !count(value.loaded_ms)) throw invalid('models.load');
-  return {status: 'success', model, loaded_ms: value.loaded_ms};
+function loadResult(value: unknown, expectedModel?: string): ModelLoadTaskResult {
+  if (!object(value) || !text(value.model) || (expectedModel !== undefined && value.model !== expectedModel) || !count(value.loaded_ms)) {
+    throw invalid('models.load');
+  }
+  return {status: 'success', model: value.model, loaded_ms: value.loaded_ms};
+}
+
+/** Explicit GGUF model load task: observer receives weights % progress and step events. */
+export async function loadInstalledModel(model: string, signal?: AbortSignal, observer?: TaskObserver): Promise<ModelLoadTaskResult> {
+  return loadResult(await callCepTask<unknown>('models.load', modelTarget(model), signal, observer), model);
+}
+
+export async function resumeModelLoad(id: string, signal?: AbortSignal, observer?: TaskObserver, expectedModel?: string): Promise<ModelLoadTaskResult> {
+  return loadResult(await resumeCepTask<unknown>('models.load', id, signal, observer), expectedModel);
 }
 
 export async function removeInstalledModel(model: string, signal?: AbortSignal) {

@@ -15,6 +15,10 @@ export interface TaskView {
   stage?: string;
   /** That event, as the Engine sent it */
   stageEvent?: Record<string, unknown>;
+  /** Events returned by `tasks.get` on this poll (models.load steps, etc.) */
+  events?: Record<string, unknown>[];
+  /** The newest event returned by `tasks.get`, if any */
+  latestEvent?: Record<string, unknown>;
 }
 export type TaskObserver = (task: TaskView) => void;
 const object = (value: unknown): value is Record<string, unknown> =>
@@ -101,7 +105,12 @@ export async function resumeCepTask<T>(method: string, id: string, signal?: Abor
       const raw = await callCep<unknown>('tasks.get', { task_id: id, after }, { signal });
       const current = taskView(raw, method, id);
       if (object(raw) && Array.isArray(raw.events)) {
-        for (const event of raw.events) if (object(event) && typeof event.stage === 'string') stage = event;
+        const events = raw.events.filter(object);
+        for (const event of events) if (typeof event.stage === 'string') stage = event;
+        if (events.length) {
+          current.events = events;
+          current.latestEvent = events[events.length - 1];
+        }
         if (Number.isSafeInteger(raw.next) && Number(raw.next) >= after) after = Number(raw.next);
       }
       if (stage) { current.stage = String(stage.stage); current.stageEvent = stage; }

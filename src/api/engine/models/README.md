@@ -52,7 +52,10 @@ flowchart LR
 - A failed inventory sets the models store to error and retains previous data,
   rather than reporting success with an empty list. The chat picker clears its
   stale choices and offers retry. No model is invented from a display label.
-- `actions.ts` owns CEP models.load/remove/inspect/download. Installed model ids
+- `actions.ts` owns CEP models.load/remove/inspect/download. `models.load` is a
+  CEP task (`callCepTask` / `resumeCepTask`) reporting weights read `%` progress
+  and step events (`started`, `step`, `retry`, `loaded`, `failed`, `refused`).
+  `loadHistory.ts` owns `models.load_history` pagination/filtering. Installed model ids
   are not repo URLs or paths. Optional header files use the same relative-package
   path validator as tool files, moved into the existing filePath utility.
 - Load/remove require matching model identity and actual timing/directory fields

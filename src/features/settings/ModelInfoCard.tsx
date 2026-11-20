@@ -1,13 +1,61 @@
-import { ExternalLink, Cpu, Layers, Hash } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Loader2, Play } from 'lucide-react';
 import { InstalledModelDetail } from '../../store/engine/useEngineStore';
+import { modelsApi } from '../../api/engine/models/models.api';
+import { errorMessage } from '../../api/client/errors';
+import { toast } from '../../components/ui/toast';
 
 interface ModelInfoCardProps {
     model: InstalledModelDetail;
     onInspect: () => void;
+    canLoad?: boolean;
 }
 
-export function ModelInfoCard({ model, onInspect }: ModelInfoCardProps) {
+export function ModelInfoCard({ model, onInspect, canLoad = false }: ModelInfoCardProps) {
+    const [loadingModel, setLoadingModel] = useState(false);
+    const [loadPercent, setLoadPercent] = useState<number | undefined>(undefined);
+    const [loadMessage, setLoadMessage] = useState<string>('');
+    const loadAbort = useRef<AbortController | null>(null);
+
+    useEffect(() => {
+        return () => { loadAbort.current?.abort(); loadAbort.current = null; };
+    }, [model?.id]);
+
     if (!model) return null;
+
+    const handleLoadModel = async () => {
+        if (loadingModel) return;
+        loadAbort.current?.abort();
+        const controller = new AbortController();
+        loadAbort.current = controller;
+        setLoadingModel(true);
+        setLoadPercent(undefined);
+        setLoadMessage('Starting model load…');
+        try {
+            const res = await modelsApi.loadModel(model.id, controller.signal, task => {
+                if (controller.signal.aborted) return;
+                if (task.progress?.unit === 'percent') setLoadPercent(task.progress.done);
+                const latestMsg = typeof task.latestEvent?.message === 'string' ? task.latestEvent.message : undefined;
+                if (latestMsg) setLoadMessage(latestMsg);
+                else if (task.progress?.message) setLoadMessage(task.progress.message);
+            });
+            if (!controller.signal.aborted) {
+                setLoadMessage(`Loaded in ${(res.loaded_ms / 1000).toFixed(2)}s`);
+                toast.success(`Loaded ${model.id} in ${(res.loaded_ms / 1000).toFixed(2)}s`);
+            }
+        } catch (err) {
+            if (!controller.signal.aborted) {
+                const msg = errorMessage(err);
+                setLoadMessage(msg);
+                toast.error(msg);
+            }
+        } finally {
+            if (loadAbort.current === controller) {
+                loadAbort.current = null;
+                setLoadingModel(false);
+            }
+        }
+    };
 
     const meta = model.metadata || {};
     const format = (model.format_type || 'gguf').toUpperCase();
@@ -55,17 +103,43 @@ export function ModelInfoCard({ model, onInspect }: ModelInfoCardProps) {
                     )}
                 </div>
 
-                <button
-                    type="button"
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        onInspect();
-                    }}
-                    className="flex items-center gap-1.5 px-3 py-1 bg-[var(--accent-color)]/10 hover:bg-[var(--accent-color)]/20 border border-[var(--accent-color)]/30 rounded-lg text-xs font-semibold text-[var(--accent-color)] transition-all cursor-pointer shadow-sm active:scale-95 shrink-0"
-                >
-                    <span>🔍 Inspect Files & Header</span>
-                </button>
+                <div className="flex items-center gap-2 shrink-0">
+                    {canLoad && (
+                        <button
+                            type="button"
+                            disabled={loadingModel}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                void handleLoadModel();
+                            }}
+                            className="flex items-center gap-1.5 px-3 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 rounded-lg text-xs font-semibold text-emerald-400 transition-all cursor-pointer shadow-sm active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
+                        >
+                            {loadingModel ? <Loader2 size={12} className="animate-spin" /> : <Play size={12} />}
+                            <span>{loadingModel ? (loadPercent !== undefined ? `Loading ${loadPercent}%` : 'Loading…') : 'Load Model'}</span>
+                        </button>
+                    )}
+                    <button
+                        type="button"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onInspect();
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-1 bg-[var(--accent-color)]/10 hover:bg-[var(--accent-color)]/20 border border-[var(--accent-color)]/30 rounded-lg text-xs font-semibold text-[var(--accent-color)] transition-all cursor-pointer shadow-sm active:scale-95 shrink-0"
+                    >
+                        <span>🔍 Inspect Files & Header</span>
+                    </button>
+                </div>
             </div>
+            {(loadingModel || loadMessage) && canLoad && (
+                <div className="space-y-1">
+                    {loadMessage && <p className="text-[11px] font-mono text-[var(--text-secondary)] truncate">{loadMessage}</p>}
+                    {loadingModel && loadPercent !== undefined && (
+                        <div className="h-1 w-full overflow-hidden rounded-full bg-[var(--bg-tertiary)]">
+                            <div className="h-full rounded-full bg-emerald-400 transition-[width] duration-200" style={{ width: `${Math.max(0, Math.min(100, loadPercent))}%` }} />
+                        </div>
+                    )}
+                </div>
+            )}
 
             {/* 4-Column Metrics Grid */}
             <div className="grid grid-cols-4 gap-2 text-left">

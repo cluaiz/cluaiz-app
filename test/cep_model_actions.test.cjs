@@ -5,17 +5,22 @@ const header=()=>({model:'owned',file:'/owned/weights.gguf',metadata:{'general.n
     tensors:[{name:'actual.weight',dims:[4,0],ggml_type:0,offset:0,size_bytes:0}]});
 
 test('installed load/remove/inspect use CEP and retain actual header/timing data',async()=>{
-    const signal=new AbortController().signal;const h=harness((url,body)=>{
-        assert.equal(url,'/v1/cep');assert.equal(body.params.model,'owned');
-        return reply(body,body.method==='models.load'?{model:'owned',loaded_ms:0}:
-            body.method==='models.remove'?{model:'owned',dir:'/owned'}:header());
+    const signal=new AbortController().signal;const seen=[];
+    const h=harness((url,body)=>{
+        assert.equal(url,'/v1/cep');
+        if(body.method==='models.load'){assert.equal(body.params.model,'owned');return reply(body,{task:{task_id:'load-task',method:'models.load',status:'working'}});}
+        if(body.method==='tasks.get'){return reply(body,{task_id:'load-task',method:'models.load',status:'completed',progress:{done:100,total:100,unit:'percent',message:'reading weights 100%'},events:[{kind:'loaded',model:'owned',ms:0,message:'loaded in 0 ms'}],next:1});}
+        if(body.method==='tasks.result'){return reply(body,{model:'owned',loaded_ms:0});}
+        assert.equal(body.params.model,'owned');
+        return reply(body,body.method==='models.remove'?{model:'owned',dir:'/owned'}:header());
     });
-    assert.equal((await h.modelsApi.loadModel('owned',signal)).loaded_ms,0);
+    assert.equal((await h.modelsApi.loadModel('owned',signal,t=>seen.push(t))).loaded_ms,0);
+    assert.equal(seen[1].progress.done,100);assert.equal(seen[1].latestEvent.kind,'loaded');
     assert.equal((await h.modelsApi.deleteModel('owned',signal)).dir,'/owned');
     const got=await h.modelsApi.inspectHeader('owned','weights.gguf',signal);
-    assert.deepEqual(wire(got),header());assert.equal(h.requests[2].body.params.file,'weights.gguf');
-    assert.ok(h.requests.every(r=>r.options.signal===signal));assert.equal(h.requests[0].options.timeoutMs,0);
-    await assert.rejects(h.modelsApi.getAvailable(),e=>e.statusText==='MODEL_RECOMMENDATIONS_UNAVAILABLE');assert.equal(h.requests.length,3);
+    assert.deepEqual(wire(got),header());assert.equal(h.requests[4].body.params.file,'weights.gguf');
+    assert.ok(h.requests.every(r=>r.options.signal===signal));
+    await assert.rejects(h.modelsApi.getAvailable(),e=>e.statusText==='MODEL_RECOMMENDATIONS_UNAVAILABLE');assert.equal(h.requests.length,5);
 });
 
 test('pull/download start once and await the same final task including canonical and cached ids',async()=>{
@@ -36,7 +41,8 @@ test('pull/download start once and await the same final task including canonical
 
 test('wrong identities/malformed acknowledgments and download results never become success',async()=>{
     for(const value of [{model:'other',loaded_ms:1},{model:'owned',loaded_ms:-1},{}]){
-        const h=harness((url,body)=>reply(body,value));await assert.rejects(h.modelsApi.loadModel('owned'),e=>e.statusText==='INVALID_MODEL_ACTION');
+        const h=harness((url,body)=>reply(body,body.method==='models.load'?{task:{task_id:'load-task',method:'models.load',status:'working'}}:value));
+        await assert.rejects(h.modelsApi.loadModel('owned'),e=>e.statusText==='INVALID_MODEL_ACTION');
     }
     for(const value of [{model:'other',dir:'/other'},{model:'owned',dir:''}]){
         const h=harness((url,body)=>reply(body,value));await assert.rejects(h.modelsApi.deleteModel('owned'),e=>e.statusText==='INVALID_MODEL_ACTION');

@@ -8,6 +8,7 @@ import { cancelCepTask, listCepTasks, type TaskView } from '../../api/client/cep
 import { checkForUpdate, readAuditLog, type AuditLog, type UpdateCheck } from '../../api/engine/system/maintenance';
 import { readEmbeddingRoom, type EmbeddingRoom } from '../../api/engine/models/embeddingRoom';
 import { importAppChats, type AppChatImport } from '../../api/engine/chat/importApp';
+import { LoadHistoryPanel } from './LoadHistoryPanel';
 
 const muted = 'text-xs text-[var(--text-secondary)]';
 const open = (task: TaskView) => task.status === 'working' || task.status === 'input_required';
@@ -68,10 +69,19 @@ export function TasksSection() {
                 <Badge variant={task.status === 'failed' ? 'destructive' : open(task) ? 'secondary' : 'outline'}>{task.status}</Badge>
                 <span className="font-mono text-[var(--text-primary)]">{task.method}</span>
                 {task.progress && <span className="text-[var(--text-muted)]">{task.progress.done}{task.progress.total ? ` / ${task.progress.total}` : ''} {task.progress.unit ?? ''}</span>}
-                {task.status_message && <span className="text-[var(--text-muted)]">{task.status_message}</span>}
+                {(typeof task.latestEvent?.message === 'string' && task.latestEvent.message) ? <span className="text-[var(--text-secondary)]">{task.latestEvent.message}</span>
+                    : task.status_message && <span className="text-[var(--text-muted)]">{task.status_message}</span>}
                 {open(task) && <Button size="sm" variant="ghost" className="ml-auto" disabled={cancelling === task.task_id}
                     onClick={() => void cancel(task)}>Cancel</Button>}
             </div>)}
+        </div>
+    </SettingSection>;
+}
+
+export function LoadHistorySection() {
+    return <SettingSection title="Model Load History">
+        <div className="p-4">
+            <LoadHistoryPanel />
         </div>
     </SettingSection>;
 }

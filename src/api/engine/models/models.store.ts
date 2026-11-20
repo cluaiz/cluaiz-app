@@ -3,6 +3,7 @@ import { modelsApi } from './models.api';
 import { errorMessage } from '../../client/errors';
 import type { Status } from '../../client/status';
 import { toast } from '../../../components/ui/toast';
+import type { TaskObserver } from '../../client/cepTask';
 import type {
   ModelRegistryEntry,
   HardwareDetectorStats,
@@ -21,7 +22,7 @@ interface ModelsState {
   load: () => Promise<void>;
   inspect: (modelId: string, filename?: string) => Promise<void>;
   deleteModel: (modelId: string) => Promise<boolean>;
-  loadModel: (modelId: string) => Promise<boolean>;
+  loadModel: (modelId: string, observer?: TaskObserver) => Promise<boolean>;
   pullModel: (modelId: string) => Promise<boolean>;
   downloadModel: (payload?: DownloadModelPayload) => Promise<boolean>;
 }
@@ -98,10 +99,10 @@ export const useModelsStore = create<ModelsState>((set, get) => {
     }
   },
 
-  loadModel: async (modelId: string) => {
+  loadModel: async (modelId: string, observer?: TaskObserver) => {
     set({error: null});
     try {
-      await modelsApi.loadModel(modelId);
+      await modelsApi.loadModel(modelId, undefined, observer);
       return true;
     } catch (err) {
       set({ error: errorMessage(err) });

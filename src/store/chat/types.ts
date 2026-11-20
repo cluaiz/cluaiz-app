@@ -1,4 +1,17 @@
+import type { ModelLoadEvent } from '../../api/engine/models/models.types';
+import type { EngineLoadReport } from '../../core/engine';
+
 export interface CreateChatSessionOptions { incognito?: boolean; activate?: boolean; extensionId?: string; }
+
+export interface ChatModelLoadState {
+    status: 'loading' | 'loaded' | 'failed';
+    model?: string;
+    loadMs?: number;
+    percent?: number;
+    currentMessage?: string;
+    steps: ModelLoadEvent[];
+    plan?: EngineLoadReport;
+}
 
 export interface ChatMessage {
     id: string;
@@ -48,6 +61,7 @@ export interface ChatMessage {
     };
     finishReason?: string;
     contextReport?: any;
+    modelLoad?: ChatModelLoadState;
     /** A compaction card: the model's summary replaces the messages before it in later requests */
     compaction?: {
         summary: string;

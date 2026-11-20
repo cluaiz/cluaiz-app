@@ -1,6 +1,6 @@
-import type { ChatMessage } from '../../../store/chat/useChatStore';
+import type { ChatMessage, ChatModelLoadState } from '../../../store/chat/types';
 import type { ProcessingEvent } from '../../../api/engine/chat/chat.types';
-import type { SendChatOptions } from '../../../core/engine';
+import type { EngineLoadReport, SendChatOptions } from '../../../core/engine';
 
 /** One owner for the composer settings used by Send and an explicit text preview. */
 export function chatComposerOptions(model: string | null | undefined, thinkMode: string, effort: string | number, skills: string[]): SendChatOptions {
@@ -60,6 +60,9 @@ const STAGES: Record<ProcessingEvent['stage'], string> = {
 };
 
 export function processingLabel(event: ProcessingEvent, messages: ChatMessage[]): string {
+    if (event.stage === 'model_loading' && event.message) {
+        return event.message;
+    }
     const target = event.attachment;
     const message = target ? messages[target.message_index] : undefined;
     const part = target ? message?.parts?.[target.part_index] : undefined;
@@ -71,4 +74,73 @@ export function processingLabel(event: ProcessingEvent, messages: ChatMessage[])
     const work = event.work ? ` (${event.work.completed}/${event.work.total} ${event.work.unit})` : '';
     const frame = target?.frame_index !== undefined ? ` · frame ${target.frame_index + 1}` : '';
     return `${STAGES[event.stage]}${earlier ? ' · earlier attachment' : ''}${name ? ` · ${name}` : ''}${frame}${work}`;
+}
+
+/**
+ * Updates inline chat model-load state for `model_loading` processing events.
+ * Generic `model_loading` stage boundaries (`!p.load`) when the model is already
+ * resident in memory are ignored so subsequent chat turns never display a load card.
+ */
+export function reduceChatModelLoading(
+    current: ChatModelLoadState | undefined,
+    p: ProcessingEvent,
+    currentModelName?: string,
+): ChatModelLoadState | undefined {
+    if (!p.load || p.load.kind === 'unloaded') {
+        if (!current || current.steps.length === 0) {
+            return undefined;
+        }
+        if (p.state === 'completed' || p.state === 'failed') {
+            return {
+                ...current,
+                status: p.state === 'failed' ? 'failed' : 'loaded',
+                percent: undefined,
+            };
+        }
+        return current;
+    }
+    const prev: ChatModelLoadState = current ?? { status: 'loading', steps: [] };
+    const nextSteps = [...prev.steps];
+    if (p.load.step === 'weights') {
+        const idx = nextSteps.findIndex(s => s.step === 'weights' && s.attempt === p.load?.attempt);
+        if (idx >= 0) nextSteps[idx] = p.load;
+        else nextSteps.push(p.load);
+    } else {
+        nextSteps.push(p.load);
+    }
+    const nextPercent = p.work?.unit === 'percent'
+        ? p.work.completed
+        : p.load.percent ?? (p.load.step && p.load.step !== 'weights' ? undefined : prev.percent);
+    const nextStatus = (p.state === 'failed' || p.load.kind === 'failed' || p.load.kind === 'refused')
+        ? 'failed'
+        : (p.state === 'completed' || p.load.kind === 'loaded')
+            ? 'loaded'
+            : 'loading';
+    return {
+        ...prev,
+        status: nextStatus,
+        model: p.load.model || prev.model || currentModelName,
+        percent: nextStatus === 'loaded' ? undefined : nextPercent,
+        currentMessage: p.message ?? p.load.message ?? prev.currentMessage,
+        loadMs: p.load.kind === 'loaded' && p.load.ms !== undefined ? p.load.ms : prev.loadMs,
+        steps: nextSteps,
+    };
+}
+
+/** Attaches the final EngineLoadReport only when this turn actually loaded a model (`steps.length > 0`). */
+export function finalizeChatModelLoad(
+    current: ChatModelLoadState | undefined,
+    plan: EngineLoadReport | undefined,
+    currentModelName?: string,
+): ChatModelLoadState | undefined {
+    if (!current || current.steps.length === 0) return undefined;
+    if (!plan) return current;
+    return {
+        ...current,
+        status: 'loaded',
+        model: plan.model_id ?? current.model ?? currentModelName,
+        loadMs: current.loadMs ?? plan.model_load_ms,
+        percent: undefined,
+        plan,
+    };
 }

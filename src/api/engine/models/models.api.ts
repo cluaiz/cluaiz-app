@@ -4,7 +4,8 @@ import { ApiError } from '../../client/errors';
 import { permissionApi } from '../permission/permission.api';
 import { readHardwareSummary } from '../system/systemData';
 import { MODELS_ENDPOINTS } from './models.endpoints';
-import { discardDownload, downloadInstalledModel, inspectInstalledModel, loadInstalledModel, removeInstalledModel, modelTarget } from './actions';
+import { discardDownload, downloadInstalledModel, inspectInstalledModel, loadInstalledModel, removeInstalledModel, resumeModelLoad, modelTarget } from './actions';
+import { readLoadHistory } from './loadHistory';
 import { fsApi } from '../fs/fs.api';
 import type {
   InstalledModelsResponse,
@@ -102,9 +103,11 @@ export const modelsApi = {
   },
 
   /**
-   * Loads a model into memory
+   * Loads a model into memory (CEP task with optional progress/step observer)
    */
   loadModel: loadInstalledModel,
+  resumeModelLoad,
+  readLoadHistory,
 
   /**
    * Waits for the same validated CEP download task as downloadModel.

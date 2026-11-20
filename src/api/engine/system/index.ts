@@ -3,3 +3,4 @@ export * from './system.types';
 export * from './system.api';
 export * from './system.store';
 export * from './maintenance';
+export * from './events';

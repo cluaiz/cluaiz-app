@@ -57,6 +57,42 @@ export interface EngineContextReport {
     stop: 'eos' | 'limit' | 'cancel' | 'error' | string;
 }
 
+export interface EngineLoadReport {
+    model_id?: string;
+    placement?: string;
+    placement_label?: string;
+    n_ctx?: number;
+    n_gpu_layers?: number;
+    total_layers?: number;
+    gpu_blocks?: number;
+    ram_blocks?: number;
+    n_cpu_moe?: number;
+    offload_kqv?: boolean;
+    op_offload?: boolean;
+    cache_type?: string;
+    vram_planned_gb?: number;
+    ram_planned_gb?: number;
+    vram_weights_gb?: number;
+    ram_weights_gb?: number;
+    kv_gpu_gb?: number;
+    kv_ram_gb?: number;
+    vram_free_gb?: number;
+    ram_free_gb?: number;
+    vram_buffer_gb?: number;
+    disk_stream_gb?: number;
+    model_load_ms?: number;
+    context_reason?: string;
+    planner?: string;
+    settings?: {
+        n_batch?: number;
+        n_ubatch?: number;
+        n_threads?: number;
+        n_threads_batch?: number;
+        flash_attn?: string;
+        use_mmap?: boolean;
+    };
+}
+
 export interface StreamChunk {
     content?: string;
     reasoning?: string;
@@ -67,7 +103,7 @@ export interface StreamChunk {
         context?: EngineContextReport;
         timings?: any;
         thinking?: any;
-        load?: any;
+        load?: EngineLoadReport | null;
     };
     finishReason?: string;
     error?: {

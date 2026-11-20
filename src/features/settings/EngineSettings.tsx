@@ -8,7 +8,7 @@ import { TtsVoiceSelector } from './TtsVoiceSelector';
 import { SttLanguageSelector } from './SttLanguageSelector';
 import { CustomDropdown, DropdownOption } from '../../components/ui/dropdown/CustomDropdown';
 import { Loader2 } from 'lucide-react';
-import { TasksSection, UpdateCheckSection } from './EngineMaintenance';
+import { LoadHistorySection, TasksSection, UpdateCheckSection } from './EngineMaintenance';
 
 const DESC_CONTEXT: Record<string, string> = {
     'Auto': 'When a chat outgrows the context, the oldest turns are left out automatically: only as much as needed.',
@@ -290,6 +290,7 @@ export function EngineSettings() {
                                 <ModelInfoCard
                                     model={currentChatModel}
                                     onInspect={() => setInspectingModel(currentChatModel)}
+                                    canLoad={currentChatModel.format_type?.toLowerCase() === 'gguf'}
                                 />
                             )}
                         </div>
@@ -417,6 +418,7 @@ export function EngineSettings() {
                         </div>
                     </SettingSection>
                     <TasksSection />
+                    <LoadHistorySection />
                     <UpdateCheckSection />
                 </div>
             )}

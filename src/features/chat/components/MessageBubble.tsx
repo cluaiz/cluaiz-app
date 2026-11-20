@@ -7,6 +7,7 @@ import { ContextChip } from '../../../components/ui/ContextChip';
 import { extractBaseName } from '../../../utils/filePath';
 import { MarkdownRenderer } from '../../../components/ui/MarkdownRenderer';
 import { ChatErrorCard } from './ChatErrorCard';
+import { ModelLoadCard } from './ModelLoadCard';
 import { useSpeechHighlightStore } from '../../../store/chat/useSpeechHighlightStore';
 import { useVoiceSessionStore } from '../../../store/chat/useVoiceSessionStore';
 
@@ -638,13 +639,18 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
                         </div>
                     )}
 
+                    {/* 0. Live Model Load Steps & Post-Load Plan Toggle */}
+                    {msg.modelLoad && msg.modelLoad.steps && msg.modelLoad.steps.length > 0 && (
+                        <ModelLoadCard modelLoad={msg.modelLoad} />
+                    )}
+
                     {/* 1. Initial Thought Process if present */}
                     {msg.thinking && (
                         <div className="w-full mb-1">
                             <ThoughtProcessCard
                                 thinking={msg.thinking}
-                                isStreaming={Boolean(msg.thinking && !msg.toolCalls?.length && !msg.text?.trim() && !msg.telemetry)}
-                                duration={msg.thinkingDuration || (msg.text ? undefined : msg.telemetry?.elapsed)}
+                                isStreaming={Boolean(isStreaming && msg.thinking && !msg.toolCalls?.length && !msg.text?.trim() && !msg.telemetry)}
+                                duration={msg.thinkingDuration || msg.telemetry?.elapsed}
                                 onSkipThinking={onSkipThinking}
                             />
                         </div>
@@ -672,7 +678,7 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
                         <div className="w-full mb-1">
                             <ThoughtProcessCard
                                 thinking={msg.postToolThinking}
-                                isStreaming={Boolean(msg.postToolThinking && !msg.text?.trim() && !msg.telemetry)}
+                                isStreaming={Boolean(isStreaming && msg.postToolThinking && !msg.text?.trim() && !msg.telemetry)}
                                 duration={msg.postToolThinkingDuration || msg.telemetry?.elapsed}
                                 onSkipThinking={onSkipThinking}
                             />

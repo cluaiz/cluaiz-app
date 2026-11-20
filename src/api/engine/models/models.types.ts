@@ -99,3 +99,55 @@ export interface DownloadModelResponse {
   path: string | null;
   downloaded: boolean;
 }
+
+export type ModelLoadEventKind = 'started' | 'step' | 'retry' | 'loaded' | 'failed' | 'refused' | 'unloaded';
+
+export interface ModelLoadEvent {
+  kind?: ModelLoadEventKind;
+  model: string;
+  attempt?: number;
+  step?: 'weights' | 'fallback' | 'context' | 'warmup' | string;
+  percent?: number;
+  placement?: string;
+  n_gpu_layers?: number;
+  n_cpu_moe?: number;
+  n_ctx?: number;
+  vram_planned_gb?: number;
+  vram_taken_gb?: number;
+  ms?: number;
+  detail?: string;
+  message?: string;
+}
+
+export interface ModelLoadTaskResult {
+  status: 'success';
+  model: string;
+  loaded_ms: number;
+}
+
+export interface LoadHistoryRecord {
+  seq: number;
+  at: string;
+  action?: 'load' | 'unload';
+  outcome?: 'ok' | 'failed' | 'refused';
+  cause?: 'requested' | 'remeasured' | 'step_down';
+  model: string;
+  file: string;
+  file_bytes?: number;
+  attempts?: number;
+  placement?: string;
+  n_gpu_layers?: number;
+  n_cpu_moe?: number;
+  n_ctx?: number;
+  vram_planned_gb?: number;
+  vram_taken_gb?: number;
+  ms: number;
+  error?: string;
+}
+
+export interface LoadHistoryPage {
+  records: LoadHistoryRecord[];
+  total: number;
+  skipped_lines: number;
+  next_from_seq: number | null;
+}

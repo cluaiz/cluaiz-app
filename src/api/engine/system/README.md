@@ -10,6 +10,7 @@ current CEP operations. Model inventory's hardware alias shares this owner.
 | getLiveTelemetry | system.live |
 | getProcesses | system.ps |
 | planExecution / compareLatency | system.plan |
+| getEvents | system.events |
 | getHealth | direct GET /health |
 | executeCommand / executeProgram | system.exec |
 

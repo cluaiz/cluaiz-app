@@ -48,6 +48,7 @@ test('model store retains refused deletion/load and refreshes only after actual 
         if(body.method==='system.info')throw Error('Optional hardware unavailable');
         if(fail)return {jsonrpc:'2.0',id:body.id,error:{code:-32002,message:'Denied',data:{type:'forbidden'}}};
         if(body.method==='models.download')return reply(body,{task:{task_id:'owned-task',method:'models.download',status:'working'}});
+        if(body.method==='models.load')return reply(body,{task:{task_id:'load-task',method:'models.load',status:'working'}});
         if(body.method==='tasks.result'){await done;installed=[...installed,{id:'downloaded'}];return reply(body,{status:'success',model:'downloaded',path:'/downloaded',downloaded:true});}
         installed=[];return reply(body,{model:'owned',dir:'/owned'});
     });const store=storeFor(h);await store.getState().load();fail=true;

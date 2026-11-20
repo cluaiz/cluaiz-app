@@ -68,7 +68,8 @@ flowchart LR
 - **hooks/useChatSend.ts & core/engine.ts:** saved (non-private) chats pass
   `history_mode: 'adaptive'` on `/v1/chat/completions` so the Engine retains recent
   turns in the prompt, recalls older turns from its index, and offers memory tools
-  (`recall`, `open_memory`, `remember`).
+  (`recall`, `open_memory`, `remember`). Live `model_loading` steps (`cluaiz.progress`)
+  and final `engine.load` placement reports update `msg.modelLoad` rendered by `ModelLoadCard.tsx`.
 - **components/ContextDetailsPanel.tsx & hooks/useContextDetails.ts:**
   reads `context.jobs` and (when a non-private chat id exists) `context.reports` /
   `context.report` on open/refresh. Explains that retained reports live in Engine

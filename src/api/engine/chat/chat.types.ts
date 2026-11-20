@@ -1,3 +1,5 @@
+import type { ModelLoadEvent } from '../models/models.types';
+
 /**
  * Chat generation and current CEP control/context DTOs.
  */
@@ -28,6 +30,8 @@ export interface ProcessingEvent {
   elapsed_ms: number;
   attachment?: { message_index: number; part_index: number; frame_index?: number };
   work?: { completed: number; total: number; unit: string };
+  message?: string;
+  load?: ModelLoadEvent;
 }
 
 export interface ChatCompletionRequest {
