@@ -62,15 +62,34 @@ export class ChatStorageManager implements IChatStorageDriver {
 
     async loadSessionsIndex(): Promise<SessionsIndex | null> {
         await this.writes;
-        try {
-            const index = await this.primaryDriver.loadSessionsIndex();
-            if (index && Array.isArray(index.sessions) && index.sessions.length > 0) {
-                return index;
-            }
-        } catch (e) {
-            console.warn('[ChatStorageManager] Primary loadSessionsIndex failed, trying fallback:', e);
+        const [primaryRes, fallbackRes] = await Promise.allSettled([
+            this.primaryDriver.loadSessionsIndex(),
+            this.fallbackDriver.loadSessionsIndex(),
+        ]);
+        const primary = primaryRes.status === 'fulfilled' ? primaryRes.value : null;
+        const fallback = fallbackRes.status === 'fulfilled' ? fallbackRes.value : null;
+        if (primaryRes.status === 'rejected') {
+            console.warn('[ChatStorageManager] Primary loadSessionsIndex failed, using fallback:', primaryRes.reason);
         }
-        return this.fallbackDriver.loadSessionsIndex();
+        if (!primary) return fallback;
+        if (!fallback || !Array.isArray(fallback.sessions) || fallback.sessions.length === 0) return primary;
+
+        const byId = new Map<string, SessionsIndex['sessions'][number]>();
+        for (const s of fallback.sessions) {
+            if (s?.id && !this.deleted.has(s.id)) byId.set(s.id, s);
+        }
+        for (const s of primary.sessions || []) {
+            if (!s?.id || this.deleted.has(s.id)) continue;
+            const prev = byId.get(s.id);
+            if (!prev || (s.updatedAt || 0) >= (prev.updatedAt || 0)) {
+                byId.set(s.id, { ...prev, ...s });
+            }
+        }
+        return {
+            version: primary.version ?? fallback.version ?? 1,
+            lastActiveSessionId: primary.lastActiveSessionId ?? fallback.lastActiveSessionId ?? null,
+            sessions: Array.from(byId.values()),
+        };
     }
 
     async saveSessionsIndex(index: SessionsIndex): Promise<void> {

@@ -141,6 +141,11 @@ export function parseCurrentRoute(): RouteState {
     };
 }
 
+const TOOLKIT_QUERY_PARAMS = [
+    'section', 'place', 'list', 'show', 'family', 'model', 'pick', 'package',
+    'provider', 'type', 'format', 'traits', 'status', 'picker',
+];
+
 /**
  * Updates URL to reflect active chat ID (?c=chat_YYYYMMDD_...) without reloading.
  */
@@ -148,11 +153,12 @@ export function pushChatRoute(chatId: string | null, replace: boolean = false): 
     if (typeof window === 'undefined') return;
     try {
         const url = new URL(window.location.href);
-        // Explicitly set pathname to root for chat and clear any settings or API Explorer query params
+        // Explicitly set pathname to root for chat and clear any settings, API Explorer, or Toolkit query params
         url.pathname = '/';
         url.searchParams.delete('tab');
         url.searchParams.delete('endpoint');
         url.searchParams.delete('method');
+        for (const p of TOOLKIT_QUERY_PARAMS) url.searchParams.delete(p);
         if (chatId) {
             url.searchParams.set('c', chatId);
         } else {
@@ -190,8 +196,8 @@ export function pushSettingsRoute(tab: SettingsTabId, replace: boolean = false):
 }
 
 /**
- * Reverts URL to the underlying active view when Settings is closed.
- * Preserves query params (such as ?c=chat_...) when viewing chat.
+ * Reverts URL to the underlying active view when Settings is closed or view changes.
+ * Preserves view-specific query params (e.g. ?c= on chat, ?endpoint/&method/&tab on apis, ?section/... on toolkit).
  */
 export function pushViewRoute(view: MainViewId, replace: boolean = false): void {
     if (typeof window === 'undefined') return;
@@ -200,14 +206,20 @@ export function pushViewRoute(view: MainViewId, replace: boolean = false): void 
         const selectedExtension = useLayoutStore.getState().activeExtension;
         const targetPath = view === 'chat' ? '/' : view === 'extensions' && selectedExtension
             ? extensionPath(selectedExtension) : `/${view}`;
+        const wasSettings = url.pathname === '/settings' || url.pathname === '/setting' || url.pathname.startsWith('/settings/') || url.pathname.startsWith('/setting/');
         url.pathname = targetPath;
-        url.searchParams.delete('tab');
+        if (view !== 'apis' || wasSettings) {
+            url.searchParams.delete('tab');
+        }
         if (view !== 'apis') {
             url.searchParams.delete('endpoint');
             url.searchParams.delete('method');
         }
         if (view !== 'chat') {
             url.searchParams.delete('c');
+        }
+        if (view !== 'toolkit') {
+            for (const p of TOOLKIT_QUERY_PARAMS) url.searchParams.delete(p);
         }
         const targetUrl = url.pathname + (url.search ? url.search : '') + url.hash;
         const currentUrl = window.location.pathname + window.location.search + window.location.hash;

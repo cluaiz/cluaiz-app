@@ -1,7 +1,22 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { ExtensionRoute } from '../../extensions/routes';
-import type { MainViewId } from '../../core/router';
+import { parseCurrentRoute, type MainViewId } from '../../core/router';
+
+function initialRouteView(): { activeView: MainViewId; activeExtension: ExtensionRoute | null } {
+    if (typeof window === 'undefined') {
+        return { activeView: 'chat', activeExtension: null };
+    }
+    try {
+        const route = parseCurrentRoute();
+        return {
+            activeView: route.view || 'chat',
+            activeExtension: route.view === 'extensions' ? (route.extension || null) : null,
+        };
+    } catch {
+        return { activeView: 'chat', activeExtension: null };
+    }
+}
 
 export type SidebarPosition = 'left' | 'right';
 
@@ -80,9 +95,8 @@ export const useLayoutStore = create<LayoutState>()(
             setDateRange: (dateRange) => set({ dateRange }),
             activeChatData: null,
             setActiveChatData: (activeChatData) => set({ activeChatData }),
-            activeView: 'chat',
+            ...initialRouteView(),
             setActiveView: (activeView) => set({ activeView }),
-            activeExtension: null,
             setActiveExtension: (activeExtension) => set({ activeView: 'extensions', activeExtension }),
             previewModalAsset: null,
             setPreviewModalAsset: (previewModalAsset) => set({ previewModalAsset }),
@@ -101,8 +115,10 @@ export const useLayoutStore = create<LayoutState>()(
             }),
             onRehydrateStorage: () => (state) => {
                 if (state) {
-                    // Always default activeView in-memory, never from stale storage
-                    state.activeView = 'chat';
+                    // Always honor the current browser URL on hydration, never reset to 'chat' or stale storage
+                    const routeView = initialRouteView();
+                    state.activeView = routeView.activeView;
+                    state.activeExtension = routeView.activeExtension;
                     try {
                         const raw = localStorage.getItem('cluaiz-layout-storage');
                         if (raw) {

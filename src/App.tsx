@@ -62,11 +62,17 @@ function MainAppContent() {
     };
 
     // Synchronize browser URL when activeView changes after user interaction
-    const isFirstMountRef = useRef(true);
+    const prevRouteSyncRef = useRef<{ activeView: string; activeExtension: unknown; isSettingsOpen: boolean } | null>(null);
     useEffect(() => {
-        if (isFirstMountRef.current) {
-            isFirstMountRef.current = false;
-            // On initial load, honor the exact entered browser URL!
+        const prev = prevRouteSyncRef.current;
+        prevRouteSyncRef.current = { activeView, activeExtension, isSettingsOpen: settingsState.isOpen };
+        // On initial mount (including React 18 StrictMode double-invocation where state has not changed),
+        // honor the exact entered browser URL and never overwrite ?c= before ChatStore finishes hydrating!
+        if (!prev || (
+            prev.activeView === activeView &&
+            prev.activeExtension === activeExtension &&
+            prev.isSettingsOpen === settingsState.isOpen
+        )) {
             const currentRoute = parseCurrentRoute();
             if (!currentRoute.isSettingsOpen && currentRoute.view === 'extensions') {
                 useLayoutStore.getState().setActiveExtension(currentRoute.extension || null);
@@ -86,7 +92,8 @@ function MainAppContent() {
 
         if (!settingsState.isOpen) {
             if (activeView === 'chat') {
-                pushChatRoute(useChatStore.getState().activeSessionId);
+                const { activeSessionId, isHydrated } = useChatStore.getState();
+                pushChatRoute(isHydrated ? activeSessionId : (parseCurrentRoute().activeChatId ?? activeSessionId));
             } else {
                 pushViewRoute(activeView);
             }

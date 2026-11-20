@@ -7,12 +7,18 @@ import { onToolkitHistory, setToolkitParams, toolkitParam } from './toolkitNavig
 export type ModelPlace = 'local' | 'cloud';
 export type ModelListing = 'browse' | 'installed';
 
-/** Place, listing and the installed-only view live in the URL: place=cloud, list=installed, show=installed */
-const fromUrl = () => ({
-  place: (toolkitParam('place') === 'cloud' ? 'cloud' : 'local') as ModelPlace,
-  listing: (toolkitParam('list') === 'installed' ? 'installed' : 'browse') as ModelListing,
-  installedOnly: toolkitParam('show') === 'installed',
-});
+/** Place, listing, family and the installed-only view live in the URL: place=cloud, list=installed, show=installed, family=... */
+const fromUrl = () => {
+  const family = toolkitParam('family');
+  const model = toolkitParam('model');
+  return {
+    place: (toolkitParam('place') === 'cloud' ? 'cloud' : 'local') as ModelPlace,
+    listing: (toolkitParam('list') === 'installed' ? 'installed' : 'browse') as ModelListing,
+    installedOnly: toolkitParam('show') === 'installed',
+    family,
+    view: ((family || model) ? 'models' : 'families') as 'families' | 'models',
+  };
+};
 
 /** A family or provider page's own filters (show=installed is the installed-only view) */
 const MODEL_PAGE_FILTERS = { type: null, format: null, traits: null, status: null, picker: null };
@@ -50,10 +56,6 @@ export interface ModelCatalogueState {
 }
 
 export const useModelCatalogueStore = create<ModelCatalogueState>((set) => ({
-  ...fromUrl(),
-  setPlace: (place) => { setToolkitParams({ place: place === 'cloud' ? place : null, provider: null, model: null, family: null, pick: null, ...NO_PAGE_FILTER }); set({ place, family: '', selectedModel: null, installedOnly: false }); },
-  setListing: (listing) => { setToolkitParams({ list: listing === 'installed' ? listing : null }); set({ listing }); },
-  setInstalledOnly: (installedOnly) => { setToolkitParams({ show: installedOnly ? 'installed' : null }); set({ installedOnly }); },
   family: '',
   selectedModel: null,
   query: '',
@@ -62,6 +64,10 @@ export const useModelCatalogueStore = create<ModelCatalogueState>((set) => ({
   format: '',
   sort: 'popular',
   view: 'families',
+  ...fromUrl(),
+  setPlace: (place) => { setToolkitParams({ place: place === 'cloud' ? place : null, provider: null, model: null, family: null, pick: null, ...NO_PAGE_FILTER }); set({ place, family: '', selectedModel: null, installedOnly: false }); },
+  setListing: (listing) => { setToolkitParams({ list: listing === 'installed' ? listing : null }); set({ listing }); },
+  setInstalledOnly: (installedOnly) => { setToolkitParams({ show: installedOnly ? 'installed' : null }); set({ installedOnly }); },
 
   openFamily: (family, model = null) => {
     setToolkitParams({ family: family || null, model: model?.id ?? null, pick: null, ...MODEL_PAGE_FILTERS });

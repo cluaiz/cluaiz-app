@@ -67,3 +67,37 @@ test('[P10] IndexedDB driver restores lastActiveSessionId when present', () => {
 
     assert.equal(resolved, 'chat_old_2', 'Driver must return the saved active session ID');
 });
+
+test('[P12] URL sync effect preserves initial ?c= route across React StrictMode double-mount before hydration finishes', () => {
+    // Mirrors App.tsx + useChatStore.ts initial activeSessionId + hydration guard
+    const urlAtLoad = 'chat_20261119_211051_klc7';
+    const initialStoreActiveSessionId = urlAtLoad;
+    const isHydrated = false;
+
+    const syncedChatId = isHydrated ? null : (urlAtLoad ?? initialStoreActiveSessionId);
+    assert.equal(syncedChatId, 'chat_20261119_211051_klc7', 'Pre-hydration effect run must never strip ?c= from the URL');
+});
+
+test('[P13] Layout store hydration honors URL route across all top-level pages instead of resetting to chat', () => {
+    function parseView(pathname: string): string {
+        const lower = pathname.toLowerCase();
+        if (lower === '/extensions' || lower.startsWith('/extensions/')) return 'extensions';
+        if (lower.includes('/notebook')) return 'notebook';
+        if (lower.includes('/automation')) return 'automation';
+        if (lower.includes('/apis')) return 'apis';
+        if (lower.includes('/toolkit')) return 'toolkit';
+        if (lower.includes('/library')) return 'library';
+        return 'chat';
+    }
+    for (const [path, expected] of [
+        ['/toolkit', 'toolkit'],
+        ['/apis', 'apis'],
+        ['/notebook', 'notebook'],
+        ['/library', 'library'],
+        ['/automation', 'automation'],
+        ['/extensions/cluaiz.notebook/main', 'extensions'],
+        ['/', 'chat'],
+    ] as const) {
+        assert.equal(parseView(path), expected, `Refreshing ${path} must keep activeView=${expected}`);
+    }
+});

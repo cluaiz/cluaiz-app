@@ -89,7 +89,7 @@ const scheduleMessagesSync = (sessionId: string, messages: ChatMessage[]) => {
 export const useChatStore = create<ChatStore>()(
     (set, get) => ({
         sessions: {},
-        activeSessionId: null,
+        activeSessionId: typeof window !== 'undefined' ? (parseCurrentRoute().activeChatId ?? null) : null,
         isHydrated: false,
         isLoadingMessages: false,
         streamingSessionId: null,
@@ -97,6 +97,9 @@ export const useChatStore = create<ChatStore>()(
 
         hydrateFromStorage: async () => {
             try {
+                // Capture the initial URL route BEFORE awaiting async storage I/O so any early
+                // React mount effect cannot strip ?c= while storage is loading.
+                const initialRoute = parseCurrentRoute();
                 // Purge legacy localStorage backup cache to prevent stale ghost sessions from resurrection
                 try {
                     if (typeof localStorage !== 'undefined') {
@@ -105,8 +108,8 @@ export const useChatStore = create<ChatStore>()(
                 } catch {}
 
                 const index = await chatStorageManager.loadSessionsIndex();
+                const sessionsMap: Record<string, ChatSession> = {};
                 if (index && index.sessions && index.sessions.length > 0) {
-                    const sessionsMap: Record<string, ChatSession> = {};
                     for (const s of index.sessions) {
                         sessionsMap[s.id] = {
                             id: s.id,
@@ -127,48 +130,58 @@ export const useChatStore = create<ChatStore>()(
                             messages: [] // Loaded lazily on switchSession
                         };
                     }
+                }
 
-                    // Priority: URL (?c=...) is the single source of truth.
-                    // If URL has no ?c= (user was on New Chat or root path), retain clean New Chat (null).
-                    const currentRoute = parseCurrentRoute();
-                    const routeChatId = currentRoute.activeChatId;
-                    let targetActiveId: string | null = null;
-                    if (routeChatId && sessionsMap[routeChatId]) {
-                        targetActiveId = routeChatId;
-                    } else {
-                        // User was on New Chat or requested an unknown/deleted chat; stay on New Chat
-                        targetActiveId = null;
-                    }
-
-                    set({
-                        sessions: sessionsMap,
-                        activeSessionId: targetActiveId,
-                        isHydrated: true
-                    });
-
-                    // Sync active chat to URL and load messages ONLY if user is currently on the chat view and settings is closed!
-                    const shouldSyncUrl = !currentRoute.isSettingsOpen && currentRoute.view === 'chat';
-                    if (targetActiveId) {
-                        if (shouldSyncUrl) {
-                            pushChatRoute(targetActiveId, true);
+                // Priority: URL (?c=...) is the single source of truth.
+                // If URL has ?c= for a session whose index write was still in-flight or only in per-session storage,
+                // recover it from metadata/messages before falling back to New Chat.
+                const currentRoute = parseCurrentRoute();
+                const routeChatId = currentRoute.activeChatId ?? initialRoute.activeChatId;
+                if (routeChatId && !sessionsMap[routeChatId]) {
+                    try {
+                        const [meta, msgs] = await Promise.all([
+                            chatStorageManager.loadSessionMetadata(routeChatId),
+                            chatStorageManager.loadSessionMessages(routeChatId),
+                        ]);
+                        if (meta || (msgs && msgs.length > 0)) {
+                            sessionsMap[routeChatId] = {
+                                id: routeChatId,
+                                extensionId: meta?.extensionId,
+                                title: meta?.title || 'New Chat',
+                                tags: [],
+                                unread: 0,
+                                pinned: false,
+                                favourite: false,
+                                archived: false,
+                                muted: false,
+                                createdAt: meta?.createdAt || Date.now(),
+                                updatedAt: meta?.updatedAt || Date.now(),
+                                messageCount: msgs?.length || 0,
+                                messages: msgs || [],
+                            };
                         }
-                        get().switchSession(targetActiveId, shouldSyncUrl);
-                    } else {
-                        if (shouldSyncUrl) {
-                            pushChatRoute(null, true);
-                        }
+                    } catch {}
+                }
+
+                const targetActiveId: string | null = (routeChatId && sessionsMap[routeChatId])
+                    ? routeChatId
+                    : null;
+
+                set({
+                    sessions: sessionsMap,
+                    activeSessionId: targetActiveId,
+                    isHydrated: true
+                });
+
+                // Sync active chat to URL and load messages ONLY if user is currently on the chat view and settings is closed!
+                const shouldSyncUrl = !currentRoute.isSettingsOpen && currentRoute.view === 'chat';
+                if (targetActiveId) {
+                    if (shouldSyncUrl) {
+                        pushChatRoute(targetActiveId, true);
                     }
-                } else {
-                    // Empty catalog: clean New Chat state ready for user input
-                    set({
-                        sessions: {},
-                        activeSessionId: null,
-                        isHydrated: true
-                    });
-                    const currentRoute = parseCurrentRoute();
-                    if (!currentRoute.isSettingsOpen && currentRoute.view === 'chat') {
-                        pushChatRoute(null, true);
-                    }
+                    get().switchSession(targetActiveId, shouldSyncUrl);
+                } else if (shouldSyncUrl) {
+                    pushChatRoute(null, true);
                 }
             } catch (err) {
                 console.error("[ChatStore] Storage hydration error:", err);
