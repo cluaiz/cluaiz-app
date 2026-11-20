@@ -273,14 +273,6 @@ export const SwipeableChatCard: React.FC<SwipeableChatCardProps> = ({
                                 {chat.name || 'New Chat'}
                             </span>
                         )}
-                        {chat.model && !isEditing && (
-                            <span
-                                className="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold shrink-0 truncate max-w-[85px] leading-tight border bg-[var(--bg-tertiary)] text-[var(--accent-color)] border-[var(--border-color)]"
-                                title={`${chat.modelProvider === 'cloud' ? 'Cloud model' : 'Model'}: ${chat.model}`}
-                            >
-                                {formatModelTag(chat.model)}
-                            </span>
-                        )}
                     </div>
                     {!isEditing && (
                         <span className="text-[11px] text-[var(--text-secondary)] truncate leading-snug font-normal mt-0.5">

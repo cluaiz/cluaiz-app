@@ -3,8 +3,8 @@ import {
   Sparkles,
   Cpu,
   Zap,
-  Blocks,
-  Boxes,
+  // Blocks,
+  // Boxes,
   Search,
   Wrench,
   ArrowLeft,
@@ -96,6 +96,7 @@ const NAV_ITEMS: NavItem[] = [
       count: summary.plugins.totalCount,
     }),
   },
+  /*
   {
     id: 'extensions',
     title: 'App Extensions',
@@ -118,6 +119,7 @@ const NAV_ITEMS: NavItem[] = [
       count: summary.components.totalCount,
     }),
   },
+  */
 ];
 
 /** Contextual Second Sidebar for AI Models Families Directory (Image 2) */

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Settings, Shield, Palette, Bell, HelpCircle, ExternalLink, Keyboard, Cpu, Zap, Layers, Heart, SlidersHorizontal, MessagesSquare, ScrollText, FolderTree } from 'lucide-react';
-import pkg from '../../../package.json';
+import { X, Settings, Shield, Palette, Bell, HelpCircle, ExternalLink, Keyboard, Cpu, Zap, Layers, Heart, SlidersHorizontal, MessagesSquare, ScrollText, FolderTree, BookOpen, Bug, MessageCircle } from 'lucide-react';
+import { SettingSection, SettingItem } from './SharedComponents';
 import { GeneralSettings } from './GeneralSettings';
 import { SecuritySettings } from './SecuritySettings';
 import { ChatsSettings } from './ChatsSettings';
@@ -84,110 +84,83 @@ export function SettingsOverlay({ isOpen, initialTab = 'general', onClose, onTab
                 return <ShortcutsSettings />;
             case 'help':
                 return (
-                    <div className="space-y-8 select-none">
-                        {/* Hero Help Card */}
-                        <div className="bg-gradient-to-br from-[var(--accent-color)]/10 via-[var(--bg-secondary)]/60 to-[var(--bg-secondary)] border border-[var(--border-color)] rounded-3xl p-8 space-y-6 shadow-sm">
-                            <div className="space-y-2">
-                                <h3 className="text-xl font-bold text-[var(--text-primary)]">Cluaiz Intelligence Hub</h3>
-                                <p className="text-xs text-[var(--text-secondary)] leading-relaxed max-w-xl">
-                                    You are running Cluaiz Desktop v{pkg.version} (Developer Beta). Access official guides, submit bugs or feature requests, and support our development.
-                                </p>
-                            </div>
-                            <div className="flex flex-wrap gap-3 pt-1">
-                                <a
-                                    href="https://cluaiz.com/docs/cluaiz-app"
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="flex items-center gap-2 bg-[var(--accent-color)] hover:opacity-95 text-[var(--bg-primary)] text-xs font-black uppercase tracking-wider px-5 py-3 rounded-xl transition-all cursor-pointer shadow-md"
-                                >
-                                    Documentation <ExternalLink size={14} />
-                                </a>
-                                <a
-                                    href="https://cluaiz.com/feedback"
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="flex items-center gap-2 bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] text-[var(--text-primary)] text-xs font-black uppercase tracking-wider px-5 py-3 border border-[var(--border-color)] rounded-xl transition-all cursor-pointer"
-                                >
-                                    Feedback & Bug Report <ExternalLink size={14} />
-                                </a>
-                                <a
-                                    href="https://github.com/sponsors/Cluaiz-Technologies"
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="flex items-center gap-2 bg-pink-500/10 hover:bg-pink-500/20 text-pink-400 text-xs font-black uppercase tracking-wider px-5 py-3 border border-pink-500/30 rounded-xl transition-all cursor-pointer"
-                                >
-                                    Sponsor <Heart size={14} className="fill-pink-400" />
-                                </a>
-                            </div>
-                        </div>
+                    <div className="space-y-8 select-none pb-8">
+                        <SettingSection title="Documentation">
+                            <SettingItem
+                                icon={Cpu}
+                                label="Engine Documentation"
+                                description="Engine architecture, CLI, CEP protocol, and runtime configuration guides."
+                                onClick={() => window.open('https://cluaiz.com/docs/cluaiz', '_blank', 'noopener,noreferrer')}
+                            >
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[var(--bg-tertiary)] text-[var(--text-primary)] border border-[var(--border-color)] text-xs font-mono font-semibold group-hover:border-[var(--accent-color)]/40 transition-colors">
+                                    <span>cluaiz.com/docs/cluaiz</span>
+                                    <ExternalLink size={12} className="text-[var(--text-muted)]" />
+                                </span>
+                            </SettingItem>
 
-                        {/* Two Columns Grid */}
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="p-6 bg-[var(--bg-secondary)]/40 border border-[var(--border-color)] rounded-2xl flex flex-col justify-between">
-                                <div>
-                                    <h4 className="text-sm font-bold text-[var(--text-primary)] mb-1">Developer Links</h4>
-                                    <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed mb-4">
-                                        Explore official repositories, documentation, and releases.
-                                    </p>
-                                </div>
-                                <div className="space-y-3 text-xs">
-                                    <a
-                                        href="https://github.com/cluaiz/cluaiz-app"
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        className="flex items-center justify-between text-[var(--text-secondary)] hover:text-[var(--accent-color)] transition-colors group"
-                                    >
-                                        <span className="flex items-center gap-2">GitHub Repository <ExternalLink size={12} className="opacity-70 group-hover:opacity-100" /></span>
-                                        <span className="font-mono text-[10px] bg-[var(--text-primary)]/5 px-2 py-0.5 rounded">cluaiz/cluaiz-app</span>
-                                    </a>
-                                    <a
-                                        href="https://cluaiz.com/docs/cluaiz-app"
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        className="flex items-center justify-between text-[var(--text-secondary)] hover:text-[var(--accent-color)] transition-colors group"
-                                    >
-                                        <span className="flex items-center gap-2">App Documentation <ExternalLink size={12} className="opacity-70 group-hover:opacity-100" /></span>
-                                        <span className="font-mono text-[10px] bg-[var(--text-primary)]/5 px-2 py-0.5 rounded">docs/cluaiz-app</span>
-                                    </a>
-                                    <div className="flex justify-between items-center text-[var(--text-secondary)] pt-2 border-t border-[var(--border-color)]/60">
-                                        <span>Release Notes</span>
-                                        <a
-                                            href="https://github.com/cluaiz/cluaiz-app/releases"
-                                            target="_blank"
-                                            rel="noreferrer"
-                                            className="flex items-center gap-1.5 font-mono text-[10px] text-[var(--accent-color)] hover:underline font-bold bg-[var(--accent-color)]/10 px-2 py-0.5 rounded border border-[var(--accent-color)]/20 transition-all cursor-pointer"
-                                            title="View Releases on GitHub"
-                                        >
-                                            <span>v{pkg.version}</span>
-                                            <ExternalLink size={10} />
-                                        </a>
-                                    </div>
-                                </div>
-                            </div>
+                            <SettingItem
+                                icon={BookOpen}
+                                label="App Documentation"
+                                description="Desktop and web application guides, workspaces, and usage reference."
+                                onClick={() => window.open('https://cluaiz.com/docs/cluaiz-app', '_blank', 'noopener,noreferrer')}
+                            >
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[var(--bg-tertiary)] text-[var(--text-primary)] border border-[var(--border-color)] text-xs font-mono font-semibold group-hover:border-[var(--accent-color)]/40 transition-colors">
+                                    <span>cluaiz.com/docs/cluaiz-app</span>
+                                    <ExternalLink size={12} className="text-[var(--text-muted)]" />
+                                </span>
+                            </SettingItem>
+                        </SettingSection>
 
-                            <div className="p-6 bg-[var(--bg-secondary)]/40 border border-[var(--border-color)] rounded-2xl flex flex-col justify-between">
-                                <div>
-                                    <h4 className="text-sm font-bold text-[var(--text-primary)] mb-1">About Cluaiz</h4>
-                                    <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed">
-                                        Cluaiz is built with care, blending rich design, high-performance rust backends, and local AI tools.
-                                    </p>
-                                </div>
-                                <div className="space-y-3 mt-4">
-                                    <a
-                                        href="https://cluaiz.com/about"
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        className="flex items-center justify-between text-xs text-[var(--accent-color)] hover:underline font-semibold"
-                                    >
-                                        <span>Learn about our mission</span>
-                                        <ExternalLink size={13} />
-                                    </a>
-                                    <div className="text-[10px] text-[var(--text-muted)] font-mono pt-2 border-t border-[var(--border-color)]/60">
-                                        © 2026 Cluaiz. All rights reserved.
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                        <SettingSection title="Feedback, Issues & Support">
+                            <SettingItem
+                                icon={MessagesSquare}
+                                label="Feedback & Bug Report"
+                                description="Submit product feedback, feature requests, or bug reports on the website."
+                                onClick={() => window.open('https://cluaiz.com/feedback', '_blank', 'noopener,noreferrer')}
+                            >
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[var(--bg-tertiary)] text-[var(--text-primary)] border border-[var(--border-color)] text-xs font-mono font-semibold group-hover:border-[var(--accent-color)]/40 transition-colors">
+                                    <span>cluaiz.com/feedback</span>
+                                    <ExternalLink size={12} className="text-[var(--text-muted)]" />
+                                </span>
+                            </SettingItem>
+
+                            <SettingItem
+                                icon={Bug}
+                                label="GitHub Issues"
+                                description="Report technical issues, track open bugs, and get engineering support on GitHub."
+                                onClick={() => window.open('https://github.com/cluaiz/cluaiz/issues', '_blank', 'noopener,noreferrer')}
+                            >
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[var(--bg-tertiary)] text-[var(--text-primary)] border border-[var(--border-color)] text-xs font-mono font-semibold group-hover:border-[var(--accent-color)]/40 transition-colors">
+                                    <span>github.com/cluaiz/cluaiz/issues</span>
+                                    <ExternalLink size={12} className="text-[var(--text-muted)]" />
+                                </span>
+                            </SettingItem>
+
+                            <SettingItem
+                                icon={Heart}
+                                label="Sponsor Cluaiz"
+                                description="Support Cluaiz development and open-source work on GitHub Sponsors."
+                                onClick={() => window.open('https://github.com/sponsors/Cluaiz-ai', '_blank', 'noopener,noreferrer')}
+                            >
+                                <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[var(--accent-color)]/15 text-[var(--accent-color)] border border-[var(--accent-color)]/30 text-xs font-bold">
+                                    <Heart size={12} className="fill-current" />
+                                    <span>Sponsor</span>
+                                    <ExternalLink size={12} />
+                                </span>
+                            </SettingItem>
+
+                            <SettingItem
+                                icon={MessageCircle}
+                                label="Discord Community"
+                                description="Join the Cluaiz Discord server for live community support and discussions."
+                                onClick={() => window.open('https://discord.gg/mab8kBURz', '_blank', 'noopener,noreferrer')}
+                            >
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[var(--bg-tertiary)] text-[var(--text-primary)] border border-[var(--border-color)] text-xs font-mono font-semibold group-hover:border-[var(--accent-color)]/40 transition-colors">
+                                    <span>discord.gg/mab8kBURz</span>
+                                    <ExternalLink size={12} className="text-[var(--text-muted)]" />
+                                </span>
+                            </SettingItem>
+                        </SettingSection>
                     </div>
                 );
         }
