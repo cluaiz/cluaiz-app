@@ -4,17 +4,13 @@ import type { RegistryKind } from '../../api/catalogue/tools';
 import { Card, CardContent, CardHeader } from '../../components/ui/Card';
 import { Tabs } from '../../components/ui/Tabs';
 import { ToolInspectorModal, type PackageFiles, type ToolComponent } from '../settings/ToolInspectorModal';
+import { DetailChips, DetailRows } from './CatalogueUI';
 import type { ToolPackage } from './toolPackages';
 
 type DetailsTab = 'details' | 'files';
 
 /** Build names as people say them */
 const BUILDS: Record<string, string> = { wasm: 'WebAssembly' };
-
-const Chips = ({ values, mono = false }: { values: string[]; mono?: boolean }) =>
-    <div className="flex flex-wrap gap-1.5">
-        {values.map(value => <span key={value} className={`rounded-md border border-[var(--border-color)] bg-[var(--bg-tertiary)] px-2 py-0.5 text-[11px] text-[var(--text-secondary)] ${mono ? 'font-mono' : ''}`}>{value}</span>)}
-    </div>;
 
 /**
  * What a package is, in rows a new user can read: only facts the package states, empty rows left out
@@ -33,14 +29,14 @@ function detailRows(item: ToolPackage, kind: RegistryKind, version: string): [st
     const rows: [string, ReactNode][] = [
         ['About', about],
         ['Type', type],
-        ['Gives the AI', functions.length ? <Chips values={functions} mono /> : ''],
+        ['Gives the AI', functions.length ? <DetailChips values={functions} mono /> : ''],
         ['Internet', details?.network ? `${details.network.hosts.length ? details.network.hosts.join(', ') : 'Any site'}${details.network.info ? `: ${details.network.info}` : ''}` : ''],
-        ['API keys it can use', details?.env.length ? <Chips mono values={details.env.map(env => `${env.name}${env.need === 'required' ? '' : ' (optional)'}`)} /> : ''],
-        ['Used when you ask', details?.triggers.length ? <Chips values={details.triggers} /> : ''],
+        ['API keys it can use', details?.env.length ? <DetailChips mono values={details.env.map(env => `${env.name}${env.need === 'required' ? '' : ' (optional)'}`)} /> : ''],
+        ['Used when you ask', details?.triggers.length ? <DetailChips values={details.triggers} /> : ''],
         ['Works on', systems.join(', ')],
         ['Command', details?.command ? <code className="font-mono text-xs break-all">{details.command}</code> : ''],
     ];
-    return rows.filter(([, value]) => value !== '' && value !== undefined);
+    return rows;
 }
 
 /**
@@ -61,12 +57,7 @@ export function ToolPackageDetails({ item, kind, version, inspected, published }
         <CardContent className="pt-4">
             {tab === 'files' && hasFiles
                 ? <ToolInspectorModal embedded tool={inspected} source={item.installed ? undefined : published} onClose={() => {}} />
-                : <dl className="divide-y divide-[var(--border-color)]">
-                    {rows.map(([label, value]) => <div key={label} className="grid gap-1 py-2.5 sm:grid-cols-[11rem_1fr] sm:gap-4">
-                        <dt className="text-xs text-[var(--text-muted)]">{label}</dt>
-                        <dd className="min-w-0 text-sm text-[var(--text-primary)] break-words">{value}</dd>
-                    </div>)}
-                </dl>}
+                : <DetailRows rows={rows} />}
         </CardContent>
     </Card>;
 }

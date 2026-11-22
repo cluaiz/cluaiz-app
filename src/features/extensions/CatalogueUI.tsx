@@ -97,6 +97,24 @@ export function CatalogueToolbar<Sort extends string>({ query, onQuery, placehol
   </div>;
 }
 /** Label and value pairs of a model's specifications. */
+/** Quiet chips for a list in a details row (functions, keys, tasks) */
+export function DetailChips({ values, mono = false }: { values: string[]; mono?: boolean }) {
+  return <div className="flex flex-wrap gap-1.5">
+    {values.map(value => <span key={value} className={`rounded-md border border-[var(--border-color)] bg-[var(--bg-tertiary)] px-2 py-0.5 text-[11px] text-[var(--text-secondary)] ${mono ? 'font-mono' : ''}`}>{value}</span>)}
+  </div>;
+}
+
+/** A package's facts as label and value rows a new user can read; rows without a value are left out */
+export function DetailRows({ rows }: { rows: [string, ReactNode][] }) {
+  return <dl className="divide-y divide-[var(--border-color)]">
+    {rows.filter(([, value]) => value !== '' && value !== null && value !== undefined && value !== false).map(([label, value]) =>
+      <div key={label} className="grid gap-1 py-2.5 sm:grid-cols-[11rem_1fr] sm:gap-4">
+        <dt className="text-xs text-[var(--text-muted)]">{label}</dt>
+        <dd className="min-w-0 text-sm text-[var(--text-primary)] break-words">{value}</dd>
+      </div>)}
+  </dl>;
+}
+
 export function SpecList({ specs }: { specs: [string, ReactNode][] }) {
   return <dl className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-3">
     {specs.map(([label, value]) => <div key={label} className="min-w-0">

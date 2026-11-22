@@ -20,7 +20,7 @@ const shared = {
   '../../components/ui/Badge': { Badge: 'SharedBadge' },
   '../../components/ui/Card': { Card: 'SharedCard', CardContent: 'CardContent', CardHeader: 'CardHeader', CardTitle: 'CardTitle' },
   './catalogueView': view,
-  './CatalogueUI': { CatalogueLogo: 'Logo', SpecList: 'SpecList' },
+  './CatalogueUI': { CatalogueLogo: 'Logo', SpecList: 'SpecList', DetailRows: 'DetailRows', DetailChips: 'DetailChips' },
 };
 const { ModelPackagePanel } = load('src/features/extensions/ModelPackagePanel.tsx', shared);
 const { ModelSliderCard } = load('src/features/extensions/ModelSliderCard.tsx', {
@@ -55,7 +55,7 @@ test('one selected package drives command, size and the exact existing install c
   assert.equal(picker.props.value, 'large');
   assert.match(text(p.tree), /2.00 GiB/);
   assert.match(text(p.tree), /cluaiz run owner\/repo:Q8_0/);
-  const download = p.items.find(item => item.type === 'SharedButton' && text(item).includes('Download package'));
+  const download = p.items.find(item => item.type === 'SharedButton' && text(item).includes('Download ·'));
   await download.props.onClick();
   assert.equal(p.requests[0][0], model);
   assert.equal(p.requests[0][1], variants[1]);
@@ -67,7 +67,7 @@ test('ambiguous packages show the existing refusal and cannot dispatch an invent
   const duplicate = { ...variants[0], id: 'same-file' };
   const p = panel({ model: { ...model, variants: [...variants, duplicate] }, selectedVariantId: 'small' });
   assert.ok(p.items.some(item => item.props?.role === 'alert' && /Multiple packages/.test(text(item))));
-  const download = p.items.find(item => item.type === 'SharedButton' && text(item).includes('Download package'));
+  const download = p.items.find(item => item.type === 'SharedButton' && text(item).includes('Download ·'));
   assert.equal(download.props.disabled, true);
   assert.doesNotMatch(text(p.tree), /cluaiz run/);
 });
@@ -75,7 +75,7 @@ test('ambiguous packages show the existing refusal and cannot dispatch an invent
 test('offline inventory and an already tracked task disable duplicate starts', () => {
   for (const overrides of [{ inventoryReady: false }, { canStart: false }]) {
     const p = panel(overrides);
-    const download = p.items.find(item => item.type === 'SharedButton' && text(item).includes('Download package'));
+    const download = p.items.find(item => item.type === 'SharedButton' && text(item).includes('Download ·'));
     assert.equal(download.props.disabled, true);
     assert.equal(p.requests.length, 0);
   }
@@ -95,9 +95,9 @@ test('the package being downloaded shows its progress in the button, and other d
   const p = panel({ selectedVariantId: 'large' });
   const busy = p.items.find(item => typeof item.type === 'function' && item.props.percent === 63);
   assert.match(text(busy.type(busy.props)), /Downloading · 63%/);
-  assert.ok(!p.items.some(item => item.type === 'SharedButton' && text(item).includes('Download package')));
+  assert.ok(!p.items.some(item => item.type === 'SharedButton' && text(item).includes('Download ·')));
   const other = panel({ selectedVariantId: 'small' });
-  assert.equal(other.items.find(item => item.type === 'SharedButton' && text(item).includes('Download package')).props.disabled, true);
+  assert.equal(other.items.find(item => item.type === 'SharedButton' && text(item).includes('Download ·')).props.disabled, true);
   running = null;
 });
 
@@ -105,7 +105,7 @@ test('an installed package offers hold to uninstall instead of Download', async 
   const entry = { id: 'engine-id', huggingface_repo: 'owner/repo', format: 'gguf', files: [{ name: 'Example-Q8_0.gguf', is_primary: true }] };
   const removed = [];
   const p = panel({ selectedVariantId: 'large', installed: [entry], onUninstall: async item => { removed.push(item.id); } });
-  assert.ok(!p.items.some(item => item.type === 'SharedButton' && text(item).includes('Download package')));
+  assert.ok(!p.items.some(item => item.type === 'SharedButton' && text(item).includes('Download ·')));
   p.items.find(item => item.type === 'HoldButton').props.onHold();
   assert.deepEqual(removed, ['engine-id']);
 });
@@ -114,7 +114,7 @@ test('repeated selected quant tags count as one quantization and preserve distin
  const first={...variants[0],file:'folder-a/model-Q4_K_M.gguf'};
  const duplicate={...first,id:'other-folder',file:'folder-b/model-Q4_K_M.gguf'};
  const p=panel({model:{...model,variants:[first,duplicate,variants[1]]},selectedVariantId:first.id});
- assert.match(text(p.tree),/2 quantizations · 3 packages/);
+ assert.match(text(p.tree),/2 sizes to choose from/);
  const options=quantization(p.items).props.options;
  assert.match(options[0].description,/folder-a\/model-Q4_K_M.gguf/);
  assert.match(options[1].description,/folder-b\/model-Q4_K_M.gguf/);

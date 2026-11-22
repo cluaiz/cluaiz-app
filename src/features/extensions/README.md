@@ -200,6 +200,22 @@ Model/tool install actions wait for successful inventory discovery. Opening a
 tool's public details cannot clear an Engine-connection error or enable an
 offline install; metadata and installed-inventory errors have separate owners.
 
+## A model's page
+
+The selected model's page has one top card and one Details card, then the README.
+The top card holds the name, a short line (quantization, size, how many sizes there
+are), the size picker (only when there is more than one), Download or Installed, and
+the `cluaiz run` command with a copy button. Details uses the shared `DetailRows`
+(also used by tool pages): About (parameters, maker, context), This package
+(quantization, format, download size), Good for (tasks in words), Architecture,
+Downloads and Your computer, each left out when the catalogue has no value
+("Unknown", 0 downloads). Uninstall sits at the bottom of Details. Before, a
+Specifications grid printed "Unknown" and "0", a separate card held the command, the
+header said "1 quantizations · 1 packages" and the red uninstall sat in the header;
+the owner asked for a neat page. Checked with test catalogue data (the model
+catalogue is served only by a local website in development) at 1440 and 320 px: no
+sideways scroll, no console errors.
+
 ## Managing an installed tool
 
 An installed tool's header has three things: Installed, an On/Off switch and a

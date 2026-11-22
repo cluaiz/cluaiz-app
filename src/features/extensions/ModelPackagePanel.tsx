@@ -1,5 +1,5 @@
-import { useCallback, useState } from 'react';
-import { Check, CheckCircle2, Copy, Download, FileText, Loader2, Pause, Play, Trash2, X } from 'lucide-react';
+import { useCallback, useState, type ReactNode } from 'react';
+import { Check, CheckCircle2, Copy, Download, FileText, Loader2, Pause, Play, Terminal, Trash2, X } from 'lucide-react';
 import { isCompanion, modelInstallReference, modelReadme, variantTag, type PublicModel, type PublicVariant } from '../../api/catalogue/models';
 import type { ModelRegistryEntry } from '../../api/engine/models/models.types';
 import { HoldButton } from '../../components/HoldButton/HoldButton';
@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Ca
 import { CustomDropdown } from '../../components/ui/dropdown';
 import { MarkdownRenderer, parseMarkdownWithFrontmatter } from '../../components/ui/MarkdownRenderer';
 import { chooseModelVariant, installedModelForVariant } from './catalogueView';
-import { SpecList } from './CatalogueUI';
+import { DetailChips, DetailRows } from './CatalogueUI';
 import type { CachedHardwareProfile } from './hardwareRecommendation';
 import { useCatalogue } from './useCatalogue';
 import { useModelDownloadStore } from './modelDownloadStore';
@@ -34,6 +34,10 @@ interface Props {
 }
 
 const gib = (bytes: number) => bytes > 0 ? `${(bytes / 1024 ** 3).toFixed(2)} GiB` : 'Unknown';
+/** A catalogue value that says nothing ('Unknown', 'N/A') is left out rather than shown */
+const known = (value: string) => value && !/^(unknown|n\/a|none|not reported)$/i.test(value.trim()) ? value : '';
+/** Task ids as words: 'Feature-Extraction' is 'Feature extraction' */
+const taskWords = (task: string) => { const words = task.replace(/[-_]+/g, ' ').trim().toLowerCase(); return words[0]?.toUpperCase() + words.slice(1); };
 /** The catalogue's quantization with its size, and the file's own tag where it says more ('Q4_K' is 'UD-Q4_K_XL') */
 function quantChoice(model: PublicModel, item: PublicVariant) {
   let tag = '';
@@ -93,7 +97,7 @@ function ModelReadme({ model }: { model: PublicModel }) {
   </Card>;
 }
 
-/** Download first (quantization, its size, the button), then specifications, the run command and the README. */
+/** Download first (size, the button, the run command), then the details in plain rows with uninstall, then the README. */
 export function ModelPackagePanel(props: Props) {
   const { model } = props;
   const variant = chooseModelVariant(model, model.variants, props.selectedVariantId, props.installed);
@@ -112,16 +116,16 @@ export function ModelPackagePanel(props: Props) {
   const packages = model.variants.filter(item => !isCompanion(model, item));
   const command = reference ? `cluaiz run ${reference}` : '';
   const size = variant ? gib(variant.bytes) : 'Unknown';
-  const specs: [string, string][] = [
-    ['Parameters', model.parameters || 'Not reported'],
-    ['Download size', size],
-    ['Context window', model.context || 'Not reported'],
-    ['Quantization', variant?.quant || 'Not reported'],
-    ['Format', variant?.format.toUpperCase() || 'Not reported'],
-    ['Architecture', model.architecture || 'Not reported'],
-    ['Provider', model.provider || 'Not reported'],
-    ['Downloads', model.downloads == null ? 'Not reported' : model.downloads.toLocaleString()],
-    ['Tasks', model.tasks.join(', ') || 'Not reported'],
+  const about = [known(model.parameters) && `${model.parameters} parameters`, model.provider && `by ${model.provider}`,
+    known(model.context) && `${model.context} context`].filter(Boolean).join(' · ');
+  const quants = new Set(packages.map(item => item.quant)).size;
+  const rows: [string, ReactNode][] = [
+    ['About', about],
+    ['This package', variant ? [variant.quant, variant.format.toUpperCase(), variant.bytes > 0 && `${size} download`].filter(Boolean).join(' · ') : ''],
+    ['Good for', model.tasks.length ? <DetailChips values={model.tasks.map(taskWords)} /> : ''],
+    ['Architecture', known(model.architecture)],
+    ['Downloads', model.downloads ? model.downloads.toLocaleString() : ''],
+    ['Your computer', props.hardware ? `${props.hardware.ramGb} GB RAM · ${props.hardware.vramGb} GB VRAM` : ''],
   ];
   const choose = (id: string) => { props.onSelectVariant(id); setCopied(false); setCopyError(''); };
   const copy = async () => {
@@ -134,50 +138,50 @@ export function ModelPackagePanel(props: Props) {
   };
 
   return <section className="space-y-4 border-t border-[var(--border-color)] pt-5" aria-label="Selected model package">
-    <Card><CardContent className="p-4 sm:p-5 space-y-3">
+    <Card><CardContent className="p-4 sm:p-5 space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="text-sm font-semibold text-[var(--text-primary)] truncate">{model.name || model.id}</p>
-          <p className="text-xs text-[var(--text-secondary)]">{new Set(packages.map(item => item.quant)).size} quantizations · {packages.length} packages · install on your connected Engine</p>
+          <p className="text-xs text-[var(--text-secondary)]">
+            {[variant?.quant, variant && variant.bytes > 0 && size, quants > 1 && `${quants} sizes to choose from`].filter(Boolean).join(' · ')}
+          </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="w-48 shrink-0">
-            <CustomDropdown floating value={variant?.id} onChange={choose}
-              options={packages.map(item => quantChoice(model, item))} />
-          </div>
-          {installed ? <>
-            <Badge variant="outline"><CheckCircle2 size={14} className="text-emerald-400" /> Installed</Badge>
-            <HoldButton {...DANGER_HOLD} size="sm" radius={8} glow={false} icon={<Trash2 size={14} />} doneLabel="Uninstalling…"
-              onHold={() => void props.onUninstall(installed)}>Hold to uninstall</HoldButton>
-          </> : download?.target === reference && reference ? <DownloadingButton percent={download.percent} cancel="hold" onPause={props.onPause} onCancel={props.onCancel} />
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+          {packages.length > 1 && <div className="w-full shrink-0 sm:w-44">
+            <CustomDropdown floating className="w-full [&_button]:min-w-0" value={variant?.id} onChange={choose} options={packages.map(item => quantChoice(model, item))} />
+          </div>}
+          {installed ? <Badge variant="outline"><CheckCircle2 size={14} className="text-emerald-400" /> Installed</Badge>
+            : download?.target === reference && reference ? <DownloadingButton percent={download.percent} cancel="hold" onPause={props.onPause} onCancel={props.onCancel} />
             : reference && Object.prototype.hasOwnProperty.call(paused, reference) ? <PausedButton percent={paused[reference]}
               onResume={() => { if (variant && !download) void props.onInstall(model, variant); }} onDiscard={() => props.onDiscard(reference)} /> :
             <Button size="sm" disabled={!reference || !props.inventoryReady || !props.canStart || Boolean(download)}
               title={download ? 'Another model is downloading; one download runs at a time' : undefined}
               onClick={() => { if (variant) void props.onInstall(model, variant); }}>
-              <Download size={14} /> Download package · {size}
+              <Download size={14} /> Download · {size}
             </Button>}
         </div>
       </div>
+      {command && <div className="flex items-center gap-2 rounded-xl border border-[var(--border-color)] bg-[var(--bg-tertiary)]/50 py-1.5 pl-3 pr-1.5">
+        <Terminal size={13} className="shrink-0 text-[var(--text-muted)]" />
+        <code className="min-w-0 flex-1 break-all font-mono text-xs text-[var(--text-primary)] sm:truncate" title={command}>{command}</code>
+        <Button variant="ghost" size="sm" onClick={() => void copy()} aria-label="Copy the run command">
+          {copied ? <Check size={13} /> : <Copy size={13} />}<span className="hidden sm:inline">{copied ? 'Copied' : 'Copy'}</span>
+        </Button>
+      </div>}
+      {copyError && <p role="alert" className="text-xs text-[var(--status-error)]">{copyError}</p>}
       {unavailable && <p role="alert" className="text-sm text-[var(--status-error)]">{unavailable}</p>}
     </CardContent></Card>
 
-    <Card><CardHeader><CardTitle>Specifications</CardTitle></CardHeader>
-      <CardContent className="space-y-4">
-        <SpecList specs={specs} />
-        {props.hardware && <p className="text-xs text-[var(--text-secondary)]">
-          Device memory: {props.hardware.ramGb} GB RAM · {props.hardware.vramGb} GB VRAM
-        </p>}
+    <Card><CardHeader><CardTitle>Details</CardTitle></CardHeader>
+      <CardContent className="space-y-3">
+        <DetailRows rows={rows} />
+        {installed && <div className="flex flex-col gap-2 border-t border-[var(--border-color)] pt-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs text-[var(--text-secondary)]">Removes this package from the Engine.</p>
+          <HoldButton {...DANGER_HOLD} size="sm" radius={8} glow={false} icon={<Trash2 size={14} />} doneLabel="Uninstalling…"
+            onHold={() => void props.onUninstall(installed)}>Hold to uninstall</HoldButton>
+        </div>}
       </CardContent>
     </Card>
-
-    {command && <Card><CardContent className="flex flex-wrap items-center gap-3 p-4">
-      <code className="min-w-0 flex-1 break-all text-xs text-[var(--text-primary)]">{command}</code>
-      <Button variant="secondary" size="sm" onClick={() => void copy()}>
-        {copied ? <Check size={13} /> : <Copy size={13} />}{copied ? 'Copied' : 'Copy command'}
-      </Button>
-      {copyError && <p role="alert" className="basis-full text-xs text-[var(--status-error)]">{copyError}</p>}
-    </CardContent></Card>}
 
     <ModelReadme model={model} />
   </section>;
