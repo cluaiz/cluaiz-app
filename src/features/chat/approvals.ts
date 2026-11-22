@@ -101,3 +101,21 @@ async function closeApprovalNotification(requestId: string) {
         for (const shown of await registration?.getNotifications({ tag: requestId }) ?? []) shown.close();
     } catch { /* nothing to close */ }
 }
+
+/**
+ * The Engine waits for an answer only while the turn that asked is running. When a chat's turn ends
+ * (answer, error, cancel or the Engine's own timeout), a call still shown as waiting can no longer be
+ * answered: it is marked expired, and its notification closes. Returns the unsubscribe.
+ */
+export function startApprovalExpiry(): () => void {
+    return useChatStore.subscribe((state, previous) => {
+        const ended = previous.streamingSessionId;
+        if (!ended || state.streamingSessionId === ended) return;
+        for (const message of state.sessions[ended]?.messages ?? []) {
+            const request = message.permissionRequest;
+            if (request?.status !== 'pending') continue;
+            state.resolvePermissionRequest(ended, request.requestId, 'timeout');
+            void closeApprovalNotification(request.requestId);
+        }
+    });
+}

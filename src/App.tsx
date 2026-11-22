@@ -27,6 +27,7 @@ import { AuraCursor } from './components/ui/cursor/AuraCursor';
 import { parseCurrentRoute, pushSettingsRoute, pushViewRoute, pushChatRoute, SettingsTabId } from './core/router';
 import { useChatStore } from './store/chat/useChatStore';
 import { startWorkspaceSync } from './store/workspace/workspaceSync';
+import { startApprovalExpiry } from './features/chat/approvals';
 import { ToastContainer } from './components/ui/toast';
 
 function MainAppContent() {
@@ -63,6 +64,7 @@ function MainAppContent() {
     };
 
     useEffect(() => startWorkspaceSync(), []);
+    useEffect(() => startApprovalExpiry(), []);
 
     // Synchronize browser URL when activeView changes after user interaction
     const prevRouteSyncRef = useRef<{ activeView: string; activeExtension: unknown; isSettingsOpen: boolean } | null>(null);
