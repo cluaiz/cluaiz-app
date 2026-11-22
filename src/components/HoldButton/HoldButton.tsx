@@ -56,8 +56,10 @@ const HIT_PAD = 10;
 const LINEAR = (t: number) => t;
 const EASE_OUT = (t: number) => 1 - Math.pow(1 - t, 3);
 
+/** `sm` is the shared small button (`.ui-btn-sm`: 2rem high, 0.75rem padding, 10px bold), so a hold button beside
+ * or in place of a small Button (Download → Pause · hold to cancel) keeps the same size */
 const SIZES: Record<HoldButtonSize, string> = {
-  sm: 'h-9 px-4 text-[13px]',
+  sm: 'h-8 px-3 text-[10px] font-bold',
   md: 'h-11 px-[22px] text-[15px]',
   lg: 'h-[52px] px-7 text-[17px]'
 };

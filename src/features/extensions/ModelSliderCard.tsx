@@ -63,7 +63,8 @@ export const ModelCardFrame: React.FC<ModelCardFrameProps> = ({
       onClick={onSelect}
       className={containerClasses}
       /* .ui-card sets its own border; the selected card's softened accent border must win over it */
-      style={isActive ? { borderColor: 'color-mix(in srgb, var(--accent-color) 55%, var(--border-color))' } : undefined}
+      style={isActive ? { borderColor: 'var(--accent-color)', boxShadow: 'inset 0 0 0 1px var(--accent-color)',
+        background: 'color-mix(in srgb, var(--accent-color) 7%, var(--bg-secondary))' } : undefined}
       title={`View ${title} details`}
     >
       {onToggleMark ? <button type="button" aria-pressed={Boolean(mark)} title={mark ? `${mark} · click to remove` : toggleLabel}

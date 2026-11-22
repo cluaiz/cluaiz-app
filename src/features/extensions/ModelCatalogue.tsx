@@ -107,7 +107,9 @@ export function ModelCatalogue() {
 
   /* The running download, for the sidebar, the model cards and the Download button */
   const downloading = download.busy && !download.result && download.receipt ? download.receipt.target : '';
-  const percent = downloadPercent(download.task);
+  /* A resumed download shows the percent it was paused at until the Engine's first report, never 0 */
+  const [resumedAt, setResumedAt] = useState<Record<string, number>>({});
+  const percent = downloadPercent(download.task) ?? (downloading ? resumedAt[downloading] : undefined);
   useEffect(() => { useModelDownloadStore.getState().setDownload(downloading ? { target: downloading, percent } : null); }, [downloading, percent]);
   const installedChanged = () => { setConnection(value => value + 1); useModelDownloadStore.getState().installedChanged(); };
   /* Paused downloads of the connected Engine; downloading the same reference continues from its `.part` */
@@ -160,6 +162,8 @@ export function ModelCatalogue() {
     if (!inventoryReady) { setInstallError('Connect to your Engine before downloading a package.'); return; }
     try {
       const reference = modelInstallReference(model, variant);
+      const at = useModelDownloadStore.getState().paused[reference];
+      if (typeof at === 'number') setResumedAt(previous => ({ ...previous, [reference]: at }));
       setPaused(reference, undefined);
       await download.start(reference, (signal, observer) => modelsApi.downloadModel({ model_id: reference }, signal, observer));
     } catch (error) {
