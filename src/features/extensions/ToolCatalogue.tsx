@@ -83,7 +83,7 @@ export function ToolCatalogue({ initialKind }: { initialKind?: string } = {}) {
       searchQuery={query} onSearchChange={setQuery}
       searchPlaceholder={listing === 'installed' ? 'Search installed tools, skills, or triggers…' : 'Search packages…'}
       filterElement={initialKind ? undefined : <MultiLevelDropdown categories={categories} activeCount={kind ? 1 : 0} onClearAll={() => setKind('')} />} />}
-    <div className="mx-auto w-full max-w-7xl p-6 space-y-4">
+    <div className="mx-auto w-full max-w-7xl p-3 sm:p-6 space-y-4">
       {catalogue.error && !catalogue.reply && <p role="alert" className="text-xs text-[var(--status-error)]">The package list could not be loaded. Check your internet connection.</p>}
       {engineError && <p role="alert" className="text-xs text-[var(--status-error)]">{engineError}</p>}
       {installation.error && <CatalogueTaskStatus {...installation} />}

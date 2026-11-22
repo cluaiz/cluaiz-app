@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     Bell, Camera, CheckCircle2, Clipboard, Cpu, Download, FileText, FolderOpen, Globe, MapPin, Monitor, Package,
-    Settings2, ShieldAlert, ShieldCheck, Terminal, Trash2, type LucideIcon,
+    KeyRound, Settings2, ShieldAlert, ShieldCheck, Terminal, Trash2, type LucideIcon,
 } from 'lucide-react';
 import { toolCatalogue, type RegistryKind } from '../../api/catalogue/tools';
 import { isToolKind } from '../../api/engine/tools/catalog';
@@ -45,6 +45,11 @@ function PackageReadme({ item }: { item: ToolPackage }) {
 
 const object = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
 const words = (value: unknown) => typeof value === 'string' ? value : '';
+
+/** The full words behind the short permission and key counts on the page */
+const permissionsTitle = ({ allowed, permissions, set, settings }: { allowed: number; permissions: number; set: number; settings: number }) =>
+    [permissions ? `${allowed} of ${permissions} permissions allowed` : 'No permissions', settings ? `${set} of ${settings} keys set` : '']
+        .filter(Boolean).join(', ');
 
 /** The Engine's permission types (`agents/src/permissions.rs`) and their icons */
 const PERMISSION_ICONS: Record<string, LucideIcon> = {
@@ -179,9 +184,10 @@ export function ToolPackagePanel({ item, installing, canInstall, onInstall }: {
                 <div className="flex flex-wrap items-center gap-2">
                     {installed ? <>
                         <Badge variant="outline"><CheckCircle2 size={14} className="text-emerald-400" /> Installed</Badge>
-                        {summary && <Button size="sm" variant="secondary" onClick={() => setManaging(true)} title="Permissions and the settings this tool reads">
-                            <ShieldCheck size={14} /> {summary.permissions ? `${summary.allowed} of ${summary.permissions} allowed` : 'No permissions'}
-                            {summary.settings > 0 && ` · ${summary.set} of ${summary.settings} keys`}
+                        {summary && <Button size="sm" variant="ghost" onClick={() => setManaging(true)} className="gap-2 font-mono text-[11px]"
+                            title={permissionsTitle(summary)} aria-label={permissionsTitle(summary)}>
+                            <span className="flex items-center gap-1"><ShieldCheck size={13} />{summary.allowed}/{summary.permissions}</span>
+                            {summary.settings > 0 && <span className="flex items-center gap-1"><KeyRound size={13} />{summary.set}/{summary.settings}</span>}
                         </Button>}
                         <Button size="sm" variant="ghost" onClick={() => setManaging(true)} aria-label={`${item.name} settings`} title="Settings, cache and uninstall">
                             <Settings2 size={15} />
@@ -190,8 +196,9 @@ export function ToolPackagePanel({ item, installing, canInstall, onInstall }: {
                             {installed.enabled ? 'Enabled' : 'Disabled'}
                             <ToggleSwitch active={installed.enabled} onToggle={toggle} loading={busy} disabled={busy} aria-label={`Enable ${item.name}`} />
                         </span>
-                        {isToolKind(kind) && <HoldButton {...DANGER_HOLD} size="sm" radius={8} glow={false} icon={<Trash2 size={14} />} doneLabel="Uninstalling…"
-                            onHold={() => void uninstall()}>Hold to uninstall</HoldButton>}
+                        {/* On a phone uninstall stays in the settings dialog, so the row keeps to two lines */}
+                        {isToolKind(kind) && <span className="hidden sm:inline-flex"><HoldButton {...DANGER_HOLD} size="sm" radius={8} glow={false} icon={<Trash2 size={14} />} doneLabel="Uninstalling…"
+                            onHold={() => void uninstall()}>Hold to uninstall</HoldButton></span>}
                     </> : installing ? <DownloadingButton label={installing.label} percent={Math.round(installing.step / INSTALL_STEPS * 100)}
                         progressText={`${installing.step}/${INSTALL_STEPS}`} onCancel={installing.cancel} />
                         : <Button size="sm" disabled={!canInstall} onClick={onInstall}><Download size={14} /> Install</Button>}

@@ -202,8 +202,10 @@ offline install; metadata and installed-inventory errors have separate owners.
 
 ## Managing an installed tool
 
-An installed tool's page shows, next to Installed and Enabled, a permissions button
-(`3 of 3 allowed · 0 of 5 keys`) and a settings icon. Both open `ToolManageDialog`:
+An installed tool's page shows, next to Installed and Enabled, a short permissions
+button (shield `3/3`, key `0/5`; the full words are its tooltip) and a settings icon.
+On a phone the header keeps to two lines: uninstall is only in the dialog there
+(checked at 320, 768 and 1440 px wide, no sideways scroll). Both open `ToolManageDialog`:
 run mode (Auto / Manual) and approval rule, the permissions and the keys the tool
 reads (`ToolPermissionsPanel`, from `tools.get_settings`), its cache
 (`tools.cache` / `tools.clear_cache`) and uninstall. Before, the permissions and
