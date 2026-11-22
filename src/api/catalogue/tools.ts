@@ -1,4 +1,5 @@
 import { readPublicCatalogue } from './public';
+import { BINARY_FILE } from '../../utils/binaryFiles';
 export type RegistryKind = 'plugin' | 'skill' | 'mcp' | 'extension';
 export interface RegistryTool { id: string; kind: RegistryKind; manifest: string; }
 export interface RegistryDetails { name: string; description: string; version: string; build: string;
@@ -13,8 +14,6 @@ export interface RegistryDetails { name: string; description: string; version: s
   /** The manifest as published (package.json), for reading */
   manifest: string; }
 const ROOT = 'https://raw.githubusercontent.com/cluaiz/cluaiz-tools/main/';
-/** Files read as bytes, not text: never fetched for the package file reader */
-const BINARY = /\.(wasm|png|jpe?g|gif|webp|ico|zip|gz|tar|exe|dll|so|dylib|onnx|gguf|bin|pdf|woff2?|ttf)$/i;
 /** The repository, branch and folder (ending in '/') a package's manifest is published in */
 function packageFolder(tool: RegistryTool) {
   const match = /^https:\/\/raw\.githubusercontent\.com\/([\w.-]+\/[\w.-]+)\/([\w.-]+)\/(.*\/)?[^/]+$/.exec(tool.manifest);
@@ -109,7 +108,7 @@ export const toolCatalogue = {
   /** One text file of a published package; binary files are not read */
   file: async (tool: RegistryTool, path: string, refresh = false) => {
     if (path.split('/').some(part => !part || part === '.' || part === '..')) throw new Error('Invalid package file path');
-    if (BINARY.test(path)) throw new Error('This is a binary file; it is not shown here.');
+    if (BINARY_FILE.test(path)) throw new Error('This is a binary file; it is not shown here.');
     const reply = await readPublicCatalogue(new URL(path, tool.manifest).href,
       value => typeof value === 'string' ? value : JSON.stringify(value, null, 2), refresh);
     return reply.data;

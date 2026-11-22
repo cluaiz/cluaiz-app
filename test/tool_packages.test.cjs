@@ -4,7 +4,7 @@ const {load}=require('./cepHarness.cjs');
 
 test('a section lists its published packages, each with its manifest details; an unreadable manifest leaves the package listed',async()=>{
   const reads=[];
-  const tools=load('src/api/catalogue/tools.ts',{'./public':{readPublicCatalogue:async(url,parse)=>{
+  const tools=load('src/api/catalogue/tools.ts',{'../../utils/binaryFiles':load('src/utils/binaryFiles.ts',{}),'./public':{readPublicCatalogue:async(url,parse)=>{
     reads.push(url);
     if(url.endsWith('registry.json'))return{data:parse({routing:{mcp:'mcp/family.json',skills:'skills/family.json'}}),saved:1};
     if(url.endsWith('mcp/family.json'))return{data:parse({category:'mcp',items:{git:'git/package.json',fetch:'fetch/package.json'}}),saved:1};
@@ -36,7 +36,7 @@ test('packages are searched by name, id, author, description and tags; tool sect
 
 test('a package page reads what its package.json declares and its README beside the manifest',async()=>{
   const reads=[];
-  const tools=load('src/api/catalogue/tools.ts',{'./public':{readPublicCatalogue:async(url,parse)=>{
+  const tools=load('src/api/catalogue/tools.ts',{'../../utils/binaryFiles':load('src/utils/binaryFiles.ts',{}),'./public':{readPublicCatalogue:async(url,parse)=>{
     reads.push(url);
     if(url.endsWith('README.md'))return{data:parse('# Context7\nLooks up docs'),saved:1};
     return{data:parse({id:'context7',hub_type:'mcp',name:'Context7 Docs',license:'MIT',triggers:['library docs'],
@@ -58,7 +58,7 @@ test('a package page reads what its package.json declares and its README beside 
 
 test('a published package lists the files in its repository folder and reads text files, never binaries',async()=>{
   const reads=[];
-  const tools=load('src/api/catalogue/tools.ts',{'./public':{readPublicCatalogue:async(url,parse,refresh,keep)=>{
+  const tools=load('src/api/catalogue/tools.ts',{'../../utils/binaryFiles':load('src/utils/binaryFiles.ts',{}),'./public':{readPublicCatalogue:async(url,parse,refresh,keep)=>{
     reads.push(url);
     if(url.startsWith('https://api.github.com/'))return{data:parse(keep({tree:[{path:'mcp/fetch/package.json',type:'blob'},
       {path:'mcp/fetch/assets',type:'tree'},{path:'mcp/fetch/assets/icon.svg',type:'blob'},{path:'mcp/git/package.json',type:'blob'},{path:'README.md',type:'blob'}]})),saved:1};

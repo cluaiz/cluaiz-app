@@ -85,7 +85,7 @@ test('bad model identity, excessive families and invalid byte counts fail valida
  assert.throws(()=>models.parseModels(new Array(257).fill({})),/families/);
  assert.throws(()=>models.parseModels(catalogue([{...variant(),sizeBytes:-1}])),/package/);
 });
-const tools=load('src/api/catalogue/tools.ts',{'./public':{readPublicCatalogue:async(url,parse)=>({data:parse({id:'other',hub_type:'skill'})})}});
+const tools=load('src/api/catalogue/tools.ts',{'../../utils/binaryFiles':load('src/utils/binaryFiles.ts',{}),'./public':{readPublicCatalogue:async(url,parse)=>({data:parse({id:'other',hub_type:'skill'})})}});
 test('official tool family local/remote pointers are parsed without executing package content',()=>{
  const values=tools.parseToolFamily({category:'skills',items:{example:{type:'local',path:'example/package.json'},remote:{type:'remote',repo:'owner/repo',branch:'main',manifest_path:'package.json'}}},'skills','skill');
  assert.equal(values[0].manifest,'https://raw.githubusercontent.com/cluaiz/cluaiz-tools/main/skills/example/package.json');
@@ -103,7 +103,7 @@ test('published legacy string pointers remain data and traversal remains refused
  assert.throws(()=>tools.parseToolFamily({category:'skills',items:{example:'../../private.json'}},'skills','skill'));
 });
 test('legacy souls routing and a missing family preserve other published tools with an explicit warning',async()=>{
- const source=load('src/api/catalogue/tools.ts',{'./public':{readPublicCatalogue:async(url,parse)=>{
+ const source=load('src/api/catalogue/tools.ts',{'../../utils/binaryFiles':load('src/utils/binaryFiles.ts',{}),'./public':{readPublicCatalogue:async(url,parse)=>{
   let value;
   if(url.endsWith('/registry.json'))value={routing:{skills:'skills/family.json',souls:'souls/family.json'}};
   else if(url.endsWith('/skills/family.json'))value={category:'skills',items:{example:'example/package.json'}};

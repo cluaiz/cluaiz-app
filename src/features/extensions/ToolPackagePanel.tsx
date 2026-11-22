@@ -13,19 +13,18 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Ca
 import { MarkdownRenderer, parseMarkdownWithFrontmatter } from '../../components/ui/MarkdownRenderer';
 import { ToggleSwitch } from '../../components/ui/ToggleSwitch';
 import { toast } from '../../components/ui/toast';
-import { ToolInspectorModal, type PackageFiles, type ToolComponent } from '../settings/ToolInspectorModal';
+import type { PackageFiles, ToolComponent } from '../settings/ToolInspectorModal';
 import { useToolSettingsSummary } from '../settings/ToolPermissionsPanel';
 import type { ToolPermission, ToolUserSetting } from '../../api/engine/tools/settings';
 import { notifyWaiting } from '../chat/approvals';
 import { ToolManageDialog, type ManageTab } from './ToolManageDialog';
-import { CatalogueHero, SpecList } from './CatalogueUI';
+import { CatalogueHero } from './CatalogueUI';
+import { ToolPackageDetails } from './ToolPackageDetails';
 import { catalogueImage } from './catalogueView';
 import { DownloadingButton } from './ModelPackagePanel';
 import { HeroLogo } from './ProviderLogo';
 import { INSTALL_STEPS, useToolInventory, type ToolPackage } from './toolPackages';
 import { useCatalogue } from './useCatalogue';
-
-const list = (values: string[] | undefined) => values?.length ? values.join(', ') : 'None';
 
 function PackageReadme({ item }: { item: ToolPackage }) {
     const tool = item.tool;
@@ -174,23 +173,6 @@ export function ToolPackagePanel({ item, installing, canInstall, onInstall }: {
     const toggle = () => installed && act(`${item.name} ${installed.enabled ? 'disabled' : 'enabled'}`, () =>
         setToolSettings({ component_type: installed.category, component_id: installed.id, settings: { enabled: !installed.enabled } }));
 
-    const specs: [string, string][] = [
-        ['Package id', item.id],
-        ['Version', version || 'Not listed'],
-        ['Author', details?.author || 'Not listed'],
-        ['License', details?.license || 'Not listed'],
-        ['Type', kind?.toUpperCase() ?? 'Not listed'],
-        ['Build', details?.build || 'Not listed'],
-        ['Runs', details?.command || 'Not listed'],
-        ['Network', details?.network ? `${details.network.hosts?.length ? list(details.network.hosts) : 'Any site'}${details.network.info ? ` · ${details.network.info}` : ''}` : 'None'],
-        ['Settings it reads', details?.env.length ? details.env.map(env => `${env.name} (${env.need || 'optional'})`).join(', ') : 'None'],
-        ['Functions', list(details?.functions ?? installed?.functions.map(fn => fn.name))],
-        ['Triggers', list(details?.triggers)],
-        ['Systems', list(details?.os)],
-        ['Updated', details?.updated ? details.updated.slice(0, 10) : 'Not listed'],
-        ...(installed ? [['Security', installed.security_mode || 'inherit'], ['Run mode', installed.execution_mode || 'auto']] as [string, string][] : []),
-    ];
-
     return <div className="space-y-5">
         <CatalogueHero title={item.name} by={details?.author || 'Local'}
             description={details?.description || installed?.description} tags={details?.tags ?? []}
@@ -227,17 +209,10 @@ export function ToolPackagePanel({ item, installing, canInstall, onInstall }: {
             </p>}
         </CardContent></Card>
 
-        <Card><CardHeader><CardTitle>Specifications</CardTitle></CardHeader>
-            <CardContent><SpecList specs={specs} /></CardContent>
-        </Card>
+        <ToolPackageDetails item={item} kind={kind} version={version} inspected={inspected} published={published} />
 
         {installed && <ToolManageDialog tool={installed} title={item.name} hasKeys={Boolean(summary?.settings.length)}
             tab={managing} onTab={setManaging} onClose={() => setManaging(null)} onChanged={changed} />}
-
-        {(installed || published) && <section className="space-y-2" aria-label="Package files">
-            <h3 className="flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]"><FolderOpen size={15} /> Files</h3>
-            <ToolInspectorModal embedded tool={inspected} source={installed ? undefined : published} onClose={() => {}} />
-        </section>}
 
         <PackageReadme item={item} />
     </div>;

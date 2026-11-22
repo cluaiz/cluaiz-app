@@ -14,6 +14,8 @@ import { FileIcon, FolderIcon } from 'react-material-icon-theme';
 import { CodeEditor } from '../../components/ui/CodeEditor';
 import { getFileExtension } from '../workspace/components/WorkspaceFileTree';
 import { detectLanguageFromPath } from '../../store/workspace/useProjectStore';
+import { BINARY_FILE } from '../../utils/binaryFiles';
+import { BinaryFileNotice } from './BinaryFileNotice';
 
 export interface ToolComponent {
     id: string;
@@ -185,6 +187,8 @@ export function ToolInspectorModal({ tool, onClose, onDeleteTool, embedded = fal
     const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
     const [selectedFile, setSelectedFile] = useState<ComponentFile | null>(null);
     const [fileContent, setFileContent] = useState<string>('');
+    /** The selected file holds bytes, not text: it is named and explained instead of printed */
+    const [isBinary, setIsBinary] = useState(false);
     const [isLoadingContent, setIsLoadingContent] = useState(false);
     const [viewMode, setViewMode] = useState<'preview' | 'raw'>('preview');
     const [cacheInfo, setCacheInfo] = useState<CacheInfo>({ temp_bytes: 0, all_bytes: 0 });
@@ -212,12 +216,14 @@ export function ToolInspectorModal({ tool, onClose, onDeleteTool, embedded = fal
         if (!toolId || !toolCategory) {
             setFiles([]);
             setSelectedFile(null);
+            setIsBinary(false);
             setFileContent('');
             setRealIconSvg(null);
             return;
         }
 
         setSelectedFile(null);
+        setIsBinary(false);
         setFileContent('');
         setRealIconSvg(tool?.icon_svg || null);
         setIsLoadingFiles(true);
@@ -284,6 +290,9 @@ export function ToolInspectorModal({ tool, onClose, onDeleteTool, embedded = fal
         const current = () => scope === cacheScope.current && fileRead.current === controller && !controller.signal.aborted;
         setSelectedFile(file);
         setFileContent('');
+        const isPicture = /\.(svg|png|jpe?g|webp|gif)$/i.test(file.name);
+        setIsBinary(BINARY_FILE.test(file.name) && !isPicture);
+        if (BINARY_FILE.test(file.name) && !isPicture) return;
         setIsLoadingContent(true);
 
         const isMd = file.name.toLowerCase().endsWith('.md');
@@ -294,7 +303,9 @@ export function ToolInspectorModal({ tool, onClose, onDeleteTool, embedded = fal
             const content = await readContent(file.path, controller.signal);
             if (current()) setFileContent(content);
         } catch (err) {
-            if (current()) setFileContent(`Error: ${errorMessage(err)}`);
+            // A file the Engine cannot read as text is binary, not broken
+            if (current() && /UTF-8/i.test(errorMessage(err))) setIsBinary(true);
+            else if (current()) setFileContent(`Error: ${errorMessage(err)}`);
         } finally {
             if (current()) {
                 setIsLoadingContent(false);
@@ -487,14 +498,14 @@ export function ToolInspectorModal({ tool, onClose, onDeleteTool, embedded = fal
                         >
                             <ExternalLink size={12} /> Open
                         </button>}
-                        <button
+                        {!isBinary && <button
                             type="button"
                             onClick={handleCopyContent}
                             className="flex items-center gap-1.5 px-3 py-1 bg-[var(--bg-tertiary)] hover:bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg text-xs font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all cursor-pointer"
                         >
                             {hasCopied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
                             {hasCopied ? 'Copied' : 'Copy'}
-                        </button>
+                        </button>}
                     </div>
                 )}
             </div>
@@ -504,7 +515,7 @@ export function ToolInspectorModal({ tool, onClose, onDeleteTool, embedded = fal
                     <div className="flex items-center justify-center h-full text-[var(--text-muted)] gap-2 text-xs">
                         <Loader2 size={16} className="animate-spin text-[var(--accent-color)]" /> Loading content...
                     </div>
-                ) : selectedFile ? (
+                ) : selectedFile && isBinary ? <BinaryFileNotice name={selectedFile.name} /> : selectedFile ? (
                     isCurrentFileMarkdown && viewMode === 'preview' ? (
                         <div className="space-y-6">
                             {(() => {

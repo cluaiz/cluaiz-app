@@ -218,6 +218,17 @@ existing panel, `Tabs`, `CustomDropdown` and `HoldButton`; the approval options 
 in `settings/toolModes.ts`, shared with Settings > Tools. Checked at 320 and 1440 px
 wide: no sideways scroll, no console errors.
 
+Below the header, one card holds two tabs (`ToolPackageDetails`): Details and
+Files; the README stays under the card. Details lists only what the package
+states, in plain labels (About, Type, Gives the AI, Internet, API keys it can use,
+Used when you ask, Works on, Command), and leaves empty rows out. The earlier
+Specifications grid showed "Not listed" / "None" rows, the package id again and
+run mode and approvals that now live in Manage. Files is the existing file reader;
+a binary file (`.wasm`, libraries, model data, archives; `utils/binaryFiles.ts`,
+shared with the catalogue client) is named and explained (`BinaryFileNotice`)
+instead of being read as text, where the Engine answered "stream did not contain
+valid UTF-8". A read that fails with that answer is shown the same way.
+
 The Engine allows a permission that is not sensitive without asking in the
 sandboxed mode (`agents/src/installer/plan.rs`, `decide_permission`). So that this
 is never hidden, the panel labels such a permission "allowed by your security
