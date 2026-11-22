@@ -194,7 +194,6 @@ const ControlledLottie: React.FC<{ path: string; alt: string }> = ({ path, alt }
                     {...({
                         lottieRef,
                         src: animationData,
-                        animationData,
                         loop: false,
                         autoplay: true,
                         style: { width: 40, height: 40 }
