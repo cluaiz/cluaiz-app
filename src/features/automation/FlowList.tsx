@@ -45,14 +45,14 @@ export function FlowList({ flows, busy, onToggle, onRun, onEdit, onRemove }: Flo
                     {errors.map((problem, index) => <p key={index} role="alert" className="text-xs text-red-400">
                         {problem.line ? `Line ${problem.line}: ` : ''}{problem.message}
                     </p>)}
-                    <div className="flex items-center justify-between gap-2 text-xs text-[var(--text-secondary)]">
-                        <span className="space-y-1">
+                    <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--text-secondary)]">
+                        <span className="min-w-0 space-y-1">
                             <span className="flex flex-wrap items-center gap-2">
                                 {flow.last_run ? <>Last run <RunStatusBadge status={flow.last_run.status} /> {when(flow.last_run.finished_at)}</> : 'Never run'}
                             </span>
                             {nextAt && <span className="block">Next {when(nextAt)}</span>}
                         </span>
-                        <span className="flex items-center gap-1">
+                        <span className="ml-auto flex shrink-0 items-center gap-1">
                             <Button size="sm" variant="ghost" title="Edit" disabled={Boolean(busy)} onClick={() => onEdit(flow)}><Pencil className="w-3.5 h-3.5" /></Button>
                             <Button size="sm" variant="ghost" title="Remove" disabled={Boolean(busy)} onClick={() => onRemove(flow)}><Trash2 className="w-3.5 h-3.5" /></Button>
                             <Button size="sm" variant="outline" disabled={Boolean(busy) || errors.length > 0} onClick={() => onRun(flow)}>
