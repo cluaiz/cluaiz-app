@@ -26,6 +26,7 @@ import { CanvasCursor } from './components/ui/cursor/CanvasCursor';
 import { AuraCursor } from './components/ui/cursor/AuraCursor';
 import { parseCurrentRoute, pushSettingsRoute, pushViewRoute, pushChatRoute, SettingsTabId } from './core/router';
 import { useChatStore } from './store/chat/useChatStore';
+import { startWorkspaceSync } from './store/workspace/workspaceSync';
 import { ToastContainer } from './components/ui/toast';
 
 function MainAppContent() {
@@ -60,6 +61,8 @@ function MainAppContent() {
         setSettingsState(prev => ({ ...prev, tab: newTab }));
         pushSettingsRoute(newTab);
     };
+
+    useEffect(() => startWorkspaceSync(), []);
 
     // Synchronize browser URL when activeView changes after user interaction
     const prevRouteSyncRef = useRef<{ activeView: string; activeExtension: unknown; isSettingsOpen: boolean } | null>(null);
