@@ -7,7 +7,7 @@ function settingsHarness(handler){
     const h=harness(handler);
     const base={'../config/config.api':h,'../../client/cep':h,'../../client/errors':h.errors};
     const system=load('src/api/engine/system/system.api.ts',{
-        './execution':h,
+        './execution':h,'./events':load('src/api/engine/system/events.ts',{'../../client/cep':h,'../../client/errors':h.errors}),
         '../../client':{client:h.client},'./system.endpoints':{SYSTEM_ENDPOINTS:{}},
         '../permission/permission.api':h,'./systemData':h,...base,
     });
@@ -183,7 +183,7 @@ test('the existing Engine settings screen marks unsupported Brain Mode disabled'
         './SettingsHealthValidator':{validateSettings:()=>[],getOverallHealth:()=> 'green'},
         './ModelInfoCard':{ModelInfoCard:empty},'./ModelInspectorModal':{ModelInspectorModal:empty},
         './TtsVoiceSelector':{TtsVoiceSelector:empty},'./SttLanguageSelector':{SttLanguageSelector:empty},
-        './EngineMaintenance':{TasksSection:empty,UpdateCheckSection:empty},
+        './EngineMaintenance':{LoadHistorySection:empty,TasksSection:empty,UpdateCheckSection:empty},
         '../../components/ui/dropdown/CustomDropdown':{CustomDropdown:empty},'lucide-react':require('lucide-react'),
     });
     require('react-dom/server').renderToStaticMarkup(React.createElement(screen.EngineSettings));

@@ -7,7 +7,7 @@ const deferred=()=>{let resolve;return {promise:new Promise(r=>resolve=r),resolv
 function systemFor(h){
     return load('src/api/engine/system/system.api.ts',{
         '../../client':{client:h.client},'./system.endpoints':{SYSTEM_ENDPOINTS:{}},'../permission/permission.api':h,
-        '../../client/cep':h,'../../client/errors':h.errors,'./systemData':h,'./execution':h,
+        '../../client/cep':h,'../../client/errors':h.errors,'./systemData':h,'./execution':h,'./events':load('src/api/engine/system/events.ts',{'../../client/cep':h,'../../client/errors':h.errors}),
     }).systemApi;
 }
 function storeFor(h){
