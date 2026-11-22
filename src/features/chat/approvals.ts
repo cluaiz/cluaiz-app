@@ -74,13 +74,33 @@ export function appOutOfSight(): boolean {
  * notification has Approve and Reject; without one (some desktop webviews) a click brings the
  * App to the front, where the card waits.
  */
-export async function notifyApproval(approval: ChatApproval) {
-    if (typeof window === 'undefined' || !('Notification' in window) || !appOutOfSight()) return;
-    if (!useNotificationStore.getState().desktopPush) return;
+async function mayNotify(): Promise<boolean> {
+    if (typeof window === 'undefined' || !('Notification' in window) || !appOutOfSight()) return false;
+    if (!useNotificationStore.getState().desktopPush) return false;
     if (Notification.permission === 'default') {
-        try { await Notification.requestPermission(); } catch { return; }
+        try { await Notification.requestPermission(); } catch { return false; }
     }
-    if (Notification.permission !== 'granted') return;
+    return Notification.permission === 'granted';
+}
+
+/**
+ * Tells the user, when the App is out of sight, that something waits for them in the App (such as
+ * an install's permission question); a click brings the App to the front, where the question is.
+ */
+export async function notifyWaiting({ tag, title, body }: { tag: string; title: string; body: string }) {
+    if (!await mayNotify()) return;
+    const registration = await worker();
+    try {
+        if (registration) await registration.showNotification(title, { body, tag, icon: '/logo/logo.png', requireInteraction: true });
+        else {
+            const plain = new Notification(title, { body, tag, icon: '/logo/logo.png' });
+            plain.onclick = () => { window.focus(); plain.close(); };
+        }
+    } catch { /* notifications are a convenience; the question still waits in the App */ }
+}
+
+export async function notifyApproval(approval: ChatApproval) {
+    if (!await mayNotify()) return;
     const title = 'Approval needed';
     const body = `${approval.toolName} wants to run. Approve or reject it.`;
     const registration = await worker();

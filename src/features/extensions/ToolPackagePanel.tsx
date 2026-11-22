@@ -1,5 +1,8 @@
-import { useCallback, useMemo, useState } from 'react';
-import { CheckCircle2, Download, FileText, FolderOpen, Trash2 } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+    Bell, Camera, CheckCircle2, Clipboard, Cpu, Download, FileText, FolderOpen, Globe, MapPin, Monitor, Package,
+    Settings2, ShieldAlert, ShieldCheck, Terminal, Trash2, type LucideIcon,
+} from 'lucide-react';
 import { toolCatalogue, type RegistryKind } from '../../api/catalogue/tools';
 import { isToolKind } from '../../api/engine/tools/catalog';
 import { removeTool } from '../../api/engine/tools/lifecycle';
@@ -15,7 +18,9 @@ import { MarkdownRenderer, parseMarkdownWithFrontmatter } from '../../components
 import { ToggleSwitch } from '../../components/ui/ToggleSwitch';
 import { toast } from '../../components/ui/toast';
 import { ToolInspectorModal, type PackageFiles, type ToolComponent } from '../settings/ToolInspectorModal';
-import { ToolPermissionsPanel } from '../settings/ToolPermissionsPanel';
+import { useToolSettingsSummary } from '../settings/ToolPermissionsPanel';
+import { notifyWaiting } from '../chat/approvals';
+import { ToolManageDialog } from './ToolManageDialog';
 import { CatalogueHero, SpecList } from './CatalogueUI';
 import { catalogueImage } from './catalogueView';
 import { DownloadingButton } from './ModelPackagePanel';
@@ -41,15 +46,35 @@ function PackageReadme({ item }: { item: ToolPackage }) {
 const object = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
 const words = (value: unknown) => typeof value === 'string' ? value : '';
 
+/** The Engine's permission types (`agents/src/permissions.rs`) and their icons */
+const PERMISSION_ICONS: Record<string, LucideIcon> = {
+    network: Globe, files: FolderOpen, programs: Terminal, system: Monitor, location: MapPin,
+    media: Camera, clipboard: Clipboard, notifications: Bell, native: Cpu, engine: Settings2,
+};
+
+function ApprovalLine({ icon: Icon, title, info }: { icon: LucideIcon; title: string; info: string }) {
+    return <li className="flex items-start gap-3 rounded-xl border border-[var(--border-color)] bg-[var(--bg-secondary)]/60 px-3 py-2">
+        <Icon size={16} className="mt-0.5 shrink-0 text-[var(--accent-color)]" />
+        <div className="min-w-0">
+            <p className="text-xs font-semibold text-[var(--text-primary)]">{title}</p>
+            {info && <p className="text-[11px] leading-relaxed text-[var(--text-secondary)]">{info}</p>}
+        </div>
+    </li>;
+}
+
 /**
  * The question an install waits on (dependencies and permissions the user's mode leaves open), from the Engine's
  * `approval` stage: Allow answers yes to all of them, Deny no; without an answer the Engine waits, then installs with no.
+ * Out of sight, the App also shows a desktop notification, so the wait is not missed.
  */
-function InstallApproval({ event }: { event: Record<string, unknown> }) {
+function InstallApproval({ event, toolName }: { event: Record<string, unknown>; toolName: string }) {
     const [busy, setBusy] = useState(false), [answered, setAnswered] = useState('');
     const id = words(event.approval_id), plan = object(event.plan) ? event.plan : {};
     const asked = (list: unknown) => Array.isArray(list) ? list.filter(entry => object(entry) && entry.choice === 'ask') as Record<string, unknown>[] : [];
     const tools = asked(plan.tools), permissions = asked(plan.permissions);
+    useEffect(() => {
+        if (id) void notifyWaiting({ tag: id, title: 'Install waiting for approval', body: `${toolName} asks for permissions before it installs.` });
+    }, [id, toolName]);
     const answer = async (approved: boolean) => {
         setBusy(true);
         try { await decideApproval(approved, id); setAnswered(approved ? 'Allowed' : 'Denied'); }
@@ -57,15 +82,22 @@ function InstallApproval({ event }: { event: Record<string, unknown> }) {
         finally { setBusy(false); }
     };
     if (!id) return null;
-    return <div role="alert" className="space-y-2 rounded-xl border border-[var(--accent-color)]/40 bg-[var(--accent-color)]/5 p-3">
-        <p className="text-xs font-semibold text-[var(--text-primary)]">The Engine asks before it continues</p>
-        <ul className="space-y-1 text-xs text-[var(--text-secondary)]">
-            {tools.map(tool => <li key={`${words(tool.kind)}:${words(tool.id)}`}>Install {words(tool.kind)} <span className="font-mono">{words(tool.id)}</span>{words(tool.info) && ` — ${words(tool.info)}`}</li>)}
-            {permissions.map(entry => <li key={`${words(entry.tool)}:${words(entry.kind)}`}>Allow <span className="font-mono">{words(entry.tool)}</span> {words(entry.title) || words(entry.kind)}{words(entry.info) && ` — ${words(entry.info)}`}</li>)}
+    return <div role="alert" className="space-y-3 rounded-2xl border border-[var(--accent-color)]/40 bg-[var(--accent-color)]/5 p-4">
+        <div className="flex items-center gap-2">
+            <ShieldAlert size={16} className="text-[var(--accent-color)]" />
+            <p className="text-sm font-semibold text-[var(--text-primary)]">{toolName} asks before it installs</p>
+        </div>
+        <ul className="space-y-1.5">
+            {tools.map(tool => <ApprovalLine key={`${words(tool.kind)}:${words(tool.id)}`} icon={Package}
+                title={`Install ${words(tool.kind)} ${words(tool.id)}`} info={words(tool.info)} />)}
+            {permissions.map(entry => <ApprovalLine key={`${words(entry.tool)}:${words(entry.kind)}`}
+                icon={PERMISSION_ICONS[words(entry.kind)] ?? ShieldCheck}
+                title={words(entry.title) || words(entry.kind)} info={words(entry.info)} />)}
         </ul>
-        {answered ? <p className="text-xs text-[var(--text-muted)]">{answered}. The install continues.</p> : <div className="flex gap-2">
-            <Button size="sm" disabled={busy} onClick={() => void answer(true)}>Allow</Button>
+        {answered ? <p className="text-xs text-[var(--text-muted)]">{answered}. The install continues.</p> : <div className="flex flex-wrap items-center gap-2">
+            <Button size="sm" disabled={busy} onClick={() => void answer(true)}><CheckCircle2 size={14} /> Allow</Button>
             <Button size="sm" variant="secondary" disabled={busy} onClick={() => void answer(false)}>Deny</Button>
+            <span className="text-[11px] text-[var(--text-muted)]">Without an answer the Engine installs it with these refused.</span>
         </div>}
     </div>;
 }
@@ -81,8 +113,21 @@ export function ToolPackagePanel({ item, installing, canInstall, onInstall }: {
     installing?: { step: number; label: string; cancel: () => void; approval?: Record<string, unknown> };
 }) {
     const changed = useToolInventory(state => state.changed);
+    const revision = useToolInventory(state => state.revision);
     const [busy, setBusy] = useState(false);
+    const [managing, setManaging] = useState(false);
     const { details, installed, tool } = item;
+    const summary = useToolSettingsSummary(installed?.category ?? '', installed?.id ?? '', `${revision}:${installed?.id}`);
+    // Just installed: say which permissions the security mode allowed without asking, so none is hidden
+    const wasInstalling = useRef(false);
+    useEffect(() => {
+        if (installing) wasInstalling.current = true;
+        else if (wasInstalling.current && installed && summary) {
+            wasInstalling.current = false;
+            if (summary.byMode.length) toast.info(`${item.name}: ${summary.byMode.join(', ')} allowed by your security mode. Change it in the settings.`);
+            else if (summary.settings > summary.set) toast.info(`${item.name} reads ${summary.settings - summary.set} optional settings, such as keys. Add them in the settings.`);
+        }
+    }, [installing, installed, summary, item.name]);
     const kind = (tool?.kind ?? installed?.category) as RegistryKind;
     const logo = tool && catalogueImage(details?.icon ?? '', tool.manifest);
     const version = details?.version || installed?.version || '';
@@ -111,7 +156,7 @@ export function ToolPackagePanel({ item, installing, canInstall, onInstall }: {
         ['Type', kind?.toUpperCase() ?? 'Not listed'],
         ['Build', details?.build || 'Not listed'],
         ['Runs', details?.command || 'Not listed'],
-        ['Network', details?.network ? `${list(details.network.hosts)}${details.network.info ? ` · ${details.network.info}` : ''}` : 'None'],
+        ['Network', details?.network ? `${details.network.hosts?.length ? list(details.network.hosts) : 'Any site'}${details.network.info ? ` · ${details.network.info}` : ''}` : 'None'],
         ['Settings it reads', details?.env.length ? details.env.map(env => `${env.name} (${env.need || 'optional'})`).join(', ') : 'None'],
         ['Functions', list(details?.functions ?? installed?.functions.map(fn => fn.name))],
         ['Triggers', list(details?.triggers)],
@@ -134,6 +179,13 @@ export function ToolPackagePanel({ item, installing, canInstall, onInstall }: {
                 <div className="flex flex-wrap items-center gap-2">
                     {installed ? <>
                         <Badge variant="outline"><CheckCircle2 size={14} className="text-emerald-400" /> Installed</Badge>
+                        {summary && <Button size="sm" variant="secondary" onClick={() => setManaging(true)} title="Permissions and the settings this tool reads">
+                            <ShieldCheck size={14} /> {summary.permissions ? `${summary.allowed} of ${summary.permissions} allowed` : 'No permissions'}
+                            {summary.settings > 0 && ` · ${summary.set} of ${summary.settings} keys`}
+                        </Button>}
+                        <Button size="sm" variant="ghost" onClick={() => setManaging(true)} aria-label={`${item.name} settings`} title="Settings, cache and uninstall">
+                            <Settings2 size={15} />
+                        </Button>
                         <span className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
                             {installed.enabled ? 'Enabled' : 'Disabled'}
                             <ToggleSwitch active={installed.enabled} onToggle={toggle} loading={busy} disabled={busy} aria-label={`Enable ${item.name}`} />
@@ -145,7 +197,7 @@ export function ToolPackagePanel({ item, installing, canInstall, onInstall }: {
                         : <Button size="sm" disabled={!canInstall} onClick={onInstall}><Download size={14} /> Install</Button>}
                 </div>
             </div>
-            {installing?.approval && <InstallApproval event={installing.approval} />}
+            {installing?.approval && <InstallApproval event={installing.approval} toolName={item.name} />}
             {!installed && kind === 'extension' && <p className="text-xs text-[var(--text-secondary)]">
                 App extensions are imported from the Extensions section; they are not installed into the Engine.
             </p>}
@@ -158,7 +210,7 @@ export function ToolPackagePanel({ item, installing, canInstall, onInstall }: {
             <CardContent><SpecList specs={specs} /></CardContent>
         </Card>
 
-        {installed && <Card><CardContent className="pt-4"><ToolPermissionsPanel kind={installed.category} name={installed.id} /></CardContent></Card>}
+        {installed && <ToolManageDialog tool={installed} title={item.name} open={managing} onClose={() => setManaging(false)} onChanged={changed} />}
 
         {(installed || published) && <section className="space-y-2" aria-label="Package files">
             <h3 className="flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]"><FolderOpen size={15} /> Files</h3>

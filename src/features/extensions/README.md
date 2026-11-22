@@ -200,6 +200,32 @@ Model/tool install actions wait for successful inventory discovery. Opening a
 tool's public details cannot clear an Engine-connection error or enable an
 offline install; metadata and installed-inventory errors have separate owners.
 
+## Managing an installed tool
+
+An installed tool's page shows, next to Installed and Enabled, a permissions button
+(`3 of 3 allowed · 0 of 5 keys`) and a settings icon. Both open `ToolManageDialog`:
+run mode (Auto / Manual) and approval rule, the permissions and the keys the tool
+reads (`ToolPermissionsPanel`, from `tools.get_settings`), its cache
+(`tools.cache` / `tools.clear_cache`) and uninstall. Before, the permissions and
+keys sat at the bottom of the page and run mode, cache and uninstall-with-cache
+lived only in Settings > Tools, so users did not find them. The dialog reuses the
+existing panel, `Tabs`, `CustomDropdown` and `HoldButton`; the security options
+moved to `settings/toolModes.ts` so Settings > Tools and the dialog share one list.
+
+The Engine allows a permission that is not sensitive without asking in the
+sandboxed mode (`agents/src/installer/plan.rs`, `decide_permission`). So that this
+is never hidden, the panel labels such a permission "allowed by your security
+mode", and right after an install a notice names those permissions (or the
+optional keys the tool reads). The install question itself is a card with one
+line and icon per permission type (`agents/src/permissions.rs` types) and, when
+the App is out of sight, a desktop notification (`notifyWaiting`), because the
+Engine stops waiting after a while and installs with the asked items refused.
+
+Checked on 2026-11-22 against an isolated Engine (port 8011): Web Search opened
+the dialog with "1 of 1 allowed" and its five keys; installing Deep Research showed
+the card with Files, and after Allow the page showed "3 of 3 allowed" and the
+notice "Internet, Engine methods allowed by your security mode".
+
 ## Download and install tracking
 
 `useCatalogueTask` and `CatalogueTaskStatus` share the existing CEP task owner.

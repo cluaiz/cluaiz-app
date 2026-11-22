@@ -9,18 +9,14 @@ import {
 import { ToolPermissionsPanel } from './ToolPermissionsPanel';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ToolComponent, ToolInspectorModal } from './ToolInspectorModal';
-import { CustomDropdown, DropdownOption } from '../../components/ui/dropdown/CustomDropdown';
+import { CustomDropdown } from '../../components/ui/dropdown/CustomDropdown';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { ToolMatchTester } from './ToolMatchTester';
+import { SECURITY_POLICY_OPTIONS } from './toolModes';
 
 const PAGE_SIZE = 20;
 
-const SECURITY_POLICY_OPTIONS: DropdownOption[] = [
-    { value: 'inherit', label: 'Inherit Global', description: 'Follows system security mode defined in Permissions' },
-    { value: 'require_approval', label: 'Require Approval', description: 'Always prompt for user confirmation before execution' },
-    { value: 'always_allow', label: 'Always Allow', description: 'Bypass confirmation prompts and execute directly' },
-];
 
 export interface ToolsSettingsProps {
     searchQuery?: string;

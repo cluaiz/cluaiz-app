@@ -23,7 +23,22 @@ function optionsText(options: Record<string, unknown>): string {
  * `tools.get_settings`. The Engine owns every rule: the App shows its answer and sends the user's
  * choice. A value is typed hidden and never read back; the Engine only says whether one is set.
  */
-export function ToolPermissionsPanel({ kind, name }: { kind: string; name: string }) {
+/** How many permissions are on and keys are set, for a button that opens the panel; `refresh` reads again. */
+export function useToolSettingsSummary(kind: string, name: string, refresh: unknown) {
+    const [summary, setSummary] = useState<{ allowed: number; permissions: number; set: number; settings: number; byMode: string[] } | null>(null);
+    useEffect(() => {
+        let live = true;
+        getToolSettings(kind, name).then(saved => live && setSummary({
+            allowed: saved.permissions.filter(p => p.on).length, permissions: saved.permissions.length,
+            set: saved.user_settings.filter(s => s.set).length, settings: saved.user_settings.length,
+            byMode: saved.permissions.filter(p => p.on && !p.chosen).map(p => p.title),
+        })).catch(() => live && setSummary(null));
+        return () => { live = false; };
+    }, [kind, name, refresh]);
+    return summary;
+}
+
+export function ToolPermissionsPanel({ kind, name, onChange }: { kind: string; name: string; onChange?: () => void }) {
     const [permissions, setPermissions] = useState<ToolPermission[] | null>(null);
     const [userSettings, setUserSettings] = useState<ToolUserSetting[]>([]);
     const [failure, setFailure] = useState<string | null>(null);
@@ -31,15 +46,19 @@ export function ToolPermissionsPanel({ kind, name }: { kind: string; name: strin
     const [drafts, setDrafts] = useState<Record<string, string>>({});
     const [open, setOpen] = useState({ permissions: true, settings: true });
 
-    const apply = (saved: { permissions: ToolPermission[]; user_settings: ToolUserSetting[] }) => {
+    const show = (saved: { permissions: ToolPermission[]; user_settings: ToolUserSetting[] }) => {
         setPermissions(saved.permissions);
         setUserSettings(saved.user_settings);
+    };
+    const apply = (saved: { permissions: ToolPermission[]; user_settings: ToolUserSetting[] }) => {
+        show(saved);
+        onChange?.();
     };
 
     const load = useCallback(async () => {
         setFailure(null);
         try {
-            apply(await getToolSettings(kind, name));
+            show(await getToolSettings(kind, name));
         } catch (error) {
             setFailure(errorMessage(error));
         }
@@ -113,7 +132,9 @@ export function ToolPermissionsPanel({ kind, name }: { kind: string; name: strin
                                     </span>
                                 )}
                                 {!permission.chosen && (
-                                    <span className="text-[9px] font-mono text-[var(--text-muted)]">not chosen yet</span>
+                                    <span className="text-[9px] font-mono text-[var(--text-muted)]">
+                                        {permission.on ? 'allowed by your security mode' : 'not chosen yet'}
+                                    </span>
                                 )}
                             </div>
                             <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed">{permission.info}</p>
