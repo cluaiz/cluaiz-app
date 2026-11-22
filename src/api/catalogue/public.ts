@@ -76,6 +76,12 @@ async function readBody(response: Response, asText: boolean) {
  * `keep` reduces a large response to the part the App uses before it is saved; it also gets the last saved
  * response, so a part the source failed to send this time can be kept from it.
  */
+/** Fired when a read saved a new answer, so other views of the same catalogue that failed can show it */
+export const CATALOGUE_SAVED = 'cluaiz-catalogue-saved';
+
+/** A failed read in words for the page: the reason without the "Error:" prefix */
+export const catalogueErrorText = (error: string) => error.replace(/^(\w*Error|DOMException):\s*/, '');
+
 export async function readPublicCatalogue<T>(url: string, parse: (value: unknown) => T, refresh = false,
   keep: (value: unknown, saved?: unknown) => unknown = value => value): Promise<CatalogueReply<T>> {
   const target = new URL(url);
@@ -97,11 +103,15 @@ export async function readPublicCatalogue<T>(url: string, parse: (value: unknown
   }
   let task = pending.get(key);
   if (!task) {
-    save(key, { ...previous, retryAt: now + MIN_REFRESH_MS });
     task = (async () => {
+      let unreachable = false;
       const controller = new AbortController(), timer = setTimeout(() => controller.abort(), modelSource ? MODEL_TIMEOUT_MS : TIMEOUT_MS);
       try {
-        const response = await fetch(key, { credentials: 'omit', redirect: 'error', referrerPolicy: 'no-referrer', signal: controller.signal });
+        const response = await fetch(key, { credentials: 'omit', redirect: 'error', referrerPolicy: 'no-referrer', signal: controller.signal })
+          .catch(() => {
+            if (controller.signal.aborted) throw new Error('The source did not answer in time.');
+            unreachable = true; throw new Error('The source could not be reached.');
+          });
         if (!response.ok) {
           if (response.status === 429) {
             const raw = response.headers.get('retry-after') || '';
@@ -114,7 +124,14 @@ export async function readPublicCatalogue<T>(url: string, parse: (value: unknown
         }
         const data = keep(await readBody(response, target.hostname === 'raw.githubusercontent.com' && !target.pathname.endsWith('.json')), previous.data); parse(data);
         const value = { data, saved: Date.now(), retryAt: Date.now() + MIN_REFRESH_MS };
-        save(key, value); return value;
+        save(key, value);
+        if (typeof dispatchEvent === 'function') dispatchEvent(new Event(CATALOGUE_SAVED));
+        return value;
+      } catch (error) {
+        // A source that answered badly or too slowly is spared for a minute. A read that never reached it (offline, or the page
+        // reloading during a slow first read) costs the source nothing, so with nothing saved to show the next one may go at once.
+        if (!unreachable || previous.data !== undefined) save(key, { ...previous, retryAt: Math.max(storage(key).retryAt, Date.now() + MIN_REFRESH_MS) });
+        throw error;
       } finally { clearTimeout(timer); }
     })();
     pending.set(key, task);

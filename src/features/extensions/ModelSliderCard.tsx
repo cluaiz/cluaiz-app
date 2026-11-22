@@ -5,7 +5,7 @@ import type { ModelRegistryEntry } from '../../api/engine/models/models.types';
 import { CatalogueLogo } from './CatalogueUI';
 import { cleanModelDescription, isModelInstalled } from './catalogueView';
 import { Card } from '../../components/ui/Card';
-import { useRepoDownload, type ModelDownload } from './modelDownloadStore';
+import { useRepoDownload, useRepoPaused, type ModelDownload } from './modelDownloadStore';
 
 export interface ModelCardFrameProps {
   logo: React.ReactNode;
@@ -25,6 +25,8 @@ export interface ModelCardFrameProps {
   toggleLabel?: string;
   /** A download of this model is running: the footer says so and a bar along the bottom fills */
   downloading?: ModelDownload | null;
+  /** A download of this model is paused: the footer and the bar stay at the percent it stopped at */
+  paused?: boolean;
   onSelect: () => void;
 }
 
@@ -44,6 +46,7 @@ export const ModelCardFrame: React.FC<ModelCardFrameProps> = ({
   onToggleMark,
   toggleLabel,
   downloading,
+  paused = false,
   onSelect,
 }) => {
   const borderClasses = isActive
@@ -124,13 +127,13 @@ export const ModelCardFrame: React.FC<ModelCardFrameProps> = ({
 
       <div className="pt-2 border-t border-[var(--border-color)] flex items-center justify-between gap-2 text-xs text-[var(--text-secondary)]">
         {downloading ? <span className="flex items-center gap-1.5 text-[var(--accent-color)] font-semibold">
-          <Download size={13} className="animate-pulse" /> Downloading{downloading.percent === undefined ? '…' : ` · ${downloading.percent}%`}
+          <Download size={13} className={paused ? undefined : 'animate-pulse'} /> {paused ? 'Paused' : 'Downloading'}{downloading.percent === undefined ? (paused ? '' : '…') : ` · ${downloading.percent}%`}
         </span> : <span>{footerStart}</span>}
         <span className="uppercase">{footerEnd}</span>
       </div>
       {downloading && <div aria-hidden="true" className="absolute inset-x-0 bottom-0 h-1 bg-[var(--bg-tertiary)]">
         <div style={downloading.percent === undefined ? undefined : { width: `${downloading.percent}%` }}
-          className={`h-full bg-[var(--accent-color)] transition-[width] duration-500 ${downloading.percent === undefined ? 'w-1/3 animate-pulse' : ''}`} />
+          className={`h-full bg-[var(--accent-color)] transition-[width] duration-500 ${downloading.percent === undefined ? (paused ? 'w-0' : 'w-1/3 animate-pulse') : ''}`} />
       </div>}
     </Card>
   );
@@ -155,7 +158,7 @@ export const ModelSliderCard: React.FC<ModelSliderCardProps> = ({
   onSelectModel,
 }) => {
   const variants = model.variants || [];
-  const download = useRepoDownload(model.repo);
+  const download = useRepoDownload(model.repo), paused = useRepoPaused(model.repo);
   return (
     <ModelCardFrame
       logo={<CatalogueLogo source={model.logo} name={model.name || model.id} large />}
@@ -171,7 +174,8 @@ export const ModelSliderCard: React.FC<ModelSliderCardProps> = ({
       className={className}
       isActive={isActive}
       mark={isModelInstalled(installed, model) ? 'Installed' : undefined}
-      downloading={download}
+      downloading={download ?? (paused === undefined ? null : { target: model.repo, percent: paused ?? undefined })}
+      paused={!download && paused !== undefined}
       onSelect={() => onSelectModel(model)}
     />
   );

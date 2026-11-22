@@ -373,7 +373,7 @@ function ModelsSidebarDirectory({ onBack }: { onBack?: () => void }) {
 
                 {filteredFamilies.length === 0 && (
                   <div className="p-4 text-center text-xs text-[var(--text-muted)]">
-                    No families match &ldquo;{query}&rdquo;
+                    {query ? <>No families match &ldquo;{query}&rdquo;</> : catalogue.busy ? 'Loading families…' : 'The model list could not be loaded.'}
                   </div>
                 )}
               </div>

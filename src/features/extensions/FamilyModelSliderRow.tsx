@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { motion, useTransform, type MotionValue, useMotionValue } from 'framer-motion';
 import { Boxes } from 'lucide-react';
 import type { PublicModel, PublicVariant } from '../../api/catalogue/models';
@@ -199,6 +199,11 @@ export function ModelCardTrack<T>({ items, keyOf, renderCard, borderless = false
     return mark || open ? [{ key: keyOf(item), at: index / Math.max(1, items.length - 1), mark, open }] : [];
   });
   const jump = (at: number) => { localProgress.set(at); updateScroll(at); };
+  // A card opened from the URL (pick=…) can sit past the right edge; the row starts at it once, later clicks do not move it
+  useEffect(() => {
+    const index = items.findIndex(item => keyOf(item) === activeKey);
+    if (index > 0 && items.length > 2) jump(index / (items.length - 1));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- only where the row first opens
 
   /* 1 Model: 100% Full-Width | 2 Models: 50%-50% Grid | 3+ : Slider */
   if (items.length === 1) return <div className="w-full">{renderCard(items[0], true)}</div>;

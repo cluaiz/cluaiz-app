@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { CatalogueReply } from '../../api/catalogue/public';
+import { CATALOGUE_SAVED, type CatalogueReply } from '../../api/catalogue/public';
 
 /** Metadata lifetime is independent of the selected local Engine. */
 export function useCatalogue<T>(load: (refresh?: boolean) => Promise<CatalogueReply<T>>) {
@@ -14,5 +14,13 @@ export function useCatalogue<T>(load: (refresh?: boolean) => Promise<CatalogueRe
     finally { if (generation.current === version) setBusy(false); }
   }, [load]);
   useEffect(() => { void refresh(false); return () => { ++generation.current; }; }, [refresh]);
+  // Another view's Try again (the page beside the sidebar) saved an answer: a view still showing the failure reads it from the cache
+  const failed = useRef(false);
+  failed.current = Boolean(error) && !reply;
+  useEffect(() => {
+    const again = () => { if (failed.current) void refresh(false); };
+    window.addEventListener(CATALOGUE_SAVED, again);
+    return () => window.removeEventListener(CATALOGUE_SAVED, again);
+  }, [refresh]);
   return { reply, error, busy, refresh };
 }

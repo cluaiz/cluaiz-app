@@ -173,3 +173,18 @@ test('model list and README share the configured registry origin',async()=>{
  await adapter.modelCatalogue.list();await adapter.modelReadme({id:'saved',familyId:'family'});
  assert.equal(calls[0],origin+'/api/v1/registry/models');assert.match(calls[1],/^http:\/\/localhost:3000\/api\/v1\/registry\/models\/readme\?/);
 });
+test('a reload during a slow first read, or an offline read, may read again; a bad answer waits',async()=>{
+ const slow=deferred(),cache=new Map(),first=client(()=>slow.promise,cache);
+ void first.readPublicCatalogue(url,parse);
+ const reloaded=client(()=>new Response('["fresh"]'),cache);
+ assert.deepEqual(normalize((await reloaded.readPublicCatalogue(url,parse)).data),['fresh']);
+ const offline=client(()=>{throw TypeError('Failed to fetch');});
+ await assert.rejects(offline.readPublicCatalogue(url,parse),/could not be reached/);
+ await assert.rejects(offline.readPublicCatalogue(url,parse,true),/could not be reached/,'a read that never reached the source may go again');
+ assert.equal(offline.requests.length,2);
+ const broken=client(()=>new Response('',{status:500}));
+ await assert.rejects(broken.readPublicCatalogue(url,parse),/HTTP 500/);
+ await assert.rejects(broken.readPublicCatalogue(url,parse,true),/limited/,'a source that answered badly is spared for a minute');
+ const failed=offline;
+ assert.equal(failed.catalogueErrorText('Error: The source could not be reached.'),'The source could not be reached.');
+});

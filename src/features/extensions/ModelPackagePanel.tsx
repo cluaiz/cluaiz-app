@@ -71,7 +71,9 @@ export function DownloadingButton({ percent, label = 'Downloading', progressText
   if (offer && cancel === 'hold') return <span onMouseLeave={() => setOver(false)} className="inline-flex"
     title={onPause ? 'Click to pause, hold to cancel' : 'Hold to cancel'}>
     <HoldButton {...DANGER_HOLD} size="sm" radius={8} glow={false} icon={onPause ? <Pause size={14} /> : <X size={14} />} doneLabel="Cancelling…"
-      onTap={onPause} onHold={() => onCancel?.()}>{onPause ? 'Pause · hold to cancel' : 'Hold to cancel'}</HoldButton>
+      onTap={onPause} onHold={() => onCancel?.()}>
+      {/* The pointer is still on the button right after Download, so this face keeps the percent in sight (like Resume · 37%) */}
+      {onPause ? `Pause${percent === undefined ? '' : ` · ${percent}%`}` : 'Hold to cancel'}</HoldButton>
   </span>;
   return <Button variant="secondary" size="sm" disabled={!onCancel} aria-busy="true" className="relative overflow-hidden !opacity-100"
     onMouseEnter={() => setOver(true)} onMouseLeave={() => setOver(false)} onClick={cancel === 'click' ? onCancel : undefined}

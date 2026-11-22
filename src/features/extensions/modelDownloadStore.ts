@@ -66,3 +66,9 @@ export const downloadRepo = (target: string) => {
 /** The running download of a catalogue model (matched by its repository), if any */
 export const useRepoDownload = (repo: string) =>
   useModelDownloadStore(state => state.download && downloadRepo(state.download.target) === repo ? state.download : null);
+
+/** The percent a paused download of this repository stopped at: `null` without a total, `undefined` when none is paused */
+export const useRepoPaused = (repo: string) => useModelDownloadStore(state => {
+  const target = Object.keys(state.paused).find(key => downloadRepo(key) === repo);
+  return target === undefined ? undefined : state.paused[target];
+});

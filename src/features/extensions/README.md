@@ -217,6 +217,21 @@ computer is the Engine's answer (`system.plan`), not shown here yet. Checked wit
 catalogue data (one package matching the test Engine's installed Qwen3.5 4B) at 1440
 and 320 px: no sideways scroll, no console errors.
 
+The card whose packages the bar shows is the picked card, or else the first card of
+the row in the row's own order (search and the family's sort). It used to be the
+first model of the page-wide sort, so on the Qwen page the bar showed Qwen3 Coder
+Next while the row began with Qwen3 Embedding 4B and the highlighted card was out of
+view. A row opened with `pick=` starts scrolled to that card. Download states keep
+one height (32 px): the face under the pointer right after Download is clicked reads
+"Pause · 16%", not "Pause · hold to cancel", so the percent stays in sight (the
+tooltip still says hold to cancel). A paused download keeps its card at "Paused ·
+17%" with the bar at 17%, and Resume continues from there. Checked on 2026-11-22
+with a real 0.50 GiB download of Qwen3.5 0.8B Q4_K_M on the test Engine (port 8011):
+Download, pause at 17%, Resume, Installed, hold to uninstall. That download has two
+files (the weights and `mmproj`), and the Engine reports each file's own bytes, so
+the percent runs to 100 and starts again for the second file; one total across files
+is Engine work in the pull code, not changed here.
+
 ## Managing an installed tool
 
 An installed tool's header has three things: Installed, an On/Off switch and a

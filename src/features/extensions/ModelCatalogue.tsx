@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { modelCatalogue, modelInstallReference, type PublicModel, type PublicVariant } from '../../api/catalogue/models';
+import { catalogueErrorText } from '../../api/catalogue/public';
 import { modelsApi } from '../../api/engine/models/models.api';
 import type { ModelRegistryEntry } from '../../api/engine/models/models.types';
 import { useConnectionStore } from '../../store/engine/useConnectionStore';
@@ -152,10 +153,6 @@ export function ModelCatalogue() {
 
   const familyFilter = useFamilyFilter(filtered.filter(model => model.family === family), installed);
   const inFamily = (model: PublicModel) => model.family === family && familyFilter.matches(model);
-  const activeFamilyModels = family ? filtered.filter(inFamily) : [];
-  const effectiveActiveId = (activeModelId && activeFamilyModels.some(m => m.id === activeModelId))
-    ? activeModelId
-    : (activeFamilyModels[0]?.id || '');
 
   async function install(model: PublicModel, variant: PublicVariant) {
     setInstallError('');
@@ -278,7 +275,10 @@ export function ModelCatalogue() {
         )}
 
         {catalogue.busy && <p role="status">Loading catalogue…</p>}
-        {catalogue.error && !catalogue.reply && <p role="alert" className="text-sm text-[var(--status-error)]">The model list could not be loaded. Check your internet connection.</p>}
+        {catalogue.error && !catalogue.reply && !catalogue.busy && <div role="alert" className="flex flex-wrap items-center gap-3 text-sm text-[var(--status-error)]">
+          <span>The model list could not be loaded. {catalogueErrorText(catalogue.error)}</span>
+          <Button variant="secondary" size="sm" onClick={() => void catalogue.refresh()}>Try again</Button>
+        </div>}
 
         {!inventoryReady && <div className="flex flex-wrap items-center gap-3 text-sm text-[var(--text-secondary)]">
           <p role={engineError ? 'alert' : 'status'}>{cleanEngineError || 'Checking installed models…'}</p>
@@ -291,7 +291,7 @@ export function ModelCatalogue() {
         {/* ------------------------------------------------------------------ */}
         {/* LEVEL 3: Dedicated Model Detail & Quantization Download Page      */}
         {/* ------------------------------------------------------------------ */}
-        {selectedModel ? (
+        {!catalogue.reply ? null : selectedModel ? (
           <div className="space-y-6">
 
             {/* Model Hero Info Card */}
@@ -416,6 +416,9 @@ export function ModelCatalogue() {
                 return new Date(b.created || 0).getTime() - new Date(a.created || 0).getTime();
               });
 
+              // The picked card, or the first card the row shows, so the package bar below always belongs to a card in view
+              const activeId = activeModelId && sortedModels.some(model => model.id === activeModelId) ? activeModelId : sortedModels[0]?.id ?? '';
+
               const sortLabels: Record<typeof familySort, string> = {
                 recommended: 'Recommended',
                 latest: 'Latest / New',
@@ -455,11 +458,11 @@ export function ModelCatalogue() {
                         downloadingTarget={download.receipt?.target}
                         borderless={true}
                         hideHeader={true}
-                        activeModelId={effectiveActiveId}
+                        activeModelId={activeId}
                         onDownload={(model, variant) => void install(model, variant)}
                         onViewAll={() => {}}
                         onSelectModel={(model) => {
-                          if (effectiveActiveId === model.id) {
+                          if (activeId === model.id) {
                             setSelectedModel(model);
                             setFamily(model.family);
                             updateUrl(model.family, model.id);
@@ -470,7 +473,7 @@ export function ModelCatalogue() {
                       />
 
                       {(() => {
-                        const model = sortedModels.find(item => item.id === effectiveActiveId) || sortedModels[0];
+                        const model = sortedModels.find(item => item.id === activeId);
                         return model ? <ModelPackagePanel key={model.id} model={model} installed={installed}
                           selectedVariantId={selectedVariantByModel[model.id]}
                           onSelectVariant={id => setSelectedVariantByModel(previous => ({ ...previous, [model.id]: id }))}

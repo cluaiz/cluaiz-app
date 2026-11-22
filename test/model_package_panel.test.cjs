@@ -11,7 +11,7 @@ const shared = {
   'lucide-react': { Check: 'Check', CheckCircle2: 'Installed', Copy: 'Copy', Download: 'Download', FileText: 'FileText', Loader2: 'Loader', Trash2: 'Trash', Pause: 'Pause', Play: 'Play', X: 'X' },
   '../../components/HoldButton/HoldButton': { HoldButton: 'HoldButton' },
   '../../components/HoldButton/dangerHold': { DANGER_HOLD: {} },
-  './modelDownloadStore': { useModelDownloadStore: select => select({ download: running, paused }), useRepoDownload: () => null },
+  './modelDownloadStore': { useModelDownloadStore: select => select({ download: running, paused }), useRepoDownload: () => null, useRepoPaused: repo => Object.keys(paused).some(key => key.startsWith(repo + ':')) ? Object.values(paused)[0] : undefined },
   '../../components/ui/dropdown': { CustomDropdown: 'Quantization' },
   '../../components/ui/MarkdownRenderer': { MarkdownRenderer: 'Markdown', parseMarkdownWithFrontmatter: text => ({ cleanBody: text }) },
   './useCatalogue': { useCatalogue: () => ({ busy: false, reply: { data: '' } }) },
@@ -170,4 +170,13 @@ test('without a package or an install the page shows no empty download bar', () 
   const p = panel({ model: { ...model, variants: [], discovery: 'error' } });
   assert.ok(!p.items.some(item => item.type === 'Quantization'));
   assert.ok(!p.items.some(item => item.type === 'SharedButton' && text(item).includes('Download')));
+});
+
+test('a paused download keeps its card at the percent it stopped at', () => {
+  paused = { 'owner/repo:Q8_0': 16 };
+  const card = ModelSliderCard({ model, installed: [], isBusy: false, onSelectModel() {} });
+  const tree = card.type(card.props);
+  assert.match(text(tree), /Paused · 16%/);
+  assert.ok(nodes(tree).some(item => item.props?.style?.width === '16%'));
+  paused = {};
 });
