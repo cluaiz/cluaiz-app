@@ -1,16 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     Bell, Camera, CheckCircle2, Clipboard, Cpu, Download, FileText, FolderOpen, Globe, MapPin, Monitor, Package,
-    KeyRound, Settings2, ShieldAlert, ShieldCheck, Terminal, Trash2, type LucideIcon,
+    KeyRound, Settings2, ShieldAlert, ShieldCheck, Terminal, type LucideIcon,
 } from 'lucide-react';
 import { toolCatalogue, type RegistryKind } from '../../api/catalogue/tools';
-import { isToolKind } from '../../api/engine/tools/catalog';
-import { removeTool } from '../../api/engine/tools/lifecycle';
 import { setToolSettings } from '../../api/engine/tools/settings';
 import { decideApproval } from '../../api/engine/permission/approvals';
 import { errorMessage } from '../../api/client/errors';
-import { HoldButton } from '../../components/HoldButton/HoldButton';
-import { DANGER_HOLD } from '../../components/HoldButton/dangerHold';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card';
@@ -19,8 +15,9 @@ import { ToggleSwitch } from '../../components/ui/ToggleSwitch';
 import { toast } from '../../components/ui/toast';
 import { ToolInspectorModal, type PackageFiles, type ToolComponent } from '../settings/ToolInspectorModal';
 import { useToolSettingsSummary } from '../settings/ToolPermissionsPanel';
+import type { ToolPermission, ToolUserSetting } from '../../api/engine/tools/settings';
 import { notifyWaiting } from '../chat/approvals';
-import { ToolManageDialog } from './ToolManageDialog';
+import { ToolManageDialog, type ManageTab } from './ToolManageDialog';
 import { CatalogueHero, SpecList } from './CatalogueUI';
 import { catalogueImage } from './catalogueView';
 import { DownloadingButton } from './ModelPackagePanel';
@@ -46,11 +43,6 @@ function PackageReadme({ item }: { item: ToolPackage }) {
 const object = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
 const words = (value: unknown) => typeof value === 'string' ? value : '';
 
-/** The full words behind the short permission and key counts on the page */
-const permissionsTitle = ({ allowed, permissions, set, settings }: { allowed: number; permissions: number; set: number; settings: number }) =>
-    [permissions ? `${allowed} of ${permissions} permissions allowed` : 'No permissions', settings ? `${set} of ${settings} keys set` : '']
-        .filter(Boolean).join(', ');
-
 /** The Engine's permission types (`agents/src/permissions.rs`) and their icons */
 const PERMISSION_ICONS: Record<string, LucideIcon> = {
     network: Globe, files: FolderOpen, programs: Terminal, system: Monitor, location: MapPin,
@@ -65,6 +57,36 @@ function ApprovalLine({ icon: Icon, title, info }: { icon: LucideIcon; title: st
             {info && <p className="text-[11px] leading-relaxed text-[var(--text-secondary)]">{info}</p>}
         </div>
     </li>;
+}
+
+const chip = 'inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2 py-1 text-xs transition-colors hover:bg-[var(--bg-tertiary)] cursor-pointer';
+
+/**
+ * What an installed tool uses, in plain words under its name: each permission with its icon (or "blocked"),
+ * and whether it has the keys it reads. A click opens that tab of the settings.
+ */
+function ToolAccessLine({ permissions, settings, open }: {
+    permissions: ToolPermission[]; settings: ToolUserSetting[]; open: (tab: ManageTab) => void;
+}) {
+    const set = settings.filter(setting => setting.set).length;
+    const missing = settings.some(setting => setting.required && !setting.set);
+    const keys = !settings.length ? null : missing ? 'API key needed' : set ? `${set} API ${set === 1 ? 'key' : 'keys'} added` : 'No API key yet';
+    return <div className="flex flex-wrap items-center gap-x-1 gap-y-1 border-t border-[var(--border-color)] pt-3 text-[var(--text-secondary)]">
+        {permissions.length ? permissions.map(permission => {
+            const Icon = PERMISSION_ICONS[permission.kind] ?? ShieldCheck;
+            return <button key={permission.kind} type="button" className={chip} onClick={() => open('access')}
+                title={permission.info}>
+                <Icon size={13} className={permission.on ? 'text-[var(--accent-color)]' : 'text-[var(--text-muted)]'} />
+                <span className={permission.on ? '' : 'line-through text-[var(--text-muted)]'}>{permission.title}</span>
+                {!permission.on && <span className="text-[var(--text-muted)]">blocked</span>}
+            </button>;
+        }) : <span className={`${chip} cursor-default hover:bg-transparent`}><ShieldCheck size={13} /> Uses nothing on this computer</span>}
+        {keys && <button type="button" className={chip} onClick={() => open('keys')}
+            title={missing ? 'This tool needs a key to work' : 'Optional keys for outside services, for better results'}>
+            <KeyRound size={13} className={missing ? 'text-amber-400' : 'text-[var(--text-muted)]'} />{keys}
+            {!set && <span className="font-semibold text-[var(--accent-color)]">Add key</span>}
+        </button>}
+    </div>;
 }
 
 /**
@@ -120,7 +142,7 @@ export function ToolPackagePanel({ item, installing, canInstall, onInstall }: {
     const changed = useToolInventory(state => state.changed);
     const revision = useToolInventory(state => state.revision);
     const [busy, setBusy] = useState(false);
-    const [managing, setManaging] = useState(false);
+    const [managing, setManaging] = useState<ManageTab | null>(null);
     const { details, installed, tool } = item;
     const summary = useToolSettingsSummary(installed?.category ?? '', installed?.id ?? '', `${revision}:${installed?.id}`);
     // Just installed: say which permissions the security mode allowed without asking, so none is hidden
@@ -129,8 +151,8 @@ export function ToolPackagePanel({ item, installing, canInstall, onInstall }: {
         if (installing) wasInstalling.current = true;
         else if (wasInstalling.current && installed && summary) {
             wasInstalling.current = false;
-            if (summary.byMode.length) toast.info(`${item.name}: ${summary.byMode.join(', ')} allowed by your security mode. Change it in the settings.`);
-            else if (summary.settings > summary.set) toast.info(`${item.name} reads ${summary.settings - summary.set} optional settings, such as keys. Add them in the settings.`);
+            const byMode = summary.permissions.filter(permission => permission.on && !permission.chosen).map(permission => permission.title);
+            if (byMode.length) toast.info(`${item.name} installed. ${byMode.join(', ')} allowed by your security mode; change it in Manage.`);
         }
     }, [installing, installed, summary, item.name]);
     const kind = (tool?.kind ?? installed?.category) as RegistryKind;
@@ -151,7 +173,6 @@ export function ToolPackagePanel({ item, installing, canInstall, onInstall }: {
     };
     const toggle = () => installed && act(`${item.name} ${installed.enabled ? 'disabled' : 'enabled'}`, () =>
         setToolSettings({ component_type: installed.category, component_id: installed.id, settings: { enabled: !installed.enabled } }));
-    const uninstall = () => installed && isToolKind(kind) && act(`${item.name} uninstalled`, () => removeTool(kind, installed.id));
 
     const specs: [string, string][] = [
         ['Package id', item.id],
@@ -184,26 +205,19 @@ export function ToolPackagePanel({ item, installing, canInstall, onInstall }: {
                 <div className="flex flex-wrap items-center gap-2">
                     {installed ? <>
                         <Badge variant="outline"><CheckCircle2 size={14} className="text-emerald-400" /> Installed</Badge>
-                        {summary && <Button size="sm" variant="ghost" onClick={() => setManaging(true)} className="gap-2 font-mono text-[11px]"
-                            title={permissionsTitle(summary)} aria-label={permissionsTitle(summary)}>
-                            <span className="flex items-center gap-1"><ShieldCheck size={13} />{summary.allowed}/{summary.permissions}</span>
-                            {summary.settings > 0 && <span className="flex items-center gap-1"><KeyRound size={13} />{summary.set}/{summary.settings}</span>}
-                        </Button>}
-                        <Button size="sm" variant="ghost" onClick={() => setManaging(true)} aria-label={`${item.name} settings`} title="Settings, cache and uninstall">
-                            <Settings2 size={15} />
-                        </Button>
                         <span className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
-                            {installed.enabled ? 'Enabled' : 'Disabled'}
-                            <ToggleSwitch active={installed.enabled} onToggle={toggle} loading={busy} disabled={busy} aria-label={`Enable ${item.name}`} />
+                            {installed.enabled ? 'On' : 'Off'}
+                            <ToggleSwitch active={installed.enabled} onToggle={toggle} loading={busy} disabled={busy} aria-label={`Turn ${item.name} on or off`} />
                         </span>
-                        {/* On a phone uninstall stays in the settings dialog, so the row keeps to two lines */}
-                        {isToolKind(kind) && <span className="hidden sm:inline-flex"><HoldButton {...DANGER_HOLD} size="sm" radius={8} glow={false} icon={<Trash2 size={14} />} doneLabel="Uninstalling…"
-                            onHold={() => void uninstall()}>Hold to uninstall</HoldButton></span>}
+                        <Button size="sm" variant="secondary" onClick={() => setManaging('access')} title="Access, API keys, saved files and uninstall">
+                            <Settings2 size={14} /> Manage
+                        </Button>
                     </> : installing ? <DownloadingButton label={installing.label} percent={Math.round(installing.step / INSTALL_STEPS * 100)}
                         progressText={`${installing.step}/${INSTALL_STEPS}`} onCancel={installing.cancel} />
                         : <Button size="sm" disabled={!canInstall} onClick={onInstall}><Download size={14} /> Install</Button>}
                 </div>
             </div>
+            {installed && summary && <ToolAccessLine permissions={summary.permissions} settings={summary.settings} open={setManaging} />}
             {installing?.approval && <InstallApproval event={installing.approval} toolName={item.name} />}
             {!installed && kind === 'extension' && <p className="text-xs text-[var(--text-secondary)]">
                 App extensions are imported from the Extensions section; they are not installed into the Engine.
@@ -217,7 +231,8 @@ export function ToolPackagePanel({ item, installing, canInstall, onInstall }: {
             <CardContent><SpecList specs={specs} /></CardContent>
         </Card>
 
-        {installed && <ToolManageDialog tool={installed} title={item.name} open={managing} onClose={() => setManaging(false)} onChanged={changed} />}
+        {installed && <ToolManageDialog tool={installed} title={item.name} hasKeys={Boolean(summary?.settings.length)}
+            tab={managing} onTab={setManaging} onClose={() => setManaging(null)} onChanged={changed} />}
 
         {(installed || published) && <section className="space-y-2" aria-label="Package files">
             <h3 className="flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]"><FolderOpen size={15} /> Files</h3>

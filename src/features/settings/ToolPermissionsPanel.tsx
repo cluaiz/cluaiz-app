@@ -18,27 +18,28 @@ function optionsText(options: Record<string, unknown>): string {
         .join(' · ');
 }
 
-/**
- * The permissions a tool asks for and the values it reads (its `env`), from the Engine's
- * `tools.get_settings`. The Engine owns every rule: the App shows its answer and sends the user's
- * choice. A value is typed hidden and never read back; the Engine only says whether one is set.
- */
-/** How many permissions are on and keys are set, for a button that opens the panel; `refresh` reads again. */
+/** What a tool may touch and the keys it reads, for the tool's page; `refresh` reads again. */
 export function useToolSettingsSummary(kind: string, name: string, refresh: unknown) {
-    const [summary, setSummary] = useState<{ allowed: number; permissions: number; set: number; settings: number; byMode: string[] } | null>(null);
+    const [summary, setSummary] = useState<{ permissions: ToolPermission[]; settings: ToolUserSetting[] } | null>(null);
     useEffect(() => {
         let live = true;
-        getToolSettings(kind, name).then(saved => live && setSummary({
-            allowed: saved.permissions.filter(p => p.on).length, permissions: saved.permissions.length,
-            set: saved.user_settings.filter(s => s.set).length, settings: saved.user_settings.length,
-            byMode: saved.permissions.filter(p => p.on && !p.chosen).map(p => p.title),
-        })).catch(() => live && setSummary(null));
+        getToolSettings(kind, name).then(saved => live && setSummary({ permissions: saved.permissions, settings: saved.user_settings }))
+            .catch(() => live && setSummary(null));
         return () => { live = false; };
     }, [kind, name, refresh]);
     return summary;
 }
 
-export function ToolPermissionsPanel({ kind, name, onChange }: { kind: string; name: string; onChange?: () => void }) {
+/**
+ * The permissions a tool asks for and the values it reads (its `env`), from the Engine's
+ * `tools.get_settings`. The Engine owns every rule: the App shows its answer and sends the user's
+ * choice. A value is typed hidden and never read back; the Engine only says whether one is set.
+ */
+export function ToolPermissionsPanel({ kind, name, onChange, part }: {
+    kind: string; name: string; onChange?: () => void;
+    /** Only the permissions or only the keys, as a plain list (a tab of the tool's settings) */
+    part?: 'permissions' | 'settings';
+}) {
     const [permissions, setPermissions] = useState<ToolPermission[] | null>(null);
     const [userSettings, setUserSettings] = useState<ToolUserSetting[]>([]);
     const [failure, setFailure] = useState<string | null>(null);
@@ -109,15 +110,7 @@ export function ToolPermissionsPanel({ kind, name, onChange }: { kind: string; n
 
     const allowed = permissions.filter(p => p.on).length;
     const set = userSettings.filter(s => s.set).length;
-    return (
-        <div className="space-y-2">
-            <AccordionGroup
-                icon={<ShieldCheck size={13} className="text-[var(--accent-color)]" />}
-                title="Permissions"
-                count={permissions.length ? `${allowed} of ${permissions.length} allowed` : 'none'}
-                open={open.permissions}
-                onToggle={() => setOpen(prev => ({ ...prev, permissions: !prev.permissions }))}
-            >
+    const permissionRows = <>
                 {permissions.length === 0 ? (
                     <p className="px-2 py-1.5 text-[11px] text-[var(--text-muted)]">This tool asks for no permissions.</p>
                 ) : permissions.map(permission => (
@@ -125,7 +118,7 @@ export function ToolPermissionsPanel({ kind, name, onChange }: { kind: string; n
                         <div className="min-w-0 space-y-0.5">
                             <div className="flex items-center gap-1.5 flex-wrap">
                                 <span className="text-xs font-semibold text-[var(--text-primary)]">{permission.title}</span>
-                                <span className="text-[9px] font-mono text-[var(--text-muted)]">{permission.kind}</span>
+                                {!part && <span className="text-[9px] font-mono text-[var(--text-muted)]">{permission.kind}</span>}
                                 {permission.sensitive && (
                                     <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-[var(--accent-color)]/10 text-[var(--accent-color)] border border-[var(--accent-color)]/30">
                                         sensitive
@@ -152,23 +145,15 @@ export function ToolPermissionsPanel({ kind, name, onChange }: { kind: string; n
                         />
                     </div>
                 ))}
-                {permissions.length > 0 && (
+                {permissions.length > 0 && !part && (
                     <p className="px-2 pt-1 text-[10px] text-[var(--text-muted)] leading-relaxed">
                         {kind === 'plugin'
                             ? 'A refused permission is blocked by the Engine itself.'
                             : 'This tool runs as a normal program: while a permission is refused, the Engine asks you before each call.'}
                     </p>
                 )}
-            </AccordionGroup>
-
-            {userSettings.length > 0 && (
-                <AccordionGroup
-                    icon={<KeyRound size={13} className="text-[var(--accent-color)]" />}
-                    title="Settings it reads"
-                    count={`${set} of ${userSettings.length} set`}
-                    open={open.settings}
-                    onToggle={() => setOpen(prev => ({ ...prev, settings: !prev.settings }))}
-                >
+    </>;
+    const settingRows = <>
                     {userSettings.map(setting => {
                         const busy = pending === `setting:${setting.name}`;
                         const draft = drafts[setting.name] ?? '';
@@ -214,6 +199,30 @@ export function ToolPermissionsPanel({ kind, name, onChange }: { kind: string; n
                             </div>
                         );
                     })}
+    </>;
+    if (part === 'permissions') return <div className="space-y-1">{permissionRows}</div>;
+    if (part === 'settings') return <div className="space-y-1">{settingRows}</div>;
+    return (
+        <div className="space-y-2">
+            <AccordionGroup
+                icon={<ShieldCheck size={13} className="text-[var(--accent-color)]" />}
+                title="Permissions"
+                count={permissions.length ? `${allowed} of ${permissions.length} allowed` : 'none'}
+                open={open.permissions}
+                onToggle={() => setOpen(prev => ({ ...prev, permissions: !prev.permissions }))}
+            >
+                {permissionRows}
+            </AccordionGroup>
+
+            {userSettings.length > 0 && (
+                <AccordionGroup
+                    icon={<KeyRound size={13} className="text-[var(--accent-color)]" />}
+                    title="Settings it reads"
+                    count={`${set} of ${userSettings.length} set`}
+                    open={open.settings}
+                    onToggle={() => setOpen(prev => ({ ...prev, settings: !prev.settings }))}
+                >
+                    {settingRows}
                 </AccordionGroup>
             )}
         </div>

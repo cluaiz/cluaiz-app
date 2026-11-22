@@ -202,17 +202,21 @@ offline install; metadata and installed-inventory errors have separate owners.
 
 ## Managing an installed tool
 
-An installed tool's page shows, next to Installed and Enabled, a short permissions
-button (shield `3/3`, key `0/5`; the full words are its tooltip) and a settings icon.
-On a phone the header keeps to two lines: uninstall is only in the dialog there
-(checked at 320, 768 and 1440 px wide, no sideways scroll). Both open `ToolManageDialog`:
-run mode (Auto / Manual) and approval rule, the permissions and the keys the tool
-reads (`ToolPermissionsPanel`, from `tools.get_settings`), its cache
-(`tools.cache` / `tools.clear_cache`) and uninstall. Before, the permissions and
-keys sat at the bottom of the page and run mode, cache and uninstall-with-cache
-lived only in Settings > Tools, so users did not find them. The dialog reuses the
-existing panel, `Tabs`, `CustomDropdown` and `HoldButton`; the security options
-moved to `settings/toolModes.ts` so Settings > Tools and the dialog share one list.
+An installed tool's header has three things: Installed, an On/Off switch and a
+Manage button. Under it one line says in plain words what the tool uses (each
+permission with its icon, or "blocked" when off) and whether it has its API keys
+("No API key yet · Add key"); a click opens that tab. Manage opens
+`ToolManageDialog` with three tabs, so a new user sees one thing at a time:
+Access (the permissions, `ToolPermissionsPanel part="permissions"`), API keys (only
+when the tool reads any, `part="settings"`) and Advanced ("When can the AI use
+it?", "Ask me before each use?", saved files from `tools.cache` /
+`tools.clear_cache`, and uninstall at the bottom). Uninstall is only there, not in
+the header. An earlier version put short counts (`1/1`, `0/5`), a second settings
+icon and uninstall in the header; the owner found it unclear for new users, so the
+counts became words and the controls moved into the tabs. The dialog reuses the
+existing panel, `Tabs`, `CustomDropdown` and `HoldButton`; the approval options live
+in `settings/toolModes.ts`, shared with Settings > Tools. Checked at 320 and 1440 px
+wide: no sideways scroll, no console errors.
 
 The Engine allows a permission that is not sensitive without asking in the
 sandboxed mode (`agents/src/installer/plan.rs`, `decide_permission`). So that this
