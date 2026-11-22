@@ -11,7 +11,8 @@ test('CEP methods and dedicated HTTP pages produce unique documented requests', 
     const discovery = JSON.parse(await readFile(new URL('../../cluaiz/docs/api/cep/openrpc.json', import.meta.url), 'utf8'));
     // Automation methods share /v1/cep but are not Engine methods, so they are not in openrpc.json.
     const automation = catalog.filter(group => group.category === 'automation').flatMap(group => group.endpoints);
-    assert.equal(endpoints.length, discovery.methods.length + automation.length + 8);
+    // Nine dedicated HTTP pages: chat, speech, transcription, embeddings, ingest, pull, show, models, health
+    assert.equal(endpoints.length, discovery.methods.length + automation.length + 9);
     assert.equal(endpoints.filter(endpoint => endpoint.transport_path).length, discovery.methods.length + automation.length);
     assert.equal(new Set(endpoints.map(endpoint => `${endpoint.method} ${endpoint.path}`)).size, endpoints.length);
     assert.equal(new Set(catalog.map(group => group.category)).size, automation.length ? 6 : 5);
