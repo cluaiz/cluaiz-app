@@ -122,3 +122,32 @@ test('reduceChatModelLoading ignores no-op model_loading boundaries when model i
   cold = req.finalizeChatModelLoad(cold, { placement: 'Hybrid', context: 8192, gpu_blocks: 18, ram_blocks: 15 }, 'Qwen3-4B');
   assert.equal(cold.plan.gpu_blocks, 18);
 });
+
+test('the events watcher first reads the newest events and starts again after an Engine restart', async () => {
+  const calls = [];
+  const pages = [
+    { events: [], next: 0, latest_seq: 300 },
+    { events: [{ seq: 300, name: 'model.load_step', at: '', data: { model: 'qwen', step: 'weights', percent: 40, message: 'reading weights 40%' } }], next: 300, latest_seq: 300 },
+    // The Engine restarted: its events count from 1 again
+    { events: [{ seq: 1, name: 'engine.started', at: '', data: {} }], next: 1, latest_seq: 1 },
+  ];
+  let stop;
+  const done = new Promise(resolve => { stop = resolve; });
+  const storeMod = load('src/store/engine/useSystemEventsStore.ts', {
+    zustand: require('zustand'),
+    '../../api/client/cep': { CepError: class CepError extends Error {} },
+    '../../api/engine/system/events': { readSystemEvents: async params => {
+      calls.push(JSON.parse(JSON.stringify(params)));
+      if (pages.length) return pages.shift();
+      stop();
+      return new Promise(() => {});
+    } },
+  });
+  const unwatch = storeMod.useSystemEventsStore.getState().startWatching();
+  await done;
+  unwatch();
+  assert.deepEqual(calls.slice(0, 3), [{ limit: 1 }, { after: 250, limit: 50 }, { after: 300, limit: 50, wait_ms: 15000 }]);
+  assert.equal(storeMod.useSystemEventsStore.getState().activeLoad.percent, 40);
+  // After the restart it looks again from the newest events
+  assert.deepEqual(calls[3], { limit: 1 });
+});

@@ -21,6 +21,9 @@ interface SystemEventsState {
   startWatching: () => () => void;
 }
 
+/** Events read on the first look for a load already running (a load sends about 110) */
+const RECENT_EVENTS = 50;
+
 const text = (v: unknown) => (typeof v === 'string' && v.trim() ? v : undefined);
 const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
 
@@ -121,12 +124,21 @@ export const useSystemEventsStore = create<SystemEventsState>((set, get) => {
         let backoffMs = 1000;
         while (!controller.signal.aborted) {
           try {
+            // Pages come oldest first: the first look reads the newest events, not the oldest ones held
+            const newest = initialized ? 0 : (await readSystemEvents({ limit: 1 }, controller.signal)).latest_seq;
             const page = await readSystemEvents(
-              initialized ? { after: cursor, limit: 50, wait_ms: 15_000 } : { after: 0, limit: 50, wait_ms: 0 },
+              initialized
+                ? { after: cursor, limit: RECENT_EVENTS, wait_ms: 15_000 }
+                : { after: Math.max(0, newest - RECENT_EVENTS), limit: RECENT_EVENTS },
               controller.signal,
             );
             if (controller.signal.aborted) break;
             backoffMs = 1000;
+            // An Engine that restarted counts its events from 1 again: look again from the start
+            if (initialized && page.latest_seq < cursor) {
+              initialized = false;
+              continue;
+            }
             if (!initialized) {
               initialized = true;
               cursor = page.latest_seq;
