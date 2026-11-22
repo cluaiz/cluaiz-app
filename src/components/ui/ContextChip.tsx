@@ -1,5 +1,5 @@
 import React from 'react';
-import { FileIcon, FolderIcon } from 'react-material-icon-theme';
+import { getFileIcon, getFolderIcon, getIconSvg } from 'react-material-icon-theme';
 import { X, Sparkles } from 'lucide-react';
 import { Tooltip } from './tooltip';
 import { RichHoverCard } from './RichHoverCard';
@@ -28,6 +28,12 @@ export interface ContextChipProps {
     /** Whether user interaction is disabled */
     disabled?: boolean;
 }
+
+/** The icon pack's own SVG in a span: a chip sits inside a paragraph, where the pack's `<div>` is invalid HTML */
+const InlineIcon = ({ svg }: { svg: string | null }) => (
+    <span aria-hidden className="w-3.5 h-3.5 shrink-0 inline-flex items-center justify-center [&>svg]:w-3.5 [&>svg]:h-3.5"
+        dangerouslySetInnerHTML={{ __html: svg ?? '' }} />
+);
 
 export const ContextChip: React.FC<ContextChipProps> = ({
     type = 'file',
@@ -147,22 +153,13 @@ export const ContextChip: React.FC<ContextChipProps> = ({
 
         if (type === 'folder') {
             return (
-                <span className="w-3.5 h-3.5 shrink-0 flex items-center justify-center">
-                    <FolderIcon folderName={displayName} size={14} />
-                </span>
+                <InlineIcon svg={getIconSvg(getFolderIcon({ folderName: displayName }))} />
             );
         }
 
         if (type === 'file') {
             return (
-                <span className="w-3.5 h-3.5 shrink-0 flex items-center justify-center">
-                    <FileIcon
-                        fileName={displayName}
-                        fileExtension={ext}
-                        languageId={ext}
-                        size={14}
-                    />
-                </span>
+                <InlineIcon svg={getIconSvg(getFileIcon({ fileName: displayName, fileExtension: ext, languageId: ext }))} />
             );
         }
 
