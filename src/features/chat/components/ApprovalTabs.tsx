@@ -3,18 +3,16 @@ import { ShieldAlert, Check, X, ChevronDown, ChevronUp, MessageSquare } from 'lu
 import { useChatStore } from '../../../store/chat/useChatStore';
 import { errorMessage } from '../../../api/client/errors';
 import { AttachedTab, attachedTabAction, attachedTabIcon } from '../../../components/ui/AttachedTab';
-import { decideChatApproval, type ChatApproval } from '../approvals';
+import { decideChatApproval, messageApprovals, type ChatApproval } from '../approvals';
 
 /** The calls of the open chat that wait for the user's yes or no. */
 export function usePendingApprovals(): ChatApproval[] {
     const sessionId = useChatStore(s => s.activeSessionId);
     const messages = useChatStore(s => (s.activeSessionId ? s.sessions[s.activeSessionId]?.messages : undefined));
-    return useMemo(() => !sessionId || !messages ? [] : messages.flatMap(message => {
-        const request = message.permissionRequest;
-        return request?.status === 'pending'
+    return useMemo(() => !sessionId || !messages ? [] : messages.flatMap(messageApprovals).flatMap(request =>
+        request.status === 'pending'
             ? [{ sessionId, requestId: request.requestId, toolName: request.toolName, category: request.category, parameters: request.parameters }]
-            : [];
-    }), [sessionId, messages]);
+            : []), [sessionId, messages]);
 }
 
 /** One waiting call as a card on the input: Approve, Reject (with an optional reason) and the call's arguments. */

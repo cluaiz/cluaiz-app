@@ -3,6 +3,16 @@ import type { EngineLoadReport } from '../../core/engine';
 
 export interface CreateChatSessionOptions { incognito?: boolean; activate?: boolean; extensionId?: string; }
 
+/** A tool call that asked for the user's yes or no, and how it was answered */
+export interface ChatPermissionRequest {
+    requestId: string;
+    toolName: string;
+    category?: string;
+    parameters?: any;
+    status: 'pending' | 'approved' | 'rejected' | 'timeout';
+    feedback?: string;
+}
+
 export interface ChatModelLoadState {
     status: 'loading' | 'loaded' | 'failed';
     model?: string;
@@ -33,14 +43,10 @@ export interface ChatMessage {
         status: 'running' | 'completed' | 'failed';
         iconSvg?: string;
     }>;
-    permissionRequest?: {
-        requestId: string;
-        toolName: string;
-        category?: string;
-        parameters?: any;
-        status: 'pending' | 'approved' | 'rejected' | 'timeout';
-        feedback?: string;
-    };
+    /** The latest call of this answer that asked for the user's yes or no */
+    permissionRequest?: ChatPermissionRequest;
+    /** Calls of the same answer that asked before the latest one, oldest first, kept with their outcome */
+    earlierPermissionRequests?: ChatPermissionRequest[];
     time: string;
     date: number; // Stored as timestamp
     reactions?: string[];
@@ -141,14 +147,7 @@ export interface ChatStore {
         iconSvg?: string;
     }) => void;
     attachTelemetryToLastMessage: (sessionId: string, telemetry: { tps: string; elapsed: string; ttft: string; tokens: number }) => void;
-    setPermissionRequestOnLastMessage: (sessionId: string, req: {
-        requestId: string;
-        toolName: string;
-        category?: string;
-        parameters?: any;
-        status: 'pending' | 'approved' | 'rejected' | 'timeout';
-        feedback?: string;
-    }) => void;
+    setPermissionRequestOnLastMessage: (sessionId: string, req: ChatPermissionRequest) => void;
     resolvePermissionRequest: (sessionId: string, requestId: string, decision: 'approved' | 'rejected' | 'timeout', feedback?: string) => void;
     updateMessage: (sessionId: string, messageIndex: number, updater: (msg: ChatMessage) => ChatMessage) => void;
     deleteMessage: (sessionId: string, messageIndex: number) => void;

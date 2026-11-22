@@ -1,6 +1,7 @@
 import { useChatStore } from '../../store/chat/useChatStore';
 import { usePermissionStore } from '../../api/engine/permission/permission.store';
 import { useNotificationStore } from '../../store/ui/useNotificationStore';
+import type { ChatMessage, ChatPermissionRequest } from '../../store/chat/types';
 
 /** A tool call of the chat that waits for the user's yes or no. */
 export interface ChatApproval {
@@ -10,6 +11,10 @@ export interface ChatApproval {
     category?: string;
     parameters?: unknown;
 }
+
+/** Every call of one answer that asked for a yes or no, oldest first */
+export const messageApprovals = (message: ChatMessage): ChatPermissionRequest[] =>
+    [...(message.earlierPermissionRequests ?? []), ...(message.permissionRequest ? [message.permissionRequest] : [])];
 
 const deciding = new Set<string>();
 
@@ -111,9 +116,8 @@ export function startApprovalExpiry(): () => void {
     return useChatStore.subscribe((state, previous) => {
         const ended = previous.streamingSessionId;
         if (!ended || state.streamingSessionId === ended) return;
-        for (const message of state.sessions[ended]?.messages ?? []) {
-            const request = message.permissionRequest;
-            if (request?.status !== 'pending') continue;
+        for (const request of (state.sessions[ended]?.messages ?? []).flatMap(messageApprovals)) {
+            if (request.status !== 'pending') continue;
             state.resolvePermissionRequest(ended, request.requestId, 'timeout');
             void closeApprovalNotification(request.requestId);
         }

@@ -8,7 +8,7 @@ import { createSessionDeleter } from './deletion';
 import { toast } from '../../components/ui/toast';
 import { errorMessage } from '../../api/client/errors';
 
-import type { ChatMessage, ChatSession, ChatStore, CreateChatSessionOptions } from './types';
+import type { ChatMessage, ChatPermissionRequest, ChatSession, ChatStore, CreateChatSessionOptions } from './types';
 export type { ChatMessage, ChatSession } from './types';
 
 export const generateChatId = () => {
@@ -573,9 +573,15 @@ export const useChatStore = create<ChatStore>()(
                 const lastMessage = messages[lastIndex];
                 if (lastMessage.sender !== 'assistant') return state;
 
+                // A second call in the same answer must not hide the first one's outcome
+                const previous = lastMessage.permissionRequest;
+                const earlier = previous && previous.requestId !== req.requestId
+                    ? [...(lastMessage.earlierPermissionRequests ?? []), previous]
+                    : lastMessage.earlierPermissionRequests;
                 messages[lastIndex] = {
                     ...lastMessage,
-                    permissionRequest: req
+                    permissionRequest: req,
+                    ...(earlier && { earlierPermissionRequests: earlier })
                 };
 
                 return {
@@ -596,16 +602,14 @@ export const useChatStore = create<ChatStore>()(
                 const session = state.sessions[sessionId];
                 if (!session || session.messages.length === 0) return state;
 
+                const resolve = (request: ChatPermissionRequest) =>
+                    request.requestId === requestId ? { ...request, status: decision, feedback } : request;
                 const messages = session.messages.map(msg => {
-                    if (msg.permissionRequest && msg.permissionRequest.requestId === requestId) {
-                        return {
-                            ...msg,
-                            permissionRequest: {
-                                ...msg.permissionRequest,
-                                status: decision,
-                                feedback
-                            }
-                        };
+                    if (msg.permissionRequest?.requestId === requestId) {
+                        return { ...msg, permissionRequest: resolve(msg.permissionRequest) };
+                    }
+                    if (msg.earlierPermissionRequests?.some(request => request.requestId === requestId)) {
+                        return { ...msg, earlierPermissionRequests: msg.earlierPermissionRequests.map(resolve) };
                     }
                     return msg;
                 });

@@ -43,3 +43,32 @@ test('a notification with Approve and Reject only when the App is out of sight',
     const plain=setup({hidden:true,worker:false});await plain.m.notifyApproval(approval);
     assert.equal(plain.shown[0].plain,true);
 });
+
+function chatStore(){
+    const {useChatStore}=load('src/store/chat/useChatStore.ts',{
+        zustand:require('zustand'),'./useChatPrefsStore':{currentChatPrefs:()=>({})},
+        '../../services/storage/ChatStorageManager':{chatStorageManager:{saveSessionMetadata:()=>{},saveMessages:()=>{},saveIndex:()=>{}}},
+        '../../utils/topicProber':{inferChatTopicAndEmoji:()=>({})},'../../core/router':{pushChatRoute:()=>{}},
+        './deletion':{createSessionDeleter:()=>async()=>true},'../../components/ui/toast':{toast:{error:()=>{}}},'../../api/client/errors':{errorMessage:e=>e.message},
+    });
+    useChatStore.setState({sessions:{s1:{id:'s1',title:'t',tags:[],unread:0,messages:[{sender:'assistant',text:'',time:'',date:0}]}},activeSessionId:'s1'});
+    return useChatStore;
+}
+// Arrays made inside the loaded module come from another realm
+const plain=v=>JSON.parse(JSON.stringify(v));
+const ask=(requestId,toolName)=>({requestId,toolName,status:'pending'});
+
+test('a second call in one answer keeps the first call and its outcome',()=>{
+    const store=chatStore(),chat=()=>store.getState().sessions.s1.messages[0];
+    store.getState().setPermissionRequestOnLastMessage('s1',ask('ap_1','web-search'));
+    store.getState().resolvePermissionRequest('s1','ap_1','approved');
+    store.getState().setPermissionRequestOnLastMessage('s1',ask('ap_2','web-fetch'));
+    assert.deepEqual(plain(chat().earlierPermissionRequests.map(r=>[r.requestId,r.status])),[['ap_1','approved']]);
+    assert.equal(chat().permissionRequest.requestId,'ap_2');
+    store.getState().resolvePermissionRequest('s1','ap_2','timeout');
+    const {messageApprovals}=setup().m;
+    assert.deepEqual(plain(messageApprovals(chat()).map(r=>[r.toolName,r.status])),[['web-search','approved'],['web-fetch','timeout']]);
+    // The same call sent again is not listed twice
+    store.getState().setPermissionRequestOnLastMessage('s1',ask('ap_2','web-fetch'));
+    assert.equal(chat().earlierPermissionRequests.length,1);
+});

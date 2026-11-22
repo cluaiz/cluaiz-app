@@ -172,6 +172,7 @@ const ThoughtProcessCard: React.FC<ThoughtProcessCardProps> = ({ thinking, isStr
 import { ChatMessage, useChatStore } from '../../../store/chat/useChatStore';
 import { ToolCallAccordion } from './ToolCallAccordion';
 import { PermissionApprovalCard } from './PermissionApprovalCard';
+import { messageApprovals } from '../approvals';
 import { AttachmentStagingDeck, AttachmentCard } from './AttachmentStagingDeck';
 
 interface CollapsibleUserMessageProps {
@@ -666,12 +667,13 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
                     )}
 
                     {/* 2b. Agent Action Permission Approval Card (HITL Stream Pause) */}
-                    {msg.permissionRequest && (
+                    {messageApprovals(msg).map(request => (
                         <PermissionApprovalCard
+                            key={request.requestId}
                             sessionId={activeSessionId}
-                            permissionRequest={msg.permissionRequest}
+                            permissionRequest={request}
                         />
-                    )}
+                    ))}
 
                     {/* 3. Post-Tool Thought Process (Turn 2 reasoning) */}
                     {msg.postToolThinking && (

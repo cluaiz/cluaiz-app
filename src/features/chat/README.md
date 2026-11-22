@@ -70,6 +70,10 @@ flowchart LR
   turns in the prompt, recalls older turns from its index, and offers memory tools
   (`recall`, `open_memory`, `remember`). Live `model_loading` steps (`cluaiz.progress`)
   and final `engine.load` placement reports update `msg.modelLoad` rendered by `ModelLoadCard.tsx`.
+- **approvals.ts, components/ApprovalTabs.tsx, components/PermissionApprovalCard.tsx:**
+  a waiting call is a card above the input (Approve, Allow in chat, Reject); the chat notes
+  each call of an answer and its outcome in order (`messageApprovals`), and a call still
+  waiting when its turn ends is marked expired.
 - **components/ContextDetailsPanel.tsx & hooks/useContextDetails.ts:**
   reads `context.jobs` and (when a non-private chat id exists) `context.reports` /
   `context.report` on open/refresh. Explains that retained reports live in Engine

@@ -1,16 +1,10 @@
 import React from 'react';
 import { Check, X, Clock, ShieldAlert } from 'lucide-react';
+import type { ChatPermissionRequest } from '../../../store/chat/types';
 
 interface PermissionApprovalCardProps {
     sessionId: string;
-    permissionRequest: {
-        requestId: string;
-        toolName: string;
-        category?: string;
-        parameters?: any;
-        status: 'pending' | 'approved' | 'rejected' | 'timeout';
-        feedback?: string;
-    };
+    permissionRequest: ChatPermissionRequest;
 }
 
 const line = 'flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-medium my-1.5 w-fit bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[var(--text-secondary)]';
