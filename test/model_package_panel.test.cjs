@@ -154,3 +154,20 @@ test('packages the registry could not look up are not called absent, and an inst
   p.items.find(item => item.type === 'SharedButton' && text(item).includes('Try again')).props.onClick();
   assert.equal(retried, 1);
 });
+
+test('a Hugging Face timeout keeps the last saved packages of the same model and repository', () => {
+  const saved = [{ id: 'f', models: [{ id: 'm', hf_repo: 'owner/repo', discovery_status: 'ready', package_variants: [{ id: 'q4' }] },
+    { id: 'moved', hf_repo: 'owner/old', package_variants: [{ id: 'x' }] }] }];
+  const next = [{ id: 'f', models: [{ id: 'm', hf_repo: 'owner/repo', discovery_status: 'error', package_variants: [] },
+    { id: 'moved', hf_repo: 'owner/new', discovery_status: 'error', package_variants: [] },
+    { id: 'fresh', hf_repo: 'owner/fresh', discovery_status: 'ready', package_variants: [{ id: 'new' }] }] }];
+  const [family] = JSON.parse(JSON.stringify(api.keepModelPackages(next, saved)));
+  assert.deepEqual(family.models.map(model => [model.id, model.discovery_status, model.package_variants.length]),
+    [['m', 'kept', 1], ['moved', 'error', 0], ['fresh', 'ready', 1]]);
+});
+
+test('without a package or an install the page shows no empty download bar', () => {
+  const p = panel({ model: { ...model, variants: [], discovery: 'error' } });
+  assert.ok(!p.items.some(item => item.type === 'Quantization'));
+  assert.ok(!p.items.some(item => item.type === 'SharedButton' && text(item).includes('Download')));
+});

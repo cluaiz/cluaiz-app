@@ -13,6 +13,8 @@ const MODELS_PATH = '/api/v1/registry/models';
 /** The only source read with a query (family and model) */
 const README_SOURCE = `${MODEL_REGISTRY_ORIGIN}${MODELS_PATH}/readme`;
 const TIMEOUT_MS = 15000;
+/** The model registry looks packages up on Hugging Face while it answers; a fresh answer took 19 s on 2026-11-22 */
+const MODEL_TIMEOUT_MS = 45000;
 const PREFIX = 'cluaiz_public_catalogue_v1:';
 const MAX_CACHE_CHARS = 8 * 1024 * 1024;
 const MAX_ENTRIES = 64;
@@ -71,10 +73,11 @@ async function readBody(response: Response, asText: boolean) {
 
 /**
  * One shared, bounded read; search/filter/render never initiate their own requests.
- * `keep` reduces a large response to the part the App uses before it is saved.
+ * `keep` reduces a large response to the part the App uses before it is saved; it also gets the last saved
+ * response, so a part the source failed to send this time can be kept from it.
  */
 export async function readPublicCatalogue<T>(url: string, parse: (value: unknown) => T, refresh = false,
-  keep: (value: unknown) => unknown = value => value): Promise<CatalogueReply<T>> {
+  keep: (value: unknown, saved?: unknown) => unknown = value => value): Promise<CatalogueReply<T>> {
   const target = new URL(url);
   const modelSource = target.origin === MODEL_REGISTRY_ORIGIN && [MODELS_PATH, `${MODELS_PATH}/readme`].includes(target.pathname);
   const localModelSource = modelSource && ['http:', 'https:'].includes(target.protocol) && ['localhost', '127.0.0.1', '[::1]'].includes(target.hostname);
@@ -96,7 +99,7 @@ export async function readPublicCatalogue<T>(url: string, parse: (value: unknown
   if (!task) {
     save(key, { ...previous, retryAt: now + MIN_REFRESH_MS });
     task = (async () => {
-      const controller = new AbortController(), timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+      const controller = new AbortController(), timer = setTimeout(() => controller.abort(), modelSource ? MODEL_TIMEOUT_MS : TIMEOUT_MS);
       try {
         const response = await fetch(key, { credentials: 'omit', redirect: 'error', referrerPolicy: 'no-referrer', signal: controller.signal });
         if (!response.ok) {
@@ -109,7 +112,7 @@ export async function readPublicCatalogue<T>(url: string, parse: (value: unknown
           await response.body?.cancel();
           throw new Error(`Catalogue unavailable (HTTP ${response.status}).`);
         }
-        const data = keep(await readBody(response, target.hostname === 'raw.githubusercontent.com' && !target.pathname.endsWith('.json'))); parse(data);
+        const data = keep(await readBody(response, target.hostname === 'raw.githubusercontent.com' && !target.pathname.endsWith('.json')), previous.data); parse(data);
         const value = { data, saved: Date.now(), retryAt: Date.now() + MIN_REFRESH_MS };
         save(key, value); return value;
       } finally { clearTimeout(timer); }

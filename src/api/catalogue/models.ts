@@ -92,8 +92,29 @@ export function modelInstallReference(model: PublicModel, variant: PublicVariant
   return `${model.repo}:${variantTag(model, variant)}`;
 }
 
+/**
+ * A model whose package lookup on Hugging Face failed this time (`discovery_status: error`, no packages) keeps
+ * the packages of the last saved answer for the same model and repository, marked `kept`. Without this one
+ * Hugging Face timeout emptied every size until the next good answer. Packages the registry did send are never
+ * replaced, and a model that is new or changed its repository gets none.
+ */
+export function keepModelPackages(next: unknown, saved: unknown): unknown {
+  if (!Array.isArray(next) || !Array.isArray(saved)) return next;
+  const known = new Map<string, Record<string, unknown>>();
+  for (const family of saved) if (object(family) && Array.isArray(family.models))
+    for (const model of family.models) if (object(model) && Array.isArray(model.package_variants) && model.package_variants.length)
+      known.set(`${text(model.id)}
+${text(model.hf_repo)}`, model);
+  return next.map(family => !object(family) || !Array.isArray(family.models) ? family : { ...family, models: family.models.map(model => {
+    if (!object(model) || model.discovery_status !== 'error' || (Array.isArray(model.package_variants) && model.package_variants.length)) return model;
+    const last = known.get(`${text(model.id)}
+${text(model.hf_repo)}`);
+    return last ? { ...model, package_variants: last.package_variants, discovery_status: 'kept' } : model;
+  }) });
+}
+
 export const modelCatalogue = { list: (refresh = false) =>
-  readPublicCatalogue(`${MODEL_REGISTRY_ORIGIN}/api/v1/registry/models`, parseModels, refresh) };
+  readPublicCatalogue(`${MODEL_REGISTRY_ORIGIN}/api/v1/registry/models`, parseModels, refresh, keepModelPackages) };
 
 /** A model's README from the registry (cluaiz.com), as Markdown */
 /** The registry could not reach Hugging Face for this model, so its packages are unknown, not absent */

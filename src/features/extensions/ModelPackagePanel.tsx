@@ -140,8 +140,8 @@ export function ModelPackagePanel(props: Props) {
   };
 
   return <section className="space-y-3 border-t border-[var(--border-color)] pt-5" aria-label="Selected model package">
-    {/* One bar: which package, its format and size, and what to do with it */}
-    <div className="flex flex-col gap-2 rounded-2xl border border-[var(--border-color)] bg-[var(--bg-secondary)] p-2 sm:flex-row sm:items-center sm:gap-3 sm:pl-3">
+    {/* One bar: which package, its format and size, and what to do with it (none without a package or an install) */}
+    {(variant || installed) && <div className="flex flex-col gap-2 rounded-2xl border border-[var(--border-color)] bg-[var(--bg-secondary)] p-2 sm:flex-row sm:items-center sm:gap-3 sm:pl-3">
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
         {packages.length > 1 ? <div className="w-full sm:w-44">
           <CustomDropdown floating className="w-full [&_button]:min-w-0" value={variant?.id} onChange={choose}
@@ -164,7 +164,7 @@ export function ModelPackagePanel(props: Props) {
             <Download size={14} /> Download
           </Button>}
       </div>
-    </div>
+    </div>}
 
     {stats.length > 0 && <div className="flex flex-wrap gap-2">
       {stats.map(([Icon, text, title]) => <span key={title} title={title}
