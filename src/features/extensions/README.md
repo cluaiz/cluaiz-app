@@ -202,19 +202,20 @@ offline install; metadata and installed-inventory errors have separate owners.
 
 ## A model's page
 
-The selected model's page has one top card and one Details card, then the README.
-The top card holds the name, a short line (quantization, size, how many sizes there
-are), the size picker (only when there is more than one), Download or Installed, and
-the `cluaiz run` command with a copy button. Details uses the shared `DetailRows`
-(also used by tool pages): About (parameters, maker, context), This package
-(quantization, format, download size), Good for (tasks in words), Architecture,
-Downloads and Your computer, each left out when the catalogue has no value
-("Unknown", 0 downloads). Uninstall sits at the bottom of Details. Before, a
-Specifications grid printed "Unknown" and "0", a separate card held the command, the
-header said "1 quantizations · 1 packages" and the red uninstall sat in the header;
-the owner asked for a neat page. Checked with test catalogue data (the model
-catalogue is served only by a local website in development) at 1440 and 320 px: no
-sideways scroll, no console errors.
+Under the hero (which already names the maker, architecture and tasks) the selected
+model has one bar: the size picker (only with more than one package), the format,
+the size, and Download, or Installed with a hold-to-uninstall button. The picker
+marks every installed package ("2.55 GiB · ✓ Installed"), not only the chosen one,
+so choosing another size that shows Download is not mistaken for a missing install.
+Below the bar, small chips show only what the hero does not (parameters, context,
+downloads, published month), each left out when the catalogue has no value; then
+the `cluaiz run` command with Copy, then the README. An earlier version repeated the
+hero's facts in a Details card, put uninstall at its bottom and showed "Your
+computer" (RAM and VRAM without saying whether the model fits); the owner found it
+spread out and repetitive, so it became this one bar. Whether a model fits the
+computer is the Engine's answer (`system.plan`), not shown here yet. Checked with test
+catalogue data (one package matching the test Engine's installed Qwen3.5 4B) at 1440
+and 320 px: no sideways scroll, no console errors.
 
 ## Managing an installed tool
 
