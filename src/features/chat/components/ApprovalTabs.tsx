@@ -25,11 +25,11 @@ function ApprovalTab({ approval }: { approval: ChatApproval }) {
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const decide = async (approved: boolean) => {
+    const decide = async (approved: boolean, remember?: 'chat') => {
         setBusy(true);
         setError(null);
         try {
-            await decideChatApproval(approval, approved, approved ? undefined : reason.trim() || undefined);
+            await decideChatApproval(approval, approved, approved ? undefined : reason.trim() || undefined, remember);
         } catch (err) {
             setError(errorMessage(err));
         } finally {
@@ -51,6 +51,9 @@ function ApprovalTab({ approval }: { approval: ChatApproval }) {
                 </button>
                 <button type="button" className={attachedTabAction} disabled={busy} onClick={() => void decide(false)} title="Reject this call">
                     <X className="w-3.5 h-3.5" /> Reject
+                </button>
+                <button type="button" className={attachedTabAction} disabled={busy} onClick={() => void decide(true, 'chat')} title="Approve, and let this tool run without asking in this chat for an hour">
+                    <Check className="w-3.5 h-3.5" /> Allow in chat
                 </button>
                 <button type="button" className={`${attachedTabAction} !text-[var(--accent-color)] hover:opacity-80`} disabled={busy} onClick={() => void decide(true)} title="Approve this call">
                     <Check className="w-3.5 h-3.5" /> Approve

@@ -24,7 +24,7 @@ export interface PermissionState {
   generateAuthToken: () => Promise<string>;
   revokeAuthToken: (token: string) => Promise<void>;
   fetchPendingPermissions: () => Promise<void>;
-  approvePermission: (requestId: string, feedback?: string) => Promise<void>;
+  approvePermission: (requestId: string, feedback?: string, remember?: 'chat') => Promise<void>;
   rejectPermission: (requestId: string, feedback?: string) => Promise<void>;
   setAuthModalOpen: (open: boolean) => void;
   reset: () => void;
@@ -57,13 +57,13 @@ export const usePermissionStore = create<PermissionState>((set, get) => {
       if (started === epoch) tokenBusy = false;
     }
   }
-  async function decide(requestId: string, approved: boolean, feedback?: string) {
+  async function decide(requestId: string, approved: boolean, feedback?: string, remember?: 'chat') {
     if (deciding.has(requestId)) throw new ApiError('This approval is already being submitted', 409, 'APPROVAL_ACTION_PENDING');
     const started = epoch;
     deciding.add(requestId);
     ++pendingVersion;
     try {
-      await (approved ? permissionApi.approvePermission(requestId, feedback) : permissionApi.rejectPermission(requestId, feedback));
+      await (approved ? permissionApi.approvePermission({ request_id: requestId, feedback, remember }) : permissionApi.rejectPermission(requestId, feedback));
       assertCurrent(started);
       ++pendingVersion;
       set({ pendingRequests: get().pendingRequests.filter(request => request.id !== requestId), error: null });
@@ -194,7 +194,7 @@ export const usePermissionStore = create<PermissionState>((set, get) => {
       }
     },
 
-    approvePermission: (requestId, feedback) => decide(requestId, true, feedback),
+    approvePermission: (requestId, feedback, remember) => decide(requestId, true, feedback, remember),
     rejectPermission: (requestId, feedback) => decide(requestId, false, feedback),
 
     reset: () => {

@@ -17,12 +17,12 @@ const deciding = new Set<string>();
  * The user's answer to a waiting call, from the card above the input or from a notification:
  * the Engine is told first, then the chat shows the decision.
  */
-export async function decideChatApproval(approval: Pick<ChatApproval, 'sessionId' | 'requestId'>, approved: boolean, feedback?: string) {
+export async function decideChatApproval(approval: Pick<ChatApproval, 'sessionId' | 'requestId'>, approved: boolean, feedback?: string, remember?: 'chat') {
     if (deciding.has(approval.requestId)) return;
     deciding.add(approval.requestId);
     try {
         const store = usePermissionStore.getState();
-        if (approved) await store.approvePermission(approval.requestId);
+        if (approved) await store.approvePermission(approval.requestId, undefined, remember);
         else await store.rejectPermission(approval.requestId, feedback);
         useChatStore.getState().resolvePermissionRequest(approval.sessionId, approval.requestId,
             approved ? 'approved' : 'rejected', approved ? undefined : feedback);

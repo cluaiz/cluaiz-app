@@ -29,7 +29,8 @@ export async function decideApproval(approved: boolean, payloadOrId: ApprovalAct
     throw new ApiError('An approval id and optional text feedback are required', 400, 'INVALID_APPROVAL_REQUEST', method);
   }
   const value = await callCep<ApprovalActionResponse>(method, { approval_id: payload.request_id,
-    ...(payload.feedback !== undefined && { feedback: payload.feedback }) });
+    ...(payload.feedback !== undefined && { feedback: payload.feedback }),
+    ...(approved && payload.remember && { remember: payload.remember }) });
   if (!value || !record(value.approval, approved ? 'approved' : 'rejected') || value.approval.id !== payload.request_id) invalid(method);
   return value;
 }

@@ -46,7 +46,7 @@ All operations below use the shared `POST /v1/cep` caller. Features call the fac
 | `generateAuthToken()` | `tokens.create` | Same fields plus `token`, which must occur in the returned list |
 | `revokeAuthToken(token)` | `tokens.revoke` | Complete key from saved inventory; same fields plus matching `revoked_token` |
 | `getPendingPermissions(signal?)` | `approvals.list` | `pending`, possibly empty; each record has id, principal, method, target, created_at, expires_at, status |
-| `approvePermission(id, feedback?)` | `approvals.approve` | `approval_id`, optional feedback; matching `approval` with `approved` status |
+| `approvePermission(id, feedback?, remember?)` | `approvals.approve` | `approval_id`, optional feedback, and `remember: "chat"` for the chat card's "Allow in chat" (the Engine lets that tool run without asking in that chat for 60 minutes); matching `approval` with `approved` status |
 | `rejectPermission(id, feedback?)` | `approvals.reject` | Same input; matching `approval` with `rejected` status |
 
 Decision calls also accept the existing `{request_id, feedback?}` facade argument. The Engine timestamps stay RFC3339 strings; the App does not invent creation times. Decisions do not automatically retry the protected operation. A waiting chat call is resumed by the Engine; a generic CEP approval may require the original caller to retry with its approval metadata.

@@ -104,6 +104,8 @@ export interface PendingPermissionsResponse {
 export interface ApprovalActionRequest {
   request_id: string;
   feedback?: string;
+  /** "chat": the tool also runs without asking in this chat for a while (the Engine's grant) */
+  remember?: 'chat';
 }
 
 export interface ApprovalActionResponse {
