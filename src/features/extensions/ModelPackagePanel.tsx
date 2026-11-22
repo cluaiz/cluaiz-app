@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import { CalendarDays, Check, CheckCircle2, Copy, Download, FileText, Layers, Loader2, Pause, Play, ScrollText, Terminal, Trash2, X, type LucideIcon } from 'lucide-react';
-import { isCompanion, modelInstallReference, modelReadme, variantTag, type PublicModel, type PublicVariant } from '../../api/catalogue/models';
+import { isCompanion, modelInstallReference, modelReadme, packagesUnknown, variantTag, type PublicModel, type PublicVariant } from '../../api/catalogue/models';
 import type { ModelRegistryEntry } from '../../api/engine/models/models.types';
 import { HoldButton } from '../../components/HoldButton/HoldButton';
 import { DANGER_HOLD } from '../../components/HoldButton/dangerHold';
@@ -30,6 +30,8 @@ interface Props {
   canStart: boolean;
   inventoryReady: boolean;
   hardware: CachedHardwareProfile | null;
+  /** Reads the catalogue again (after the registry could not reach Hugging Face) */
+  onRetry?(): void;
 }
 
 const gib = (bytes: number) => bytes > 0 ? `${(bytes / 1024 ** 3).toFixed(2)} GiB` : 'Unknown';
@@ -103,11 +105,15 @@ export function ModelPackagePanel(props: Props) {
   let reference = '', unavailable = '';
   try {
     if (variant) reference = modelInstallReference(model, variant);
-    else unavailable = 'No downloadable packages are listed for this model.';
+    else unavailable = packagesUnknown(model)
+      ? 'Hugging Face did not answer the registry in time, so the sizes of this model are not known right now.'
+      : 'No downloadable packages are listed for this model.';
   } catch (error) {
     unavailable = error instanceof Error ? error.message : String(error);
   }
-  const installed = installedModelForVariant(props.installed, model, variant);
+  // Without a package list the install is still known by its repository, so it is never offered for download again
+  const installed = installedModelForVariant(props.installed, model, variant)
+    ?? (variant ? undefined : props.installed.find(entry => entry.huggingface_repo === model.repo));
   const download = useModelDownloadStore(state => state.download);
   const paused = useModelDownloadStore(state => state.paused);
   const packages = model.variants.filter(item => !isCompanion(model, item));
@@ -152,7 +158,7 @@ export function ModelPackagePanel(props: Props) {
         </> : download?.target === reference && reference ? <DownloadingButton percent={download.percent} cancel="hold" onPause={props.onPause} onCancel={props.onCancel} />
           : reference && Object.prototype.hasOwnProperty.call(paused, reference) ? <PausedButton percent={paused[reference]}
             onResume={() => { if (variant && !download) void props.onInstall(model, variant); }} onDiscard={() => props.onDiscard(reference)} /> :
-          <Button size="sm" disabled={!reference || !props.inventoryReady || !props.canStart || Boolean(download)}
+          !variant ? null : <Button size="sm" disabled={!reference || !props.inventoryReady || !props.canStart || Boolean(download)}
             title={download ? 'Another model is downloading; one download runs at a time' : undefined}
             onClick={() => { if (variant) void props.onInstall(model, variant); }}>
             <Download size={14} /> Download
@@ -175,7 +181,10 @@ export function ModelPackagePanel(props: Props) {
       </Button>
     </div>}
     {copyError && <p role="alert" className="text-xs text-[var(--status-error)]">{copyError}</p>}
-    {unavailable && <p role="alert" className="text-sm text-[var(--status-error)]">{unavailable}</p>}
+    {unavailable && <div role="alert" className="flex flex-wrap items-center gap-2 text-sm text-[var(--text-secondary)]">
+      <span>{unavailable}</span>
+      {packagesUnknown(model) && props.onRetry && <Button variant="secondary" size="sm" onClick={props.onRetry}>Try again</Button>}
+    </div>}
 
     <ModelReadme model={model} />
   </section>;

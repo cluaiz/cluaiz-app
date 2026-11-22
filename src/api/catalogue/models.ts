@@ -3,7 +3,9 @@ import { readPublicCatalogue, MODEL_REGISTRY_ORIGIN } from './public';
 export interface PublicVariant { id: string; quant: string; format: string; bytes: number; file: string; readiness: string; }
 export interface PublicModel { id: string; family: string; familyId: string; name: string; provider: string; repo: string; description: string;
   tasks: string[]; support: string; note: string; variants: PublicVariant[];
-  logo: string; familyDescription: string; architecture: string; parameters: string; context: string; created: string; downloads: number | null; }
+  logo: string; familyDescription: string; architecture: string; parameters: string; context: string; created: string; downloads: number | null;
+  /** The registry's live package lookup: `ready`, `error` (Hugging Face did not answer) or `unavailable` (no package matched) */
+  discovery: string; }
 const text = (value: unknown): string => typeof value === 'string' ? value.slice(0, 4096) : '';
 const object = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
 
@@ -24,7 +26,7 @@ export function parseModels(value: unknown): PublicModel[] {
         logo: text(family.logo), familyDescription: text(family.description), architecture: text(model.architecture) || text(family.architecture),
         parameters: text(model.parameters), context: text(model.context_window), created: text(model.created_at) || text(family.created_at),
         downloads: typeof model.downloads === 'number' && Number.isFinite(model.downloads) && model.downloads >= 0 ? model.downloads : null,
-        repo: text(model.hf_repo), description: text(model.description), support: text(model.runtime_status) || 'unknown', note: text(model.support_note),
+        repo: text(model.hf_repo), description: text(model.description), discovery: text(model.discovery_status), support: text(model.runtime_status) || 'unknown', note: text(model.support_note),
         tasks: Array.isArray(model.task) ? model.task.filter((t): t is string => typeof t === 'string').slice(0, 64) : [],
         variants: variants.map(v => {
           if (!object(v) || !text(v.id) || !text(v.quantTag) || !['gguf', 'onnx'].includes(String(v.format))
@@ -94,6 +96,9 @@ export const modelCatalogue = { list: (refresh = false) =>
   readPublicCatalogue(`${MODEL_REGISTRY_ORIGIN}/api/v1/registry/models`, parseModels, refresh) };
 
 /** A model's README from the registry (cluaiz.com), as Markdown */
+/** The registry could not reach Hugging Face for this model, so its packages are unknown, not absent */
+export const packagesUnknown = (model: Pick<PublicModel, 'variants' | 'discovery'>) => !model.variants.length && model.discovery === 'error';
+
 export const modelReadme = (model: PublicModel, refresh = false) => readPublicCatalogue(
   `${MODEL_REGISTRY_ORIGIN}/api/v1/registry/models/readme?${new URLSearchParams({ family: model.familyId, model: model.id })}`,
   value => { if (!object(value)) throw new Error('Invalid model README'); return text(value.readme) ? String(value.readme).slice(0, 512 * 1024) : ''; },

@@ -1,6 +1,6 @@
 import React from 'react';
 import { CheckCircle2, Circle, Download } from 'lucide-react';
-import type { PublicModel, PublicVariant } from '../../api/catalogue/models';
+import { packagesUnknown, type PublicModel, type PublicVariant } from '../../api/catalogue/models';
 import type { ModelRegistryEntry } from '../../api/engine/models/models.types';
 import { CatalogueLogo } from './CatalogueUI';
 import { cleanModelDescription, isModelInstalled } from './catalogueView';
@@ -165,7 +165,7 @@ export const ModelSliderCard: React.FC<ModelSliderCardProps> = ({
       description={cleanModelDescription(model.description)
         || cleanModelDescription(model.familyDescription)
         || 'Foundation model ready for inference.'}
-      footerStart={`${variants.length} ${variants.length === 1 ? 'package' : 'packages'}`}
+      footerStart={packagesUnknown(model) ? 'Packages not loaded' : `${variants.length} ${variants.length === 1 ? 'package' : 'packages'}`}
       footerEnd={[...new Set(variants.map(variant => variant.format))].join(' · ')}
       className={className}
       isActive={isActive}

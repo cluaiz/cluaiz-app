@@ -141,3 +141,16 @@ test('the size picker marks every installed package, not only the chosen one', (
   assert.match(options[0].description, /Installed/);
   assert.doesNotMatch(options[1].description, /Installed/);
 });
+
+test('packages the registry could not look up are not called absent, and an install of the repository stays Installed', () => {
+  let retried = 0;
+  const lookupFailed = { ...model, variants: [], discovery: 'error' };
+  const p = panel({ model: lookupFailed, onRetry: () => { retried++; },
+    installed: [{ id: 'engine-id', huggingface_repo: model.repo, format: 'gguf', files: [] }] });
+  assert.match(text(p.tree), /did not answer the registry in time/);
+  assert.doesNotMatch(text(p.tree), /No downloadable packages/);
+  assert.ok(p.items.some(item => item.type === 'SharedBadge' && text(item).includes('Installed')));
+  assert.ok(!p.items.some(item => item.type === 'SharedButton' && text(item).includes('Download')));
+  p.items.find(item => item.type === 'SharedButton' && text(item).includes('Try again')).props.onClick();
+  assert.equal(retried, 1);
+});

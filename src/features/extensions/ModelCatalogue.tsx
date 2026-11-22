@@ -342,7 +342,7 @@ export function ModelCatalogue() {
             <ModelPackagePanel key={selectedModel.id} model={selectedModel} installed={installed}
               selectedVariantId={selectedVariantByModel[selectedModel.id]}
               onSelectVariant={id => setSelectedVariantByModel(previous => ({ ...previous, [selectedModel.id]: id }))}
-              onInstall={install} onUninstall={uninstall} onPause={() => void pause()} onCancel={() => void cancelDownload()} onDiscard={target => void discard(target)} canStart={download.canStart} inventoryReady={inventoryReady}
+              onInstall={install} onUninstall={uninstall} onPause={() => void pause()} onCancel={() => void cancelDownload()} onDiscard={target => void discard(target)} canStart={download.canStart} inventoryReady={inventoryReady} onRetry={() => void catalogue.refresh()}
               hardware={hardwareProfile} />
 
             {/* Technical Metadata Section */}
@@ -470,7 +470,7 @@ export function ModelCatalogue() {
                         return model ? <ModelPackagePanel key={model.id} model={model} installed={installed}
                           selectedVariantId={selectedVariantByModel[model.id]}
                           onSelectVariant={id => setSelectedVariantByModel(previous => ({ ...previous, [model.id]: id }))}
-                          onInstall={install} onUninstall={uninstall} onPause={() => void pause()} onCancel={() => void cancelDownload()} onDiscard={target => void discard(target)} canStart={download.canStart} inventoryReady={inventoryReady}
+                          onInstall={install} onUninstall={uninstall} onPause={() => void pause()} onCancel={() => void cancelDownload()} onDiscard={target => void discard(target)} canStart={download.canStart} inventoryReady={inventoryReady} onRetry={() => void catalogue.refresh()}
                           hardware={hardwareProfile} /> : null;
                       })()}
                     </div>
