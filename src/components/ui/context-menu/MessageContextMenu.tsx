@@ -10,7 +10,8 @@ import {
     Reply,
     Pin,
     PinOff,
-    StarOff
+    StarOff,
+    Pencil
 } from 'lucide-react';
 import { EmojiMeta } from '../../../assets/EmojiMeta';
 import { LottieEmoji } from './LottieEmoji';
@@ -25,6 +26,8 @@ interface MessageContextMenuProps {
     isPinned: boolean;
     isStarred: boolean;
     isDeleted?: boolean;
+    /** The chat's last message of yours: Edit puts it back in the input to change and send again */
+    canEdit?: boolean;
     onClose: () => void;
     onAction: (action: string) => void;
     onReact: (emoji: string) => void;
@@ -42,6 +45,7 @@ export const MessageContextMenu: React.FC<MessageContextMenuProps> = ({
     isPinned,
     isStarred,
     isDeleted = false,
+    canEdit = false,
     onClose,
     onAction,
     onReact
@@ -73,6 +77,7 @@ export const MessageContextMenu: React.FC<MessageContextMenuProps> = ({
     ];
 
     const actions = [
+        ...(canEdit ? [{ id: 'edit', label: 'Edit', icon: Pencil }] : []),
         { id: 'reply', label: 'Reply', icon: Reply },
         { id: 'copy', label: 'Copy', icon: Copy },
         { id: 'pin', label: isPinned ? 'Unpin Message' : 'Pin Message', icon: isPinned ? PinOff : Pin },
@@ -170,8 +175,7 @@ export const MessageContextMenu: React.FC<MessageContextMenuProps> = ({
                                 .filter(act => !isDeleted || ['delete', 'select'].includes(act.id))
                                 .map((act, index) => (
                                     <React.Fragment key={act.id}>
-                                        {index > 0 && index === 2 && !isDeleted && <div className="h-[1px] bg-[var(--border-color)] mx-2 my-1" />}
-                                        {index > 0 && index === 5 && !isDeleted && <div className="h-[1px] bg-[var(--border-color)] mx-2 my-1" />}
+                                        {index > 0 && (act.id === 'pin' || act.id === 'delete') && !isDeleted && <div className="h-[1px] bg-[var(--border-color)] mx-2 my-1" />}
                                         <button
                                             onClick={() => {
                                                 onAction(act.id);

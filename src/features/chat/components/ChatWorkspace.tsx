@@ -258,6 +258,10 @@ export function ChatWorkspace({ workspace, chatBinding }: { workspace?: React.Re
         } else if (action === 'select') {
             setIsSelectionMode(true);
             setSelectedMessageIndices([index]);
+        } else if (action === 'edit') {
+            // The last message of yours goes back into the input; it and the answer after it leave the chat until sent again
+            setInputValue(messages[index].text);
+            for (let at = messages.length - 1; at >= index; at--) deleteMessage(activeSessionId, at);
         }
         setMsgMenu(null);
     };
@@ -763,6 +767,8 @@ main().catch(console.error);`);
                     isOpen={msgMenu.isOpen}
                     isPinned={msgMenu.isPinned}
                     isStarred={msgMenu.isStarred}
+                    canEdit={!streamingHere && messages[msgMenu.messageIndex]?.sender === 'user'
+                        && !messages.slice(msgMenu.messageIndex + 1).some(message => message.sender === 'user')}
                     onClose={() => setMsgMenu(null)}
                     onAction={(act) => handleMessageAction(act, msgMenu.messageIndex)}
                     onReact={(emoji) => handleMessageReact(emoji, msgMenu.messageIndex)}
