@@ -713,6 +713,21 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     const connectionKey = useConnectionStore(state => state.getBaseUrl());
     useEffect(() => { void useProvidersStore.getState().refresh(); }, [connectionKey]);
     useEffect(() => { if (isModelOpen) void useProvidersStore.getState().refresh(); }, [isModelOpen]);
+    const [modelQuery, setModelQuery] = useState('');
+    const modelListRef = useRef<HTMLDivElement>(null);
+    // On open: clear the search and bring the chosen model into view, so it is never hidden below the fold
+    useEffect(() => {
+        if (!isModelOpen) return;
+        setModelQuery('');
+        requestAnimationFrame(() => modelListRef.current?.querySelector('[data-chosen-model="true"]')?.scrollIntoView({ block: 'nearest' }));
+    }, [isModelOpen]);
+    /** Toolkit → AI Models, on the local catalogue (install) or the cloud providers (add a key) */
+    const openModelsPage = (place: 'local' | 'cloud') => {
+        setIsModelOpen(false);
+        useModelCatalogueStore.getState().setPlace(place); useModelCatalogueStore.getState().setListing('browse');
+        useLayoutStore.getState().setActiveView('toolkit');
+        navigateTo({ view: 'toolkit' });
+    };
     const selectCloudModel = (id: string) => {
         useProvidersStore.getState().setChatModel(id);
         setIsModelOpen(false);
@@ -1619,12 +1634,17 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             </button>
 
             {isModelOpen && (
-                <div className={`absolute left-0 w-72 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl shadow-2xl overflow-hidden p-1.5 z-50 flex flex-col gap-1 max-h-72 overflow-y-auto custom-scrollbar ${modelSlot ? 'top-full mt-2' : 'bottom-full mb-2'}`}>
+                <div className={`absolute left-0 w-72 max-w-[calc(100cqw-1rem)] bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl shadow-2xl overflow-hidden z-50 flex flex-col max-h-[min(30rem,70vh)] ${modelSlot ? 'top-full mt-2' : 'bottom-full mb-2'}`}>
+                  <div ref={modelListRef} className="flex flex-col gap-1 p-1.5 overflow-y-auto custom-scrollbar min-h-0">
                     {/* Header */}
                     <div className="px-2 py-1 text-[10px] uppercase tracking-wider font-semibold text-[var(--text-muted)] select-none border-b border-[var(--border-color)]/40 pb-1.5 mb-0.5 flex items-center justify-between">
                         <span>Select AI Model</span>
                         <span className="text-[9px] font-mono text-[var(--text-muted)]">Local & Cloud</span>
                     </div>
+                    {modelOptions.length + cloudModels.length > 6 && (
+                        <input autoFocus value={modelQuery} onChange={event => setModelQuery(event.target.value)} placeholder="Search models" aria-label="Search models"
+                            className="mx-1 mb-1 rounded-lg border border-[var(--border-color)] bg-[var(--bg-primary)] px-2.5 py-1.5 text-xs text-[var(--text-primary)] outline-none placeholder-[var(--text-muted)] focus:border-[var(--accent-color)]" />
+                    )}
 
                     {/* Group 1: Local Engine Models */}
                     <div className="px-2 pt-1 pb-0.5 text-[9px] uppercase font-bold text-[var(--text-muted)] flex items-center justify-between">
@@ -1641,12 +1661,13 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                     {!chatModels.loading && !chatModels.error && modelOptions.length === 0 && (
                         <p className="px-2 py-1 text-xs text-[var(--text-muted)]">No local models installed.</p>
                     )}
-                    {modelOptions.map(model => {
+                    {modelOptions.filter(model => !modelQuery.trim() || model.fullName.toLowerCase().includes(modelQuery.trim().toLowerCase())).map(model => {
                         const isSelected = !currentModel.isCloud && currentModel.id === model.id;
                         return (
                             <button
                                 type="button"
                                 key={model.id}
+                                data-chosen-model={isSelected}
                                 disabled={chatModels.selecting}
                                 onClick={async () => {
                                     try {
@@ -1678,23 +1699,19 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                         {cloudModels.length === 0 && (
                             <button
                                 type="button"
-                                onClick={() => {
-                                    setIsModelOpen(false);
-                                    useModelCatalogueStore.getState().setPlace('cloud'); useModelCatalogueStore.getState().setListing('browse');
-                                    useLayoutStore.getState().setActiveView('toolkit');
-                                    navigateTo({ view: 'toolkit' });
-                                }}
+                                onClick={() => openModelsPage('cloud')}
                                 className="w-full px-2 py-1 text-xs text-left text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
                             >
                                 Add a provider in Toolkit → AI Models → Cloud
                             </button>
                         )}
-                        {cloudModels.map(model => {
+                        {cloudModels.filter(model => !modelQuery.trim() || `${model.model} ${model.provider}`.toLowerCase().includes(modelQuery.trim().toLowerCase())).map(model => {
                             const isSelected = currentModel.isCloud && currentModel.id === model.model;
                             return (
                                 <button
                                     type="button"
                                     key={model.model}
+                                    data-chosen-model={isSelected}
                                     onClick={() => selectCloudModel(model.model)}
                                     title={model.model}
                                     className={`w-full flex items-center justify-between px-2.5 py-1.5 text-[0.7rem] @lg/chat:text-xs font-medium rounded-lg transition-colors cursor-pointer ${isSelected ? 'bg-[var(--bg-tertiary)] text-[var(--accent-color)] font-semibold' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]'}`}
@@ -1708,6 +1725,18 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                                 </button>
                             );
                         })}
+                    </div>
+                  </div>
+                    {/* Always in reach below the list: get more models */}
+                    <div className="flex shrink-0 gap-1 border-t border-[var(--border-color)]/60 p-1.5">
+                        <button type="button" onClick={() => openModelsPage('local')}
+                            className="flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[11px] font-medium text-[var(--text-secondary)] whitespace-nowrap hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)] cursor-pointer">
+                            <Plus className="w-3.5 h-3.5" /> Install models
+                        </button>
+                        <button type="button" onClick={() => openModelsPage('cloud')}
+                            className="flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[11px] font-medium text-[var(--text-secondary)] whitespace-nowrap hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)] cursor-pointer">
+                            <Cloud className="w-3.5 h-3.5 shrink-0" /> Add provider
+                        </button>
                     </div>
                 </div>
             )}
