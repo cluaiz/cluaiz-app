@@ -1,5 +1,6 @@
 import React from 'react';
 import { Volume2Icon, VolumeXIcon } from '@animateicons/react/lucide';
+import { TypingDots } from '../../../components/ui/TypingDots';
 import { CheckCheck, ChevronDown, ChevronUp, FileText, FileCode, Image as ImageIcon, Film, Music, Loader2 } from 'lucide-react';
 import { LottieEmoji } from '../../../components/ui/context-menu/LottieEmoji';
 import { EmojiMeta } from '../../../assets/EmojiMeta';
@@ -749,9 +750,7 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
                     {/* 5. Waiting indicator when streaming/generating and no text/tools/thinking yet */}
                     {isStreaming && !msg.text && !msg.toolCalls?.some(tc => tc.status === 'running') && !msg.thinking && !msg.postToolThinking && !msg.telemetry && (
                         <div className="flex items-center gap-1.5 py-2 px-1 text-[var(--text-muted)]">
-                            <span className="w-2 h-2 rounded-full bg-[var(--accent-color)] animate-bounce" style={{ animationDelay: '0ms' }} />
-                            <span className="w-2 h-2 rounded-full bg-[var(--accent-color)] animate-bounce" style={{ animationDelay: '150ms' }} />
-                            <span className="w-2 h-2 rounded-full bg-[var(--accent-color)] animate-bounce" style={{ animationDelay: '300ms' }} />
+                            <TypingDots className="gap-1.5" />
                             <span role="status" className="ml-2 text-xs">{processingLabel || 'Waiting for response'}</span>
                         </div>
                     )}

@@ -7,7 +7,8 @@ import { useLayoutStore } from '../../../store/ui/useLayoutStore';
 import { useThemeStore } from '../../../store/ui/useThemeStore';
 import { useEngineStore } from '../../../store/engine/useEngineStore';
 import { useChatStore } from '../../../store/chat/useChatStore';
-import { ChevronDown, Copy, Trash2, X, FileText, WifiOff, ArrowLeftRight, Loader2 } from 'lucide-react';
+import { ChevronDown, Copy, Trash2, X, FileText, WifiOff, ArrowLeftRight } from 'lucide-react';
+import { TypingDots } from '../../../components/ui/TypingDots';
 import * as Icons from '../../../components/animate-ui/icons';
 import { useIconHover } from '../../../components/animate-ui/icons';
 import { toast } from '../../../components/ui/toast';
@@ -616,8 +617,8 @@ main().catch(console.error);`);
                                         className="group absolute right-6 -top-12 z-50 bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] p-2 rounded-full shadow-2xl border border-[var(--border-color)] hover:bg-[var(--bg-secondary)] transition-colors cursor-pointer"
                                         style={{ borderStyle: 'var(--border-style)' }}
                                     >
-                                        {/* While the answer is written below, a spinner says so; pointing at it shows the arrow */}
-                                        {streamingHere && <Loader2 size={20} className="animate-spin text-[var(--accent-color)] group-hover:hidden" />}
+                                        {/* While the answer is written below, the chat's bouncing dots say so; pointing at it shows the arrow */}
+                                        {streamingHere && <span className="flex h-5 w-5 items-center justify-center group-hover:hidden"><TypingDots size="w-1 h-1" className="gap-0.5" /></span>}
                                         <ChevronDown size={20} className={streamingHere ? 'hidden group-hover:block' : undefined} />
                                         {unreadCount > 0 && (
                                             <span
