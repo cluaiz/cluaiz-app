@@ -610,3 +610,14 @@
   background: var(--text-muted);
 }
 
+
+/* ==========================================================================
+   Chat pane scale: the chat (Tailwind `@container/chat`) shrinks everything in it
+   together (text, padding, margins, cards, icons) as its own width goes down, the way
+   a phone screen would show it. One zoom per step instead of per-component sizes, so
+   nothing is missed; below 340px the pane lays out as if it were about 375px wide.
+   ========================================================================== */
+@container chat (max-width: 640px) { .\@container\/chat > * { zoom: 0.94; } }
+@container chat (max-width: 520px) { .\@container\/chat > * { zoom: 0.9; } }
+@container chat (max-width: 420px) { .\@container\/chat > * { zoom: 0.85; } }
+@container chat (max-width: 340px) { .\@container\/chat > * { zoom: 0.8; } }
