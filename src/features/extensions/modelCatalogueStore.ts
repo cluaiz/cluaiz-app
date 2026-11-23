@@ -56,14 +56,12 @@ export interface ModelCatalogueState {
 }
 
 export const useModelCatalogueStore = create<ModelCatalogueState>((set) => ({
-  family: '',
   selectedModel: null,
   query: '',
   providers: [],
   task: '',
   format: '',
   sort: 'popular',
-  view: 'families',
   ...fromUrl(),
   setPlace: (place) => { setToolkitParams({ place: place === 'cloud' ? place : null, provider: null, model: null, family: null, pick: null, ...NO_PAGE_FILTER }); set({ place, family: '', selectedModel: null, installedOnly: false }); },
   setListing: (listing) => { setToolkitParams({ list: listing === 'installed' ? listing : null }); set({ listing }); },
