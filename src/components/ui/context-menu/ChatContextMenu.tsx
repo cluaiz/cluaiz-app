@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Pin,
@@ -9,10 +9,14 @@ import {
     BellOff,
     Bell,
     CheckSquare,
-    ChevronLeft,
+    ChevronRight,
     Check,
-    Edit2
+    Edit2,
+    FolderInput,
+    FolderX
 } from 'lucide-react';
+import { ProjectIcon } from '../../../features/projects/ProjectIcons';
+import type { ChatProject } from '../../../store/chat/useChatProjectsStore';
 
 interface ChatContextMenuProps {
     x: number;
@@ -31,6 +35,9 @@ interface ChatContextMenuProps {
     onArchive: () => void;
     onToggleMute: () => void;
     chatId: string;
+    projects?: ChatProject[];
+    currentProjectId?: string;
+    onMoveToProject?: (projectId: string | undefined) => void;
 }
 
 function cn(...classes: (string | boolean | undefined | null)[]) {
@@ -53,9 +60,16 @@ export const ChatContextMenu: React.FC<ChatContextMenuProps> = ({
     onToggleFavourite,
     onArchive,
     onToggleMute,
-    chatId
+    projects = [],
+    currentProjectId,
+    onMoveToProject
 }) => {
     const menuRef = useRef<HTMLDivElement>(null);
+    const [showProjectPicker, setShowProjectPicker] = useState(false);
+
+    useEffect(() => {
+        if (!isOpen) setShowProjectPicker(false);
+    }, [isOpen]);
 
     useEffect(() => {
         if (!isOpen) return;
@@ -131,6 +145,55 @@ export const ChatContextMenu: React.FC<ChatContextMenuProps> = ({
                                 <Tag size={16} />
                                 <span>Add Label</span>
                             </button>
+
+                            {/* Move to Project */}
+                            {onMoveToProject && projects.length > 0 && (
+                                <div className="relative">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowProjectPicker(prev => !prev)}
+                                        className="w-full flex items-center justify-between gap-2 px-3.5 py-2.5 text-[13px] font-bold rounded-xl text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)] transition-colors text-left cursor-pointer"
+                                    >
+                                        <span className="flex items-center gap-3">
+                                            <FolderInput size={16} />
+                                            <span>Move to Project</span>
+                                        </span>
+                                        <ChevronRight size={14} className={`transition-transform ${showProjectPicker ? 'rotate-90' : ''}`} />
+                                    </button>
+                                    {showProjectPicker && (
+                                        <div className="mt-0.5 ml-3 pl-2 border-l border-[var(--border-color)] space-y-0.5 max-h-40 overflow-y-auto custom-scrollbar">
+                                            {currentProjectId && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => { onMoveToProject(undefined); onClose(); }}
+                                                    className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs font-semibold rounded-lg text-[var(--text-muted)] hover:text-rose-400 hover:bg-rose-500/10 transition-colors text-left cursor-pointer"
+                                                >
+                                                    <FolderX size={13} />
+                                                    <span>Remove from Project</span>
+                                                </button>
+                                            )}
+                                            {projects.map(p => (
+                                                <button
+                                                    key={p.id}
+                                                    type="button"
+                                                    onClick={() => { onMoveToProject(p.id); onClose(); }}
+                                                    className={`w-full flex items-center justify-between gap-2 px-2.5 py-1.5 text-xs font-semibold rounded-lg transition-colors text-left cursor-pointer ${
+                                                        currentProjectId === p.id
+                                                            ? 'bg-[var(--accent-color)]/15 text-[var(--accent-color)]'
+                                                            : 'text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]'
+                                                    }`}
+                                                >
+                                                    <span className="flex items-center gap-2 truncate">
+                                                        <ProjectIcon name={p.iconName} className="w-3.5 h-3.5 shrink-0" />
+                                                        <span className="truncate">{p.name}</span>
+                                                    </span>
+                                                    {currentProjectId === p.id && <Check size={12} className="shrink-0" />}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
 
 
                             {/* Separator */}

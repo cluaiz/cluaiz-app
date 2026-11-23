@@ -3,6 +3,7 @@ import type { ChatMessage } from '../../store/chat/types';
 export interface SessionIndexItem {
     id: string;
     extensionId?: string;
+    projectId?: string;
     title: string;
     createdAt: number;
     updatedAt: number;
@@ -32,6 +33,7 @@ export function withoutSession(index: SessionsIndex, id: string): SessionsIndex 
 export interface SessionMetadata {
     id: string;
     extensionId?: string;
+    projectId?: string;
     title: string;
     createdAt: number;
     updatedAt: number;

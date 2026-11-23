@@ -1,7 +1,7 @@
 import type { ModelLoadEvent } from '../../api/engine/models/models.types';
 import type { EngineLoadReport } from '../../core/engine';
 
-export interface CreateChatSessionOptions { incognito?: boolean; activate?: boolean; extensionId?: string; }
+export interface CreateChatSessionOptions { incognito?: boolean; activate?: boolean; extensionId?: string; projectId?: string; }
 
 /** A tool call that asked for the user's yes or no, and how it was answered */
 export interface ChatPermissionRequest {
@@ -82,6 +82,8 @@ export interface ChatSession {
     id: string;
     /** App-owned package identity; absent on ordinary chats. Not an Engine credential. */
     extensionId?: string;
+    /** Chat Project folder ID when this chat belongs to a Project */
+    projectId?: string;
     title: string;
     avatar?: string;
     tags: string[];

@@ -36,6 +36,7 @@ const syncIndexToStorage = (sessions: Record<string, ChatSession>, activeId: str
         return {
             id: s.id,
             extensionId: s.extensionId,
+            projectId: s.projectId,
             title: s.title || 'New Chat',
             createdAt: s.createdAt,
             updatedAt: s.updatedAt,
@@ -66,6 +67,7 @@ const syncSessionMeta = (session: ChatSession) => {
     chatStorageManager.saveSessionMetadata(session.id, {
         id: session.id,
         extensionId: session.extensionId,
+        projectId: session.projectId,
         title: session.title || 'New Chat',
         createdAt: session.createdAt,
         updatedAt: session.updatedAt
@@ -114,6 +116,7 @@ export const useChatStore = create<ChatStore>()(
                         sessionsMap[s.id] = {
                             id: s.id,
                             extensionId: s.extensionId,
+                            projectId: s.projectId,
                             title: s.title || 'New Chat',
                             tags: Array.isArray(s.tags) ? s.tags : [],
                             unread: 0,
@@ -147,6 +150,7 @@ export const useChatStore = create<ChatStore>()(
                             sessionsMap[routeChatId] = {
                                 id: routeChatId,
                                 extensionId: meta?.extensionId,
+                                projectId: meta?.projectId,
                                 title: meta?.title || 'New Chat',
                                 tags: [],
                                 unread: 0,
@@ -194,6 +198,7 @@ export const useChatStore = create<ChatStore>()(
             const newSession: ChatSession = {
                 id,
                 extensionId: options?.extensionId,
+                projectId: options?.projectId,
                 title: initialTitle || 'New Chat',
                 tags: [],
                 unread: 0,

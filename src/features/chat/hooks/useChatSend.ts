@@ -3,6 +3,7 @@ import { toast } from '../../../components/ui/toast';
 import type { Dispatch, SetStateAction } from 'react';
 import { useChatStore } from '../../../store/chat/useChatStore';
 import type { ChatMessage } from '../../../store/chat/useChatStore';
+import { buildProjectContextParts, useChatProjectsStore } from '../../../store/chat/useChatProjectsStore';
 import { useEngineStore } from '../../../store/engine/useEngineStore';
 import { inferChatTopicAndEmoji } from '../../../utils/topicProber';
 import { errorMessage } from '../../../api/client/errors';
@@ -48,7 +49,11 @@ export function useChatSend({ inputValue, setInputValue, replyingTo, setReplying
         }
 
         if (!sessionId) {
-            sessionId = store.createNewSession(isIncognito ? 'Temporary Chat' : undefined, { incognito: isIncognito });
+            const activeProjectId = isIncognito ? undefined : (useChatProjectsStore.getState().activeProjectId || undefined);
+            sessionId = store.createNewSession(isIncognito ? 'Temporary Chat' : undefined, {
+                incognito: isIncognito,
+                projectId: activeProjectId,
+            });
         } else if (isIncognito) {
             store.updateSession(sessionId, s => ({ ...s, isIncognito: true }));
         }
@@ -138,7 +143,27 @@ export function useChatSend({ inputValue, setInputValue, replyingTo, setReplying
             // Build conversation history from the active session for context memory
             const currentSession = useChatStore.getState().sessions[sessionId];
             const contextMessages = selectChatContext(currentSession?.messages || []);
-            const conversationMessages = buildChatHistory(contextMessages);
+            const baseMessages = buildChatHistory(contextMessages);
+            const activeProject = currentSession?.projectId
+                ? useChatProjectsStore.getState().projects[currentSession.projectId]
+                : undefined;
+            const projectContext = buildProjectContextParts(activeProject);
+            const conversationMessages: Array<{ role: string; content: any }> = projectContext.systemPrefix
+                ? [{ role: 'system', content: projectContext.systemPrefix }, ...baseMessages]
+                : baseMessages;
+            if (projectContext.attachmentParts.length > 0 && conversationMessages.length > 0) {
+                const lastIdx = conversationMessages.length - 1;
+                const last = conversationMessages[lastIdx];
+                if (last.role === 'user') {
+                    const existingParts = Array.isArray(last.content)
+                        ? last.content
+                        : [{ type: 'text', text: String(last.content || '') }];
+                    conversationMessages[lastIdx] = {
+                        ...last,
+                        content: [...projectContext.attachmentParts, ...existingParts],
+                    };
+                }
+            }
 
             const isPrivateSession = Boolean(currentSession?.isIncognito);
             const chatOptions = {

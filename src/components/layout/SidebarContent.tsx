@@ -10,6 +10,8 @@ import {
 import { useLayoutStore } from '../../store/ui/useLayoutStore';
 import { useThemeStore } from '../../store/ui/useThemeStore';
 import { useChatStore } from '../../store/chat/useChatStore';
+import { useChatProjectsStore } from '../../store/chat/useChatProjectsStore';
+import { ProjectSidebarDirectory } from '../../features/projects/ProjectSidebarDirectory';
 import { isTauri } from '../../core/tauri-api';
 import { Tooltip } from '../ui/tooltip';
 import { Icons, useIconHover } from '../animate-ui/icons';
@@ -135,6 +137,7 @@ interface SidebarContentProps {
 
 interface MockChat {
     id: string;
+    projectId?: string;
     name: string;
     avatar: string;
     time: string;
@@ -202,6 +205,15 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
     // 💬 Dynamic interactive chats state matching screenshot visual layouts
     const { sessions, activeSessionId, switchSession, updateSession, deleteSession } = useChatStore();
     const streamingSessionId = useChatStore(s => s.streamingSessionId);
+    const {
+        projects: chatProjectsMap,
+        openProject,
+        closeProject,
+    } = useChatProjectsStore();
+    const chatProjects = useMemo(
+        () => Object.values(chatProjectsMap).sort((a, b) => b.updatedAt - a.updatedAt),
+        [chatProjectsMap]
+    );
 
     const chats = useMemo(() => {
         return Object.values(sessions).filter(s => !s.isIncognito).map(session => {
@@ -259,6 +271,7 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
             const displayName = session.title?.trim() || session.lastMessagePreview?.slice(0, 24) || 'New Chat';
             return {
                 id: session.id,
+                projectId: session.projectId,
                 name: displayName,
                 avatar: session.avatar || '',
                 time: timeStr,
@@ -362,7 +375,7 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
     // Filter tabs: standard categories + dynamic user tags (only show tags actively assigned to >=1 chat)
     const filterTabs = useMemo(() => {
         const hasPinnedChats = chats.some(c => c.pinned && !c.archived);
-        const baseTabs = hasPinnedChats ? ['All', 'Pinned', 'Old', 'Archive'] : ['All', 'Old', 'Archive'];
+        const baseTabs = hasPinnedChats ? ['All', 'Project', 'Pinned', 'Old', 'Archive'] : ['All', 'Project', 'Old', 'Archive'];
 
         // Tags actively assigned to non-archived chats
         const activeChatTags = new Set(
@@ -710,7 +723,7 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                 </div>
             </div>
 
-            {/* Horizontal Filter Tabs: All, Pinned, Old, Archive + User custom labels */}
+            {/* Horizontal Filter Tabs: All, Project, Pinned, Old, Archive + User custom labels */}
             <div className={`mb-1 ${inFlyout ? 'px-3' : 'px-4'}`}>
                 <Tabs
                     variant="tags"
@@ -727,69 +740,89 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                 />
             </div>
 
-            {/* Chat list viewport */}
+            {/* Chat list or Project drill-down directory */}
             <div className={`flex-1 overflow-y-auto py-1 space-y-3 custom-scrollbar ${inFlyout ? 'px-1' : 'px-2'}`}>
-                {groupedChats.map((group) => (
-                    <div key={group.title} className="space-y-0.5">
-                        {/* Section Header */}
-                        <div className="px-2.5 pt-2 pb-1 text-[11px] font-semibold text-[var(--text-muted)] tracking-wide select-none flex items-center gap-1.5">
-                            {group.title === 'Pinned' && <Icons.Pin className="w-3 h-3 text-[var(--accent-color)]" />}
-                            <span>{group.title}</span>
-                        </div>
+                {activeFilter.toLowerCase() === 'project' ? (
+                    <ProjectSidebarDirectory
+                        chats={chats}
+                        searchQuery={searchQuery}
+                        selectMode={selectMode}
+                        selectedIds={selectedIds}
+                        editingChatId={editingChatId}
+                        inFlyout={inFlyout}
+                        onCloseFlyout={() => setIsFlyoutOpen(false)}
+                        onSetEditingChatId={setEditingChatId}
+                        onToggleSelectChat={toggleSelectChat}
+                        onContextMenu={handleContextMenu}
+                        onTogglePinChat={togglePinChat}
+                    />
+                ) : (
+                    <>
+                        {groupedChats.map((group) => (
+                            <div key={group.title} className="space-y-0.5">
+                                {/* Section Header */}
+                                <div className="px-2.5 pt-2 pb-1 text-[11px] font-semibold text-[var(--text-muted)] tracking-wide select-none flex items-center gap-1.5">
+                                    {group.title === 'Pinned' && <Icons.Pin className="w-3 h-3 text-[var(--accent-color)]" />}
+                                    <span>{group.title}</span>
+                                </div>
 
-                        {/* Chats in this group */}
-                        {group.chats.map((chat) => {
-                            const isSelected = selectMode ? selectedIds.has(chat.id) : (activeSessionId === chat.id);
-                            return (
-                                <SwipeableChatCard
-                                    key={chat.id}
-                                    chat={chat}
-                                    isSelected={isSelected}
-                                    selectMode={selectMode}
-                                    isStreaming={streamingSessionId === chat.id}
-                                    selectedIds={selectedIds}
-                                    isEditing={editingChatId === chat.id}
-                                    onSaveTitle={(newTitle) => {
-                                        updateSession(chat.id, s => ({ ...s, title: newTitle }));
-                                        setEditingChatId(null);
-                                    }}
-                                    onCancelEdit={() => setEditingChatId(null)}
-                                    onSelectChat={() => {
-                                        useLayoutStore.getState().setActiveView('chat');
-                                        pushViewRoute('chat');
-                                        switchSession(chat.id);
-                                        pushChatRoute(chat.id);
-                                        setActiveChatData({
-                                            id: chat.id,
-                                            name: chat.name,
-                                            avatar: chat.avatar,
-                                            status: chat.status,
-                                            totalMessages: chat.message ? 1 : 0
-                                        });
-                                        if (inFlyout) {
-                                            setIsFlyoutOpen(false);
-                                        }
-                                    }}
-                                    onToggleSelect={() => toggleSelectChat(chat.id)}
-                                    onContextMenu={(e) => handleContextMenu(e, chat.id)}
-                                    onDeleteChat={(chatId) => deleteSession(chatId)}
-                                    onToggleArchive={(chatId) => {
-                                        updateSession(chatId, c => ({ ...c, archived: !c.archived }));
-                                    }}
-                                    onTogglePin={(chatId) => togglePinChat(chatId)}
-                                />
-                            );
-                        })}
-                    </div>
-                ))}
+                                {/* Chats in this group */}
+                                {group.chats.map((chat) => {
+                                    const isSelected = selectMode ? selectedIds.has(chat.id) : (activeSessionId === chat.id);
+                                    return (
+                                        <SwipeableChatCard
+                                            key={chat.id}
+                                            chat={chat}
+                                            isSelected={isSelected}
+                                            selectMode={selectMode}
+                                            isStreaming={streamingSessionId === chat.id}
+                                            selectedIds={selectedIds}
+                                            isEditing={editingChatId === chat.id}
+                                            onSaveTitle={(newTitle) => {
+                                                updateSession(chat.id, s => ({ ...s, title: newTitle }));
+                                                setEditingChatId(null);
+                                            }}
+                                            onCancelEdit={() => setEditingChatId(null)}
+                                            onSelectChat={() => {
+                                                if (chat.projectId) openProject(chat.projectId);
+                                                else closeProject();
+                                                useLayoutStore.getState().setActiveView('chat');
+                                                pushViewRoute('chat');
+                                                switchSession(chat.id);
+                                                pushChatRoute(chat.id);
+                                                setActiveChatData({
+                                                    id: chat.id,
+                                                    name: chat.name,
+                                                    avatar: chat.avatar,
+                                                    status: chat.status,
+                                                    totalMessages: chat.message ? 1 : 0
+                                                });
+                                                if (inFlyout) {
+                                                    setIsFlyoutOpen(false);
+                                                }
+                                            }}
+                                            onToggleSelect={() => toggleSelectChat(chat.id)}
+                                            onContextMenu={(e) => handleContextMenu(e, chat.id)}
+                                            onDeleteChat={(chatId) => deleteSession(chatId)}
+                                            onToggleArchive={(chatId) => {
+                                                updateSession(chatId, c => ({ ...c, archived: !c.archived }));
+                                            }}
+                                            onTogglePin={(chatId) => togglePinChat(chatId)}
+                                        />
+                                    );
+                                })}
+                            </div>
+                        ))}
 
-                {filteredChats.length === 0 && (
-                    <div className={`py-8 flex flex-col items-center justify-center text-[var(--text-muted)] ${inFlyout ? 'px-2' : 'px-4'}`}>
-                        <Icons.MessageCircleWarning className="w-8 h-8 opacity-20 mb-3" />
-                        <span className="text-center text-[11px] font-medium uppercase tracking-wider opacity-60">
-                            No active chats found
-                        </span>
-                    </div>
+                        {filteredChats.length === 0 && (
+                            <div className={`py-8 flex flex-col items-center justify-center text-[var(--text-muted)] ${inFlyout ? 'px-2' : 'px-4'}`}>
+                                <Icons.MessageCircleWarning className="w-8 h-8 opacity-20 mb-3" />
+                                <span className="text-center text-[11px] font-medium uppercase tracking-wider opacity-60">
+                                    No active chats found
+                                </span>
+                            </div>
+                        )}
+                    </>
                 )}
             </div>
 
@@ -1132,7 +1165,13 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                             if (contextMenu?.chatId) toggleMuteChat(contextMenu.chatId);
                         }}
                         chatId={contextMenu?.chatId || ''}
-
+                        projects={chatProjects}
+                        currentProjectId={contextMenu?.chatId ? sessions[contextMenu.chatId]?.projectId : undefined}
+                        onMoveToProject={(projectId) => {
+                            if (contextMenu?.chatId) {
+                                updateSession(contextMenu.chatId, (c) => ({ ...c, projectId }));
+                            }
+                        }}
                     />
 
                     <LabelModal

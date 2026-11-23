@@ -37,8 +37,11 @@ import { AiMemoryPanel } from './AiMemoryPanel';
 import { ConversationMemoryPanel } from './ConversationMemoryPanel';
 import { ContextDetailsPanel } from './ContextDetailsPanel';
 import { useProjectStore } from '../../../store/workspace/useProjectStore';
-
+import { useChatProjectsStore } from '../../../store/chat/useChatProjectsStore';
+import { ProjectWorkspacePane } from '../../projects/ProjectWorkspacePane';
+import { ProjectIcon } from '../../projects/ProjectIcons';
 import { ChatTopBar } from './ChatTopBar';
+
 const PrivateModeToggleButton: React.FC<{
     isIncognito: boolean;
     onClick: () => void;
@@ -75,7 +78,13 @@ const WORKSPACE_MIN_PX = 320;
 export function ChatWorkspace({ workspace, chatBinding }: { workspace?: React.ReactNode; chatBinding?: ExtensionChatBinding | null } = {}) {
     const isBoundChat = chatBinding !== undefined;
     const { splitPaneWidth, setSplitPaneWidth, splitReversed, toggleSplitReversed, activeChatData } = useLayoutStore();
-    const visibleSplitPaneWidth = workspace !== undefined && splitPaneWidth === 100 ? 50 : splitPaneWidth;
+    const {
+        projects: chatProjectsMap,
+        activeProjectId: activeChatProjectId,
+        isCreatingProject,
+        projectPaneOpen,
+        setProjectPaneOpen,
+    } = useChatProjectsStore();
     const { chatBackground } = useThemeStore();
     const activeAudioDeck = useSpeechHighlightStore((s) => s.activeDeck);
     const closeAudioDeck = useSpeechHighlightStore((s) => s.closeDeck);
@@ -109,6 +118,18 @@ export function ChatWorkspace({ workspace, chatBinding }: { workspace?: React.Re
     const activeSession = isBoundChat && candidate?.extensionId !== chatBinding?.sdk.identity.id ? null : candidate;
     const activeSessionId = isBoundChat ? activeSession?.id ?? null : mainSessionId;
     const messages = activeSession ? activeSession.messages : [];
+
+    // Chat Project Workspace resolution (Left Chat + Right Project Workspace, or Full-Screen on Create / Empty Project)
+    const activeChatProject = !isBoundChat
+        ? ((activeSession?.projectId && chatProjectsMap[activeSession.projectId])
+            || (activeChatProjectId && chatProjectsMap[activeChatProjectId])
+            || undefined)
+        : undefined;
+    const projectRightPane = !isBoundChat && workspace === undefined && activeChatProject && messages.length > 0 && projectPaneOpen
+        ? <ProjectWorkspacePane mode="split" project={activeChatProject} />
+        : undefined;
+    const resolvedWorkspace = workspace ?? projectRightPane;
+    const visibleSplitPaneWidth = resolvedWorkspace !== undefined && splitPaneWidth === 100 ? 50 : splitPaneWidth;
 
     const [inputValue, setInputValue] = useState('');
     const permissions = useEngineStore((state) => state.permissions);
@@ -156,11 +177,13 @@ export function ChatWorkspace({ workspace, chatBinding }: { workspace?: React.Re
         };
         const handleNewChat = () => {
             stopIfPrivate();
+            useChatProjectsStore.getState().closeProject();
             switchSession(null);
             setIsIncognito(false);
         };
         const handleNewPrivateChat = () => {
             stopIfPrivate();
+            useChatProjectsStore.getState().closeProject();
             switchSession(null);
             setIsIncognito(true);
         };
@@ -477,6 +500,34 @@ main().catch(console.error);`);
         };
     }, [isDragging, splitReversed, setSplitPaneWidth]);
 
+    if (!isBoundChat && workspace === undefined && isCreatingProject) {
+        return <ProjectWorkspacePane mode="create" />;
+    }
+
+    if (!isBoundChat && workspace === undefined && activeChatProject && messages.length === 0) {
+        return (
+            <ProjectWorkspacePane
+                mode="full"
+                project={activeChatProject}
+                composerSlot={
+                    <ChatInput
+                        previewOptionsRef={previewOptionsRef}
+                        inputValue={inputValue}
+                        setInputValue={setInputValue}
+                        handleSendMessage={handleSendMessage}
+                        replyingTo={replyingTo}
+                        setReplyingTo={setReplyingTo}
+                        editing={isBoundChat ? null : editing}
+                        onCancelEdit={() => setEditing(null)}
+                        isFloating={true}
+                        isStreaming={streamingHere}
+                        onStopStreaming={handleStopStreaming}
+                    />
+                }
+            />
+        );
+    }
+
     return (
         <div ref={containerRef} className={`flex-1 flex overflow-hidden relative ${splitReversed ? 'flex-row-reverse' : 'flex-row'}`}>
 
@@ -484,6 +535,19 @@ main().catch(console.error);`);
                 style={{ width: `${visibleSplitPaneWidth}%`, minWidth: visibleSplitPaneWidth < 100 ? CHAT_MIN_PX : undefined }}
                 className="@container/chat h-full flex flex-col bg-[var(--bg-primary)] overflow-hidden relative"
             >
+                {!isBoundChat && activeChatProject && messages.length > 0 && !projectPaneOpen && workspace === undefined && (
+                    <div className="absolute top-3 right-4 z-30">
+                        <button
+                            type="button"
+                            onClick={() => setProjectPaneOpen(true)}
+                            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[var(--bg-secondary)]/90 backdrop-blur-md border border-[var(--border-color)] hover:border-[var(--accent-color)]/50 text-xs font-bold text-[var(--text-primary)] shadow-md transition-colors cursor-pointer"
+                            title="Open Project Workspace"
+                        >
+                            <ProjectIcon name={activeChatProject.iconName} className="w-3.5 h-3.5 text-[var(--accent-color)]" />
+                            <span className="truncate max-w-[160px]">{activeChatProject.name}</span>
+                        </button>
+                    </div>
+                )}
                 {!isBoundChat && messages.length === 0 && (
                     <div className="absolute top-4 right-4 z-40 flex items-center gap-2">
                         <PrivateModeToggleButton
@@ -774,7 +838,7 @@ main().catch(console.error);`);
                         style={{ width: `${100 - visibleSplitPaneWidth}%`, minWidth: WORKSPACE_MIN_PX }}
                         className="h-full flex flex-col bg-[var(--bg-secondary)] overflow-hidden"
                     >
-                        {workspace ?? <WorkspaceEditorPane />}
+                        {resolvedWorkspace ?? <WorkspaceEditorPane />}
                     </div>
                 </>
             )}
