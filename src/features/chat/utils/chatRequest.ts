@@ -13,10 +13,11 @@ export function chatComposerOptions(model: string | null | undefined, thinkMode:
 }
 
 /** The chat panel's settings as request fields: only the ones the user set, so the rest keep the Engine's defaults */
-export function chatControlOptions(controls: ChatControls): Pick<SendChatOptions, 'system_prompt' | typeof SAMPLING_KEYS[number]> {
-    const options: Pick<SendChatOptions, 'system_prompt' | typeof SAMPLING_KEYS[number]> = {};
+export function chatControlOptions(controls: ChatControls): Pick<SendChatOptions, 'system_prompt' | 'approval_mode' | typeof SAMPLING_KEYS[number]> {
+    const options: Pick<SendChatOptions, 'system_prompt' | 'approval_mode' | typeof SAMPLING_KEYS[number]> = {};
     for (const key of SAMPLING_KEYS) if (Number.isFinite(controls[key])) options[key] = controls[key];
     if (controls.systemPrompt?.trim()) options.system_prompt = controls.systemPrompt.trim();
+    if (controls.approvalMode) options.approval_mode = controls.approvalMode;
     return options;
 }
 

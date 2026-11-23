@@ -39,6 +39,8 @@ export interface SendChatOptions {
     seed?: number;
     /** The chat's own instructions: sent as the first system message, before any other system text */
     system_prompt?: string;
+    /** This chat's approval mode (`strict` | `sandboxed` | `full_access`); the Engine keeps it no looser than Settings */
+    approval_mode?: string;
     tools?: any[];
     attachments?: Array<{ name: string; size?: number; type?: string; previewUrl?: string }>;
     parts?: any[];
@@ -226,6 +228,7 @@ export class cluaizEngine {
             for (const key of SAMPLING_KEYS) {
                 if (options?.[key] !== undefined) payload[key] = options[key];
             }
+            if (options?.approval_mode) payload.approval_mode = options.approval_mode;
             if (options?.system_prompt) {
                 const [first, ...rest] = payload.messages;
                 payload.messages = first?.role === 'system' && typeof first.content === 'string'

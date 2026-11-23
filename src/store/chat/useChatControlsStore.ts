@@ -18,7 +18,11 @@ export interface ChatControls {
     frequency_penalty?: number;
     max_tokens?: number;
     seed?: number;
+    /** This chat's approval mode; the Engine never lets it be looser than the one in Settings */
+    approvalMode?: ApprovalMode;
 }
+
+export type ApprovalMode = 'strict' | 'sandboxed' | 'full_access';
 
 
 /** Live hardware reads: always, only while the panel is open and the window visible, or never */

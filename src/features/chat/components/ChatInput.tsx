@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { CHAT_MODEL_SLOT } from './ChatTopBar';
-import { Send, Square, FileCode, FileText, Plus, ChevronDown, Mic, Zap, Sparkles, Globe, Brain, Image as ImageIcon, Video, X, Clock, ChevronRight, UploadCloud, Link as LinkIcon, Layers, FolderUp, Database, BookOpen, ZapOff, Telescope, CornerDownRight, Check, AlignLeft, AlignJustify, Box, Server, Info, SlidersHorizontal, Trash2, Pencil, Flame, Wand2, Cloud, Lock } from 'lucide-react';
+import { Send, Square, FileCode, FileText, Plus, ChevronDown, Mic, Zap, Sparkles, Globe, Brain, Image as ImageIcon, Video, X, Clock, ChevronRight, UploadCloud, Link as LinkIcon, Layers, FolderUp, Database, BookOpen, ZapOff, Telescope, CornerDownRight, Check, AlignLeft, AlignJustify, Box, Server, Info, SlidersHorizontal, Trash2, Pencil, Flame, Wand2, Cloud } from 'lucide-react';
 import { chatRequestModel, providerChatModels, useProvidersStore } from '../../../store/cloud/useProvidersStore';
 import { useModelCatalogueStore } from '../../extensions/modelCatalogueStore';
 import BorderGlow from '../../../components/ui/BorderGlow';
@@ -33,6 +33,9 @@ import { ApprovalTabs, usePendingApprovals } from './ApprovalTabs';
 import { serializeStagedAttachments } from '../utils/attachmentSerializer';
 import { chatComposerOptions } from '../utils/chatRequest';
 import { activeChatControls } from '../../../store/chat/activeChatControls';
+import { useChatControlsStore } from '../../../store/chat/useChatControlsStore';
+import { ChatSettingsDialog } from './ChatSettingsDialog';
+import { ChatApprovalPicker } from './ChatApprovalPicker';
 import { useChatPreviewOptions, type ChatPreviewOptionsRef } from '../hooks/useChatPreviewOptions';
 
 const DynamicToolIcon: React.FC<{ iconSvg?: string | null; fallback: React.ReactNode; className?: string }> = ({ iconSvg, fallback, className = "w-3.5 h-3.5" }) => {
@@ -198,9 +201,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     const [isThinkModeMenuOpen, setIsThinkModeMenuOpen] = useState(false);
     const [thinkMode, setThinkMode] = useState<'auto' | 'on' | 'off'>('auto');
     const [effort, setEffort] = useState<string | number>('auto');
-    const [customEffort, setCustomEffort] = useState('');
     const [budgetMessage, setBudgetMessage] = useState('');
-    const [isEffortSettingsOpen, setIsEffortSettingsOpen] = useState(false);
     const [isSkillsMenuOpen, setIsSkillsMenuOpen] = useState(false);
     const [isPluginsMenuOpen, setIsPluginsMenuOpen] = useState(false);
     const [isMcpMenuOpen, setIsMcpMenuOpen] = useState(false);
@@ -481,16 +482,6 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         optimizationApi.updateBooster({ reasoning_effort: value }).catch(err => {
             console.warn('[ChatInput] Silent effort sync failed:', err);
         });
-    };
-
-    const applyCustomEffort = () => {
-        const tokens = Number(customEffort);
-        if (customEffort.trim() === '' || !Number.isInteger(tokens) || tokens < 0) {
-            toast.error('Enter a whole number of thinking tokens (0 or more).');
-            return;
-        }
-        chooseEffort(tokens);
-        setCustomEffort('');
     };
 
     // Saved setting; empty = nothing is written when the thinking budget runs out
@@ -1175,157 +1166,13 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 )}
             </div>
 
-            {/* Effort & Reasoning Submenu (Auto / Low / Medium / High / Max) */}
-            <div className={`relative ${isEffortMenuOpen ? 'z-50' : ''}`} onMouseEnter={() => openSubmenu('effort')}>
-                <button
-                    type="button"
-                    className="w-full flex items-center justify-between px-2.5 py-2 text-[0.7rem] sm:text-xs font-medium hover:bg-[var(--bg-secondary)] text-[var(--text-primary)] hover:text-[var(--accent-color)] transition-colors text-left group rounded-md cursor-pointer"
-                >
-                    <div className="flex items-center gap-3">
-                        <Zap className="w-4 h-4 text-[var(--text-muted)] group-hover:text-[var(--accent-color)] transition-colors" />
-                        <span>Effort</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                        <span className="text-[10px] text-[var(--accent-color)] capitalize font-mono">
-                            {typeof effort === 'number' ? `${effort} tok` : effort}
-                        </span>
-                        <ChevronRight className="w-3.5 h-3.5 text-[var(--text-muted)]" />
-                    </div>
-                </button>
-
-                {isEffortMenuOpen && (
-                    <div className="absolute left-8 sm:left-[97%] bottom-0 pl-1 z-50">
-                        <div className="w-52 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-xl shadow-2xl p-1.5 flex flex-col gap-0.5">
-                            <div className="flex items-start justify-between gap-1 px-2 py-1">
-                                <span className="text-[10px] text-[var(--text-muted)] leading-tight">
-                                    Thinking token budget for reasoning.
-                                </span>
-                                <button
-                                    type="button"
-                                    title="Thinking settings: custom tokens, budget end message"
-                                    onClick={() => setIsEffortSettingsOpen(open => !open)}
-                                    className={`p-0.5 rounded-md cursor-pointer transition-colors ${isEffortSettingsOpen
-                                        ? 'text-[var(--accent-color)] bg-[var(--bg-secondary)]'
-                                        : 'text-[var(--text-muted)] hover:text-[var(--accent-color)]'
-                                        }`}
-                                >
-                                    <SlidersHorizontal className="w-3.5 h-3.5" />
-                                </button>
-                            </div>
-
-                            <div className="flex flex-col gap-0.5">
-                                {[
-                                    { id: 'auto', label: 'Auto', badge: 'Default' },
-                                    { id: 'low', label: 'Low' },
-                                    { id: 'medium', label: 'Medium' },
-                                    { id: 'high', label: 'High' },
-                                    { id: 'max', label: 'Max', info: true },
-                                ].map(item => (
-                                    <button
-                                        key={item.id}
-                                        type="button"
-                                        onClick={() => chooseEffort(item.id)}
-                                        className={`group w-full flex items-center justify-between px-2 py-1.5 rounded-md text-xs font-medium transition-all cursor-pointer ${effort === item.id
-                                            ? 'bg-[var(--bg-secondary)] text-[var(--accent-color)] font-semibold shadow-sm'
-                                            : 'text-[var(--text-primary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--accent-color)]'
-                                            }`}
-                                    >
-                                        <div className="flex items-center gap-2">
-                                            <span>{item.label}</span>
-                                            {item.badge && (
-                                                <span className="text-[8px] px-1 py-0.2 rounded bg-[var(--accent-color)]/10 text-[var(--accent-color)] border border-[var(--accent-color)]/20 font-mono">
-                                                    {item.badge}
-                                                </span>
-                                            )}
-                                            {item.info && (
-                                                <Info className="w-3 h-3 text-[var(--text-muted)] opacity-70" />
-                                            )}
-                                        </div>
-                                        {effort === item.id && (
-                                            <Check className="w-3.5 h-3.5 text-[var(--accent-color)]" />
-                                        )}
-                                    </button>
-                                ))}
-                                {/* A saved custom number shows as the selected row */}
-                                {typeof effort === 'number' && (
-                                    <button
-                                        type="button"
-                                        onClick={() => setIsEffortSettingsOpen(true)}
-                                        className="w-full flex items-center justify-between px-2 py-1.5 rounded-md text-xs font-semibold bg-[var(--bg-secondary)] text-[var(--accent-color)] shadow-sm cursor-pointer"
-                                    >
-                                        <span>Custom · {effort} tok</span>
-                                        <Check className="w-3.5 h-3.5" />
-                                    </button>
-                                )}
-                            </div>
-
-                            {isEffortSettingsOpen && (<>
-                                {/* Custom thinking budget in tokens */}
-                                <div className="mt-1 pt-1.5 border-t border-[var(--border-color)] px-2 pb-1">
-                                    <div className="text-xs font-medium text-[var(--text-primary)]">Custom tokens</div>
-                                    <div className="mt-1 flex items-center gap-1">
-                                        <input
-                                            type="number"
-                                            min={0}
-                                            step={1}
-                                            inputMode="numeric"
-                                            placeholder="tokens, e.g. 2000"
-                                            value={customEffort}
-                                            onChange={e => setCustomEffort(e.target.value)}
-                                            onKeyDown={e => {
-                                                e.stopPropagation();
-                                                if (e.key === 'Enter') {
-                                                    e.preventDefault();
-                                                    applyCustomEffort();
-                                                }
-                                            }}
-                                            className="w-full min-w-0 px-2 py-1 rounded-md bg-[var(--bg-secondary)] border border-[var(--border-color)] text-xs text-[var(--text-primary)] outline-none focus:border-[var(--accent-color)]"
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={applyCustomEffort}
-                                            className="px-2 py-1 rounded-md text-xs font-medium text-[var(--accent-color)] hover:bg-[var(--bg-secondary)] cursor-pointer"
-                                        >
-                                            Set
-                                        </button>
-                                    </div>
-                                </div>
-
-                                {/* Text written when the budget runs out, before the model's end-of-thinking tag */}
-                                <div className="mt-1 pt-1.5 border-t border-[var(--border-color)] px-2 pb-1">
-                                    <div className="text-xs font-medium text-[var(--text-primary)]">Budget end message</div>
-                                    <div className="text-[10px] text-[var(--text-muted)] leading-tight mt-0.5">
-                                        Written when the thinking budget runs out, so the model wraps up. Empty = nothing.
-                                    </div>
-                                    <div className="mt-1 flex items-center gap-1">
-                                        <input
-                                            type="text"
-                                            placeholder="e.g. I have to answer now."
-                                            value={budgetMessage}
-                                            onChange={e => setBudgetMessage(e.target.value)}
-                                            onKeyDown={e => {
-                                                e.stopPropagation();
-                                                if (e.key === 'Enter') {
-                                                    e.preventDefault();
-                                                    saveBudgetMessage();
-                                                }
-                                            }}
-                                            className="w-full min-w-0 px-2 py-1 rounded-md bg-[var(--bg-secondary)] border border-[var(--border-color)] text-xs text-[var(--text-primary)] outline-none focus:border-[var(--accent-color)]"
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={saveBudgetMessage}
-                                            className="px-2 py-1 rounded-md text-xs font-medium text-[var(--accent-color)] hover:bg-[var(--bg-secondary)] cursor-pointer"
-                                        >
-                                            Save
-                                        </button>
-                                    </div>
-                                </div>
-                            </>)}
-                        </div>
-                    </div>
-                )}
-            </div>
+            {/* Every setting of this chat (instructions, creativity, length, advanced) in one window */}
+            <div className="my-1 h-px bg-[var(--border-color)]/60" />
+            <button type="button" onClick={() => { setIsAttachOpen(false); useChatControlsStore.getState().setPanelOpen(true); }}
+                className="w-full flex items-center gap-3 px-2.5 py-2 text-[0.7rem] sm:text-xs font-medium hover:bg-[var(--bg-secondary)] text-[var(--text-primary)] hover:text-[var(--accent-color)] transition-colors text-left group rounded-md cursor-pointer">
+                <SlidersHorizontal className="w-4 h-4 text-[var(--text-muted)] group-hover:text-[var(--accent-color)] transition-colors" />
+                <span>Chat settings</span>
+            </button>
         </div>
     );
 
@@ -1611,12 +1458,11 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                         >
                             {displayEffortLabel}
                         </span>
-                        <span
-                            className="inline-flex text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-help"
-                            title="Higher effort thinks longer before answering"
-                        >
-                            <Info className="w-3.5 h-3.5 opacity-70" />
-                        </span>
+                        <button type="button" aria-label="Thinking and chat settings" title="Custom thinking budget and more settings"
+                            onClick={() => { setIsPromptBarEffortOpen(false); useChatControlsStore.getState().setPanelOpen(true); }}
+                            className="inline-flex text-[var(--text-muted)] hover:text-[var(--accent-color)] cursor-pointer">
+                            <SlidersHorizontal className="w-3.5 h-3.5" />
+                        </button>
                         <button
                             type="button"
                             onClick={() => chooseEffort(effort === 'auto' ? 'medium' : 'auto')}
@@ -1932,12 +1778,12 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                         </button>
                     </div>
 
+                    {!textOnly && <ChatSettingsDialog thinking={{
+                        effort, chooseEffort, budgetMessage, setBudgetMessage, saveBudgetMessage,
+                    }} />}
                     {modelSlot ? <>
                         {createPortal(renderModelSelector(), modelSlot)}
-                        <span className="flex items-center gap-1 px-2 py-1.5 text-[0.7rem] sm:text-xs font-medium text-[var(--text-muted)] cursor-help"
-                            title="Approval for this chat only needs an Engine update (pending). Until then every chat follows the approval mode in Settings.">
-                            <Lock className="w-3.5 h-3.5 shrink-0" /> Approvals: as in Settings
-                        </span>
+                        <ChatApprovalPicker />
                     </> : renderModelSelector()}
 
                     {!textOnly && renderEffortControl()}

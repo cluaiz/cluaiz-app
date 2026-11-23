@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ContextWindowPopover } from './ContextWindowPopover';
+import { SystemStatusPopover } from './SystemStatusPopover';
 import { ContextBreakdown, LivePerformanceStats, formatTokensK } from '../hooks/useChatTelemetry';
 
 interface LiveTelemetryBarProps {
@@ -64,7 +65,9 @@ export const LiveTelemetryBar: React.FC<LiveTelemetryBarProps> = ({
                 )}
             </div>
 
-            {/* Right: Interactive Context Window Trigger & Popover */}
+            {/* Right: live system use, then the context window, each with its popover */}
+            <div className="flex items-center gap-1">
+            <SystemStatusPopover />
             <div 
                 ref={containerRef}
                 className="relative z-50 flex items-center gap-2"
@@ -99,6 +102,7 @@ export const LiveTelemetryBar: React.FC<LiveTelemetryBarProps> = ({
                     onInspectContext={onInspectContext}
                     onCompact={onCompact}
                 />
+            </div>
             </div>
         </div>
     );

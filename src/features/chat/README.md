@@ -131,28 +131,32 @@ the messages after it; the earlier messages stay visible but are no longer sent.
 `AUTO_COMPACT_PERCENT` (80%) full and at least 4 messages came after the last compaction
 (`ChatWorkspace`). A failed compaction leaves the full conversation in use.
 
-## Chat top bar and settings panel
+## Chat top bar, settings window, approvals and live system
 
-The model picker sits in the chat's top bar (`ChatTopBar`, left), not in the input: `ChatInput` renders the
-same picker into the bar through a portal, so there is one picker and one state. Extension chats have no
-top bar and keep it in the input. Where the picker was, the input shows "Approvals: as in Settings": the
-Engine has only a global approval mode (`PermissionSchema.agent_security_mode`) and per-chat tool grants,
-so a per-chat mode would be a switch that changes nothing. It stays a note until the Engine checks a mode
-per chat (pending, listed in the App's `.agent/plan/engine-gaps-for-chat-controls.md`).
+The model picker sits in the chat's top bar (`ChatTopBar`, left): `ChatInput` renders the same picker into it
+through a portal, so there is one picker and one state. Extension chats have no top bar and keep it in the
+input.
 
-The button on the right of the bar opens `ChatControlsPanel` beside the chat (the chat column gets
-`sm:pr-80`, so the input is never under it). It holds:
-- The chat's system prompt and sampling fields (temperature, top_p, top_k, min_p, the three penalties,
-  max_tokens, seed). They live in `store/chat/useChatControlsStore` per chat id; a chat without its own
-  uses the new-chat ones. An empty field is not sent, so the Engine's default applies; `chatControlOptions`
-  is the one place that turns them into request fields, and `core/engine.ts` puts the system prompt first
-  among the system messages.
-- Live system: `system.live` (RAM, CPU, each GPU's VRAM) and `system.ps` (the loaded model's plan) read
-  every 2 s by `useLiveSystem`, in three modes: Always, While open (only while the panel is open and the
-  window visible, the default), Off. The Engine has no stream, CPU or GPU use percent, or its own RAM yet,
-  and the panel says so instead of showing a guess.
+`ChatSettingsDialog` opens from "Chat settings" at the bottom of the input's + menu, and from the settings
+icon in the effort popover. It uses the shared `Dialog`, `Slider`, `ToggleSwitch` and `AccordionGroup`:
+Instructions (sent as the first system message), Creativity (temperature) and Answer length (max_tokens),
+the thinking budget (an exact number of tokens, and the text written when it runs out; both are the saved
+Engine settings the effort button uses, so they apply to every chat), and under Advanced top_p, top_k,
+min_p, the three penalties and "Same answer every time" (a fixed seed). An untouched slider shows "Auto" and
+is not sent, so the Engine's default applies. The effort level stays as the button in the input; the old
+Effort entry of the + menu, its custom-token and budget-message fields, are now this window. An earlier side
+panel with number boxes was replaced: the owner found it crowded and hard for a new user.
 
-Checked on 2026-11-23 against the test Engine (port 8011) with Qwen3.5 0.8B: a chat with temperature 0.3,
-max_tokens 40, seed 7 and a system prompt sent exactly those fields and the prompt as the first system
-message; the panel showed RAM 14.6 of 23.7 GB, 1.3 of 4.0 GB VRAM and the loaded model's plan; no console
-errors at 1440 px. Test: `node --test test/chat_controls.test.cjs`.
+The approval button in the input (`ChatApprovalPicker`) sets this chat's `approval_mode`: As in Settings
+(not sent), Ask every time (`strict`), Auto (`sandboxed`), Full access (`full_access`). The Engine
+(`chat_security_mode`, commit 8906e9d4) never lets a chat be looser than the mode in Settings, so two chats or
+two users on one Engine do not share it.
+
+Live system use sits under the input beside the context meter (`SystemStatusPopover`, opened by hover or
+click like the context popover): RAM and VRAM in percent, each GPU, and the loaded model's plan, from
+`system.live` and `system.ps` every 2 s (`useLiveSystem`) in three modes: Always, While open (default),
+Off. The Engine reports no CPU or GPU use percent and not its own RAM, and the popover says so.
+
+Checked on 2026-11-23 against the test Engine (port 8011) with Qwen3.5 0.8B: Creativity 0.5, an instruction
+and "Ask every time" sent `{"approval_mode":"strict","temperature":0.5}` with the instruction as the first
+system message; no console errors at 1440 px. Test: `node --test test/chat_controls.test.cjs`.
