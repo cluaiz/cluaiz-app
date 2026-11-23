@@ -101,7 +101,7 @@ export function ChatSearchBar({ messages, onClose }: { messages: ChatMessage[]; 
             {KINDS.map(kind => <ActionDropdownItem key={kind.id} active={kinds.has(kind.id)} icon={<kind.icon size={14} />}
                 onClick={() => setKinds(toggle(kinds, kind.id))}>{kind.label}</ActionDropdownItem>)}
             <ActionDropdownItem active={starred} icon={<Star size={14} />} onClick={() => setStarred(!starred)}>Starred</ActionDropdownItem>
-            <ActionDropdownItem active={Boolean(range?.from)} icon={<CalendarDays size={14} />} onClick={() => setCalendar(true)}>
+            <ActionDropdownItem active={Boolean(range?.from)} icon={<CalendarDays size={14} />} onClick={() => { setMenu(false); setCalendar(true); }}>
                 {range?.from ? `${range.from.toLocaleDateString()}${range.to ? ` – ${range.to.toLocaleDateString()}` : ''}` : 'Date'}
             </ActionDropdownItem>
             {allReactions.length > 0 && <>
