@@ -160,3 +160,20 @@ Off. The Engine reports no CPU or GPU use percent and not its own RAM, and the p
 Checked on 2026-11-23 against the test Engine (port 8011) with Qwen3.5 0.8B: Creativity 0.5, an instruction
 and "Ask every time" sent `{"approval_mode":"strict","temperature":0.5}` with the instruction as the first
 system message; no console errors at 1440 px. Test: `node --test test/chat_controls.test.cjs`.
+
+## Chat menu, search and export
+
+The top bar's right side has the chat menu (`ChatTopBar`, three dots, only in a chat with messages):
+Search, Select messages (the existing selection mode), Export as Markdown or JSON (`utils/chatExport.ts`,
+downloaded with the workspace `downloadFile`), Archive or Unarchive, and Delete chat (asks first).
+
+Search opens in the top bar (`ChatSearchBar`), styled like the sidebar's "Search chats" field, with the filter
+button inside it. Typing marks every match in the shown messages at once with the CSS Custom Highlight API
+(`::highlight(chat-search)`), so message rendering is not changed. The filter menu (shared `ActionDropdown`,
+several at once) narrows to messages with images, documents, code (a ``` block), audio or video, starred
+ones, chosen reactions, or a date range (shared `CalendarDropdown`). Messages that do not match are hidden in
+place by one style rule on `data-message-index`; Escape or the close button clears it. An earlier version
+put search in a popup; the owner wanted it in the header, opened from the menu, so it changed.
+
+Moving a chat to a project is not in the menu yet: the projects store is another task's work that is not
+committed.

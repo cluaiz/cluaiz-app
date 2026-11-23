@@ -1771,7 +1771,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                                 setIsModelOpen(false);
                                 setIsPromptBarEffortOpen(false);
                             }}
-                            className={`transition-colors p-1.5 pl-0 rounded-full cursor-pointer ${isAttachOpen ? 'text-[var(--accent-color)] bg-[var(--bg-tertiary)]' : 'text-[var(--text-muted)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--accent-color)]'}`}
+                            className={`transition-colors p-1.5 rounded-full cursor-pointer ${isAttachOpen ? 'text-[var(--accent-color)] bg-[var(--bg-tertiary)]' : 'text-[var(--text-muted)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--accent-color)]'}`}
                             title={textOnly ? 'Files and tools are not connected to extension chat yet' : 'Add context, files, or skills'}
                         >
                             <Plus className={`w-5 h-5 transition-transform duration-300 ${isAttachOpen ? 'rotate-45' : 'rotate-0'}`} />

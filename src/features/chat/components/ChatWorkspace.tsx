@@ -480,7 +480,7 @@ main().catch(console.error);`);
                         />
                     </div>
                 )}
-                {!isBoundChat && <ChatTopBar />}
+                {!isBoundChat && <ChatTopBar onSelectMessages={() => setIsSelectionMode(true)} />}
                 {!isBoundChat && <AiMemoryPanel open={memoryOpen} onClose={() => setMemoryOpen(false)} chatId={activeSessionId}
                     workspacePath={memoryWorkspace} privateChat={Boolean(activeSession?.isIncognito || isIncognito)} />}
                 {!isBoundChat && <ConversationMemoryPanel open={conversationMemoryOpen} onClose={() => setConversationMemoryOpen(false)}
