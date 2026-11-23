@@ -8,6 +8,8 @@ export interface FlowSummary {
     name: string; scope: FlowScope; path: string; format: string; enabled: boolean;
     description?: string; triggers?: FlowTrigger[]; problems?: FlowProblem[]; tags?: string[];
     warnings?: number; updated_at?: string;
+    /** The file's content hash; changes whenever the file changes */
+    hash?: string;
     last_run?: { run_id: string; status: RunStatus; finished_at?: string | null } | null;
 }
 
