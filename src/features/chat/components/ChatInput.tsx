@@ -36,6 +36,7 @@ import { activeChatControls } from '../../../store/chat/activeChatControls';
 import { useChatControlsStore } from '../../../store/chat/useChatControlsStore';
 import { ChatSettingsDialog } from './ChatSettingsDialog';
 import { ChatApprovalPicker } from './ChatApprovalPicker';
+import { useModelLogos } from './ChatModelLogo';
 import { useChatPreviewOptions, type ChatPreviewOptionsRef } from '../hooks/useChatPreviewOptions';
 
 const DynamicToolIcon: React.FC<{ iconSvg?: string | null; fallback: React.ReactNode; className?: string }> = ({ iconSvg, fallback, className = "w-3.5 h-3.5" }) => {
@@ -667,6 +668,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
     const chatModels = useChatModels();
     const activeModelId = permissions?.chat_models?.text || '';
+    const modelLogos = useModelLogos();
     const modelOptions = chatModels.models.map(model => ({ id: model.id, ...formatModelName(model.id) }));
 
     // Calculate model text width based on real-time screen width and selected chips
@@ -1597,11 +1599,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 className={`flex items-center gap-1 sm:gap-1.5 px-2 py-1.5 rounded-lg transition-colors text-[0.7rem] sm:text-xs font-medium shrink min-w-0 max-w-[130px] sm:max-w-[160px] md:max-w-[200px] border border-transparent cursor-pointer ${isModelOpen ? 'bg-[var(--bg-tertiary)] text-[var(--text-primary)]' : 'hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}
                 title={currentModel.fullName}
             >
-                {currentModel.isCloud ? (
-                    <Cloud className="w-3.5 h-3.5 shrink-0 text-[var(--accent-color)]" />
-                ) : (
-                    <Box className="w-3.5 h-3.5 shrink-0 text-[var(--accent-color)]" />
-                )}
+                {currentModel.isCloud
+                    ? modelLogos.cloud(currentModel.id, cloudModels.find(item => item.model === currentModel.id)?.provider ?? '')
+                    : modelLogos.local(chatModels.models.find(item => item.id === currentModel.id)?.huggingface_repo)}
                 <span className="truncate min-w-0 block">{currentModel.shortName}</span>
                 <ChevronDown className="w-3.5 h-3.5 ml-0.5 flex-shrink-0 opacity-70" />
             </button>
@@ -1649,7 +1649,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                                 className={`w-full flex items-center justify-between px-2.5 py-1.5 text-[0.7rem] sm:text-xs font-medium rounded-lg transition-colors cursor-pointer ${isSelected ? 'bg-[var(--bg-tertiary)] text-[var(--accent-color)] font-semibold' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]'}`}
                             >
                                 <div className="flex items-center gap-1.5 truncate">
-                                    <Box size={13} className="shrink-0 text-[var(--accent-color)]" />
+                                    {modelLogos.local(chatModels.models.find(item => item.id === model.id)?.huggingface_repo)}
                                     <span className="truncate">{model.fullName}</span>
                                 </div>
                                 {isSelected && <Check className="w-3.5 h-3.5 shrink-0 text-[var(--accent-color)]" />}
@@ -1688,7 +1688,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                                     className={`w-full flex items-center justify-between px-2.5 py-1.5 text-[0.7rem] sm:text-xs font-medium rounded-lg transition-colors cursor-pointer ${isSelected ? 'bg-[var(--bg-tertiary)] text-[var(--accent-color)] font-semibold' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]'}`}
                                 >
                                     <div className="flex items-center gap-1.5 truncate">
-                                        <Cloud size={13} className="shrink-0 text-[var(--accent-color)]" />
+                                        {modelLogos.cloud(model.model, model.provider)}
                                         <span className="truncate">{model.id}</span>
                                         <span className="text-[10px] text-[var(--text-muted)] truncate">{model.provider}</span>
                                     </div>
