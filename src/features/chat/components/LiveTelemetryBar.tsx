@@ -46,27 +46,28 @@ export const LiveTelemetryBar: React.FC<LiveTelemetryBarProps> = ({
             style={{ fontSize: '0.72rem', fontFamily: 'var(--font-family)' }}
         >
             {/* Left: Real-time generation performance stats (Visible ONLY during active streaming, hidden when idle) */}
-            <div className="flex items-center gap-3 min-h-[0.9rem]">
+            <div className="flex min-w-0 flex-1 items-center gap-3 overflow-hidden whitespace-nowrap min-h-[0.9rem]">
                 {liveStats.isStreaming && (
-                    <div className="flex items-center gap-2.5 text-[var(--text-muted)]">
-                        <span className="flex items-center gap-1">
+                    // Narrow chat: speed and tokens only; time and first-token time join from 448px of chat width
+                    <div className="flex min-w-0 items-center gap-2.5 text-[var(--text-muted)]">
+                        <span className="flex shrink-0 items-center gap-1">
                             <b className="text-[var(--text-primary)] font-semibold">{liveStats.tps}</b> TPS
                         </span>
-                        <span className="flex items-center gap-1">
+                        <span className="hidden shrink-0 items-center gap-1 @md/chat:flex">
                             <b className="text-[var(--text-primary)] font-semibold">{liveStats.elapsed}</b>s
                         </span>
-                        <span className="flex items-center gap-1">
+                        <span className="hidden shrink-0 items-center gap-1 @lg/chat:flex">
                             <b className="text-[var(--text-primary)] font-semibold">{liveStats.ttft}</b>s TTFT
                         </span>
-                        <span className="flex items-center gap-1">
-                            <b className="text-[var(--text-primary)] font-semibold">{liveStats.tokens}</b> Tokens
+                        <span className="flex shrink-0 items-center gap-1">
+                            <b className="text-[var(--text-primary)] font-semibold">{liveStats.tokens}</b> tok
                         </span>
                     </div>
                 )}
             </div>
 
             {/* Right: live system use, then the context window, each with its popover */}
-            <div className="flex items-center gap-1">
+            <div className="flex shrink-0 items-center gap-1">
             <SystemStatusPopover />
             <div 
                 ref={containerRef}

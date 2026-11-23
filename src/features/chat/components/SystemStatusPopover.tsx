@@ -43,7 +43,7 @@ export function SystemStatusPopover() {
             <span className="hidden @md/chat:inline">System:</span>
             {live && mode !== 'off' ? <>
                 <b className="font-semibold text-[var(--text-primary)]">RAM {pct(live.memory.used_gb, live.memory.total_gb)}%</b>
-                {vramTotal > 0 && <b className="font-semibold text-[var(--text-primary)]">· VRAM {pct(vramUsed, vramTotal)}%</b>}
+                {vramTotal > 0 && <b className="hidden font-semibold text-[var(--text-primary)] @md/chat:inline">· VRAM {pct(vramUsed, vramTotal)}%</b>}
             </> : <span>{mode === 'off' ? 'off' : '…'}</span>}
         </button>
         {open && <div className="absolute bottom-full right-0 z-[90] mb-1.5 w-[300px] max-w-[calc(100cqw-1rem)] space-y-2.5 rounded-xl border border-[var(--border-color)] bg-[var(--bg-secondary)] p-3 text-[11px] text-[var(--text-primary)] shadow-2xl @lg/chat:w-[340px]">
