@@ -4,6 +4,7 @@ import type { ModelRegistryEntry } from '../../../api/engine/models/models.types
 import { errorMessage } from '../../../api/client/errors';
 import { useConnectionStore } from '../../../store/engine/useConnectionStore';
 import { useEngineStore } from '../../../store/engine/useEngineStore';
+import { useModelDownloadStore } from '../../extensions/modelDownloadStore';
 
 /** Model discovery/selection for the existing chat dropdown, without settings-API calls in UI. */
 export function useChatModels() {
@@ -17,6 +18,9 @@ export function useChatModels() {
     const busy = useRef(false);
     const selection = useRef<AbortController | null>(null);
     const generation = useRef(0);
+    /** Bumped by the Toolkit when a download finishes or a model is removed */
+    const installedRevision = useModelDownloadStore(state => state.revision);
+    const [quiet, setQuiet] = useState(0);
 
     useEffect(() => {
         const controller = new AbortController();
@@ -36,6 +40,21 @@ export function useChatModels() {
         });
         return () => { controller.abort(); selection.current?.abort(); generation.current++; };
     }, [connection, settingsReady, attempt]);
+
+    // Read the installed list again without emptying it first, so the open dropdown does not flicker:
+    // after an install or removal in the Toolkit, and each time the dropdown opens (`reload`)
+    useEffect(() => {
+        if (!installedRevision && !quiet) return;
+        const controller = new AbortController();
+        const version = generation.current;
+        modelsApi.getInstalled(controller.signal).then(result => {
+            if (!controller.signal.aborted && generation.current === version) {
+                setModels(result.installed.filter(model => !model.category || model.category === 'chat'));
+                setError(null);
+            }
+        }).catch(() => { /* the list on screen stays; the first read already reports errors */ });
+        return () => controller.abort();
+    }, [installedRevision, quiet]);
 
     const select = async (id: string): Promise<boolean> => {
         if (busy.current) return false;
@@ -60,5 +79,5 @@ export function useChatModels() {
             if (generation.current === version) setSelecting(false);
         }
     };
-    return { models, loading, error, selecting, select, retry: () => setAttempt(value => value + 1) };
+    return { models, loading, error, selecting, select, retry: () => setAttempt(value => value + 1), reload: () => setQuiet(value => value + 1) };
 }

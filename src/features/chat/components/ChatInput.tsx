@@ -712,7 +712,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     const activeCloudModel = cloudModels.find(m => m.model === chosenCloudModel);
     const connectionKey = useConnectionStore(state => state.getBaseUrl());
     useEffect(() => { void useProvidersStore.getState().refresh(); }, [connectionKey]);
-    useEffect(() => { if (isModelOpen) void useProvidersStore.getState().refresh(); }, [isModelOpen]);
+    // Opening the dropdown reads both lists again, so a model installed or a provider added a moment ago is there
+    useEffect(() => { if (isModelOpen) { void useProvidersStore.getState().refresh(); chatModels.reload(); } }, [isModelOpen]); // eslint-disable-line react-hooks/exhaustive-deps
     const [modelQuery, setModelQuery] = useState('');
     const modelListRef = useRef<HTMLDivElement>(null);
     // On open: clear the search and bring the chosen model into view, so it is never hidden below the fold
