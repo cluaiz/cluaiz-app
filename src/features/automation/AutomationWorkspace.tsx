@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { ConfirmationModal } from '../../components/ui/modal/ConfirmationModal';
 import { EngineOfflineGuard } from '../settings/EngineOfflineGuard';
-import type { FlowSummary } from '../../api/engine/automation';
+import { flowsApi, type FlowSummary } from '../../api/engine/automation';
+import { errorMessage } from '../../api/client/errors';
+import { toast } from '../../components/ui/toast';
 import { FlowStudio } from './studio/FlowStudio';
 import { ChatWorkspace } from '../chat/components/ChatWorkspace';
 import { AutomationHome } from './home/AutomationHome';
@@ -23,13 +25,24 @@ export function AutomationWorkspace() {
     const data = useFlows();
     const { confirmation, confirm, cancelConfirmation, remove, refresh } = data;
 
+    /** A flow file from disk is saved as the person's own workflow; the Engine checks it and says what is wrong */
+    const importFile = async (file: File) => {
+        try {
+            const saved = await flowsApi.save({ text: await file.text(), format: /\.json$/i.test(file.name) ? 'json' : 'yaml', scope: 'user' });
+            toast.success(`${saved.name} imported`);
+            await refresh();
+        } catch (reason) {
+            toast.error(`Could not import ${file.name}: ${errorMessage(reason)}`);
+        }
+    };
+
     if (editing !== undefined) {
         return <ChatWorkspace workspace={<Pane>
             <FlowStudio target={editing ?? undefined} onClose={saved => { setEditing(undefined); if (saved) void refresh(); }} />
         </Pane>} />;
     }
     return <Pane>
-        <AutomationHome data={data} onOpen={setEditing} onNew={() => setEditing(null)} onRemove={setRemoving} />
+        <AutomationHome data={data} onOpen={setEditing} onNew={() => setEditing(null)} onImport={file => void importFile(file)} onRemove={setRemoving} />
         <ConfirmationModal open={Boolean(confirmation)} title={`Enable ${confirmation?.flow.name ?? 'workflow'}?`}
             message={confirmation ? describePermissions(confirmation.missing) : ''} confirmText="Confirm and enable"
             onConfirm={confirm} onCancel={cancelConfirmation} />
