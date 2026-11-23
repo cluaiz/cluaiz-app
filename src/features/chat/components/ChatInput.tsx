@@ -127,6 +127,9 @@ interface ChatInputProps {
     handleSendMessage: (customText?: string, options?: import('../../../core/engine').SendChatOptions) => void | boolean | Promise<void>;
     replyingTo?: { text: string; messageIndex: number; type?: 'message' | 'selection' } | null;
     setReplyingTo?: (val: { text: string; messageIndex: number; type?: 'message' | 'selection' } | null) => void;
+    /** Your last message being edited: its text fills the input, and an Edit tab sits above it */
+    editing?: { text: string; messageIndex: number } | null;
+    onCancelEdit?: () => void;
     isFloating?: boolean;
     isStreaming?: boolean;
     onStopStreaming?: () => void;
@@ -140,6 +143,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     handleSendMessage,
     replyingTo,
     setReplyingTo,
+    editing,
+    onCancelEdit,
     isFloating = false,
     isStreaming = false,
     onStopStreaming
@@ -166,6 +171,13 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         if (text) inlineInputRef.current?.insertText(text);
         setInputValue(text);
     };
+    // Edit from a message's menu: the input takes that message's text, ready to change and send
+    useEffect(() => {
+        if (!editing) return;
+        replaceInputText(editing.text);
+        inlineInputRef.current?.focus();
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- once per message chosen for editing
+    }, [editing?.messageIndex, editing?.text]);
     const withBase = (heard: string) => [dictationBaseRef.current.trim(), heard.trim()].filter(Boolean).join(' ');
 
     const sendVoiceTurn = (text: string) => {
@@ -2021,9 +2033,25 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
 
             {/* Attached Tabs Stack: Approvals, Replying & Pending Queue (Flush Inset within Input Shoulders) */}
-            {(replyingTo || pendingQueue.length > 0 || pendingApprovals.length > 0) && (
+            {(replyingTo || editing || pendingQueue.length > 0 || pendingApprovals.length > 0) && (
                 <div className="mx-5 -mb-[1px] z-20 relative flex flex-col gap-1">
                     <ApprovalTabs approvals={pendingApprovals} />
+                    {/* Editing your last message: the same tab as Reply, with Edit and a cancel that empties the input */}
+                    {editing && (
+                        <div className="w-full flex items-center justify-between px-3.5 py-1.5 rounded-t-[14px] bg-[var(--bg-secondary)] border border-b-0 border-[var(--border-color)] text-xs text-[var(--text-secondary)] shadow-sm select-none">
+                            <div className="flex items-center gap-2 min-w-0 flex-1 mr-3">
+                                <Pencil className="w-3.5 h-3.5 text-[var(--accent-color)] shrink-0" />
+                                <span className="text-[10px] uppercase font-bold text-[var(--accent-color)] tracking-wider shrink-0">Edit</span>
+                                <span className="text-[var(--text-muted)] shrink-0 select-none">|</span>
+                                <span className="truncate text-[12px] font-medium text-[var(--text-primary)]">{editing.text}</span>
+                            </div>
+                            <button type="button" onClick={() => { onCancelEdit?.(); replaceInputText(''); }}
+                                className="shrink-0 border-l border-[var(--border-color)] pl-3 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer bg-transparent flex items-center"
+                                title="Cancel edit">
+                                <X className="w-3.5 h-3.5" />
+                            </button>
+                        </div>
+                    )}
                     {/* [P1, P2, P4, P5, P6, P7] Attached Replying Tab */}
                     {replyingTo && (
                         <div className="w-full flex items-center justify-between px-3.5 py-1.5 rounded-t-[14px] bg-[var(--bg-secondary)] border border-b-0 border-[var(--border-color)] text-xs text-[var(--text-secondary)] shadow-sm select-none">

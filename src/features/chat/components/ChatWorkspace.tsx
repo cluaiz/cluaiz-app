@@ -189,6 +189,8 @@ export function ChatWorkspace({ workspace, chatBinding }: { workspace?: React.Re
         messageIndex: number;
     } | null>(null);
 
+    /** Your last message being edited in the input: on send it and the answer after it are replaced */
+    const [editing, setEditing] = useState<{ text: string; messageIndex: number } | null>(null);
     const [replyingTo, setReplyingTo] = useState<{ text: string, messageIndex: number, type?: 'message' | 'selection' } | null>(null);
 
     const [unhighlightMenu, setUnhighlightMenu] = useState<{
@@ -259,9 +261,9 @@ export function ChatWorkspace({ workspace, chatBinding }: { workspace?: React.Re
             setIsSelectionMode(true);
             setSelectedMessageIndices([index]);
         } else if (action === 'edit') {
-            // The last message of yours goes back into the input; it and the answer after it leave the chat until sent again
-            setInputValue(messages[index].text);
-            for (let at = messages.length - 1; at >= index; at--) deleteMessage(activeSessionId, at);
+            // The last message of yours goes back into the input; the chat stays as it is until the edit is sent
+            setReplyingTo(null);
+            setEditing({ text: messages[index].text, messageIndex: index });
         }
         setMsgMenu(null);
     };
@@ -385,7 +387,15 @@ main().catch(console.error);`);
     const { handleSendMessage: sendMainMessage, handleRetryMessage, processing } = useChatSend({
         inputValue, setInputValue, replyingTo, setReplyingTo, isIncognito, messages, telemetry
     });
-    const handleSendMessage = isBoundChat ? boundChat.send : sendMainMessage;
+    const sendEdited: typeof sendMainMessage = (...args) => {
+        if (editing && activeSessionId) {
+            const count = useChatStore.getState().sessions[activeSessionId]?.messages.length ?? 0;
+            for (let at = count - 1; at >= editing.messageIndex; at--) deleteMessage(activeSessionId, at);
+            setEditing(null);
+        }
+        return sendMainMessage(...args);
+    };
+    const handleSendMessage = isBoundChat ? boundChat.send : sendEdited;
     const handleStopStreaming = async () => {
         if (isBoundChat) { boundChat.stop(); return; }
         try {
@@ -517,6 +527,8 @@ main().catch(console.error);`);
                                 handleSendMessage={handleSendMessage}
                                 replyingTo={replyingTo}
                                 setReplyingTo={setReplyingTo}
+                                editing={isBoundChat ? null : editing}
+                                onCancelEdit={() => setEditing(null)}
                                 isFloating={true}
                                 isStreaming={streamingHere}
                                 onStopStreaming={handleStopStreaming}
@@ -690,6 +702,8 @@ main().catch(console.error);`);
                                         handleSendMessage={handleSendMessage}
                                         replyingTo={replyingTo}
                                         setReplyingTo={setReplyingTo}
+                                        editing={isBoundChat ? null : editing}
+                                        onCancelEdit={() => setEditing(null)}
                                         isStreaming={streamingHere}
                                         onStopStreaming={handleStopStreaming}
                                     />
