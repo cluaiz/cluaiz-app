@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Bot, History, LayoutDashboard, RefreshCw, ShieldCheck, Workflow } from 'lucide-react';
 import { ConfirmationModal } from '../../components/ui/modal/ConfirmationModal';
 import { Button } from '../../components/ui/Button';
@@ -18,6 +18,7 @@ import { RunList } from './RunList';
 import { MoveDialog } from './folders/MoveDialog';
 import { moveToFolder, useFlowFolders } from './folders/flowFolders';
 import { describePermissions, flowKey, useFlows } from './useFlows';
+import { readPlace, writePlace } from './automationRoute';
 
 /** `undefined`: the sections; `null`: a new workflow; a flow: that flow's file */
 type Editing = FlowSummary | null | undefined;
@@ -38,8 +39,11 @@ const TITLES: Record<Section, { title: string; text: string }> = {
  * on these pages; the editor still sits beside the chat until its own chat panel is built.
  */
 export function AutomationWorkspace() {
-    const [section, setSection] = useState<Section>('home');
-    const [editing, setEditing] = useState<Editing>(undefined);
+    // The address is the source of the place: a refresh or a copied link opens the same section or workflow
+    const [section, setSection] = useState<Section>(() => readPlace().section);
+    const [editing, setEditing] = useState<Editing>(() => readPlace().flow === 'new' ? null : undefined);
+    /** A workflow named in the address, opened once the list has it */
+    const [pendingFlow, setPendingFlow] = useState<string | null>(() => { const flow = readPlace().flow; return flow && flow !== 'new' ? flow : null; });
     const [removing, setRemoving] = useState<FlowSummary[] | null>(null);
     const [moving, setMoving] = useState<FlowSummary[] | null>(null);
     const [movingBusy, setMovingBusy] = useState(false);
@@ -50,6 +54,29 @@ export function AutomationWorkspace() {
     const { folders, reading } = useFlowFolders(flows);
     const agents = useMemo(() => (flows ?? []).filter(isAgent), [flows]);
     const waiting = (runs ?? []).filter(item => item.status === 'waiting').length;
+
+    useEffect(() => {
+        if (!pendingFlow || !flows) return;
+        const found = flows.find(flow => flowKey(flow) === pendingFlow);
+        setPendingFlow(null);
+        if (found) setEditing(found); else { toast.error(`Workflow ${pendingFlow} was not found`); writePlace({ section, flow: null }, true); }
+    }, [pendingFlow, flows]); // eslint-disable-line react-hooks/exhaustive-deps
+    useEffect(() => {
+        if (pendingFlow) return;
+        writePlace({ section, flow: editing === undefined ? null : editing === null ? 'new' : flowKey(editing) });
+    }, [section, editing, pendingFlow]);
+    // Back and Forward move between the places written above
+    useEffect(() => {
+        const back = () => {
+            const place = readPlace();
+            setSection(place.section);
+            if (!place.flow) setEditing(undefined);
+            else if (place.flow === 'new') setEditing(null);
+            else setPendingFlow(place.flow);
+        };
+        window.addEventListener('popstate', back);
+        return () => window.removeEventListener('popstate', back);
+    }, []);
 
     const importFile = async (picked: File) => {
         try {

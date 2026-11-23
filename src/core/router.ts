@@ -145,12 +145,16 @@ const TOOLKIT_QUERY_PARAMS = [
     'section', 'place', 'list', 'show', 'family', 'model', 'pick', 'package',
     'provider', 'type', 'format', 'traits', 'status', 'picker',
 ];
+/** Automation's place: `s` the section, `flow` the open workflow (`scope:name`, or `new`) */
+export const AUTOMATION_QUERY_PARAMS = ['s', 'flow'];
 
 /**
  * Updates URL to reflect active chat ID (?c=chat_YYYYMMDD_...) without reloading.
  */
 export function pushChatRoute(chatId: string | null, replace: boolean = false): void {
     if (typeof window === 'undefined') return;
+    // A chat beside another view (Automation, the code workspace) does not own the address: that view does
+    if (useLayoutStore.getState().activeView !== 'chat' && window.location.pathname !== '/') return;
     try {
         const url = new URL(window.location.href);
         // Explicitly set pathname to root for chat and clear any settings, API Explorer, or Toolkit query params
@@ -159,6 +163,7 @@ export function pushChatRoute(chatId: string | null, replace: boolean = false): 
         url.searchParams.delete('endpoint');
         url.searchParams.delete('method');
         for (const p of TOOLKIT_QUERY_PARAMS) url.searchParams.delete(p);
+        for (const p of AUTOMATION_QUERY_PARAMS) url.searchParams.delete(p);
         if (chatId) {
             url.searchParams.set('c', chatId);
         } else {
@@ -220,6 +225,9 @@ export function pushViewRoute(view: MainViewId, replace: boolean = false): void 
         }
         if (view !== 'toolkit') {
             for (const p of TOOLKIT_QUERY_PARAMS) url.searchParams.delete(p);
+        }
+        if (view !== 'automation') {
+            for (const p of AUTOMATION_QUERY_PARAMS) url.searchParams.delete(p);
         }
         const targetUrl = url.pathname + (url.search ? url.search : '') + url.hash;
         const currentUrl = window.location.pathname + window.location.search + window.location.hash;

@@ -129,7 +129,12 @@ export function ChatWorkspace({ workspace, chatBinding }: { workspace?: React.Re
         ? <ProjectWorkspacePane mode="split" project={activeChatProject} />
         : undefined;
     const resolvedWorkspace = workspace ?? projectRightPane;
-    const visibleSplitPaneWidth = resolvedWorkspace !== undefined && splitPaneWidth === 100 ? 50 : splitPaneWidth;
+    // A view that brings its own pane (Automation) keeps its own split, so dragging there never opens the code
+    // workspace in the plain chat later; the chat's code workspace and project pane use the shared split
+    const [ownSplit, setOwnSplit] = useState(50);
+    const ownsSplit = workspace !== undefined;
+    const visibleSplitPaneWidth = ownsSplit ? ownSplit : resolvedWorkspace !== undefined && splitPaneWidth === 100 ? 50 : splitPaneWidth;
+    const setSplit = ownsSplit ? setOwnSplit : setSplitPaneWidth;
 
     const [inputValue, setInputValue] = useState('');
     const permissions = useEngineStore((state) => state.permissions);
@@ -480,7 +485,7 @@ main().catch(console.error);`);
             const targetWidth = splitReversed ? 100 - percentage : percentage;
             // Neither side gets narrower than it can show: the chat keeps CHAT_MIN_PX, the other pane WORKSPACE_MIN_PX
             const low = (CHAT_MIN_PX / containerRect.width) * 100, high = 100 - (WORKSPACE_MIN_PX / containerRect.width) * 100;
-            if (low <= high) setSplitPaneWidth(Math.min(high, Math.max(low, targetWidth)));
+            if (low <= high) setSplit(Math.min(high, Math.max(low, targetWidth)));
         };
 
         const handleMouseUp = () => {
@@ -498,7 +503,7 @@ main().catch(console.error);`);
             document.removeEventListener('mousemove', handleMouseMove);
             document.removeEventListener('mouseup', handleMouseUp);
         };
-    }, [isDragging, splitReversed, setSplitPaneWidth]);
+    }, [isDragging, splitReversed, setSplit]);
 
     if (!isBoundChat && workspace === undefined && isCreatingProject) {
         return <ProjectWorkspacePane mode="create" />;
