@@ -7,7 +7,7 @@ import { useLayoutStore } from '../../../store/ui/useLayoutStore';
 import { useThemeStore } from '../../../store/ui/useThemeStore';
 import { useEngineStore } from '../../../store/engine/useEngineStore';
 import { useChatStore } from '../../../store/chat/useChatStore';
-import { ChevronDown, Copy, Trash2, X, FileText, WifiOff, ArrowLeftRight } from 'lucide-react';
+import { ChevronDown, Copy, Trash2, X, FileText, WifiOff, ArrowLeftRight, Loader2 } from 'lucide-react';
 import * as Icons from '../../../components/animate-ui/icons';
 import { useIconHover } from '../../../components/animate-ui/icons';
 import { toast } from '../../../components/ui/toast';
@@ -612,10 +612,13 @@ main().catch(console.error);`);
                                         animate={{ opacity: 1, y: 0, scale: 1 }}
                                         exit={{ opacity: 0, y: 10, scale: 0.8 }}
                                         onClick={() => scrollToBottom()}
-                                        className="absolute right-6 -top-12 z-50 bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] p-2 rounded-full shadow-2xl border border-[var(--border-color)] hover:bg-[var(--bg-secondary)] transition-colors cursor-pointer"
+                                        title={streamingHere ? 'The answer is still being written below' : 'Go to the latest message'}
+                                        className="group absolute right-6 -top-12 z-50 bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] p-2 rounded-full shadow-2xl border border-[var(--border-color)] hover:bg-[var(--bg-secondary)] transition-colors cursor-pointer"
                                         style={{ borderStyle: 'var(--border-style)' }}
                                     >
-                                        <ChevronDown size={20} />
+                                        {/* While the answer is written below, a spinner says so; pointing at it shows the arrow */}
+                                        {streamingHere && <Loader2 size={20} className="animate-spin text-[var(--accent-color)] group-hover:hidden" />}
+                                        <ChevronDown size={20} className={streamingHere ? 'hidden group-hover:block' : undefined} />
                                         {unreadCount > 0 && (
                                             <span
                                                 className="absolute -top-1 -right-1 bg-[var(--accent-color)] text-white text-[10px] font-bold min-w-[1.25rem] h-5 px-1 flex items-center justify-center rounded-full shadow-md pointer-events-none select-none"
