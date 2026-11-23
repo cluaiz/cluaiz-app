@@ -369,6 +369,7 @@ test('cluaizEngine.send forwards history_mode adaptive for saved chats and omits
   const sentPayloads = [];
   const { cluaizEngine } = load('src/core/engine.ts', {
     '@tauri-apps/api/core': { invoke: async () => {} },
+    '../api/engine/chat/sampling': load('src/api/engine/chat/sampling.ts', {}),
     '../store/engine/useEngineStore': { useEngineStore: { getState: () => ({ setStatus: () => {} }) } },
     '../store/engine/useConnectionStore': { useConnectionStore: { getState: () => ({ protocol: 'http' }) } },
     '../api': {

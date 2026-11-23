@@ -130,3 +130,29 @@ the messages after it; the earlier messages stay visible but are no longer sent.
 "Compact now" in the context popover, or on its own when an answer leaves the context
 `AUTO_COMPACT_PERCENT` (80%) full and at least 4 messages came after the last compaction
 (`ChatWorkspace`). A failed compaction leaves the full conversation in use.
+
+## Chat top bar and settings panel
+
+The model picker sits in the chat's top bar (`ChatTopBar`, left), not in the input: `ChatInput` renders the
+same picker into the bar through a portal, so there is one picker and one state. Extension chats have no
+top bar and keep it in the input. Where the picker was, the input shows "Approvals: as in Settings": the
+Engine has only a global approval mode (`PermissionSchema.agent_security_mode`) and per-chat tool grants,
+so a per-chat mode would be a switch that changes nothing. It stays a note until the Engine checks a mode
+per chat (pending, listed in the App's `.agent/plan/engine-gaps-for-chat-controls.md`).
+
+The button on the right of the bar opens `ChatControlsPanel` beside the chat (the chat column gets
+`sm:pr-80`, so the input is never under it). It holds:
+- The chat's system prompt and sampling fields (temperature, top_p, top_k, min_p, the three penalties,
+  max_tokens, seed). They live in `store/chat/useChatControlsStore` per chat id; a chat without its own
+  uses the new-chat ones. An empty field is not sent, so the Engine's default applies; `chatControlOptions`
+  is the one place that turns them into request fields, and `core/engine.ts` puts the system prompt first
+  among the system messages.
+- Live system: `system.live` (RAM, CPU, each GPU's VRAM) and `system.ps` (the loaded model's plan) read
+  every 2 s by `useLiveSystem`, in three modes: Always, While open (only while the panel is open and the
+  window visible, the default), Off. The Engine has no stream, CPU or GPU use percent, or its own RAM yet,
+  and the panel says so instead of showing a guess.
+
+Checked on 2026-11-23 against the test Engine (port 8011) with Qwen3.5 0.8B: a chat with temperature 0.3,
+max_tokens 40, seed 7 and a system prompt sent exactly those fields and the prompt as the first system
+message; the panel showed RAM 14.6 of 23.7 GB, 1.3 of 4.0 GB VRAM and the loaded model's plan; no console
+errors at 1440 px. Test: `node --test test/chat_controls.test.cjs`.

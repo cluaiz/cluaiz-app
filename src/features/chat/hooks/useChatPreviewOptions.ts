@@ -2,6 +2,7 @@ import { useEffect, type RefObject } from 'react';
 import type { InlinePromptInputHandle } from '../../../components/ui/InlinePromptInput';
 import type { SendChatOptions } from '../../../core/engine';
 import { chatComposerOptions } from '../utils/chatRequest';
+import { activeChatControls } from '../../../store/chat/activeChatControls';
 
 export type ChatPreviewOptionsRef = RefObject<(() => SendChatOptions) | null>;
 
@@ -15,7 +16,7 @@ export function useChatPreviewOptions(
 ) {
     useEffect(() => {
         if (!target) return;
-        const read = () => chatComposerOptions(model, thinkMode, effort, input.current?.getSerializedContent().skills ?? []);
+        const read = () => chatComposerOptions(model, thinkMode, effort, input.current?.getSerializedContent().skills ?? [], activeChatControls());
         target.current = read;
         return () => { if (target.current === read) target.current = null; };
     }, [target, input, model, thinkMode, effort]);

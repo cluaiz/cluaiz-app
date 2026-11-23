@@ -37,6 +37,9 @@ import { ConversationMemoryPanel } from './ConversationMemoryPanel';
 import { ContextDetailsPanel } from './ContextDetailsPanel';
 import { useProjectStore } from '../../../store/workspace/useProjectStore';
 
+import { ChatTopBar } from './ChatTopBar';
+import { ChatControlsPanel } from './ChatControlsPanel';
+import { useChatControlsStore } from '../../../store/chat/useChatControlsStore';
 const PrivateModeToggleButton: React.FC<{
     isIncognito: boolean;
     onClick: () => void;
@@ -81,6 +84,7 @@ export function ChatWorkspace({ workspace, chatBinding }: { workspace?: React.Re
     // "Save chat history" off in Settings → Chats & History: new chats start in Private Mode
     const [isIncognito, setIsIncognito] = useState(() => !currentChatPrefs().saveHistory);
     const [memoryOpen, setMemoryOpen] = useState(false);
+    const controlsOpen = useChatControlsStore(s => s.panelOpen);
     const [conversationMemoryOpen, setConversationMemoryOpen] = useState(false);
     const [contextDetailsOpen, setContextDetailsOpen] = useState(false);
     const previewOptionsRef = useRef<(() => import('../../../core/engine').SendChatOptions) | null>(null);
@@ -461,7 +465,7 @@ main().catch(console.error);`);
 
             <div
                 style={{ width: `${visibleSplitPaneWidth}%` }}
-                className="h-full flex flex-col bg-[var(--bg-primary)] overflow-hidden relative"
+                className={`h-full flex flex-col bg-[var(--bg-primary)] overflow-hidden relative ${controlsOpen && !isBoundChat ? 'sm:pr-80' : ''}`}
             >
                 {!isBoundChat && messages.length === 0 && (
                     <div className="absolute top-4 right-4 z-40 flex items-center gap-2">
@@ -479,6 +483,8 @@ main().catch(console.error);`);
                         />
                     </div>
                 )}
+                {!isBoundChat && <ChatTopBar />}
+                {!isBoundChat && <ChatControlsPanel />}
                 {!isBoundChat && <AiMemoryPanel open={memoryOpen} onClose={() => setMemoryOpen(false)} chatId={activeSessionId}
                     workspacePath={memoryWorkspace} privateChat={Boolean(activeSession?.isIncognito || isIncognito)} />}
                 {!isBoundChat && <ConversationMemoryPanel open={conversationMemoryOpen} onClose={() => setConversationMemoryOpen(false)}

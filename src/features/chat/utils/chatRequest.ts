@@ -1,13 +1,23 @@
 import type { ChatMessage, ChatModelLoadState } from '../../../store/chat/types';
 import type { ProcessingEvent } from '../../../api/engine/chat/chat.types';
 import type { EngineLoadReport, SendChatOptions } from '../../../core/engine';
+import { SAMPLING_KEYS, type ChatControls } from '../../../store/chat/useChatControlsStore';
 
 /** One owner for the composer settings used by Send and an explicit text preview. */
-export function chatComposerOptions(model: string | null | undefined, thinkMode: string, effort: string | number, skills: string[]): SendChatOptions {
+export function chatComposerOptions(model: string | null | undefined, thinkMode: string, effort: string | number, skills: string[],
+    controls: ChatControls = {}): SendChatOptions {
     const tools = skills.filter(name => !['Think Deep', 'Think Lite', 'Long Answer', 'Short Answer'].includes(name))
         .map(name => ({ name, id: name }));
     return { model: model || undefined, think_mode: thinkMode, reasoning_effort: effort,
-        tools: tools.length ? tools : undefined };
+        tools: tools.length ? tools : undefined, ...chatControlOptions(controls) };
+}
+
+/** The chat panel's settings as request fields: only the ones the user set, so the rest keep the Engine's defaults */
+export function chatControlOptions(controls: ChatControls): Pick<SendChatOptions, 'system_prompt' | typeof SAMPLING_KEYS[number]> {
+    const options: Pick<SendChatOptions, 'system_prompt' | typeof SAMPLING_KEYS[number]> = {};
+    for (const key of SAMPLING_KEYS) if (Number.isFinite(controls[key])) options[key] = controls[key];
+    if (controls.systemPrompt?.trim()) options.system_prompt = controls.systemPrompt.trim();
+    return options;
 }
 
 /** Saved chats use adaptive recall; private chats keep the existing temporary policy. */

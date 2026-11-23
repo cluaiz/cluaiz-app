@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { useEngineStore } from '../store/engine/useEngineStore';
+import { SAMPLING_KEYS } from '../api/engine/chat/sampling';
 import { useConnectionStore } from '../store/engine/useConnectionStore';
 import { client, chatApi } from '../api';
 import type { ProcessingEvent } from '../api/engine/chat/chat.types';
@@ -28,6 +29,16 @@ export interface SendChatOptions {
     think_mode?: 'auto' | 'on' | 'off' | string;
     reasoning_effort?: 'auto' | 'low' | 'medium' | 'high' | 'max' | string | number;
     temperature?: number;
+    top_p?: number;
+    top_k?: number;
+    min_p?: number;
+    repetition_penalty?: number;
+    presence_penalty?: number;
+    frequency_penalty?: number;
+    max_tokens?: number;
+    seed?: number;
+    /** The chat's own instructions: sent as the first system message, before any other system text */
+    system_prompt?: string;
     tools?: any[];
     attachments?: Array<{ name: string; size?: number; type?: string; previewUrl?: string }>;
     parts?: any[];
@@ -212,8 +223,16 @@ export class cluaizEngine {
             if (options?.reasoning_effort !== undefined && options.reasoning_effort !== '') {
                 payload.reasoning_effort = options.reasoning_effort;
             }
-            if (options?.temperature !== undefined) {
-                payload.temperature = options.temperature;
+            for (const key of SAMPLING_KEYS) {
+                if (options?.[key] !== undefined) payload[key] = options[key];
+            }
+            if (options?.system_prompt) {
+                const [first, ...rest] = payload.messages;
+                payload.messages = first?.role === 'system' && typeof first.content === 'string'
+                    ? [{ role: 'system', content: `${options.system_prompt}
+
+${first.content}` }, ...rest]
+                    : [{ role: 'system', content: options.system_prompt }, ...payload.messages];
             }
             if (options?.tools && options.tools.length > 0) {
                 payload.tools = options.tools;

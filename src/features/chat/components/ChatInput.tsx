@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Send, Square, FileCode, FileText, Plus, ChevronDown, Mic, Zap, Sparkles, Globe, Brain, Image as ImageIcon, Video, X, Clock, ChevronRight, UploadCloud, Link as LinkIcon, Layers, FolderUp, Database, BookOpen, ZapOff, Telescope, CornerDownRight, Check, AlignLeft, AlignJustify, Box, Server, Info, SlidersHorizontal, Trash2, Pencil, Flame, Wand2, Cloud } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { CHAT_MODEL_SLOT } from './ChatTopBar';
+import { Send, Square, FileCode, FileText, Plus, ChevronDown, Mic, Zap, Sparkles, Globe, Brain, Image as ImageIcon, Video, X, Clock, ChevronRight, UploadCloud, Link as LinkIcon, Layers, FolderUp, Database, BookOpen, ZapOff, Telescope, CornerDownRight, Check, AlignLeft, AlignJustify, Box, Server, Info, SlidersHorizontal, Trash2, Pencil, Flame, Wand2, Cloud, Lock } from 'lucide-react';
 import { chatRequestModel, providerChatModels, useProvidersStore } from '../../../store/cloud/useProvidersStore';
 import { useModelCatalogueStore } from '../../extensions/modelCatalogueStore';
 import BorderGlow from '../../../components/ui/BorderGlow';
@@ -30,6 +32,7 @@ import { EngineReconnectNotice } from './EngineReconnectNotice';
 import { ApprovalTabs, usePendingApprovals } from './ApprovalTabs';
 import { serializeStagedAttachments } from '../utils/attachmentSerializer';
 import { chatComposerOptions } from '../utils/chatRequest';
+import { activeChatControls } from '../../../store/chat/activeChatControls';
 import { useChatPreviewOptions, type ChatPreviewOptionsRef } from '../hooks/useChatPreviewOptions';
 
 const DynamicToolIcon: React.FC<{ iconSvg?: string | null; fallback: React.ReactNode; className?: string }> = ({ iconSvg, fallback, className = "w-3.5 h-3.5" }) => {
@@ -626,7 +629,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         }
 
         const options: import('../../../core/engine').SendChatOptions = {
-            ...chatComposerOptions(chatRequestModel(permissions?.chat_models?.text), thinkMode, effort, contextData.skills),
+            ...chatComposerOptions(chatRequestModel(permissions?.chat_models?.text), thinkMode, effort, contextData.skills, activeChatControls()),
             parts: finalParts,
             attachments: attachmentsMeta
         };
@@ -1733,6 +1736,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         </div>
     );
 
+    // The model picker lives in the chat's top bar when there is one (not in extension chats)
+    const [modelSlot, setModelSlot] = useState<HTMLElement | null>(null);
+    useEffect(() => { setModelSlot(textOnly ? null : document.getElementById(CHAT_MODEL_SLOT)); }, [textOnly]);
     const renderModelSelector = () => (
         <div className="relative" ref={modelRef}>
             <button
@@ -1755,7 +1761,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             </button>
 
             {isModelOpen && (
-                <div className="absolute bottom-full left-0 mb-2 w-72 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl shadow-2xl overflow-hidden p-1.5 z-50 flex flex-col gap-1 max-h-72 overflow-y-auto custom-scrollbar">
+                <div className={`absolute left-0 w-72 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl shadow-2xl overflow-hidden p-1.5 z-50 flex flex-col gap-1 max-h-72 overflow-y-auto custom-scrollbar ${modelSlot ? 'top-full mt-2' : 'bottom-full mb-2'}`}>
                     {/* Header */}
                     <div className="px-2 py-1 text-[10px] uppercase tracking-wider font-semibold text-[var(--text-muted)] select-none border-b border-[var(--border-color)]/40 pb-1.5 mb-0.5 flex items-center justify-between">
                         <span>Select AI Model</span>
@@ -1926,7 +1932,13 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                         </button>
                     </div>
 
-                    {renderModelSelector()}
+                    {modelSlot ? <>
+                        {createPortal(renderModelSelector(), modelSlot)}
+                        <span className="flex items-center gap-1 px-2 py-1.5 text-[0.7rem] sm:text-xs font-medium text-[var(--text-muted)] cursor-help"
+                            title="Approval for this chat only needs an Engine update (pending). Until then every chat follows the approval mode in Settings.">
+                            <Lock className="w-3.5 h-3.5 shrink-0" /> Approvals: as in Settings
+                        </span>
+                    </> : renderModelSelector()}
 
                     {!textOnly && renderEffortControl()}
                 </div>
