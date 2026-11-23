@@ -26,12 +26,12 @@ export function ChatApprovalPicker() {
     const current = MODES.find(mode => mode.id === (controlsFor(byChat, chatId).approvalMode ?? '')) ?? MODES[0];
     const Icon = current.icon;
 
-    return <div ref={box} className="relative">
+    return <div ref={box}>
         <button type="button" onClick={() => setOpen(value => !value)} title={`Approvals for this chat: ${current.help}`}
-            className={`flex items-center gap-1 px-2 py-1.5 rounded-lg text-[0.7rem] sm:text-xs font-medium transition-colors cursor-pointer ${open ? 'bg-[var(--bg-tertiary)] text-[var(--text-primary)]' : 'text-[var(--text-muted)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]'}`}>
-            <Icon className="w-3.5 h-3.5 shrink-0" /> <span className="truncate">{current.label}</span>
+            className={`flex items-center gap-1 px-2 py-1.5 rounded-lg text-[0.7rem] @lg/chat:text-xs font-medium transition-colors cursor-pointer ${open ? 'bg-[var(--bg-tertiary)] text-[var(--text-primary)]' : 'text-[var(--text-muted)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]'}`}>
+            <Icon className="w-3.5 h-3.5 shrink-0" /> <span className="hidden @sm/chat:inline truncate">{current.label}</span>
         </button>
-        {open && <div className="absolute bottom-full left-0 mb-2 w-64 z-50 rounded-xl border border-[var(--border-color)] bg-[var(--bg-secondary)] p-1.5 shadow-2xl">
+        {open && <div className="absolute bottom-full left-0 mb-2 w-64 max-w-full z-50 rounded-xl border border-[var(--border-color)] bg-[var(--bg-secondary)] p-1.5 shadow-2xl">
             <div className="px-2 py-1 text-[10px] uppercase tracking-wider font-semibold text-[var(--text-muted)]">Approvals for this chat</div>
             {MODES.map(mode => {
                 const ModeIcon = mode.icon, chosen = mode.id === current.id;

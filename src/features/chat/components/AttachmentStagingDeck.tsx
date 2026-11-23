@@ -275,7 +275,7 @@ export const AttachmentCard: React.FC<{
 
                 useLayoutStore.getState().setPreviewModalAsset(assetToPreview);
             }}
-            className={`group relative shrink-0 w-24 h-28 sm:w-26 sm:h-30 rounded-2xl border border-[var(--border-color)]/80 hover:border-[var(--accent-color)]/70 shadow-sm ${isMedia ? 'bg-transparent' : 'bg-[var(--bg-secondary)]'} overflow-hidden transition-colors duration-150 cursor-pointer ${item.isPastedText ? 'cursor-grab active:cursor-grabbing' : ''} ${className}`}
+            className={`group relative shrink-0 w-24 h-28 @lg/chat:w-26 @lg/chat:h-30 rounded-2xl border border-[var(--border-color)]/80 hover:border-[var(--accent-color)]/70 shadow-sm ${isMedia ? 'bg-transparent' : 'bg-[var(--bg-secondary)]'} overflow-hidden transition-colors duration-150 cursor-pointer ${item.isPastedText ? 'cursor-grab active:cursor-grabbing' : ''} ${className}`}
         >
             {/* Inner Card Content */}
             <div className="w-full h-full rounded-2xl overflow-hidden relative">

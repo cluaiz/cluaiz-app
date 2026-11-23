@@ -182,19 +182,19 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({ language, value, allowWork
             <div className="relative my-5 w-full min-w-0 rounded-xl border border-[var(--border-color)] bg-[var(--bg-primary)] overflow-hidden shadow-sm font-mono">
                 {/* Code Editor Header */}
                 <div className="flex items-center justify-between px-3 py-1.5 bg-[var(--bg-secondary)] border-b border-[var(--border-color)] select-none">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
                         <FileIcon
                             fileName={`code.${ext}`}
                             fileExtension={ext}
                             languageId={language}
                             size={14}
                         />
-                        <span className="font-mono font-bold tracking-wider text-[11px] uppercase text-[var(--accent-color)]">
+                        <span className="font-mono font-bold tracking-wider text-[11px] uppercase text-[var(--accent-color)] whitespace-nowrap truncate">
                             {displayLang}
                         </span>
                     </div>
 
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 shrink-0">
                         {/* Workspace button ONLY when explicitly enabled (in Chat) - Icon Only */}
                         {allowWorkspaceOpen && (
                             <button
@@ -220,7 +220,7 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({ language, value, allowWork
                                 className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium text-[var(--accent-color)] hover:bg-[var(--bg-tertiary)] border border-[var(--accent-color)]/40 hover:border-[var(--accent-color)] transition-all select-none cursor-pointer"
                                 title={`Apply to the flow ${flowTarget.name}`}
                             >
-                                <Workflow className="w-3.5 h-3.5" /> Apply to flow
+                                <Workflow className="w-3.5 h-3.5 shrink-0" /> <span className="hidden whitespace-nowrap @sm/chat:inline">Apply to flow</span>
                             </button>
                         )}
 

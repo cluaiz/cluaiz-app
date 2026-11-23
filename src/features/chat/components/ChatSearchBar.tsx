@@ -81,7 +81,7 @@ export function ChatSearchBar({ messages, onClose }: { messages: ChatMessage[]; 
     return <div className="relative flex min-w-0 items-center gap-1">
         <style>{`::highlight(${HIGHLIGHT}){background-color:color-mix(in srgb, var(--accent-color) 40%, transparent);color:inherit}${hide}`}</style>
         {/* The sidebar's "Search chats" field, with the filter button inside it */}
-        <div className="relative flex w-48 items-center gap-2 rounded-lg bg-[var(--bg-primary)] px-3 py-1.5 themed-border transition-all duration-200 focus-within:border-[var(--accent-color)] sm:w-72"
+        <div className="relative flex w-48 items-center gap-2 rounded-lg bg-[var(--bg-primary)] px-3 py-1.5 themed-border transition-all duration-200 focus-within:border-[var(--accent-color)] @lg/chat:w-72"
             style={{ borderStyle: 'var(--border-style)' }}>
             <Icons.Search className="w-4 h-4 shrink-0 text-[var(--text-muted)]" size={16} />
             <input autoFocus type="text" value={words} onChange={event => setWords(event.target.value)} placeholder="Search this chat..."

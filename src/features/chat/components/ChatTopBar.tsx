@@ -21,7 +21,7 @@ export function ChatTopBar({ onSelectMessages }: { onSelectMessages(): void }) {
     const act = (run: () => void) => () => { setMenu(false); run(); };
 
     // The same gap on both sides; the private-chat lock shows only in an empty chat, where this menu does not
-    return <div className="relative z-30 flex h-12 shrink-0 items-center justify-between gap-2 px-2 sm:px-4">
+    return <div className="relative z-30 flex h-12 shrink-0 items-center justify-between gap-2 px-2 @lg/chat:px-4">
         <div id={CHAT_MODEL_SLOT} className="flex min-w-0 items-center" />
         {chatId && session && hasMessages && <div className="relative flex items-center gap-1">
             {searching && <ChatSearchBar key={chatId} messages={session.messages} onClose={() => setSearching(false)} />}

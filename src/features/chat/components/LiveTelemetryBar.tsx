@@ -79,15 +79,15 @@ export const LiveTelemetryBar: React.FC<LiveTelemetryBarProps> = ({
                     onClick={() => {
                         setIsPinned(prev => !prev);
                     }}
-                    className={`flex items-center gap-1 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer py-0.5 px-1.5 rounded ${
+                    className={`flex items-center gap-1 whitespace-nowrap text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer py-0.5 px-1.5 rounded ${
                         isOpen ? 'bg-white/[0.08] text-[var(--text-primary)]' : 'hover:bg-white/[0.04]'
                     }`}
                     title="Active safe context allocation (hardware-clamped to prevent OOM crash)"
                 >
-                    <span>Context:</span>{' '}
+                    <span className="hidden @md/chat:inline">Context:</span>{' '}
                     <b className="text-[var(--text-primary)] font-semibold">{formatTokensK(totalActive)}</b> /{' '}
                     <span className="text-[var(--text-muted)]">{formatTokensK(totalLimit)}</span>{' '}
-                    <span className="text-[var(--text-muted)] opacity-80">({activePct}%)</span>
+                    <span className="hidden text-[var(--text-muted)] opacity-80 @sm/chat:inline">({activePct}%)</span>
                 </button>
 
                 {/* Popover */}

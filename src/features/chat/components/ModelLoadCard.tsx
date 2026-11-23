@@ -201,9 +201,9 @@ export const ModelLoadCard: React.FC<ModelLoadCardProps> = ({ modelLoad }) => {
 
                     {/* ── STAGE 2: 3-TIER VISUAL HARDWARE ROUTING DIAGRAM (GPU VRAM · CPU RAM · SSD DISK) ── */}
                     <div className="space-y-3">
-                        <div className="grid grid-cols-1 md:grid-cols-11 gap-3 items-stretch">
+                        <div className="grid grid-cols-1 @2xl/chat:grid-cols-11 gap-3 items-stretch">
                             {/* Left Source Node: Model Architecture */}
-                            <div className="md:col-span-3 rounded-xl border border-[var(--border-color)]/70 bg-[var(--bg-primary)]/50 p-3 flex flex-col justify-between">
+                            <div className="@2xl/chat:col-span-3 rounded-xl border border-[var(--border-color)]/70 bg-[var(--bg-primary)]/50 p-3 flex flex-col justify-between">
                                 <div className="space-y-1">
                                     <div className="flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-wider text-[var(--text-muted)]">
                                         <Layers className="w-3.5 h-3.5 text-[var(--accent-color)]" />
@@ -249,7 +249,7 @@ export const ModelLoadCard: React.FC<ModelLoadCardProps> = ({ modelLoad }) => {
                             </div>
 
                             {/* Center SVG 3-Branch Routing Bus Connector */}
-                            <div className="hidden md:flex md:col-span-1 items-center justify-center">
+                            <div className="hidden @2xl/chat:flex @2xl/chat:col-span-1 items-center justify-center">
                                 <svg className="w-full h-44 overflow-visible" viewBox="0 0 48 160" fill="none">
                                     {/* Branch 1 -> GPU VRAM */}
                                     <path
@@ -283,7 +283,7 @@ export const ModelLoadCard: React.FC<ModelLoadCardProps> = ({ modelLoad }) => {
                             </div>
 
                             {/* Right 3 Hardware Targets: GPU VRAM + CPU System RAM + SSD Disk Stream */}
-                            <div className="md:col-span-7 flex flex-col gap-2 justify-between">
+                            <div className="@2xl/chat:col-span-7 flex flex-col gap-2 justify-between">
                                 {/* Lane 1: GPU (VRAM) */}
                                 <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/[0.06] px-3 py-2.5 space-y-1">
                                     <div className="flex flex-wrap items-center justify-between gap-2">

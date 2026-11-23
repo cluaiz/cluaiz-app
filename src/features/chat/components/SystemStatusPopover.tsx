@@ -39,14 +39,14 @@ export function SystemStatusPopover() {
 
     return <div ref={box} className="relative flex items-center" onMouseEnter={() => { if (!pinned) setHovered(true); }} onMouseLeave={() => { if (!pinned) setHovered(false); }}>
         <button type="button" onClick={() => setPinned(value => !value)} title="Live RAM and GPU memory"
-            className={`flex items-center gap-1 rounded px-1.5 py-0.5 transition-colors cursor-pointer ${open ? 'bg-white/[0.08] text-[var(--text-primary)]' : 'hover:bg-white/[0.04] hover:text-[var(--text-primary)]'}`}>
-            <span>System:</span>
+            className={`flex items-center gap-1 whitespace-nowrap rounded px-1.5 py-0.5 transition-colors cursor-pointer ${open ? 'bg-white/[0.08] text-[var(--text-primary)]' : 'hover:bg-white/[0.04] hover:text-[var(--text-primary)]'}`}>
+            <span className="hidden @md/chat:inline">System:</span>
             {live && mode !== 'off' ? <>
                 <b className="font-semibold text-[var(--text-primary)]">RAM {pct(live.memory.used_gb, live.memory.total_gb)}%</b>
                 {vramTotal > 0 && <b className="font-semibold text-[var(--text-primary)]">· VRAM {pct(vramUsed, vramTotal)}%</b>}
             </> : <span>{mode === 'off' ? 'off' : '…'}</span>}
         </button>
-        {open && <div className="absolute bottom-full right-0 z-[90] mb-1.5 w-[300px] space-y-2.5 rounded-xl border border-[var(--border-color)] bg-[var(--bg-secondary)] p-3 text-[11px] text-[var(--text-primary)] shadow-2xl sm:w-[340px]">
+        {open && <div className="absolute bottom-full right-0 z-[90] mb-1.5 w-[300px] max-w-[calc(100cqw-1rem)] space-y-2.5 rounded-xl border border-[var(--border-color)] bg-[var(--bg-secondary)] p-3 text-[11px] text-[var(--text-primary)] shadow-2xl @lg/chat:w-[340px]">
             <div className="flex items-center justify-between font-semibold">
                 <span className="font-bold">System</span>
                 {live?.cpu && <span className="truncate pl-2 text-[10px] text-[var(--text-muted)]">{live.cpu.physical_cores} cores · {(live.cpu.frequency_mhz / 1000).toFixed(2)} GHz</span>}

@@ -92,13 +92,13 @@ const formatModelName = (rawFilename: string) => {
 
 const getSkillIcon = (skill: string) => {
     switch (skill) {
-        case 'Think Deep': return <Brain className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-[var(--accent-color)]" />;
-        case 'Think Lite': return <Zap className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-[var(--accent-color)]" />;
-        case 'Long Answer': return <AlignJustify className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-[var(--accent-color)]" />;
-        case 'Short Answer': return <AlignLeft className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-[var(--accent-color)]" />;
-        case 'Web Search': return <Globe className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-[var(--accent-color)]" />;
-        case 'Deep Research': return <Telescope className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-[var(--accent-color)]" />;
-        default: return <Sparkles className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-[var(--accent-color)]" />;
+        case 'Think Deep': return <Brain className="w-4 h-4 @lg/chat:w-3.5 @lg/chat:h-3.5 text-[var(--accent-color)]" />;
+        case 'Think Lite': return <Zap className="w-4 h-4 @lg/chat:w-3.5 @lg/chat:h-3.5 text-[var(--accent-color)]" />;
+        case 'Long Answer': return <AlignJustify className="w-4 h-4 @lg/chat:w-3.5 @lg/chat:h-3.5 text-[var(--accent-color)]" />;
+        case 'Short Answer': return <AlignLeft className="w-4 h-4 @lg/chat:w-3.5 @lg/chat:h-3.5 text-[var(--accent-color)]" />;
+        case 'Web Search': return <Globe className="w-4 h-4 @lg/chat:w-3.5 @lg/chat:h-3.5 text-[var(--accent-color)]" />;
+        case 'Deep Research': return <Telescope className="w-4 h-4 @lg/chat:w-3.5 @lg/chat:h-3.5 text-[var(--accent-color)]" />;
+        default: return <Sparkles className="w-4 h-4 @lg/chat:w-3.5 @lg/chat:h-3.5 text-[var(--accent-color)]" />;
     }
 };
 
@@ -898,7 +898,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                     setIsAttachOpen(false);
                 }}
                 onMouseEnter={closeAllSubmenusImmediate}
-                className="w-full flex items-center justify-between px-2.5 py-2 text-[0.7rem] sm:text-xs font-medium hover:bg-[var(--bg-secondary)] text-[var(--text-primary)] hover:text-[var(--accent-color)] transition-colors text-left group rounded-md cursor-pointer"
+                className="w-full flex items-center justify-between px-2.5 py-2 text-[0.7rem] @lg/chat:text-xs font-medium hover:bg-[var(--bg-secondary)] text-[var(--text-primary)] hover:text-[var(--accent-color)] transition-colors text-left group rounded-md cursor-pointer"
             >
                 <div className="flex items-center gap-3">
                     <UploadCloud className="w-4 h-4 text-[var(--text-muted)] group-hover:text-[var(--accent-color)] transition-colors" />
@@ -916,7 +916,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             {/* Real Dynamic Skills Submenu */}
             <div className={`relative ${isSkillsMenuOpen ? 'z-50' : ''}`} onMouseEnter={() => openSubmenu('skills')}>
                 <button
-                    className="w-full flex items-center justify-between px-2.5 py-2 text-[0.7rem] sm:text-xs font-medium hover:bg-[var(--bg-secondary)] text-[var(--text-primary)] hover:text-[var(--accent-color)] transition-colors text-left group rounded-md cursor-pointer"
+                    className="w-full flex items-center justify-between px-2.5 py-2 text-[0.7rem] @lg/chat:text-xs font-medium hover:bg-[var(--bg-secondary)] text-[var(--text-primary)] hover:text-[var(--accent-color)] transition-colors text-left group rounded-md cursor-pointer"
                 >
                     <div className="flex items-center gap-3">
                         <Layers className="w-4 h-4 text-[var(--text-muted)] group-hover:text-[var(--accent-color)] transition-colors" />
@@ -926,7 +926,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 </button>
 
                 {isSkillsMenuOpen && (
-                    <div className="absolute left-8 sm:left-[97%] bottom-0 pl-1 z-50">
+                    <div className="absolute left-8 @lg/chat:left-[97%] bottom-0 pl-1 z-50">
                         <div className="w-52 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-xl shadow-2xl p-1 flex flex-col gap-0.5 max-h-64 overflow-y-auto custom-scrollbar">
                             {backendTools.skills.length === 0 ? (
                                 <div className="p-2.5 text-[11px] text-[var(--text-muted)] text-center italic">No skills installed</div>
@@ -968,7 +968,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             {/* Real Dynamic Plugins Submenu */}
             <div className={`relative ${isPluginsMenuOpen ? 'z-50' : ''}`} onMouseEnter={() => openSubmenu('plugins')}>
                 <button
-                    className="w-full flex items-center justify-between px-2.5 py-2 text-[0.7rem] sm:text-xs font-medium hover:bg-[var(--bg-secondary)] text-[var(--text-primary)] hover:text-[var(--accent-color)] transition-colors text-left group rounded-md cursor-pointer"
+                    className="w-full flex items-center justify-between px-2.5 py-2 text-[0.7rem] @lg/chat:text-xs font-medium hover:bg-[var(--bg-secondary)] text-[var(--text-primary)] hover:text-[var(--accent-color)] transition-colors text-left group rounded-md cursor-pointer"
                 >
                     <div className="flex items-center gap-3">
                         <Box className="w-4 h-4 text-[var(--text-muted)] group-hover:text-[var(--accent-color)] transition-colors" />
@@ -978,7 +978,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 </button>
 
                 {isPluginsMenuOpen && (
-                    <div className="absolute left-8 sm:left-[97%] bottom-0 pl-1 z-50">
+                    <div className="absolute left-8 @lg/chat:left-[97%] bottom-0 pl-1 z-50">
                         <div className="w-52 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-xl shadow-2xl p-1 flex flex-col gap-0.5 max-h-64 overflow-y-auto custom-scrollbar">
                             {/* Web Search */}
                             {isWebSearchInstalled ? (
@@ -1069,7 +1069,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             {/* Real Dynamic MCP Submenu */}
             <div className={`relative ${isMcpMenuOpen ? 'z-50' : ''}`} onMouseEnter={() => openSubmenu('mcp')}>
                 <button
-                    className="w-full flex items-center justify-between px-2.5 py-2 text-[0.7rem] sm:text-xs font-medium hover:bg-[var(--bg-secondary)] text-[var(--text-primary)] hover:text-[var(--accent-color)] transition-colors text-left group rounded-md cursor-pointer"
+                    className="w-full flex items-center justify-between px-2.5 py-2 text-[0.7rem] @lg/chat:text-xs font-medium hover:bg-[var(--bg-secondary)] text-[var(--text-primary)] hover:text-[var(--accent-color)] transition-colors text-left group rounded-md cursor-pointer"
                 >
                     <div className="flex items-center gap-3">
                         <Server className="w-4 h-4 text-[var(--text-muted)] group-hover:text-[var(--accent-color)] transition-colors" />
@@ -1079,7 +1079,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 </button>
 
                 {isMcpMenuOpen && (
-                    <div className="absolute left-8 sm:left-[97%] bottom-0 pl-1 z-50">
+                    <div className="absolute left-8 @lg/chat:left-[97%] bottom-0 pl-1 z-50">
                         <div className="w-52 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-xl shadow-2xl p-1 flex flex-col gap-0.5 max-h-56 overflow-y-auto custom-scrollbar">
                             {backendTools.mcp.length === 0 ? (
                                 <div className="p-2.5 text-[11px] text-[var(--text-muted)] text-center italic">No MCP servers active</div>
@@ -1122,7 +1122,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             <div className={`relative ${isThinkModeMenuOpen ? 'z-50' : ''}`} onMouseEnter={() => openSubmenu('think_mode')}>
                 <button
                     type="button"
-                    className="w-full flex items-center justify-between px-2.5 py-2 text-[0.7rem] sm:text-xs font-medium hover:bg-[var(--bg-secondary)] text-[var(--text-primary)] hover:text-[var(--accent-color)] transition-colors text-left group rounded-md cursor-pointer"
+                    className="w-full flex items-center justify-between px-2.5 py-2 text-[0.7rem] @lg/chat:text-xs font-medium hover:bg-[var(--bg-secondary)] text-[var(--text-primary)] hover:text-[var(--accent-color)] transition-colors text-left group rounded-md cursor-pointer"
                 >
                     <div className="flex items-center gap-3">
                         <Brain className="w-4 h-4 text-[var(--text-muted)] group-hover:text-[var(--accent-color)] transition-colors" />
@@ -1137,7 +1137,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 </button>
 
                 {isThinkModeMenuOpen && (
-                    <div className="absolute left-8 sm:left-[97%] bottom-0 pl-1 z-50">
+                    <div className="absolute left-8 @lg/chat:left-[97%] bottom-0 pl-1 z-50">
                         <div className="w-52 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-xl shadow-2xl p-1.5 flex flex-col gap-0.5">
                             <div className="px-2 py-1 text-[10px] text-[var(--text-muted)] leading-tight">
                                 Control model reasoning & thought tags.
@@ -1183,7 +1183,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             {/* Every setting of this chat (instructions, creativity, length, advanced) in one window */}
             <div className="my-1 h-px bg-[var(--border-color)]/60" />
             <button type="button" onClick={() => { setIsAttachOpen(false); useChatControlsStore.getState().setPanelOpen(true); }}
-                className="w-full flex items-center gap-3 px-2.5 py-2 text-[0.7rem] sm:text-xs font-medium hover:bg-[var(--bg-secondary)] text-[var(--text-primary)] hover:text-[var(--accent-color)] transition-colors text-left group rounded-md cursor-pointer">
+                className="w-full flex items-center gap-3 px-2.5 py-2 text-[0.7rem] @lg/chat:text-xs font-medium hover:bg-[var(--bg-secondary)] text-[var(--text-primary)] hover:text-[var(--accent-color)] transition-colors text-left group rounded-md cursor-pointer">
                 <SlidersHorizontal className="w-4 h-4 text-[var(--text-muted)] group-hover:text-[var(--accent-color)] transition-colors" />
                 <span>Chat settings</span>
             </button>
@@ -1434,7 +1434,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     };
 
     const renderEffortControl = () => (
-        <div className="relative" ref={effortRef}>
+        <div ref={effortRef}>
             <button
                 type="button"
                 onClick={() => {
@@ -1442,7 +1442,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                     setIsModelOpen(false);
                     setIsAttachOpen(false);
                 }}
-                className={`flex items-center gap-1 sm:gap-1.5 px-2 py-1.5 rounded-lg transition-colors text-[0.7rem] sm:text-xs font-medium border border-transparent cursor-pointer select-none ${
+                className={`flex items-center gap-1 @lg/chat:gap-1.5 px-2 py-1.5 rounded-lg transition-colors text-[0.7rem] @lg/chat:text-xs font-medium border border-transparent cursor-pointer select-none ${
                     isPromptBarEffortOpen
                         ? 'bg-[var(--bg-tertiary)] text-[var(--text-primary)]'
                         : 'hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
@@ -1454,12 +1454,12 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 <ActiveEffortIcon
                     className="w-3.5 h-3.5 flex-shrink-0 transition-colors duration-200 text-current"
                 />
-                <span className="capitalize">{displayEffortLabel}</span>
+                <span className="hidden @sm/chat:inline capitalize">{displayEffortLabel}</span>
             </button>
 
             {isPromptBarEffortOpen && (
                 <div
-                    className="absolute bottom-full left-0 mb-2 w-64 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl shadow-2xl p-3 z-50 flex flex-col select-none animate-in fade-in slide-in-from-bottom-2 duration-150"
+                    className="absolute bottom-full left-0 mb-2 w-64 max-w-full bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl shadow-2xl p-3 z-50 flex flex-col select-none animate-in fade-in slide-in-from-bottom-2 duration-150"
                     role="dialog"
                     aria-label="Reasoning Effort Control"
                 >
@@ -1608,7 +1608,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                     setIsPromptBarEffortOpen(false);
                     setIsAttachOpen(false);
                 }}
-                className={`flex items-center gap-1 sm:gap-1.5 px-2 py-1.5 rounded-lg transition-colors text-[0.7rem] sm:text-xs font-medium shrink min-w-0 max-w-[130px] sm:max-w-[160px] md:max-w-[200px] border border-transparent cursor-pointer ${isModelOpen ? 'bg-[var(--bg-tertiary)] text-[var(--text-primary)]' : 'hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}
+                className={`flex items-center gap-1 @lg/chat:gap-1.5 px-2 py-1.5 rounded-lg transition-colors text-[0.7rem] @lg/chat:text-xs font-medium shrink min-w-0 max-w-[130px] @lg/chat:max-w-[160px] @2xl/chat:max-w-[200px] border border-transparent cursor-pointer ${isModelOpen ? 'bg-[var(--bg-tertiary)] text-[var(--text-primary)]' : 'hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}
                 title={currentModel.fullName}
             >
                 {currentModel.isCloud
@@ -1658,7 +1658,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                                         toast.error(e instanceof Error ? e.message : 'Failed to select model');
                                     }
                                 }}
-                                className={`w-full flex items-center justify-between px-2.5 py-1.5 text-[0.7rem] sm:text-xs font-medium rounded-lg transition-colors cursor-pointer ${isSelected ? 'bg-[var(--bg-tertiary)] text-[var(--accent-color)] font-semibold' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]'}`}
+                                className={`w-full flex items-center justify-between px-2.5 py-1.5 text-[0.7rem] @lg/chat:text-xs font-medium rounded-lg transition-colors cursor-pointer ${isSelected ? 'bg-[var(--bg-tertiary)] text-[var(--accent-color)] font-semibold' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]'}`}
                             >
                                 <div className="flex items-center gap-1.5 truncate">
                                     {modelLogos.local(chatModels.models.find(item => item.id === model.id)?.huggingface_repo)}
@@ -1697,7 +1697,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                                     key={model.model}
                                     onClick={() => selectCloudModel(model.model)}
                                     title={model.model}
-                                    className={`w-full flex items-center justify-between px-2.5 py-1.5 text-[0.7rem] sm:text-xs font-medium rounded-lg transition-colors cursor-pointer ${isSelected ? 'bg-[var(--bg-tertiary)] text-[var(--accent-color)] font-semibold' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]'}`}
+                                    className={`w-full flex items-center justify-between px-2.5 py-1.5 text-[0.7rem] @lg/chat:text-xs font-medium rounded-lg transition-colors cursor-pointer ${isSelected ? 'bg-[var(--bg-tertiary)] text-[var(--accent-color)] font-semibold' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]'}`}
                                 >
                                     <div className="flex items-center gap-1.5 truncate">
                                         {modelLogos.cloud(model.model, model.provider)}
@@ -1771,7 +1771,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             {/* Unified container styling without inner divider border */}
             <div className="flex items-center justify-between pt-1">
                 {/* Left Cluster: [+] Attach Button -> Model Selector -> Effort Pill Control */}
-                <div className="flex items-center gap-1 sm:gap-1.5 min-w-0">
+                <div className="flex items-center gap-1 @lg/chat:gap-1.5 min-w-0">
                     <div className="relative">
                         {!textOnly && isAttachOpen && attachmentMenu}
                         <button
@@ -2028,7 +2028,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     };
 
     return (
-        <div className={`w-full min-w-0 max-w-full max-[300px]:p-0.5 p-1 pb-0 flex-shrink-0 z-10 relative ${isFloating ? 'bg-transparent' : 'bg-[var(--bg-primary)]'}`}>
+        <div className={`w-full min-w-0 max-w-full @max-[300px]/chat:p-0.5 p-1 pb-0 flex-shrink-0 z-10 relative ${isFloating ? 'bg-transparent' : 'bg-[var(--bg-primary)]'}`}>
             {/* Top Fade-Out Shadow Effect */}
 
 
@@ -2148,7 +2148,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                         onDragOver={handleDragOver}
                         onDragLeave={handleDragLeave}
                         onDrop={handleDrop}
-                        className={`relative z-10 flex flex-col w-full max-w-full min-w-0 gap-1.5 bg-[var(--bg-secondary)] rounded-[20px] border p-2.5 sm:p-3 max-[300px]:p-1.5 transition-all duration-200 ${isDraggingOver
+                        className={`relative z-10 flex flex-col w-full max-w-full min-w-0 gap-1.5 bg-[var(--bg-secondary)] rounded-[20px] border p-2.5 @lg/chat:p-3 @max-[300px]/chat:p-1.5 transition-all duration-200 ${isDraggingOver
                             ? 'border-[var(--accent-color)] ring-1 ring-[var(--accent-color)]/30 bg-[var(--accent-color)]/5'
                             : 'border-[var(--border-color)]/60 hover:border-[var(--border-color)] focus-within:border-[var(--accent-color)]/40 focus-within:shadow-[0_0_0_1px_rgba(var(--accent-color-rgb),0.15)]'
                             }`}
@@ -2178,7 +2178,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                         onDragOver={handleDragOver}
                         onDragLeave={handleDragLeave}
                         onDrop={handleDrop}
-                        className={`relative z-10 flex flex-col w-full max-w-full min-w-0 gap-1.5 bg-[var(--bg-secondary)] rounded-[20px] border p-2.5 sm:p-3 max-[300px]:p-1.5 transition-all duration-200 ${isDraggingOver
+                        className={`relative z-10 flex flex-col w-full max-w-full min-w-0 gap-1.5 bg-[var(--bg-secondary)] rounded-[20px] border p-2.5 @lg/chat:p-3 @max-[300px]/chat:p-1.5 transition-all duration-200 ${isDraggingOver
                             ? 'border-[var(--accent-color)] ring-1 ring-[var(--accent-color)]/30 bg-[var(--accent-color)]/5'
                             : 'border-[var(--border-color)]/60 hover:border-[var(--border-color)] focus-within:border-[var(--accent-color)]/40 focus-within:shadow-[0_0_0_1px_rgba(var(--accent-color-rgb),0.15)]'
                             }`}

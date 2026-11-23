@@ -123,7 +123,7 @@ export const ContextWindowPopover: React.FC<ContextWindowPopoverProps> = ({
 
             {/* Popover Card */}
             <div 
-                className="absolute bottom-full right-0 mb-1.5 w-[310px] sm:w-[340px] max-h-[480px] overflow-y-auto z-[90] rounded-xl border border-[var(--border-color)] bg-[var(--bg-secondary)] p-3 shadow-2xl custom-scrollbar text-[11px] text-[var(--text-primary)] select-none font-[family-name:var(--font-family)]"
+                className="absolute bottom-full right-0 mb-1.5 w-[310px] max-w-[calc(100cqw-1rem)] @lg/chat:w-[340px] max-h-[480px] overflow-y-auto z-[90] rounded-xl border border-[var(--border-color)] bg-[var(--bg-secondary)] p-3 shadow-2xl custom-scrollbar text-[11px] text-[var(--text-primary)] select-none font-[family-name:var(--font-family)]"
                 style={{
                     fontFamily: 'var(--font-family)',
                     boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.7), 0 10px 10px -5px rgba(0, 0, 0, 0.5)'

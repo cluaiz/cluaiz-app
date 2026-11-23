@@ -54,7 +54,7 @@ function PlanAndToolsSummary({
           {plan.error ? (
             <AlertBanner variant="error" message={plan.error} />
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-[11px]">
+            <div className="grid grid-cols-2 @lg/chat:grid-cols-3 gap-2 text-[11px]">
               {plan.n_ctx !== undefined && (
                 <div><span className="text-[var(--text-muted)]">Context window:</span> <b>{plan.n_ctx.toLocaleString()}</b></div>
               )}
@@ -97,7 +97,7 @@ function PlanAndToolsSummary({
               {tools.token_counts && <Badge variant="secondary">{tools.token_counts}</Badge>}
             </div>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-[11px]">
+          <div className="grid grid-cols-2 @lg/chat:grid-cols-3 gap-2 text-[11px]">
             {tools.conversation_tokens !== undefined && (
               <div><span className="text-[var(--text-muted)]">Conversation:</span> <b>{tools.conversation_tokens.toLocaleString()}</b></div>
             )}
@@ -417,7 +417,7 @@ export function ContextDetailsPanel({
                           </Badge>
                         </div>
                       </div>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
+                      <div className="grid grid-cols-2 @lg/chat:grid-cols-4 gap-2 text-[11px]">
                         <div><span className="text-[var(--text-muted)]">Done:</span> <b>{ctx.jobs.counts.done}</b></div>
                         <div><span className="text-[var(--text-muted)]">Skipped:</span> <b>{ctx.jobs.counts.skipped}</b></div>
                         <div><span className="text-[var(--text-muted)]">Stopped:</span> <b>{ctx.jobs.counts.stopped}</b></div>

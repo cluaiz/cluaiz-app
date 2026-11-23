@@ -270,7 +270,7 @@ export const DynamicGreeting: React.FC = () => {
                     path={greetingEmojiPath}
                     alt={greetingAlt}
                 />
-                <h1 className="text-xl sm:text-2xl font-semibold text-[var(--text-primary)] tracking-tight">
+                <h1 className="text-xl @lg/chat:text-2xl font-semibold text-[var(--text-primary)] tracking-tight">
                     {greetingText}
                 </h1>
             </motion.div>

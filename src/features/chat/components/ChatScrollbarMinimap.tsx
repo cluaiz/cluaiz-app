@@ -442,7 +442,7 @@ export const ChatScrollbarMinimap: React.FC<ChatScrollbarMinimapProps> = ({
     return (
         <div
             aria-label="Chat scrollbar minimap"
-            className="absolute left-3.5 top-1/2 -translate-y-1/2 z-30 hidden lg:flex pointer-events-auto select-none"
+            className="absolute left-3.5 top-1/2 -translate-y-1/2 z-30 hidden @4xl/chat:flex pointer-events-auto select-none"
             onMouseLeave={() => setHoveredIndex(null)}
         >
             <div

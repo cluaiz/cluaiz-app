@@ -67,6 +67,11 @@ const PrivateModeToggleButton: React.FC<{
     );
 };
 
+/** The chat side of a split never gets narrower than this; its contents switch to their compact form below 384px */
+const CHAT_MIN_PX = 300;
+/** The other side (editor, flow builder) keeps at least this much */
+const WORKSPACE_MIN_PX = 320;
+
 export function ChatWorkspace({ workspace, chatBinding }: { workspace?: React.ReactNode; chatBinding?: ExtensionChatBinding | null } = {}) {
     const isBoundChat = chatBinding !== undefined;
     const { splitPaneWidth, setSplitPaneWidth, splitReversed, toggleSplitReversed, activeChatData } = useLayoutStore();
@@ -450,9 +455,9 @@ main().catch(console.error);`);
             const percentage = (relativeX / containerRect.width) * 100;
 
             const targetWidth = splitReversed ? 100 - percentage : percentage;
-            if (targetWidth >= 20 && targetWidth <= 80) {
-                setSplitPaneWidth(targetWidth);
-            }
+            // Neither side gets narrower than it can show: the chat keeps CHAT_MIN_PX, the other pane WORKSPACE_MIN_PX
+            const low = (CHAT_MIN_PX / containerRect.width) * 100, high = 100 - (WORKSPACE_MIN_PX / containerRect.width) * 100;
+            if (low <= high) setSplitPaneWidth(Math.min(high, Math.max(low, targetWidth)));
         };
 
         const handleMouseUp = () => {
@@ -476,8 +481,8 @@ main().catch(console.error);`);
         <div ref={containerRef} className={`flex-1 flex overflow-hidden relative ${splitReversed ? 'flex-row-reverse' : 'flex-row'}`}>
 
             <div
-                style={{ width: `${visibleSplitPaneWidth}%` }}
-                className="h-full flex flex-col bg-[var(--bg-primary)] overflow-hidden relative"
+                style={{ width: `${visibleSplitPaneWidth}%`, minWidth: visibleSplitPaneWidth < 100 ? CHAT_MIN_PX : undefined }}
+                className="@container/chat h-full flex flex-col bg-[var(--bg-primary)] overflow-hidden relative"
             >
                 {!isBoundChat && messages.length === 0 && (
                     <div className="absolute top-4 right-4 z-40 flex items-center gap-2">
@@ -507,17 +512,17 @@ main().catch(console.error);`);
 
 
                 {isBoundChat && !activeSession ? <div className="flex-1 flex items-center justify-center text-[var(--text-secondary)]" role="status">Open a extension chat to begin.</div> : messages.length === 0 ? (
-                    <div className="flex-1 flex flex-col items-center justify-center p-2 sm:p-4 md:p-8 z-20 relative">
+                    <div className="flex-1 flex flex-col items-center justify-center p-2 @lg/chat:p-4 @2xl/chat:p-8 z-20 relative">
 
                         <DynamicGreeting />
 
                         {/* Background offline watermark when engine is not connected */}
                         {!isEngineOnline && (
                             <div className="absolute inset-0 flex items-center justify-center pointer-events-none select-none z-0">
-                                <WifiOff className="w-56 h-56 sm:w-64 sm:h-64 text-[var(--text-secondary)] opacity-[0.08] stroke-[1]" />
+                                <WifiOff className="w-56 h-56 @lg/chat:w-64 @lg/chat:h-64 text-[var(--text-secondary)] opacity-[0.08] stroke-[1]" />
                             </div>
                         )}
-                        <motion.div layout layoutId="chat-input-wrapper" className="w-full max-w-2xl lg:max-w-3xl 2xl:max-w-4xl mx-auto z-10 px-2 sm:px-4 md:px-8">
+                        <motion.div layout layoutId="chat-input-wrapper" className="w-full max-w-2xl @4xl/chat:max-w-3xl @7xl/chat:max-w-4xl mx-auto z-10 px-2 @lg/chat:px-4 @2xl/chat:px-8">
                             <ChatInput
                                 previewOptionsRef={!isBoundChat ? previewOptionsRef : undefined}
                                 key={isBoundChat ? activeSessionId : undefined}
@@ -546,7 +551,7 @@ main().catch(console.error);`);
                                         animate={{ opacity: 1, y: 0, scale: 1 }}
                                         exit={{ opacity: 0, y: -10, scale: 0.98 }}
                                         transition={{ duration: 0.18, ease: 'easeOut' }}
-                                        className="relative z-30 w-full max-w-2xl lg:max-w-3xl 2xl:max-w-4xl mx-auto px-4 lg:px-0 pt-1.5 pb-0.5 flex-shrink-0"
+                                        className="relative z-30 w-full max-w-2xl @4xl/chat:max-w-3xl @7xl/chat:max-w-4xl mx-auto px-4 @4xl/chat:px-0 pt-1.5 pb-0.5 flex-shrink-0"
                                     >
                                         <PersistentAudioDeck
                                             messageId={activeAudioDeck.messageId}
@@ -563,13 +568,13 @@ main().catch(console.error);`);
                             <div className="absolute top-0 left-0 right-0 h-10 bg-gradient-to-b from-[var(--bg-primary)] via-[var(--bg-primary)]/80 to-transparent pointer-events-none z-10" />
 
                             <div
-                                className="flex-1 overflow-y-auto p-4 font-[family-name:var(--font-family)] text-[13px] leading-relaxed relative z-0 lg:px-14"
+                                className="flex-1 overflow-y-auto p-4 font-[family-name:var(--font-family)] text-[13px] leading-relaxed relative z-0 @4xl/chat:px-14"
                                 style={{ fontFamily: 'var(--font-family)', backgroundImage: chatBackground !== 'none' ? `url("${chatBackground}")` : 'none', backgroundSize: '120px', backgroundBlendMode: 'overlay', backgroundColor: 'var(--bg-primary)' }}
                                 onContextMenu={handleGlobalContextMenu}
                                 ref={viewportRef}
                                 onScroll={handleScroll}
                             >
-                                <div className="flex flex-col space-y-4 w-full max-w-2xl lg:max-w-3xl 2xl:max-w-4xl mx-auto pb-36">
+                                <div className="flex flex-col space-y-4 w-full max-w-2xl @4xl/chat:max-w-3xl @7xl/chat:max-w-4xl mx-auto pb-36">
 
                                     {(() => {
                                         let absoluteIndex = 0;
@@ -692,7 +697,7 @@ main().catch(console.error);`);
                                     </div>
                                 </div>
                             ) : (
-                                <motion.div layout layoutId="chat-input-wrapper" className="relative w-full max-w-2xl lg:max-w-3xl 2xl:max-w-4xl mx-auto z-10 px-2 sm:px-4 md:px-8 pb-1 sm:pb-2">
+                                <motion.div layout layoutId="chat-input-wrapper" className="relative w-full max-w-2xl @4xl/chat:max-w-3xl @7xl/chat:max-w-4xl mx-auto z-10 px-2 @lg/chat:px-4 @2xl/chat:px-8 pb-1 @lg/chat:pb-2">
                                     <ChatInput
                                         previewOptionsRef={!isBoundChat ? previewOptionsRef : undefined}
                                         key={isBoundChat ? activeSessionId : undefined}
@@ -766,7 +771,7 @@ main().catch(console.error);`);
                     />
 
                     <div
-                        style={{ width: `${100 - visibleSplitPaneWidth}%` }}
+                        style={{ width: `${100 - visibleSplitPaneWidth}%`, minWidth: WORKSPACE_MIN_PX }}
                         className="h-full flex flex-col bg-[var(--bg-secondary)] overflow-hidden"
                     >
                         {workspace ?? <WorkspaceEditorPane />}
