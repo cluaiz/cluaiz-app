@@ -1,7 +1,7 @@
 const {test}=require('node:test');const assert=require('node:assert/strict');
 const {load}=require('./cepHarness.cjs');
 
-function setup({hidden=false,focused=true,push=true,permission='granted',worker=true}={}){
+function setup({hidden=false,focused=true,push=true,permission='granted',worker=true,store,clock}={}){
     const calls=[],shown=[],closed=[];
     const chat={resolvePermissionRequest:(...args)=>calls.push(['resolve',...args])};
     const perms={approvePermission:async id=>calls.push(['approve',id]),rejectPermission:async(id,f)=>calls.push(['reject',id,f])};
@@ -15,10 +15,10 @@ function setup({hidden=false,focused=true,push=true,permission='granted',worker=
     const window={isSecureContext:true,Notification,focus:()=>calls.push(['focus'])};
     const document={hidden,hasFocus:()=>focused};
     const m=load('src/features/chat/approvals.ts',{
-        '../../store/chat/useChatStore':{useChatStore:{getState:()=>chat}},
+        '../../store/chat/useChatStore':{useChatStore:store??{getState:()=>chat}},
         '../../api/engine/permission/permission.store':{usePermissionStore:{getState:()=>perms}},
         '../../store/ui/useNotificationStore':{useNotificationStore:{getState:()=>({desktopPush:push})}},
-    },{window,document,navigator,Notification});
+    },{window,document,navigator,Notification,...clock});
     return {m,calls,shown,closed,message:data=>onMessage({data})};
 }
 const approval={sessionId:'s1',requestId:'ap_1',toolName:'web-search',parameters:{query:'x'}};
@@ -71,4 +71,34 @@ test('a second call in one answer keeps the first call and its outcome',()=>{
     // The same call sent again is not listed twice
     store.getState().setPermissionRequestOnLastMessage('s1',ask('ap_2','web-fetch'));
     assert.equal(chat().earlierPermissionRequests.length,1);
+});
+
+test('a waiting approval expires at the Engine deadline while generation continues', async () => {
+    const store = chatStore();
+    const timers = new Map();
+    const clock = {
+        setTimeout: (callback, ms) => { timers.set(callback, ms); return callback; },
+        clearTimeout: callback => timers.delete(callback),
+    };
+    const { m, closed } = setup({ store, clock });
+    store.setState({ streamingSessionId: 's1' });
+    const stop = m.startApprovalExpiry();
+    try {
+        m.receiveChatApproval('s1', { ...ask('ap_1', 'math'), timeoutSeconds: 120 });
+        assert.equal(store.getState().sessions.s1.messages[0].permissionRequest.status, 'pending');
+        const [[expire, delay]] = timers;
+        assert.equal(delay, 120_000);
+        expire();
+        assert.equal(store.getState().streamingSessionId, 's1');
+        assert.equal(store.getState().sessions.s1.messages[0].permissionRequest.status, 'timeout');
+        await tick();
+        assert.deepEqual(closed, ['ap_1']);
+
+        m.receiveChatApproval('s1', { ...ask('ap_2', 'math'), timeoutSeconds: 120 });
+        await m.decideChatApproval({ sessionId: 's1', requestId: 'ap_2' }, true);
+        assert.equal(timers.size, 0);
+        assert.equal(store.getState().sessions.s1.messages[0].permissionRequest.status, 'approved');
+    } finally {
+        stop();
+    }
 });

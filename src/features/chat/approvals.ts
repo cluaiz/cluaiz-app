@@ -17,6 +17,32 @@ export const messageApprovals = (message: ChatMessage): ChatPermissionRequest[] 
     [...(message.earlierPermissionRequests ?? []), ...(message.permissionRequest ? [message.permissionRequest] : [])];
 
 const deciding = new Set<string>();
+const expiryTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+function clearExpiry(requestId: string) {
+    clearTimeout(expiryTimers.get(requestId));
+    expiryTimers.delete(requestId);
+}
+
+function expireApproval(sessionId: string, requestId: string) {
+    clearExpiry(requestId);
+    const store = useChatStore.getState();
+    const pending = (store.sessions[sessionId]?.messages ?? []).flatMap(messageApprovals)
+        .some(request => request.requestId === requestId && request.status === 'pending');
+    if (!pending) return;
+    store.resolvePermissionRequest(sessionId, requestId, 'timeout');
+    void closeApprovalNotification(requestId);
+}
+
+/** Arm the deadline sent by the Engine as soon as the request is shown. */
+export function receiveChatApproval(sessionId: string, request: ChatPermissionRequest & { timeoutSeconds?: number }) {
+    useChatStore.getState().setPermissionRequestOnLastMessage(sessionId, request);
+    const { requestId, timeoutSeconds } = request;
+    if (typeof timeoutSeconds === 'number' && Number.isFinite(timeoutSeconds) && timeoutSeconds > 0 && !expiryTimers.has(requestId)) {
+        expiryTimers.set(requestId, setTimeout(() => expireApproval(sessionId, requestId), timeoutSeconds * 1000));
+    }
+    void notifyApproval({ sessionId, ...request });
+}
 
 /**
  * The user's answer to a waiting call, from the card above the input or from a notification:
@@ -29,6 +55,7 @@ export async function decideChatApproval(approval: Pick<ChatApproval, 'sessionId
         const store = usePermissionStore.getState();
         if (approved) await store.approvePermission(approval.requestId, undefined, remember);
         else await store.rejectPermission(approval.requestId, feedback);
+        clearExpiry(approval.requestId);
         useChatStore.getState().resolvePermissionRequest(approval.sessionId, approval.requestId,
             approved ? 'approved' : 'rejected', approved ? undefined : feedback);
         void closeApprovalNotification(approval.requestId);
@@ -138,8 +165,7 @@ export function startApprovalExpiry(): () => void {
         if (!ended || state.streamingSessionId === ended) return;
         for (const request of (state.sessions[ended]?.messages ?? []).flatMap(messageApprovals)) {
             if (request.status !== 'pending') continue;
-            state.resolvePermissionRequest(ended, request.requestId, 'timeout');
-            void closeApprovalNotification(request.requestId);
+            expireApproval(ended, request.requestId);
         }
     });
 }

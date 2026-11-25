@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useChatStore } from '../../../store/chat/useChatStore';
-import { notifyApproval } from '../approvals';
+import { receiveChatApproval } from '../approvals';
 import type { useChatTelemetry } from './useChatTelemetry';
 
 /** Existing desktop token listener; owned extension turns use their SDK stream instead. */
@@ -51,8 +51,7 @@ export function useLegacyChatEvents(enabled: boolean, launchOnStartup: boolean, 
 
                 // If chunk has permissionRequest
                 if (typeof chunk === 'object' && chunk.permissionRequest) {
-                    store.setPermissionRequestOnLastMessage(store.activeSessionId, chunk.permissionRequest);
-                    void notifyApproval({ sessionId: store.activeSessionId, ...chunk.permissionRequest });
+                    receiveChatApproval(store.activeSessionId, chunk.permissionRequest);
                     return;
                 }
 

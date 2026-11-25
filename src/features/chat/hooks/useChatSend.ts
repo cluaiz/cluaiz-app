@@ -10,7 +10,7 @@ import { errorMessage } from '../../../api/client/errors';
 import { buildChatHistory, chatHistoryOptions, finalizeChatModelLoad, processingLabel, reduceChatModelLoading, selectChatContext } from '../utils/chatRequest';
 import type { useChatTelemetry } from './useChatTelemetry';
 import { soundManager } from '../../../services/sound/soundManager';
-import { notifyApproval } from '../approvals';
+import { receiveChatApproval } from '../approvals';
 import { chatRequestModel, isProviderModel, useProvidersStore } from '../../../store/cloud/useProvidersStore';
 
 type Reply = { text: string; messageIndex: number; type?: 'message' | 'selection' } | null;
@@ -276,8 +276,7 @@ export function useChatSend({ inputValue, setInputValue, replyingTo, setReplying
 
                 // If chunk has permissionRequest
                 if (typeof chunk === 'object' && chunk.permissionRequest) {
-                    liveStore.setPermissionRequestOnLastMessage(sessionId, chunk.permissionRequest);
-                    void notifyApproval({ sessionId, ...chunk.permissionRequest });
+                    receiveChatApproval(sessionId, chunk.permissionRequest);
                     return;
                 }
 
