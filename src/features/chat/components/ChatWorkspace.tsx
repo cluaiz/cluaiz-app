@@ -7,6 +7,7 @@ import { useLayoutStore } from '../../../store/ui/useLayoutStore';
 import { useThemeStore } from '../../../store/ui/useThemeStore';
 import { useEngineStore } from '../../../store/engine/useEngineStore';
 import { useChatStore } from '../../../store/chat/useChatStore';
+import type { ChatMessage } from '../../../store/chat/types';
 import { ChevronDown, Copy, Trash2, X, FileText, WifiOff, ArrowLeftRight } from 'lucide-react';
 import { TypingDots } from '../../../components/ui/TypingDots';
 import * as Icons from '../../../components/animate-ui/icons';
@@ -74,6 +75,7 @@ const PrivateModeToggleButton: React.FC<{
 const CHAT_MIN_PX = 300;
 /** The other side (editor, flow builder) keeps at least this much */
 const WORKSPACE_MIN_PX = 320;
+const EMPTY_MESSAGES: ChatMessage[] = [];
 
 export function ChatWorkspace({ workspace, chatBinding }: { workspace?: React.ReactNode; chatBinding?: ExtensionChatBinding | null } = {}) {
     const isBoundChat = chatBinding !== undefined;
@@ -117,7 +119,7 @@ export function ChatWorkspace({ workspace, chatBinding }: { workspace?: React.Re
     const candidate = requestedSessionId ? sessions[requestedSessionId] : null;
     const activeSession = isBoundChat && candidate?.extensionId !== chatBinding?.sdk.identity.id ? null : candidate;
     const activeSessionId = isBoundChat ? activeSession?.id ?? null : mainSessionId;
-    const messages = activeSession ? activeSession.messages : [];
+    const messages = activeSession?.messages ?? EMPTY_MESSAGES;
 
     // Chat Project Workspace resolution (Left Chat + Right Project Workspace, or Full-Screen on Create / Empty Project)
     const activeChatProject = !isBoundChat
@@ -138,6 +140,7 @@ export function ChatWorkspace({ workspace, chatBinding }: { workspace?: React.Re
 
     const [inputValue, setInputValue] = useState('');
     const permissions = useEngineStore((state) => state.permissions);
+    const contextModel = permissions?.chat_models?.text || 'default';
     const fetchStatus = useEngineStore((state) => state.fetchStatus);
     const initEngineSettings = useEngineStore((state) => state.initEngineSettings);
     const isEngineOnline = Boolean(permissions);
@@ -165,11 +168,8 @@ export function ChatWorkspace({ workspace, chatBinding }: { workspace?: React.Re
 
     useEffect(() => {
         if (isBoundChat && !activeSessionId) return;
-        fetchContextTelemetry('default', activeSessionId || 'default');
-        if (messages && messages.length > 0) {
-            syncSessionTokens(messages);
-        }
-    }, [activeSessionId, messages, fetchContextTelemetry, syncSessionTokens, isBoundChat]);
+        void fetchContextTelemetry(contextModel, activeSessionId || 'default');
+    }, [activeSessionId, contextModel, fetchContextTelemetry, isBoundChat]);
 
     useEffect(() => {
         if (isBoundChat) return;
@@ -402,6 +402,11 @@ main().catch(console.error);`);
     const boundChat = useExtensionChat(chatBinding ?? undefined, telemetry,
         () => { setInputValue(''); setReplyingTo(null); }, inputValue, replyingTo?.text);
     const streamingHere = (isBoundChat ? boundChat.running : liveStats.isStreaming) && streamingSessionId === activeSessionId;
+    // The stream already updates the live token count. Recount the transcript outside the stream.
+    useEffect(() => {
+        if (!streamingHere && messages.length > 0) syncSessionTokens(messages);
+    }, [messages, streamingHere, syncSessionTokens]);
+
     // Like Claude Code: once an answer leaves the context AUTO_COMPACT_PERCENT full, the chat is
     // compacted on its own; the card shows it in the chat
     useEffect(() => {
