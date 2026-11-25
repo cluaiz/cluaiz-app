@@ -18,6 +18,7 @@ export const useChatScroll = ({ messages, isStreaming = false }: UseChatScrollPr
     const [isAtBottom, setIsAtBottom] = useState(true);
     const [showScrollButton, setShowScrollButton] = useState(false);
     const [isHeaderVisible, setIsHeaderVisible] = useState(true);
+    const scrollStateRef = useRef({ atBottom: true, showButton: false, showHeader: true });
     const lastScrollTopRef = useRef(0);
     const isProgrammaticScrollRef = useRef(false);
     const scrollTimeoutRef = useRef<any>(null);
@@ -56,15 +57,19 @@ export const useChatScroll = ({ messages, isStreaming = false }: UseChatScrollPr
         const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
         const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
         const isCloseToBottom = distanceFromBottom < 30;
+        const showButton = distanceFromBottom > 300;
+        const scrollState = scrollStateRef.current;
 
         const delta = scrollTop - lastScrollTopRef.current;
 
         if (!isProgrammaticScrollRef.current) {
             // Require at least a 10px intentional scroll to change header visibility
             if (Math.abs(delta) > 10) {
-                if (delta > 0 && scrollTop > 50) {
+                if (delta > 0 && scrollTop > 50 && scrollState.showHeader) {
+                    scrollState.showHeader = false;
                     setIsHeaderVisible(false);
-                } else if (delta < 0) {
+                } else if (delta < 0 && !scrollState.showHeader) {
+                    scrollState.showHeader = true;
                     setIsHeaderVisible(true);
                 }
                 lastScrollTopRef.current = scrollTop;
@@ -74,11 +79,14 @@ export const useChatScroll = ({ messages, isStreaming = false }: UseChatScrollPr
             lastScrollTopRef.current = scrollTop;
         }
 
-        setIsAtBottom(isCloseToBottom);
-        setShowScrollButton(distanceFromBottom > 300);
-
-        if (isCloseToBottom) {
-            setUnreadCount(0);
+        if (scrollState.atBottom !== isCloseToBottom) {
+            scrollState.atBottom = isCloseToBottom;
+            setIsAtBottom(isCloseToBottom);
+            if (isCloseToBottom) setUnreadCount(0);
+        }
+        if (scrollState.showButton !== showButton) {
+            scrollState.showButton = showButton;
+            setShowScrollButton(showButton);
         }
     }, []);
 
