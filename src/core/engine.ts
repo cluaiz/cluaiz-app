@@ -340,7 +340,7 @@ ${first.content}` }, ...rest]
                                 id: toolResult.id,
                                 name: toolResult.name,
                                 category: toolResult.category,
-                                status: 'completed',
+                                status: toolResult.status === 'denied' || toolResult.status === 'failed' ? 'failed' : 'completed',
                                 latency_ms: toolResult.latency_ms,
                                 result: resultStr,
                                 logs: toolResult.logs,

@@ -66,7 +66,7 @@ export function useLegacyChatEvents(enabled: boolean, launchOnStartup: boolean, 
                 // If chunk has toolResult
                 if (typeof chunk === 'object' && chunk.toolResult) {
                     store.updateToolResultOnLastMessage(store.activeSessionId, chunk.toolResult);
-                    recordToolExecution(chunk.toolResult.name || 'tool', chunk.toolResult.latency_ms, 'completed', chunk.toolResult.category);
+                    recordToolExecution(chunk.toolResult.name || 'tool', chunk.toolResult.latency_ms, chunk.toolResult.status, chunk.toolResult.category);
                     return;
                 }
 

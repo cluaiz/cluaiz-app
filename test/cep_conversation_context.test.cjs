@@ -418,6 +418,24 @@ test('only a structured stream event becomes a tool card', async () => {
   assert.deepEqual(chunks.filter(chunk => chunk.toolCall).map(chunk => chunk.toolCall.id), ['real-call']);
 });
 
+test('a denied or failed Engine tool result cannot show a success checkmark', async () => {
+  const cluaizEngine = streamingEngine(async (_payload, stream) => {
+    for (const [status, result] of [
+      ['denied', 'User confirmation timed out after 120 seconds. Operation skipped.'],
+      ['failed', 'Error executing math_evaluate'],
+      ['completed', '437'],
+    ]) {
+      stream.onEvent({ choices: [{ delta: { tool_result: { id: status, status, result } } }] });
+    }
+    stream.onDone();
+  });
+  const chunks = [];
+  await cluaizEngine.send('Use the math plugin', undefined, chunk => chunks.push(chunk));
+  const results = chunks.flatMap(chunk => chunk.toolResult ?? []);
+  assert.deepEqual(results.map(result => result.status), ['failed', 'failed', 'completed']);
+  assert.match(results[0].result, /timed out after 120 seconds/);
+});
+
 test('memory.import validates external RAM import events and rejects cross-chat or malformed replies', async () => {
   const calls = [];
   let overrideReply = null;
