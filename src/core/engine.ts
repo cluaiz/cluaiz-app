@@ -353,40 +353,7 @@ ${first.content}` }, ...rest]
                     }
 
                     const reasoningPiece = delta.reasoning_content || delta.reasoning || delta.thought || '';
-                    let contentPiece = delta.content || delta.text || parsed.choices?.[0]?.text || '';
-
-                    // Real-time detection of tool_call in text stream so UI shows Running indicator without delay
-                    if (contentPiece.includes('<tool_call>')) {
-                        const match = /<tool_call>([\s\S]*?)(?:<\/tool_call>|$)/i.exec(contentPiece);
-                        if (match && match[1]) {
-                            try {
-                                const toolJson = JSON.parse(match[1].trim());
-                                const toolName = toolJson.name || toolJson.function || 'execute_tool';
-                                emitChunk({
-                                    toolCall: {
-                                        id: `call_${toolName}`,
-                                        name: toolName,
-                                        category: 'skill',
-                                        arguments: typeof toolJson.arguments === 'object' ? JSON.stringify(toolJson.arguments) : String(toolJson.arguments || ''),
-                                        status: 'running'
-                                    }
-                                });
-                            } catch {
-                                const nameMatch = /"(?:name|function)"\s*:\s*"([^"]+)"/.exec(match[1]);
-                                if (nameMatch && nameMatch[1]) {
-                                    emitChunk({
-                                        toolCall: {
-                                            id: `call_${nameMatch[1]}`,
-                                            name: nameMatch[1],
-                                            category: 'skill',
-                                            arguments: '',
-                                            status: 'running'
-                                        }
-                                    });
-                                }
-                            }
-                        }
-                    }
+                    const contentPiece = delta.content || delta.text || parsed.choices?.[0]?.text || '';
 
                     if (reasoningPiece) {
                         emitChunk({ reasoning: reasoningPiece });

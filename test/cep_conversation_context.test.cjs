@@ -365,9 +365,8 @@ test('matchCardsForQuery resolves single-word queries (e.g. "aryan") from indexe
   assert.deepEqual([...hits[0].why], ['aryan']);
 });
 
-test('cluaizEngine.send forwards history_mode adaptive for saved chats and omits it when absent', async () => {
-  const sentPayloads = [];
-  const { cluaizEngine } = load('src/core/engine.ts', {
+function streamingEngine(streamCompletion) {
+  return load('src/core/engine.ts', {
     '@tauri-apps/api/core': { invoke: async () => {} },
     '../api/engine/chat/sampling': load('src/api/engine/chat/sampling.ts', {}),
     '../store/engine/useEngineStore': { useEngineStore: { getState: () => ({ setStatus: () => {} }) } },
@@ -375,15 +374,18 @@ test('cluaizEngine.send forwards history_mode adaptive for saved chats and omits
     '../api': {
       client: { get: async () => ({}) },
       chatApi: {
-        streamCompletion: async payload => {
-          sentPayloads.push(payload);
-        },
+        streamCompletion,
         cancelStream: async () => {},
         skipThinking: async () => {},
       },
     },
     '../api/client/ipc': { isTauri: () => false },
-  });
+  }).cluaizEngine;
+}
+
+test('cluaizEngine.send forwards history_mode adaptive for saved chats and omits it when absent', async () => {
+  const sentPayloads = [];
+  const cluaizEngine = streamingEngine(async payload => sentPayloads.push(payload));
 
   await cluaizEngine.send('remember my name is aryan', {
     session_id: 'chat-saved',
@@ -400,6 +402,20 @@ test('cluaizEngine.send forwards history_mode adaptive for saved chats and omits
   });
   assert.equal(sentPayloads[1].temporary_chat, 'lite');
   assert.equal(sentPayloads[1].history_mode, undefined);
+});
+
+test('only a structured stream event becomes a tool card', async () => {
+  const text = '<tool_call>{"name":"get_weather","arguments":{}}</tool_call>';
+  const cluaizEngine = streamingEngine(async (_payload, stream) => {
+    stream.onEvent({ choices: [{ delta: { content: text } }] });
+    stream.onEvent({ choices: [{ delta: { tool_calls: [{ id: 'real-call', type: 'function',
+      function: { name: 'calculate', arguments: '{}' } }] } }] });
+    stream.onDone();
+  });
+  const chunks = [];
+  await cluaizEngine.send('Show an example tool call', undefined, chunk => chunks.push(chunk));
+  assert.equal(chunks.find(chunk => chunk.content)?.content, text);
+  assert.deepEqual(chunks.filter(chunk => chunk.toolCall).map(chunk => chunk.toolCall.id), ['real-call']);
 });
 
 test('memory.import validates external RAM import events and rejects cross-chat or malformed replies', async () => {
