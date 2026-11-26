@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Bot, History, LayoutDashboard, RefreshCw, ShieldCheck, Workflow } from 'lucide-react';
 import { ConfirmationModal } from '../../components/ui/modal/ConfirmationModal';
 import { Button } from '../../components/ui/Button';
@@ -7,7 +8,6 @@ import { flowsApi, type FlowSummary } from '../../api/engine/automation';
 import { errorMessage } from '../../api/client/errors';
 import { toast } from '../../components/ui/toast';
 import { FlowStudio } from './studio/FlowStudio';
-import { ChatWorkspace } from '../chat/components/ChatWorkspace';
 import { AutomationHome, type Section } from './home/AutomationHome';
 import { isAgent } from './home/WorkflowRow';
 import { WorkflowsPage } from './workflows/WorkflowsPage';
@@ -27,18 +27,15 @@ const Pane = ({ children }: { children: React.ReactNode }) =>
     <div className="flex h-full w-full min-w-0 flex-col overflow-hidden bg-[var(--bg-primary)] font-sans"><EngineOfflineGuard>{children}</EngineOfflineGuard></div>;
 
 const TITLES: Record<Section, { title: string; text: string }> = {
-    home: { title: 'Overview', text: 'What runs, what failed and what needs you' },
+    home: { title: 'Dashboard', text: 'What runs, what failed and what needs you' },
     workflows: { title: 'Workflows', text: 'Every workflow, in folders' },
     agents: { title: 'Agents', text: 'Workflows your chats can use as tools' },
     runs: { title: 'Runs', text: 'Every run, step by step' },
     approvals: { title: 'Approvals', text: 'Runs waiting for your yes' },
 };
 
-/**
- * Automation: a section menu (Overview, Workflows, Agents, Runs, Approvals) and the editor of one workflow. No chat
- * on these pages; the editor still sits beside the chat until its own chat panel is built.
- */
-export function AutomationWorkspace() {
+/** Owns Automation navigation and renders it in the App shell's sidebar slots. */
+export function AutomationWorkspace({ sidebar, flyout }: { sidebar: HTMLDivElement | null; flyout: HTMLDivElement | null }) {
     // The address is the source of the place: a refresh or a copied link opens the same section or workflow
     const [section, setSection] = useState<Section>(() => readPlace().section);
     const [editing, setEditing] = useState<Editing>(() => readPlace().flow === 'new' ? null : undefined);
@@ -48,6 +45,8 @@ export function AutomationWorkspace() {
     const [moving, setMoving] = useState<FlowSummary[] | null>(null);
     const [movingBusy, setMovingBusy] = useState(false);
     const [newAgent, setNewAgent] = useState(false);
+    const editorDirty = useRef(false);
+    const savedFlowKey = useRef<string | null>(null);
     const file = useRef<HTMLInputElement>(null);
     const data = useFlows();
     const { flows, runs, error, busy, refresh, setEnabled, run, remove, rerunFrom, confirmation, confirm, cancelConfirmation } = data;
@@ -63,20 +62,27 @@ export function AutomationWorkspace() {
     }, [pendingFlow, flows]); // eslint-disable-line react-hooks/exhaustive-deps
     useEffect(() => {
         if (pendingFlow) return;
-        writePlace({ section, flow: editing === undefined ? null : editing === null ? 'new' : flowKey(editing) });
+        if (editing === undefined) savedFlowKey.current = null;
+        writePlace({ section, flow: editing === undefined ? null : editing === null ? savedFlowKey.current ?? 'new' : flowKey(editing) });
     }, [section, editing, pendingFlow]);
     // Back and Forward move between the places written above
     useEffect(() => {
         const back = () => {
+            if (!window.location.pathname.startsWith('/automation')) return;
+            if (editorDirty.current && !window.confirm('Leave this workflow and discard unsaved changes?')) {
+                writePlace({ section, flow: editing ? flowKey(editing) : savedFlowKey.current ?? 'new' });
+                return;
+            }
             const place = readPlace();
             setSection(place.section);
+            setPendingFlow(null);
             if (!place.flow) setEditing(undefined);
             else if (place.flow === 'new') setEditing(null);
             else setPendingFlow(place.flow);
         };
         window.addEventListener('popstate', back);
         return () => window.removeEventListener('popstate', back);
-    }, []);
+    }, [editing, section]);
 
     const importFile = async (picked: File) => {
         try {
@@ -101,14 +107,8 @@ export function AutomationWorkspace() {
         for (const flow of list) if (flow.enabled !== (kind === 'on')) await setEnabled(flow, kind === 'on');
     };
 
-    if (editing !== undefined) {
-        return <ChatWorkspace workspace={<Pane>
-            <FlowStudio target={editing ?? undefined} onClose={saved => { setEditing(undefined); if (saved) void refresh(); }} />
-        </Pane>} />;
-    }
-
     const nav: { id: Section; label: string; icon: typeof Workflow; count?: number }[] = [
-        { id: 'home', label: 'Overview', icon: LayoutDashboard },
+        { id: 'home', label: TITLES.home.title, icon: LayoutDashboard },
         { id: 'workflows', label: 'Workflows', icon: Workflow, count: flows?.length },
         { id: 'agents', label: 'Agents', icon: Bot, count: agents.length },
         { id: 'runs', label: 'Runs', icon: History, count: runs?.length },
@@ -118,20 +118,34 @@ export function AutomationWorkspace() {
     const actions = { busy, onToggle: (flow: FlowSummary, on: boolean) => void setEnabled(flow, on), onRun: (flow: FlowSummary) => void run(flow),
         onOpen: setEditing, onRemove: (flow: FlowSummary) => setRemoving([flow]), onMove: setMoving };
 
-    return <Pane>
-        <input ref={file} type="file" accept=".yaml,.yml,.json" hidden onChange={event => { const picked = event.target.files?.[0]; event.target.value = ''; if (picked) void importFile(picked); }} />
-        <div className="flex h-full min-h-0">
-            <nav aria-label="Automation" className="flex w-52 shrink-0 flex-col gap-1 border-r border-[var(--border-color)]/80 p-3">
-                <div className="px-2 pb-3 pt-1 text-base font-semibold text-[var(--text-primary)]">Automation</div>
-                {nav.map(item => <button key={item.id} type="button" onClick={() => setSection(item.id)} aria-current={section === item.id ? 'page' : undefined}
-                    className={`flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition-colors cursor-pointer ${section === item.id
+    const activeSection = editing === undefined ? section : section === 'agents' ? 'agents' : 'workflows';
+    const navigation = <nav aria-label="Automation" className="flex flex-col gap-1 p-3">
+                {nav.map(item => <button key={item.id} type="button" aria-label={item.label} onClick={() => {
+                    if (editorDirty.current && !window.confirm('Leave this workflow and discard unsaved changes?')) return;
+                    setEditing(undefined);
+                    setPendingFlow(null);
+                    setSection(item.id);
+                    void refresh();
+                }} aria-current={activeSection === item.id ? 'page' : undefined}
+                    className={`flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition-colors cursor-pointer ${activeSection === item.id
                         ? 'bg-[var(--bg-tertiary)] font-medium text-[var(--text-primary)]' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)]/50 hover:text-[var(--text-primary)]'}`}>
                     <item.icon className="h-4 w-4 shrink-0" /><span className="flex-1 text-left">{item.label}</span>
                     {item.count !== undefined && <span className={`text-xs tabular-nums ${item.id === 'approvals' ? 'rounded-full bg-amber-400/15 px-1.5 text-amber-400' : 'text-[var(--text-muted)]'}`}>{item.count}</span>}
                 </button>)}
-            </nav>
+            </nav>;
 
-            <div className="flex min-w-0 flex-1 flex-col">
+    return <>
+        {sidebar && createPortal(navigation, sidebar)}
+        {flyout && createPortal(navigation, flyout)}
+        <Pane>
+        {editing !== undefined ? <FlowStudio key={editing ? flowKey(editing) : 'new'} target={editing ?? undefined} dirtyRef={editorDirty}
+            onClose={() => setEditing(undefined)} onSaved={saved => {
+                savedFlowKey.current = flowKey(saved);
+                writePlace({ section, flow: savedFlowKey.current }, true);
+                void refresh();
+            }} /> : <>
+        <input ref={file} type="file" accept=".yaml,.yml,.json" hidden onChange={event => { const picked = event.target.files?.[0]; event.target.value = ''; if (picked) void importFile(picked); }} />
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col">
                 <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-[var(--border-color)]/80 px-6">
                     <div className="flex min-w-0 items-baseline gap-3">
                         <h1 className="text-base font-semibold text-[var(--text-primary)]">{TITLES[section].title}</h1>
@@ -153,7 +167,6 @@ export function AutomationWorkspace() {
                     </div>
                 </main>
             </div>
-        </div>
 
         {moving && <MoveDialog count={moving.length} folders={[...new Set(Object.values(folders).filter(Boolean))].sort()} busy={movingBusy}
             start={moving.length === 1 ? folders[flowKey(moving[0])] ?? '' : ''} onMove={folder => void moveAll(folder)} onClose={() => setMoving(null)} />}
@@ -164,7 +177,9 @@ export function AutomationWorkspace() {
         <ConfirmationModal open={Boolean(removing)} title={removing?.length === 1 ? `Remove ${removing[0].name}?` : `Remove ${removing?.length ?? 0} workflows?`} isDestructive confirmText="Remove"
             message="The workflow files and their run records are deleted. Runs in progress are not cancelled."
             onCancel={() => setRemoving(null)} onConfirm={() => { const list = removing ?? []; setRemoving(null); void (async () => { for (const flow of list) await remove(flow); })(); }} />
-    </Pane>;
+        </>}
+        </Pane>
+    </>;
 }
 
 export default AutomationWorkspace;

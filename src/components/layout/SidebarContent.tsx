@@ -51,6 +51,7 @@ const DockIconButton: React.FC<DockIconButtonProps> = ({
         <Tooltip title={tooltip} position="right" disabled={!tooltip || !tooltip.trim()}>
             <button
                 type="button"
+                aria-label={tooltip || undefined}
                 onClick={onClick}
                 onMouseEnter={(e) => {
                     triggerProps.onMouseEnter?.(e);
@@ -133,6 +134,8 @@ const CloseSidebarButton: React.FC<{
 
 interface SidebarContentProps {
     onOpenLauncher: (e?: React.MouseEvent) => void;
+    automationSidebarRef: (node: HTMLDivElement | null) => void;
+    automationFlyoutRef: (node: HTMLDivElement | null) => void;
 }
 
 interface MockChat {
@@ -184,7 +187,7 @@ const getChatDate = (timeStr: string): Date => {
 
 
 
-export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
+export function SidebarContent({ onOpenLauncher, automationSidebarRef, automationFlyoutRef }: SidebarContentProps) {
     const { activeView, sidebarPosition, toggleSidebar, sidebarCollapsed, setSidebarCollapsed, sidebarPeeked, setSidebarPeeked, setActiveChatData } = useLayoutStore();
     const { showSectionPicker: toolkitShowHub, backToHub: toolkitBackToHub } = useToolkitNavStore();
     const { theme } = useThemeStore();
@@ -918,11 +921,11 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                             </button>
                         ) : (
                             <h2 className="text-xl font-extrabold tracking-wide text-[var(--text-primary)]">
-                                {activeView === 'apis' ? 'APIs' : activeView === 'toolkit' ? 'Toolkit' : 'Chats'}
+                                {activeView === 'apis' ? 'APIs' : activeView === 'toolkit' ? 'Toolkit' : activeView === 'automation' ? 'Automation' : 'Chats'}
                             </h2>
                         )}
                         <div className="flex items-center gap-1">
-                            {activeView !== 'apis' && activeView !== 'toolkit' && (
+                            {activeView !== 'apis' && activeView !== 'toolkit' && activeView !== 'automation' && (
                                 <Tooltip title="New Chat" position="bottom">
                                     <button
                                         ref={plusBtnRef}
@@ -975,7 +978,7 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                                 className="relative flex items-center justify-center"
                             >
                                 <DockIconButton
-                                    tooltip={activeView === 'apis' ? "Search Endpoints" : activeView === 'toolkit' ? "Search Toolkit" : "Search & Chats"}
+                                    tooltip={activeView === 'apis' ? "Search Endpoints" : activeView === 'toolkit' ? "Search Toolkit" : activeView === 'automation' ? "Automation navigation" : "Search & Chats"}
                                     icon={Icons.Search}
                                     isActive={isFlyoutOpen}
                                     onClick={() => setIsFlyoutOpen(prev => !prev)}
@@ -1115,6 +1118,8 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                         <div className="flex-1 overflow-hidden flex flex-col min-h-0">
                             <ToolkitSidebar />
                         </div>
+                    ) : activeView === 'automation' ? (
+                        <div ref={automationSidebarRef} className="flex-1 overflow-auto min-h-0" />
                     ) : (
                         renderChatDirectory(false)
                     )
@@ -1215,15 +1220,15 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                                         </button>
                                     ) : (
                                         <h3 className="text-sm font-extrabold tracking-wide text-[var(--text-primary)]">
-                                            {activeView === 'apis' ? 'APIs' : activeView === 'toolkit' ? 'Toolkit' : 'Chats'}
+                                            {activeView === 'apis' ? 'APIs' : activeView === 'toolkit' ? 'Toolkit' : activeView === 'automation' ? 'Automation' : 'Chats'}
                                         </h3>
                                     )}
-                                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-[var(--bg-tertiary)] text-[var(--text-muted)] border border-[var(--border-color)]">
+                                    {activeView !== 'automation' && <span className="text-[10px] px-2 py-0.5 rounded-full bg-[var(--bg-tertiary)] text-[var(--text-muted)] border border-[var(--border-color)]">
                                         {activeView === 'apis' || activeView === 'toolkit' ? '' : filteredChats.length}
-                                    </span>
+                                    </span>}
                                 </div>
                                 <div className="flex items-center gap-1">
-                                    {activeView !== 'apis' && activeView !== 'toolkit' && (
+                                    {activeView !== 'apis' && activeView !== 'toolkit' && activeView !== 'automation' && (
                                         <Tooltip title="New Chat" position="bottom">
                                             <button
                                                 onClick={() => {
@@ -1258,6 +1263,8 @@ export function SidebarContent({ onOpenLauncher }: SidebarContentProps) {
                                 <div className="flex-1 overflow-hidden flex flex-col min-h-0">
                                     <ToolkitSidebar />
                                 </div>
+                            ) : activeView === 'automation' ? (
+                                <div ref={automationFlyoutRef} className="flex-1 overflow-auto min-h-0" />
                             ) : (
                                 renderChatDirectory(true)
                             )}

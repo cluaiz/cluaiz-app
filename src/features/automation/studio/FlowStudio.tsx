@@ -1,16 +1,16 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowDown, ArrowUp, Copy, Play, Sparkles, Trash2 } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
+import { ArrowDown, ArrowUp, Copy, Play, Trash2 } from 'lucide-react';
 import type { FlowProblem, FlowSummary, RunStep } from '../../../api/engine/automation';
 import { CodeEditor } from '../../../components/ui/CodeEditor';
 import { ActionListMenu } from '../../../components/ui/context-menu/ActionListMenu';
 import { ConfirmationModal } from '../../../components/ui/modal/ConfirmationModal';
 import { FlowCanvas } from '../canvas/FlowCanvas';
 import type { StepStatus } from '../canvas/canvasContext';
-import { lineRange, readFlow, setValue, type InsertAt } from '../model/flowDoc';
+import { readFlow, setValue, type InsertAt } from '../model/flowDoc';
 import { useFlowApplyTarget } from '../applyTarget';
 import { ReviewBanner } from './ReviewBanner';
 import { toast } from '../../../components/ui/toast';
-import { askContext, flowGraph, reviewChanges, type GraphNode, type Review } from '../model/flowGraph';
+import { flowGraph, reviewChanges, type GraphNode, type Review } from '../model/flowGraph';
 import { describePermissions } from '../useFlows';
 import { addItem, connect, duplicate, insertPlace, move, paletteValue, pinnedPositions, removeNeed, removeNodes, tidy } from './flowActions';
 import { Inspector } from './Inspector';
@@ -34,8 +34,8 @@ function statusesOf(steps: RunStep[] | undefined): Record<string, StepStatus> {
     return out;
 }
 
-/** The flow builder in the chat's right pane: canvas, palette, inspector and runs, all editing one flow file */
-export function FlowStudio({ target, onClose }: { target?: FlowSummary; onClose: (changed: boolean) => void }) {
+/** Canvas, palette, inspector and runs for one flow file. */
+export function FlowStudio({ target, onClose, onSaved, dirtyRef }: { target?: FlowSummary; onClose: () => void; onSaved: (flow: FlowSummary) => void; dirtyRef: RefObject<boolean> }) {
     const doc = useFlowDocument(target);
     const { catalog, error: catalogError } = useFlowCatalog();
     const runs = useFlowRuns(doc.summary?.name, doc.summary?.scope);
@@ -45,7 +45,10 @@ export function FlowStudio({ target, onClose }: { target?: FlowSummary; onClose:
     const [miniMap, setMiniMap] = useState(false);
     const [yamlView, setYamlView] = useState(false);
     const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
-    const [savedOnce, setSavedOnce] = useState(false);
+    useEffect(() => {
+        dirtyRef.current = doc.dirty;
+        return () => { dirtyRef.current = false; };
+    }, [dirtyRef, doc.dirty]);
     /** A change applied from the chat: what it touched, and the text before it */
     const [review, setReview] = useState<(Review & { before: string }) | null>(null);
     const setApplyTarget = useFlowApplyTarget(state => state.setTarget);
@@ -90,16 +93,6 @@ export function FlowStudio({ target, onClose }: { target?: FlowSummary; onClose:
         setSelected(made.trigger ? `trigger:${Array.isArray(doc.value.on) ? doc.value.on.length : 0}` : String(made.value.id));
     };
 
-    /** Hands the chat the whole file as it is now, and which part the question is about */
-    const askAi = (id: string) => {
-        const target = node(id);
-        if (!target || (target.type !== 'step' && target.type !== 'trigger') || doc.text === null) return;
-        const lines = lineRange(doc.text, target.data.path);
-        document.dispatchEvent(new CustomEvent('insert-chat-context', {
-            detail: { name: `Flow ${flowName} · ${target.data.title}`, text: askContext(doc.text, flowName, target, lines) },
-        }));
-    };
-
     /** A whole flow file from a chat answer replaces the open one, as one undo step, and is marked for review */
     const applyFromChat = (incoming: string) => {
         const next = readFlow(incoming);
@@ -119,9 +112,9 @@ export function FlowStudio({ target, onClose }: { target?: FlowSummary; onClose:
 
     const save = useCallback(async () => {
         const result = await doc.save();
-        if (result) setSavedOnce(true);
+        if (result) onSaved(result);
         return result;
-    }, [doc]);
+    }, [doc, onSaved]);
 
     const run = async () => {
         if (doc.dirty && !(await save())) return;
@@ -144,7 +137,6 @@ export function FlowStudio({ target, onClose }: { target?: FlowSummary; onClose:
 
     const menuNode = menu ? node(menu.id) : undefined;
     const menuActions = (target: GraphNode) => [
-        { id: 'ask', label: 'Ask AI about this', icon: Sparkles },
         ...(target.type === 'step' ? [{ id: 'rerun', label: 'Run again from here', icon: Play, disabled: !runs.shown }] : []),
         { id: 'duplicate', label: 'Duplicate', icon: Copy, hint: 'Ctrl+D', divider: true },
         { id: 'up', label: 'Move up', icon: ArrowUp },
@@ -155,8 +147,7 @@ export function FlowStudio({ target, onClose }: { target?: FlowSummary; onClose:
         if (!menuNode || !doc.value) return;
         const edits = { duplicate: () => duplicate(menuNode, doc.value!), up: () => move(menuNode, -1), down: () => move(menuNode, 1),
             delete: () => removeNodes(graph, [menuNode.id]) } as Record<string, () => ReturnType<typeof duplicate>>;
-        if (action === 'ask') askAi(menuNode.id);
-        else if (action === 'rerun' && runs.shown && menuNode.type === 'step') void runs.start({ run: runs.shown, step: menuNode.data.stepId });
+        if (action === 'rerun' && runs.shown && menuNode.type === 'step') void runs.start({ run: runs.shown, step: menuNode.data.stepId });
         else { const edit = edits[action]?.(); if (edit) doc.change(edit); }
     };
 
@@ -165,7 +156,7 @@ export function FlowStudio({ target, onClose }: { target?: FlowSummary; onClose:
 
     return <div className="flex flex-col h-full min-h-0 bg-[var(--bg-primary)]">
         <StudioToolbar doc={doc} runs={runs} problems={doc.problems} miniMap={miniMap} yamlView={yamlView}
-            paletteOpen={paletteOpen} onBack={() => onClose(savedOnce)} onPalette={() => { setPaletteOpen(open => !open); setInsertTarget(null); }}
+            paletteOpen={paletteOpen} onBack={() => { if (!doc.dirty || window.confirm('Leave this workflow and discard unsaved changes?')) onClose(); }} onPalette={() => { setPaletteOpen(open => !open); setInsertTarget(null); }}
             onTidy={() => doc.value && doc.change(tidy(doc.value))} onMiniMap={() => setMiniMap(on => !on)} onYaml={() => setYamlView(on => !on)}
             onRun={() => void run()} onSave={() => void save()} onFlowSettings={() => setSelected('flow')}
             onProblem={problem => { const id = Object.entries(problems).find(([, list]) => list.includes(problem))?.[0]; setSelected(id ?? 'flow'); setYamlView(false); }} />

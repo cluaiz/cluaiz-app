@@ -167,6 +167,9 @@ function MainAppContent() {
         };
     }, []);
 
+    const [automationSidebar, setAutomationSidebar] = useState<HTMLDivElement | null>(null);
+    const [automationFlyout, setAutomationFlyout] = useState<HTMLDivElement | null>(null);
+
     return (
         <ClickSpark 
             active={cursorType === 'splash'} 
@@ -178,7 +181,9 @@ function MainAppContent() {
         >
             <AppShell
                 sidebarContent={
-                    <SidebarContent 
+                    <SidebarContent
+                        automationSidebarRef={setAutomationSidebar}
+                        automationFlyoutRef={setAutomationFlyout}
                         onOpenLauncher={(e) => {
                             if (e) {
                                 const rect = e.currentTarget.getBoundingClientRect();
@@ -198,7 +203,7 @@ function MainAppContent() {
                     ) : activeView === 'apis' ? (
                         <ApiWorkspace />
                     ) : activeView === 'automation' ? (
-                        <AutomationWorkspace />
+                        <AutomationWorkspace sidebar={automationSidebar} flyout={automationFlyout} />
                     ) : activeView === 'library' ? (
                         <ExtensionWorkspaceHost {...bundledWorkspaceRoutes.library} />
                     ) : activeView === 'extensions' ? (
