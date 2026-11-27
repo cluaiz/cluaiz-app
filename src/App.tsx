@@ -6,6 +6,7 @@ import { SidebarContent } from './components/layout/SidebarContent';
 import { BubbleLauncher } from './components/layout/BubbleLauncher';
 import { SettingsOverlay } from './features/settings/SettingsOverlay';
 import { AuthTokenModal } from './features/settings/components/AuthTokenModal';
+import { EngineLaunchGate } from './features/settings/components/EngineLaunchGate';
 import { Cpu, Database, Maximize2 } from 'lucide-react';
 import { useThemeStore, isThemeDark } from './store/ui/useThemeStore';
 import { useLayoutStore } from './store/ui/useLayoutStore';
@@ -304,7 +305,7 @@ export default function App() {
         <ErrorBoundary>
             <ThemeProvider>
                 <DesktopLifecycleBootstrap />
-                <MainAppContent />
+                <EngineLaunchGate><MainAppContent /></EngineLaunchGate>
                 <ExtensionActivities />
             </ThemeProvider>
         </ErrorBoundary>

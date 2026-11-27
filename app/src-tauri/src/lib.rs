@@ -7,6 +7,7 @@ use core::engine::native::{
     requests::NativeRequests,
 };
 use core::engine::spawner::{boot_cluaiz_engine, get_session_token, update_engine_settings};
+use core::engine::launch::{app_install_engine, app_launch_engine};
 use core::state::EngineState;
 use features::chat::commands::{ffi_delete_session, ffi_fetch_history, ffi_send_message};
 use features::chat::storage::{
@@ -52,14 +53,7 @@ pub fn run() {
         .expect("error while building tauri application")
         .run(|app_handle, event| match event {
             tauri::RunEvent::Exit => {
-                let state = app_handle.state::<EngineState>();
-                if let Ok(mut child_lock) = state.inner().child_process.lock() {
-                    if let Some(mut child) = child_lock.take() {
-                        println!("Tauri App Exiting: Killing Cluaiz Engine...");
-                        let _ = child.kill();
-                        let _ = child.wait();
-                    }
-                }
+                app_handle.state::<EngineState>().stop_owned();
             }
             _ => {}
         });

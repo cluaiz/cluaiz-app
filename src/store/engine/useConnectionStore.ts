@@ -7,6 +7,8 @@ interface ConnectionState {
     protocol: ConnectionProtocol;
     host: string;
     port: number;
+    launcherPort?: number;
+    useLauncherPort: (port: number) => void;
     setProtocol: (protocol: ConnectionProtocol) => void;
     setPort: (port: number) => void;
     setHost: (host: string) => void;
@@ -54,6 +56,7 @@ export const useConnectionStore = create<ConnectionState>()((set, get) => ({
     protocol: (initialFallback.protocol as ConnectionProtocol) || 'http',
     host: initialFallback.host || '0.0.0.0',
     port: initialFallback.port,
+    useLauncherPort: (port) => set({ protocol: 'http', host: '127.0.0.1', port, launcherPort: port }),
     setProtocol: (protocol: ConnectionProtocol) => {
         set({ protocol });
         saveFallbackConnection({ ...get(), protocol });

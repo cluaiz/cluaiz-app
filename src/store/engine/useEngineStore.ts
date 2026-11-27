@@ -292,17 +292,18 @@ export const useEngineStore = create<EngineState>()((set, get) => ({
                 };
 
                 // Transport is this client's choice. Server preferences cannot downgrade native IPC.
-                if (rawPerm.api_port) {
+                const launcherPort = useConnectionStore.getState().launcherPort;
+                if (!launcherPort && rawPerm.api_port) {
                     useConnectionStore.getState().setPort(rawPerm.api_port);
                 }
-                if (rawPerm.api_host) {
+                if (!launcherPort && rawPerm.api_host) {
                     useConnectionStore.getState().setHost(rawPerm.api_host);
                 }
 
                 saveFallbackConnection({
                     protocol: useConnectionStore.getState().protocol,
-                    host: rawPerm.api_host,
-                    port: rawPerm.api_port || useConnectionStore.getState().port
+                    host: useConnectionStore.getState().host,
+                    port: useConnectionStore.getState().port
                 });
 
                 set({

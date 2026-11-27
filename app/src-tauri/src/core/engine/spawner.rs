@@ -1,7 +1,7 @@
 use super::native::client::{self, NativeRequest};
 use crate::core::state::{EngineState, NativeConfig, PendingEngine};
 use std::{
-    path::PathBuf,
+    path::{Path, PathBuf},
     process::{Command, Stdio},
     time::Duration,
 };
@@ -44,7 +44,7 @@ pub fn get_cluaiz_bin_path() -> Result<PathBuf, String> {
     }
     Err("Compatible Cluaiz Engine not found in CLUAIZ_HOME/bin or ~/.cluaiz/bin.".into())
 }
-fn engine_name() -> &'static str {
+pub(super) fn engine_name() -> &'static str {
     if cfg!(windows) {
         "cluaiz.exe"
     } else {
@@ -173,12 +173,23 @@ pub async fn boot_cluaiz_engine(app: AppHandle) -> Result<String, String> {
         .map_err(|_| "Engine connection state is unavailable.")? = None;
     let bin = get_cluaiz_bin_path()?;
     let config = native_config(&bin)?;
+    let (pid, pending) = spawn_owned_engine(&state, &bin, &config.home, Some(&config.endpoint))?;
+    wait_ready(&state, pid, &config).await?;
+    *state
+        .native_config
+        .lock()
+        .map_err(|_| "Engine connection state is unavailable.")? = Some(config);
+    pending.commit();
+    Ok(format!("Native Engine ready (PID {pid})."))
+}
+
+pub(super) fn spawn_owned_engine(state: &EngineState, bin: &Path, home: &Path, native_endpoint: Option<&str>) -> Result<(u32, PendingEngine), String> {
     let mut command = Command::new(bin.join(engine_name()));
-    command
-        .arg("serve")
-        .arg("--native-endpoint")
-        .arg(&config.endpoint)
-        .env("CLUAIZ_HOME", &config.home)
+    command.arg("serve");
+    if let Some(endpoint) = native_endpoint {
+        command.args(["--native-endpoint", endpoint]);
+    }
+    command.env("CLUAIZ_HOME", home)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null());
@@ -208,13 +219,7 @@ pub async fn boot_cluaiz_engine(app: AppHandle) -> Result<String, String> {
             .lock()
             .map_err(|_| "Engine job state is unavailable.")? = own_windows_job(pid);
     }
-    wait_ready(&state, pid, &config).await?;
-    *state
-        .native_config
-        .lock()
-        .map_err(|_| "Engine connection state is unavailable.")? = Some(config);
-    pending.commit();
-    Ok(format!("Native Engine ready (PID {pid})."))
+    Ok((pid, pending))
 }
 
 /// Preserve Windows process-tree cleanup from the previous launcher, with owned handles.

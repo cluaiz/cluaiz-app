@@ -26,6 +26,23 @@ impl Default for EngineState {
     }
 }
 
+impl EngineState {
+    pub fn stop_owned(&self) {
+        if let Ok(mut child) = self.child_process.lock() {
+            if let Some(mut child) = child.take() {
+                let _ = child.kill();
+                let _ = child.wait();
+            }
+        }
+    }
+}
+
+impl Drop for EngineState {
+    fn drop(&mut self) {
+        self.stop_owned();
+    }
+}
+
 /// A cancelled/failed readiness future cannot leave its just-spawned Engine behind.
 pub struct PendingEngine {
     process: Arc<Mutex<Option<Child>>>,

@@ -5,6 +5,7 @@ macro_rules! app_commands {
             main [
                 engine_native_start, engine_native_head, engine_native_read, engine_native_cancel,
                 get_session_token, boot_cluaiz_engine, update_engine_settings,
+                app_launch_engine, app_install_engine,
                 ffi_send_message, ffi_fetch_history, ffi_delete_session,
                 start_fs_watcher, stop_fs_watcher, pick_folder,
                 storage_load_sessions_index, storage_save_sessions_index,
