@@ -1,0 +1,61 @@
+name: App pre-release
+
+on:
+  push:
+    tags:
+      - 'app-v*'
+
+permissions:
+  contents: write
+
+jobs:
+  bundle:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-latest
+            args: --bundles nsis,msi
+          - runner: ubuntu-22.04
+            args: --bundles appimage,deb,rpm
+          - runner: macos-latest
+            args: --target universal-apple-darwin --bundles dmg
+    runs-on: ${{ matrix.runner }}
+    env:
+      CLUAIZ_ENGINE_SOURCE: ${{ github.workspace }}/engine-reference
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: cluaiz/cluaiz
+          ref: a92a1ec128a3d295aaf426b470c9235611bb7f65
+          path: engine-reference
+          sparse-checkout: docs
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install macOS targets
+        if: runner.os == 'macOS'
+        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+      - name: Install Linux packaging dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf xdg-utils rpm
+      - run: npm ci
+      - uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: app
+          args: ${{ matrix.args }}
+          tagName: ${{ github.ref_name }}
+          releaseName: Cluaiz App ${{ github.ref_name }}
+          prerelease: true
+          releaseDraft: false
+          releaseBody: |
+            Cluaiz App v0.1.0 pre-release. Download the installer for your operating system.
+            The macOS DMG is unsigned and has not been notarized.
