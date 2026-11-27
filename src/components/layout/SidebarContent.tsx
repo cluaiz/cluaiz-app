@@ -14,6 +14,7 @@ import { useChatProjectsStore } from '../../store/chat/useChatProjectsStore';
 import { ProjectSidebarDirectory } from '../../features/projects/ProjectSidebarDirectory';
 import { isTauri } from '../../core/tauri-api';
 import { Tooltip } from '../ui/tooltip';
+import { AppUpdateNotice } from '../../features/settings/components/AppUpdateNotice';
 import { Icons, useIconHover } from '../animate-ui/icons';
 import { useProjectStore, CODE_WORKSPACE_ENABLED } from '../../store/workspace/useProjectStore';
 import { pushViewRoute, pushChatRoute } from '../../core/router';
@@ -1098,6 +1099,7 @@ export function SidebarContent({ onOpenLauncher, automationSidebarRef, automatio
                         {/* Bottom Pinned Icon: Settings */}
                         <div className="flex flex-col items-center gap-2 w-full pb-1">
                             <div className="w-6 h-[1px] bg-[var(--border-color)] my-0.5 opacity-60" />
+                            <AppUpdateNotice />
                             <DockIconButton
                                 tooltip="Settings"
                                 icon={Icons.Settings}
