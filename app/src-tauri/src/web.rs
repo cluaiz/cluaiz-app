@@ -201,3 +201,21 @@ pub async fn run(options: WebOptions) -> Result<(), Box<dyn std::error::Error>> 
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn port_choice_holds_listener_and_skips_engine_and_busy_ports() {
+        let busy = TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).await.expect("bind fixture");
+        let busy_port = busy.local_addr().expect("fixture address").port();
+        let selected = bind(busy_port, busy_port.saturating_add(1)).await.expect("next free port");
+        let address = selected.local_addr().expect("selected address");
+        assert!(address.ip().is_loopback());
+        assert!(address.port() > busy_port.saturating_add(1));
+        assert_ne!(address.port(), RESERVED_ENGINE_PORT);
+        let selected = bind(RESERVED_ENGINE_PORT, RESERVED_ENGINE_PORT + 1).await.expect("after reserved port");
+        assert!(selected.local_addr().expect("selected address").port() >= RESERVED_ENGINE_PORT + 2);
+    }
+}

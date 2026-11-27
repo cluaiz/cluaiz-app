@@ -26,7 +26,7 @@ import { NeonPulseCursor } from './components/ui/cursor/NeonPulseCursor';
 import { CanvasCursor } from './components/ui/cursor/CanvasCursor';
 import { AuraCursor } from './components/ui/cursor/AuraCursor';
 import { parseCurrentRoute, pushSettingsRoute, pushViewRoute, pushChatRoute, SettingsTabId } from './core/router';
-import { useChatStore } from './store/chat/useChatStore';
+import { startChatHistory, useChatStore } from './store/chat/useChatStore';
 import { useConnectionStore } from './store/engine/useConnectionStore';
 import { useSystemEventsStore } from './store/engine/useSystemEventsStore';
 import { startWorkspaceSync } from './store/workspace/workspaceSync';
@@ -34,6 +34,7 @@ import { startApprovalExpiry } from './features/chat/approvals';
 import { ToastContainer } from './components/ui/toast';
 
 function MainAppContent() {
+    useEffect(() => { startChatHistory(); }, []);
     const engineEndpoint = useConnectionStore(state => state.getBaseUrl());
     const engineProtocol = useConnectionStore(state => state.protocol);
     // Settings sync can fail independently of Chat and system.events on the same Engine.

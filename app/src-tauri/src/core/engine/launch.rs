@@ -73,7 +73,7 @@ async fn healthy(port: u16) -> bool {
             .header(hyper::header::CONNECTION, "close")
             .body(Empty::<Bytes>::new())
             .ok()?;
-        let reply = async {
+        let reply = async move {
             let reply = sender.send_request(request).await.ok()?;
             if !reply.status().is_success() {
                 return None;
@@ -85,10 +85,10 @@ async fn healthy(port: u16) -> bool {
                 .to_bytes();
             Some(is_engine_health(&data))
         };
+        tokio::pin!(reply);
         tokio::select! {
-            biased;
-            result = reply => result,
-            _ = connection => None,
+            result = &mut reply => result,
+            _ = connection => reply.await,
         }
     })
     .await
@@ -221,4 +221,43 @@ pub async fn app_install_engine(
         return Err("Use the main App to install the Engine.".into());
     }
     install_http_engine(&state).await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use http_body_util::Full;
+    use tokio::net::TcpListener;
+
+    #[test]
+    fn engine_identity_requires_the_real_health_shape() {
+        assert!(is_engine_health(br#"{"engine":"Cluaiz Engine","status":"alive","version":"0.1.0"}"#));
+        for body in [
+            &br#"{"status":"alive"}"#[..],
+            &br#"{"engine":"Cluaiz Engine","status":"starting"}"#[..],
+            b"<html>GUI</html>",
+        ] {
+            assert!(!is_engine_health(body));
+        }
+    }
+
+    #[tokio::test]
+    async fn detects_serving_engine_but_not_a_closed_port() {
+        let listener = TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).await.expect("bind fixture");
+        let port = listener.local_addr().expect("fixture address").port();
+        let server = tokio::spawn(async move {
+            let (socket, _) = listener.accept().await.expect("probe connection");
+            drop(listener);
+            let service = hyper::service::service_fn(|request: hyper::Request<hyper::body::Incoming>| async move {
+                assert_eq!(request.uri().path(), "/health");
+                Ok::<_, std::convert::Infallible>(hyper::Response::new(Full::new(Bytes::from_static(
+                    br#"{"engine":"Cluaiz Engine","status":"alive"}"#,
+                ))))
+            });
+            let _ = hyper::server::conn::http1::Builder::new().serve_connection(TokioIo::new(socket), service).await;
+        });
+        assert!(healthy(port).await);
+        server.await.expect("probe completed");
+        assert!(!healthy(port).await);
+    }
 }

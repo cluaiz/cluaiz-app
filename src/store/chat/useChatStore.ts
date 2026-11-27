@@ -777,12 +777,12 @@ export const useChatStore = create<ChatStore>()(
     })
 );
 
-if (typeof window !== 'undefined') {
-    // Proactively hydrate chat sessions catalog on app startup, then apply the history preferences
-    setTimeout(() => {
-        useChatStore.getState().hydrateFromStorage()
+let historyStartup: Promise<void> | undefined;
+
+/** Start after the App has selected its Engine connection. */
+export function startChatHistory() {
+    historyStartup ??= useChatStore.getState().hydrateFromStorage()
             .then(() => import('../../services/storage/chatRetentionRunner'))
             .then(({ startChatRetention }) => startChatRetention())
             .catch(err => console.warn('[ChatStore] Chat history cleanup could not start:', err));
-    }, 0);
 }
