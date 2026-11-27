@@ -2,6 +2,9 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { load, harness } = require('./cepHarness.cjs');
 
+// chatRequest.ts imports SAMPLING_KEYS from the controls store; the same sampling module backs it in test/chat_controls.test.cjs
+const chatControlsStub = load('src/api/engine/chat/sampling.ts', {});
+
 const reply = (body, result) => ({ jsonrpc: '2.0', id: body.id, result });
 
 test('models.load_history validates records and rejects malformed pages', async () => {
@@ -50,7 +53,7 @@ test('system.events validates cursor page and passes wait_ms timeout budget', as
 });
 
 test('chat processingLabel prefers live model_loading step message', () => {
-  const req = load('src/features/chat/utils/chatRequest.ts', {});
+  const req = load('src/features/chat/utils/chatRequest.ts', { '../../../store/chat/useChatControlsStore': chatControlsStub });
   assert.equal(
     req.processingLabel({ stage: 'model_loading', state: 'running', elapsed_ms: 100, message: 'reading weights 42%' }, []),
     'reading weights 42%',
@@ -84,7 +87,7 @@ test('reduceLoadEvent tracks background model load lifecycle from system.events'
 });
 
 test('reduceChatModelLoading ignores no-op model_loading boundaries when model is already loaded in memory', () => {
-  const req = load('src/features/chat/utils/chatRequest.ts', {});
+  const req = load('src/features/chat/utils/chatRequest.ts', { '../../../store/chat/useChatControlsStore': chatControlsStub });
   // Turn 2+: model is already in memory, preflight emits stage=model_loading running + completed with no p.load
   let state = req.reduceChatModelLoading(undefined, { stage: 'model_loading', state: 'running', elapsed_ms: 0 }, 'Qwen3-4B');
   assert.equal(state, undefined);
