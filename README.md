@@ -3,7 +3,7 @@
 </p>
 
 <h3 align="center">
-The desktop app for Cluaiz: chat with your models, manage models and tools, explore the API and keep your notes, in one window</h3>
+Chat with Cluaiz, manage models and tools, and explore the API from a desktop window or a local browser.</h3>
 
 </br>
 <p align="center">
@@ -21,9 +21,8 @@ The desktop app for Cluaiz: chat with your models, manage models and tools, expl
 </p>
 
 > [!WARNING]
-> **In development, not released yet.** The App is released after the Engine's pre-release ends. Until then there
-> is no installer: you can build it from source as shown below to try it, but screens, settings and file layout
-> change often. To use Cluaiz today, use the [Engine](https://github.com/cluaiz/cluaiz) and its terminal and API.
+> **In development.** Until the App pre-release is published, use the source build below
+> or use the [Engine](https://github.com/cluaiz/cluaiz) from a terminal.
 
 ## About the Cluaiz App
 
@@ -47,35 +46,48 @@ These screens exist in the code and change often. None of them is released yet.
 | **Settings** | Engine settings, permissions and API tokens, appearance |
 | **Extensions** | Experimental local UI packages. See [local packages](src/extensions/packages/README.md) |
 
-## How the App reaches the Engine
+## Install the App
 
-```mermaid
-flowchart LR
-    subgraph APP["Cluaiz App"]
-        UI["React screens"] --> T["Transport<br/>(chosen explicitly)"]
-        T -->|desktop| N["Tauri native host"]
-    end
+Once the pre-release is published, choose an installer from [App Releases](https://github.com/cluaiz/cluaiz-app/releases).
 
-    N -->|"named pipe (Windows)<br/>Unix socket (macOS, Linux)"| G["Engine session<br/>token check"]
-    T -->|"browser or HTTP setting"| H["Engine HTTP API<br/>/v1/... and /v1/cep"]
-    H --> G
-    G --> R["Engine router:<br/>chat, models, tools, settings, files"]
+| System | Install and launch |
+| --- | --- |
+| Windows | Run the `.exe` installer and select the PATH option, or install the `.msi`. Open **Cluaiz App** from Start or open a new terminal and run `cluaiz-app`. For managed MSI installs, set `CLUAIZADDTOPATH=0` to skip the machine PATH entry. |
+| Linux | Install the `.deb` with `sudo apt install ./<file>.deb` or the `.rpm` with `sudo dnf install ./<file>.rpm`. Open the desktop entry or run `cluaiz-app`. |
+| Linux AppImage | Make the download executable with `chmod +x ./<file>.AppImage`, then run it by path. Pass the same launcher flags after the filename. |
+| macOS | Open the `.dmg`, drag the App into Applications and open it from there. To use flags, run the executable inside the App bundle at `/Applications/cluaiz App.app/Contents/MacOS/cluaiz-app` with the path quoted. The v0.1.0 DMG is unsigned and has not been notarized. |
+
+## Open a window or use a browser
+
+```sh
+cluaiz-app
+cluaiz-app --web
+cluaiz-app --web --port 1420 --no-open
 ```
 
-- **Desktop:** the App starts the Engine (`cluaiz serve --native-endpoint <path>`) and waits for an authenticated
-  health reply before it says the Engine is ready. Each request has its own pipe or socket and can be cancelled.
-- **Browser or HTTP:** the App uses the Engine's HTTP API with its session token, like any other client.
-- Both paths reach the same Engine router, with the same permissions and approvals. There is no silent fallback
-  from one to the other.
+The first command opens the desktop window. With `--web`, the same executable serves the bundled UI
+on `127.0.0.1` and opens your browser. It prints the final URL if it needs to move to the next free
+port. Port 8000 and the configured Engine port are reserved. With `--no-open` you can open the URL
+yourself. Press Ctrl+C to stop the web launcher. Node is needed to build the UI from source.
 
-Details: [transport](src/api/client/README.md) and [native connector](app/src-tauri/src/core/engine/native/README.md).
+## How the App finds and starts the Engine
+
+The launcher checks for a running Cluaiz Engine on loopback. It reads the port from `CLUAIZ_PORT`
+when set, then from the Engine's saved configuration, and otherwise uses the Engine default.
+The executable lookup checks `CLUAIZ_HOME/bin` when set. Otherwise it looks for a workspace install
+and then `~/.cluaiz/bin`. If the Engine is installed and offline, the App starts `cluaiz serve`.
+An Engine you started yourself keeps running when the App quits.
+
+If the Engine is missing, the App shows the official install command and runs it only when you
+choose **Install for me**. If you install in a separate terminal, use **Check again**. The launcher
+uses the Engine's existing authentication. In browser mode, enter the Engine session token when prompted.
 
 ## Run it from source
 
-You need **Node.js 20.19 or newer** (for Vite 7), **Rust** (stable), the
+You need **Node.js 24**, **Rust** (stable), the
 [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) for your OS, and the
-[Cluaiz Engine](https://github.com/cluaiz/cluaiz#quick-start) installed. The App needs an Engine build that
-supports `--native-endpoint`.
+[Cluaiz Engine](https://github.com/cluaiz/cluaiz#quick-start). Checkout the Engine source beside the App
+for API documentation generation, or set `CLUAIZ_ENGINE_SOURCE` to that checkout.
 
 ```bash
 git clone https://github.com/cluaiz/cluaiz-app
