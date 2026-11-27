@@ -4,9 +4,6 @@ ${StrStr}
 ${UnStrRep}
 
 !macro NSIS_HOOK_POSTINSTALL
-  IfSilent cluaiz_path_read
-  MessageBox MB_YESNO "Add cluaiz-app to your user PATH?" IDNO cluaiz_path_done
-  cluaiz_path_read:
   ClearErrors
   ReadRegStr $0 HKCU "Environment" "Path"
   ${If} ${Errors}
@@ -45,6 +42,17 @@ ${UnStrRep}
     ${EndIf}
   ${EndIf}
   cluaiz_path_done:
+  ; The App needs the Engine. Offer the official installer (latest Engine release,
+  ; chosen for this machine) only when it is not installed yet. "No" is fine: the
+  ; App asks again on start and can install it later.
+  IfSilent cluaiz_engine_done
+  IfFileExists "$PROFILE\.cluaiz\bin\cluaiz.exe" cluaiz_engine_done
+  MessageBox MB_YESNO|MB_ICONQUESTION "Cluaiz App needs the Cluaiz Engine.$\r$\n$\r$\nInstall the latest Engine release for this computer now?$\r$\n$\r$\nYou can also install it later from the App." IDNO cluaiz_engine_done
+  ExecWait 'powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "irm https://cluaiz.com/install.ps1 | iex"' $5
+  ${If} $5 != 0
+    MessageBox MB_OK|MB_ICONEXCLAMATION "The Engine installer did not finish (exit code $5). You can install it later from the App."
+  ${EndIf}
+  cluaiz_engine_done:
 !macroend
 
 !macro NSIS_HOOK_POSTUNINSTALL

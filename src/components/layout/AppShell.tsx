@@ -111,11 +111,12 @@ export function AppShell({ sidebarContent, mainContent, rightPanelContent }: App
     }, [sidebarOpen, sidebarPeeked, sidebarCollapsed, sidebarWidth, sidebarPosition, setSidebarPeeked]);
 
     // Arrange elements depending on left or right position settings
-    const renderSidebar = () => (
+    // No sidebar content (the Engine install screen) means no empty sidebar column.
+    const renderSidebar = () => sidebarContent ? (
         <ResizableSidebar>
             {sidebarContent}
         </ResizableSidebar>
-    );
+    ) : null;
 
     const renderRightPanel = () => {
         if (!rightPanelOpen) return null;

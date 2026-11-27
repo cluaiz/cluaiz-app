@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "cluaiz App",
+  "productName": "Cluaiz App",
   "mainBinaryName": "cluaiz-app",
   "version": "0.1.0",
   "identifier": "com.cluaiz.app",
@@ -14,7 +14,7 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "cluaiz App",
+        "title": "Cluaiz App",
         "width": 1100,
         "height": 700,
         "decorations": false
@@ -29,10 +29,13 @@
     }
   },
   "bundle": {
+    "publisher": "Cluaiz",
     "active": true,
     "targets": "all",
     "windows": {
       "nsis": {
+        "installerIcon": "icons/icon.ico",
+        "uninstallerIcon": "icons/icon.ico",
         "installerHooks": "windows/path.nsh"
       },
       "wix": {

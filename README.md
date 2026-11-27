@@ -52,7 +52,7 @@ Once the pre-release is published, choose an installer from [App Releases](https
 
 | System | Install and launch |
 | --- | --- |
-| Windows | Run the `.exe` installer and select the PATH option, or install the `.msi`. Open **Cluaiz App** from Start or open a new terminal and run `cluaiz-app`. For managed MSI installs, set `CLUAIZADDTOPATH=0` to skip the machine PATH entry. |
+| Windows | Run the `.exe` or `.msi` installer. Setup adds the command to PATH by default. When the Engine is not installed yet, the `.exe` setup asks whether to install the latest Engine release for this computer; answering No is fine, the App asks again on start. Open **Cluaiz App** from Start or open a new terminal and run `cluaiz-app`. For managed MSI installs, set `CLUAIZADDTOPATH=0` to skip the machine PATH entry. |
 | Linux | Install the `.deb` with `sudo apt install ./<file>.deb` or the `.rpm` with `sudo dnf install ./<file>.rpm`. Open the desktop entry or run `cluaiz-app`. |
 | Linux AppImage | Make the download executable with `chmod +x ./<file>.AppImage`, then run it by path. Pass the same launcher flags after the filename. |
 | macOS | Open the `.dmg`, drag the App into Applications and open it from there. To use flags, run the executable inside the App bundle at `/Applications/cluaiz App.app/Contents/MacOS/cluaiz-app` with the path quoted. The v0.1.0 DMG is unsigned and has not been notarized. |
@@ -69,6 +69,9 @@ The first command opens the desktop window. With `--web`, the same executable se
 on `127.0.0.1` and opens your browser. It prints the final URL if it needs to move to the next free
 port. Port 8000 and the configured Engine port are reserved. With `--no-open` you can open the URL
 yourself. Press Ctrl+C to stop the web launcher. Node is needed to build the UI from source.
+
+In an interactive Windows Command Prompt, use `start "" /wait /b cluaiz-app --web`
+to keep the prompt waiting for the web launcher. Desktop shortcuts open the App window directly.
 
 ## How the App finds and starts the Engine
 

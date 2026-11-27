@@ -176,12 +176,27 @@ pub async fn install_http_engine(state: &EngineState) -> Result<LaunchStatus, St
         return Ok(result);
     }
     let mut command = if cfg!(windows) {
-        let mut command = tokio::process::Command::new("powershell");
-        command.args([
-            "-NoProfile",
-            "-Command",
-            "irm https://cluaiz.com/install.ps1 | iex",
-        ]);
+        // The App has no console (windows subsystem), so starting PowerShell with the App's
+        // standard handles failed with os error 50. `start /wait` opens the installer in its
+        // own console window, where the user sees its progress, and waits for it.
+        let mut command = tokio::process::Command::new("cmd");
+        command
+            .args([
+                "/C",
+                "start",
+                "",
+                "/wait",
+                "powershell",
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-Command",
+                "irm https://cluaiz.com/install.ps1 | iex",
+            ])
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null());
+        #[cfg(windows)]
+        command.creation_flags(0x0800_0000); // CREATE_NO_WINDOW for cmd itself
         command
     } else {
         let mut command = tokio::process::Command::new("bash");
