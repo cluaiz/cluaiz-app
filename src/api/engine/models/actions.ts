@@ -33,6 +33,22 @@ export async function resumeModelLoad(id: string, signal?: AbortSignal, observer
   return loadResult(await resumeCepTask<unknown>('models.load', id, signal, observer), expectedModel);
 }
 
+export interface UnloadModelResult { unloaded: {model: string; kind: string}[]; busy: {model: string; kind: string}[] }
+
+function unloadRows(value: unknown): {model: string; kind: string}[] | null {
+  if (!Array.isArray(value)) return null;
+  const rows = value.filter(row => object(row) && text(row.model) && text(row.kind)) as {model: string; kind: string}[];
+  return rows.length === value.length ? rows : null;
+}
+
+/** Frees one loaded model now (`models.unload`). A model that is not loaded is no error: both lists come back empty. */
+export async function unloadLoadedModel(model: string, signal?: AbortSignal): Promise<UnloadModelResult> {
+  const value = await callCep<unknown>('models.unload', modelTarget(model), {signal});
+  const unloaded = object(value) ? unloadRows(value.unloaded) : null, busy = object(value) ? unloadRows(value.busy) : null;
+  if (!unloaded || !busy) throw invalid('models.unload');
+  return {unloaded, busy};
+}
+
 export async function removeInstalledModel(model: string, signal?: AbortSignal) {
   const value = await callCep<unknown>('models.remove', modelTarget(model), {signal, timeoutMs: 0});
   if (!object(value) || value.model !== model || !text(value.dir)) throw invalid('models.remove');

@@ -6,6 +6,7 @@ import { useChatStore } from '../../../store/chat/useChatStore';
 import { downloadFile } from '../../workspace/utils/zipExport';
 import { chatFileName, chatToJson, chatToMarkdown } from '../utils/chatExport';
 import { ChatSearchBar } from './ChatSearchBar';
+import { UnloadModelButton } from './UnloadModelButton';
 
 /** The chat input puts its model picker here (a portal), so the input keeps only what is typed */
 export const CHAT_MODEL_SLOT = 'chat-model-slot';
@@ -22,7 +23,10 @@ export function ChatTopBar({ onSelectMessages }: { onSelectMessages(): void }) {
 
     // The same gap on both sides; the private-chat lock shows only in an empty chat, where this menu does not
     return <div className="relative z-30 flex h-12 shrink-0 items-center justify-between gap-2 px-2 @lg/chat:px-4">
-        <div id={CHAT_MODEL_SLOT} className="flex min-w-0 items-center" />
+        <div className="flex min-w-0 items-center">
+            <div id={CHAT_MODEL_SLOT} className="flex min-w-0 items-center" />
+            <UnloadModelButton />
+        </div>
         {chatId && session && hasMessages && <div className="relative flex items-center gap-1">
             {searching && <ChatSearchBar key={chatId} messages={session.messages} onClose={() => setSearching(false)} />}
             <Button ref={trigger} variant="ghost" size="icon" aria-label="Chat menu" aria-expanded={menu} onClick={() => setMenu(!menu)}>

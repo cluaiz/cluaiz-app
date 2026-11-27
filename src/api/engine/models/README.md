@@ -58,6 +58,10 @@ flowchart LR
   `loadHistory.ts` owns `models.load_history` pagination/filtering. Installed model ids
   are not repo URLs or paths. Optional header files use the same relative-package
   path validator as tool files, moved into the existing filePath utility.
+- `unloadLoadedModel` (`modelsApi.unloadModel`) calls `models.unload` with one model id
+  (never `all`). It returns the Engine's `unloaded` and `busy` lists; a model that is not
+  loaded gives two empty lists, not an error. A reply without both lists is rejected.
+  The chat top bar's Unload button uses it and reads `system.ps` to know what is loaded.
 - Load/remove require matching model identity and actual timing/directory fields
   before an App success. These potentially long operations have no fixed client
   deadline; an optional signal aborts observation, not a promise of server rollback.

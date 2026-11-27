@@ -4,7 +4,7 @@ import { ApiError } from '../../client/errors';
 import { permissionApi } from '../permission/permission.api';
 import { readHardwareSummary } from '../system/systemData';
 import { MODELS_ENDPOINTS } from './models.endpoints';
-import { discardDownload, downloadInstalledModel, inspectInstalledModel, loadInstalledModel, removeInstalledModel, resumeModelLoad, modelTarget } from './actions';
+import { discardDownload, downloadInstalledModel, inspectInstalledModel, loadInstalledModel, removeInstalledModel, resumeModelLoad, unloadLoadedModel, modelTarget } from './actions';
 import { readLoadHistory } from './loadHistory';
 import { fsApi } from '../fs/fs.api';
 import type {
@@ -130,6 +130,11 @@ export const modelsApi = {
    * Physically deletes a model file from the disk vault
    */
   deleteModel: removeInstalledModel,
+
+  /**
+   * Frees a loaded model's memory now (`models.unload`), like `ollama stop`
+   */
+  unloadModel: unloadLoadedModel,
 
   /**
    * Deletes what a stopped (paused) download left, so the next download starts over

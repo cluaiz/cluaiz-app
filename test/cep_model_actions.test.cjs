@@ -80,3 +80,17 @@ test('ONNX/permission/approval/load/download task errors remain actual domain fa
         await assert.rejects(h.modelsApi.pullModel('owned'),e=>e.code===code&&e.data.type===type);
     }
 });
+
+test('models.unload sends one model id and validates the unloaded/busy lists',async()=>{
+    const h=harness((url,body)=>{
+        assert.equal(body.method,'models.unload');assert.deepEqual(wire(body.params),{model:'owned'});
+        return reply(body,{unloaded:[{model:'owned',kind:'chat'}],busy:[]});
+    });
+    const done=await h.modelsApi.unloadModel('owned');
+    assert.deepEqual(wire(done),{unloaded:[{model:'owned',kind:'chat'}],busy:[]});
+    for(const value of [{unloaded:[]},{unloaded:[{model:'owned'}],busy:[]},{busy:[],unloaded:'x'},null]){
+        const bad=harness((url,body)=>reply(body,value));
+        await assert.rejects(bad.modelsApi.unloadModel('owned'),e=>e.statusText==='INVALID_MODEL_ACTION');
+    }
+    await assert.rejects(h.modelsApi.unloadModel('../x'),e=>e.statusText==='INVALID_INSTALLED_MODEL');
+});
