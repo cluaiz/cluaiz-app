@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Fragment>
+    <Property Id="CLUAIZADDTOPATH" Value="1" Secure="yes" />
+    <DirectoryRef Id="INSTALLDIR">
+      <Component Id="CluaizAppPath" Guid="D1006D0F-BB87-42AD-BF59-13A4A7C5E381">
+        <Condition>CLUAIZADDTOPATH = "1"</Condition>
+        <RegistryValue Root="HKLM" Key="Software\Cluaiz\App" Name="MsiPath" Type="integer" Value="1" KeyPath="yes" />
+        <Environment Id="CluaizAppPathEntry" Name="PATH" Value="[INSTALLDIR]" Action="set" Part="last" System="yes" />
+      </Component>
+    </DirectoryRef>
+  </Fragment>
+</Wix>
