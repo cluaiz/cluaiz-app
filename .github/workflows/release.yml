@@ -30,7 +30,7 @@ jobs:
           repository: cluaiz/cluaiz
           ref: a92a1ec128a3d295aaf426b470c9235611bb7f65
           path: engine-reference
-          sparse-checkout: docs
+          # The API catalog validates documentation links into test/benchmarks too.
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
