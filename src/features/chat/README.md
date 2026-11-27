@@ -158,7 +158,10 @@ two users on one Engine do not share it.
 Live system use sits under the input beside the context meter (`SystemStatusPopover`, opened by hover or
 click like the context popover): RAM and VRAM in percent, each GPU, and the loaded model's plan, from
 `system.live` and `system.ps` every 2 s (`useLiveSystem`) in three modes: Always, While open (default),
-Off. The Engine reports no CPU or GPU use percent and not its own RAM, and the popover says so.
+Off. The popover shows the time the App last received a successful reading. That timestamp
+describes the App response, since the Engine can return its startup RAM and VRAM sample on
+later polls. Refreshing the actual hardware sample requires an Engine change.
+The Engine reports no CPU or GPU use percent or its own RAM.
 
 Checked on 2026-11-23 against the test Engine (port 8011) with Qwen3.5 0.8B: Creativity 0.5, an instruction
 and "Ask every time" sent `{"approval_mode":"strict","temperature":0.5}` with the instruction as the first

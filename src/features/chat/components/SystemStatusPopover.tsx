@@ -27,7 +27,8 @@ export function SystemStatusPopover() {
     const [pinned, setPinned] = useState(false), [hovered, setHovered] = useState(false);
     const open = pinned || hovered;
     const box = useRef<HTMLDivElement>(null);
-    const { live, models, error } = useLiveSystem(mode, open);
+    const { live, models, error, at } = useLiveSystem(mode, open);
+    const lastReading = at > 0 ? new Date(at) : null;
     useEffect(() => {
         if (!pinned) return;
         const away = (event: MouseEvent) => { if (box.current && !box.current.contains(event.target as Node)) { setPinned(false); setHovered(false); } };
@@ -55,6 +56,9 @@ export function SystemStatusPopover() {
                 : error && !live ? <p role="alert" className="text-[var(--status-error)]">{error}</p>
                 : !live ? <p role="status" className="text-[var(--text-muted)]">Reading…</p>
                 : <>
+                    {lastReading && <p className="text-[10px] text-[var(--text-muted)]">
+                        Last response received at <time dateTime={lastReading.toISOString()}>{lastReading.toLocaleTimeString()}</time>
+                    </p>}
                     <Row label="RAM" used={live.memory.used_gb} total={live.memory.total_gb} detail={`${gb(live.memory.used_gb)} / ${gb(live.memory.total_gb)}`} />
                     {live.gpus.map(gpu => <Row key={gpu.index} label={gpu.name} used={gpu.vram_total_bytes - gpu.vram_free_bytes} total={gpu.vram_total_bytes}
                         detail={`${gb((gpu.vram_total_bytes - gpu.vram_free_bytes) / 1024 ** 3)} / ${gb(gpu.vram_total_bytes / 1024 ** 3)}`} />)}
