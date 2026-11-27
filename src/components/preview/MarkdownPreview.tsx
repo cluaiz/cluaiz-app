@@ -8,13 +8,22 @@ interface MarkdownPreviewProps {
     fileName: string;
     content: string;
     onChange?: (val: string) => void;
+    /** Offer the Code view (default true) */
+    allowCode?: boolean;
+    /** No second header when the window around it already names the file */
+    hideHeader?: boolean;
+    /** The Code view shows the text without editing (attachment previews) */
+    readOnly?: boolean;
 }
 
 export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
     filePath,
     fileName,
     content,
-    onChange
+    onChange,
+    allowCode = true,
+    hideHeader = false,
+    readOnly = false,
 }) => {
     const [viewMode, setViewMode] = useState<'preview' | 'code'>('preview');
     const [floatingAction, setFloatingAction] = useState<{ x: number; y: number; text: string } | null>(null);
@@ -68,7 +77,7 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
             style={{ fontFamily: 'var(--font-family)' }}
         >
             {/* Top Toolbar */}
-            <div className="h-10 border-b border-[var(--border-color)]/70 bg-[var(--bg-secondary)] px-4 flex items-center justify-between flex-shrink-0 select-none">
+            {!hideHeader && <div className="h-10 border-b border-[var(--border-color)]/70 bg-[var(--bg-secondary)] px-4 flex items-center justify-between flex-shrink-0 select-none">
                 <div className="flex items-center gap-2">
                     <BookOpen className="w-4 h-4 text-[var(--accent-color)]" />
                     <span className="text-xs font-semibold text-[var(--text-primary)] truncate max-w-[250px]">{fileName}</span>
@@ -77,7 +86,7 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
                     </span>
                 </div>
 
-                <div className="flex items-center gap-1.5">
+                {allowCode && <div className="flex items-center gap-1.5">
                     <div className="flex items-center bg-[var(--bg-tertiary)] p-0.5 rounded-lg border border-[var(--border-color)]">
                         <button
                             type="button"
@@ -101,12 +110,12 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
                             <span>Code</span>
                         </button>
                     </div>
-                </div>
-            </div>
+                </div>}
+            </div>}
 
             {/* Rendered View or Live Monaco Code Editor */}
             <div className="flex-1 overflow-hidden relative select-text" onMouseUp={handleMouseUp}>
-                {viewMode === 'preview' ? (
+                {viewMode === 'preview' || !allowCode ? (
                     <div className="h-full w-full overflow-y-auto custom-scrollbar p-6 bg-[var(--bg-primary)] select-text">
                         <div className="max-w-7xl mx-auto select-text">
                             <MarkdownRenderer content={content} />
@@ -118,7 +127,8 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
                         language="markdown"
                         filePath={filePath}
                         fileName={fileName}
-                        onChange={(newVal) => onChange?.(newVal)}
+                        onChange={readOnly ? undefined : (newVal) => onChange?.(newVal)}
+                        readOnly={readOnly}
                         height="100%"
                         className="h-full border-0 rounded-none shadow-none"
                         showToolbar={false}

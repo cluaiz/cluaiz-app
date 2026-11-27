@@ -277,7 +277,9 @@ export const AttachmentCard: React.FC<{
                     previewUrl,
                     content: content || item.pastedContent,
                     usages: [],
-                    latestTimestamp: Date.now()
+                    latestTimestamp: Date.now(),
+                    // Only the input's cards can be removed; a sent message's cannot
+                    staged: Boolean(onRemove)
                 };
 
                 useLayoutStore.getState().setPreviewModalAsset(assetToPreview);

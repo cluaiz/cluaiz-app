@@ -20,4 +20,6 @@ export interface LibraryAsset {
     extension: string;
     usages: AssetUsage[];
     latestTimestamp: number;
+    /** Still in the chat input, not sent yet: only then may the preview offer a Code view */
+    staged?: boolean;
 }

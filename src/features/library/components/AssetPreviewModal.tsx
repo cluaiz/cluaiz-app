@@ -59,10 +59,13 @@ export const AssetPreviewModal: React.FC<AssetPreviewModalProps> = ({
 
     const resolvedContent = React.useMemo(() => {
         if (!asset) return '';
-        if (asset.content) return asset.content;
-        if (asset.previewUrl && asset.previewUrl.startsWith('data:')) {
+        // A sent text file comes back as a data URI (`data:text/markdown;base64,...`): show its text
+        const dataUri = asset.content?.startsWith('data:') ? asset.content
+            : !asset.content && asset.previewUrl?.startsWith('data:') ? asset.previewUrl : undefined;
+        if (asset.content && !dataUri) return asset.content;
+        if (dataUri) {
             try {
-                const base64 = asset.previewUrl.split(',')[1];
+                const base64 = dataUri.split(',')[1];
                 if (base64) {
                     const binaryString = atob(base64);
                     const bytes = new Uint8Array(binaryString.length);
@@ -73,7 +76,7 @@ export const AssetPreviewModal: React.FC<AssetPreviewModalProps> = ({
                 }
             } catch {
                 try {
-                    return atob(asset.previewUrl.split(',')[1] || '');
+                    return atob(dataUri.split(',')[1] || '');
                 } catch {}
             }
         }
@@ -207,8 +210,9 @@ export const AssetPreviewModal: React.FC<AssetPreviewModalProps> = ({
                         <FilePreviewDispatcher
                             filePath={asset.previewUrl || asset.name}
                             fileName={asset.name}
-                            content={asset.previewUrl || resolvedContent || ''}
+                            content={/\.(md|markdown)$/i.test(asset.name) ? resolvedContent : (asset.previewUrl || resolvedContent || '')}
                             hideHeader
+                            allowCode={Boolean(asset.staged)}
                         />
                     ) : (
                         <CodeEditor

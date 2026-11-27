@@ -25,6 +25,8 @@ interface FilePreviewDispatcherProps {
     onChangeContent?: (newContent: string) => void;
     /** The caller already shows the file's name and actions (preview window) */
     hideHeader?: boolean;
+    /** Markdown: offer the Code view next to Preview (read-only); off for sent attachments */
+    allowCode?: boolean;
 }
 
 export const FilePreviewDispatcher: React.FC<FilePreviewDispatcherProps> = ({
@@ -34,6 +36,7 @@ export const FilePreviewDispatcher: React.FC<FilePreviewDispatcherProps> = ({
     rootPath,
     onChangeContent,
     hideHeader,
+    allowCode = true,
 }) => {
     if (isImageFile(fileName)) {
         return (
@@ -88,6 +91,9 @@ export const FilePreviewDispatcher: React.FC<FilePreviewDispatcherProps> = ({
                 fileName={fileName}
                 content={content}
                 onChange={onChangeContent}
+                allowCode={allowCode}
+                hideHeader={hideHeader && !allowCode}
+                readOnly={hideHeader}
             />
         );
     }
