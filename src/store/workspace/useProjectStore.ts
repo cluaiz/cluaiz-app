@@ -20,6 +20,10 @@ import {
 import { toSniffedDataUri, fixDataUriMime } from '../../utils/mimeSniffer';
 import { isMediaOrBinaryFile } from '../../utils/mediaResolver';
 
+/** The code workspace (editor, file tree, terminal) is hidden from users for now (owner, 2026-11-27):
+ * chat and tool calls only. Set to true to bring back every way of opening it. */
+export const CODE_WORKSPACE_ENABLED = false;
+
 export const detectLanguageFromPath = (path: string): string => {
     const ext = path.split('.').pop()?.toLowerCase() || '';
     return normalizeLanguage(ext);

@@ -15,8 +15,9 @@ import { ProjectSidebarDirectory } from '../../features/projects/ProjectSidebarD
 import { isTauri } from '../../core/tauri-api';
 import { Tooltip } from '../ui/tooltip';
 import { Icons, useIconHover } from '../animate-ui/icons';
-import { useProjectStore } from '../../store/workspace/useProjectStore';
+import { useProjectStore, CODE_WORKSPACE_ENABLED } from '../../store/workspace/useProjectStore';
 import { pushViewRoute, pushChatRoute } from '../../core/router';
+import { releaseFeatures } from '../../core/releaseFeatures';
 import { ApiSidebar } from '../../features/api/components/ApiSidebar';
 import { ToolkitSidebar } from '../../features/extensions/ToolkitSidebar';
 import { useToolkitNavStore } from '../../features/extensions/toolkitStore';
@@ -985,10 +986,9 @@ export function SidebarContent({ onOpenLauncher, automationSidebarRef, automatio
                                 />
                             </div>
 
-                            {/* Divider */}
+                            {/* 3. Open Workspace: hidden while CODE_WORKSPACE_ENABLED is false */}
+                            {CODE_WORKSPACE_ENABLED && (<>
                             <div className="w-6 h-[1px] bg-[var(--border-color)] my-0.5 opacity-60" />
-
-                            {/* 3. Open Workspace */}
                             <DockIconButton
                                 tooltip="Open Workspace"
                                 icon={Icons.FolderGit2}
@@ -999,8 +999,9 @@ export function SidebarContent({ onOpenLauncher, automationSidebarRef, automatio
                                     setIsFlyoutOpen(false);
                                 }}
                             />
+                            </>)}
 
-                            {/* 4. Notebook (Projects & Knowledge Hub) */}
+                            {/* Notebook is hidden from the sidebar for this release.
                             <DockIconButton
                                 tooltip="Notebook"
                                 icon={Icons.NotebookPen}
@@ -1011,6 +1012,7 @@ export function SidebarContent({ onOpenLauncher, automationSidebarRef, automatio
                                     setIsFlyoutOpen(false);
                                 }}
                             />
+                            */}
 
                             {/* Library (Media & Files Hub) */}
                             <DockIconButton
@@ -1024,7 +1026,7 @@ export function SidebarContent({ onOpenLauncher, automationSidebarRef, automatio
                                 }}
                             />
 
-                            <DockIconButton
+                            {releaseFeatures.automation && <DockIconButton
                                 tooltip="Automation"
                                 icon={Icons.Workflow}
                                 isActive={activeView === 'automation'}
@@ -1033,7 +1035,7 @@ export function SidebarContent({ onOpenLauncher, automationSidebarRef, automatio
                                     pushViewRoute('automation');
                                     setIsFlyoutOpen(false);
                                 }}
-                            />
+                            />}
 
                             {/* 6. APIs */}
                             <div

@@ -2,9 +2,10 @@ import React, { useMemo, useState } from 'react';
 import { Check, Copy, ArrowUpRight, Loader2, Maximize2, Minimize2, Workflow } from 'lucide-react';
 import { FileIcon } from 'react-material-icon-theme';
 import { ProjectCard } from '../../features/workspace/components/ProjectCard';
-import { useProjectStore } from '../../store/workspace/useProjectStore';
+import { useProjectStore, CODE_WORKSPACE_ENABLED } from '../../store/workspace/useProjectStore';
 import { useLayoutStore } from '../../store/ui/useLayoutStore';
 import { isFlowText, useFlowApplyTarget } from '../../features/automation/applyTarget';
+import { releaseFeatures } from '../../core/releaseFeatures';
 import { cn } from '../../lib/utils';
 import hljs from 'highlight.js';
 // @ts-ignore
@@ -39,7 +40,9 @@ const getLanguageExtension = (lang: string): string => {
     return l || 'txt';
 };
 
-export const CodeBlock: React.FC<CodeBlockProps> = ({ language, value, allowWorkspaceOpen = false }) => {
+export const CodeBlock: React.FC<CodeBlockProps> = ({ language, value, allowWorkspaceOpen: allowWorkspaceProp = false }) => {
+    // No "Open in Workspace" button or project card while the code workspace is hidden
+    const allowWorkspaceOpen = allowWorkspaceProp && CODE_WORKSPACE_ENABLED;
     const [copied, setCopied] = useState(false);
     const [isExpanded, setIsExpanded] = useState(false);
     const [isOpeningWorkspace, setIsOpeningWorkspace] = useState(false);
@@ -48,7 +51,7 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({ language, value, allowWork
     const isFlow = useMemo(() => Boolean(flowTarget) && /^(ya?ml|json)$/i.test(language) && isFlowText(value), [flowTarget, language, value]);
 
     // 1. Detect Multi-File Project Manifest Block (Mode 1)
-    if (language === 'project' || language === 'workspace') {
+    if (allowWorkspaceOpen && (language === 'project' || language === 'workspace')) {
         try {
             const parsed = JSON.parse(value);
             if (parsed && parsed.files && typeof parsed.files === 'object') {
@@ -213,7 +216,7 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({ language, value, allowWork
                         )}
 
                         {/* A whole flow file, while a flow is open in the Automation builder */}
-                        {isFlow && flowTarget && (
+                        {releaseFeatures.automation && isFlow && flowTarget && (
                             <button
                                 type="button"
                                 onClick={() => flowTarget.apply(value)}

@@ -7,6 +7,12 @@
   the Conversation Memory dialog inspects per-chat recall, event log, tool grants,
   and export (`memory.*`), and the Context Diagnostics dialog inspects retained
   preflight reports, dry-run context previews, and idle indexer jobs (`context.*`).
+- **Code workspace hidden (2026-11-27):** `CODE_WORKSPACE_ENABLED = false` in
+  `store/workspace/useProjectStore.ts` hides every way to open the code workspace (sidebar
+  button, launcher menu item, "Open in Workspace Editor" on code blocks, project cards) and a
+  saved split no longer opens it beside the chat. The chat is chat and tool calls only for now.
+  Views that bring their own pane (Automation, chat projects) are unchanged. Set it to `true`
+  to bring the workspace back.
 - **Entry:** the right-click context menu (`GlobalChatContextMenu` — `CHAT OPTIONS`
   with `AI Memory`, `Conversation Memory`, `Context Diagnostics`, `Archive` /
   `Unarchive`, `Close chat`, and `Delete Chat`) in `ChatWorkspace`, plus the
@@ -71,7 +77,9 @@ flowchart LR
   (`recall`, `open_memory`, `remember`). The connected App shell long-polls `system.events`.
   While a local turn waits for its model, the existing processing label shows that model's
   load message and reported percentage. When loading ends or no matching event exists,
-  the normal Chat label applies. Final `engine.load` placement reports still use `ModelLoadCard.tsx`.
+  the normal Chat label applies. `ModelLoadCard.tsx` shows the actual activity as it arrives
+  and retains it on the answer with the final placement report. Consecutive weights updates
+  for an attempt share one row, and absent steps are omitted.
   Run `node --test test/cep_model_load_ui.test.cjs` to check the label against Engine event sequences.
 - **approvals.ts, components/ApprovalTabs.tsx, components/PermissionApprovalCard.tsx:**
   a waiting call is a card above the input (Approve, Allow in chat, Reject); the chat notes

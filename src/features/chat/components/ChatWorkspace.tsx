@@ -28,7 +28,7 @@ import { LiveTelemetryBar } from './LiveTelemetryBar';
 import { CompactionCard } from './CompactionCard';
 import { AUTO_COMPACT_PERCENT, compactSession, messagesSinceCompaction } from '../utils/compactChat';
 import { useChatTelemetry } from '../hooks/useChatTelemetry';
-import { WorkspaceEditorPane } from '../../workspace';
+import { WorkspaceEditorPane, CODE_WORKSPACE_ENABLED } from '../../workspace';
 import { ResizableDivider } from '../../../components/ui/ResizableDivider';
 import { useChatSend } from '../hooks/useChatSend';
 import { cluaizEngine } from '../../../core/engine';
@@ -137,7 +137,10 @@ export function ChatWorkspace({ workspace, chatBinding }: { workspace?: React.Re
     // workspace in the plain chat later; the chat's code workspace and project pane use the shared split
     const [ownSplit, setOwnSplit] = useState(50);
     const ownsSplit = workspace !== undefined;
-    const visibleSplitPaneWidth = ownsSplit ? ownSplit : resolvedWorkspace !== undefined && splitPaneWidth === 100 ? 50 : splitPaneWidth;
+    const visibleSplitPaneWidth = ownsSplit ? ownSplit : resolvedWorkspace !== undefined
+        ? (splitPaneWidth === 100 ? 50 : splitPaneWidth)
+        // The code workspace is hidden for now: a saved split no longer opens it beside the chat
+        : CODE_WORKSPACE_ENABLED ? splitPaneWidth : 100;
     const setSplit = ownsSplit ? setOwnSplit : setSplitPaneWidth;
 
     const [inputValue, setInputValue] = useState('');

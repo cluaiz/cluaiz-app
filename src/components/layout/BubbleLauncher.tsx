@@ -1,7 +1,7 @@
 import { Icons } from '../animate-ui/icons';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLayoutStore } from '../../store/ui/useLayoutStore';
-import { useProjectStore } from '../../store/workspace/useProjectStore';
+import { useProjectStore, CODE_WORKSPACE_ENABLED } from '../../store/workspace/useProjectStore';
 
 interface BubbleLauncherProps {
     isOpen: boolean;
@@ -67,7 +67,7 @@ export function BubbleLauncher({ isOpen, coords, onClose, onOpenSettings }: Bubb
                         style={coords ? { left: getLeftPos(), top: coords.y } : undefined}
                     >
                         <MenuItem icon={Icons.MessageSquare} label="New Chat" onClick={() => handleSelect('new_chat')} />
-                        <MenuItem icon={Icons.FolderGit2} label="Open Workspace" onClick={() => handleSelect('workspace')} />
+                        {CODE_WORKSPACE_ENABLED && <MenuItem icon={Icons.FolderGit2} label="Open Workspace" onClick={() => handleSelect('workspace')} />}
                         <MenuItem icon={Icons.Code2} label="APIs" onClick={() => handleSelect('apis')} />
                         <MenuItem icon={Icons.Boxes} label="Toolkit" onClick={() => handleSelect('toolkit')} />
                         
