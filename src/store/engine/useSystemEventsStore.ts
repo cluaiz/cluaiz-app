@@ -34,6 +34,7 @@ export function reduceLoadEvent(prev: ActiveEngineLoad | null, event: SystemEven
   const message = text(d.message) ?? event.name;
   const attempt = num(d.attempt);
   const placement = text(d.placement);
+  const sameModel = prev?.model === model ? prev : null;
 
   switch (event.name) {
     case 'model.load_started':
@@ -44,7 +45,7 @@ export function reduceLoadEvent(prev: ActiveEngineLoad | null, event: SystemEven
         model,
         status: 'loading',
         message,
-        percent: percent ?? (d.step === 'weights' ? prev?.percent : undefined),
+        percent: percent ?? (d.step === 'weights' ? sameModel?.percent : undefined),
         attempt: attempt ?? prev?.attempt,
         placement: placement ?? prev?.placement,
       };
@@ -116,7 +117,8 @@ export const useSystemEventsStore = create<SystemEventsState>((set, get) => {
       activeController?.abort();
       const controller = new AbortController();
       activeController = controller;
-      set({ running: true });
+      if (clearTimer) { clearTimeout(clearTimer); clearTimer = null; }
+      set({ running: true, activeLoad: null, lastSeq: 0 });
 
       void (async () => {
         let cursor = 0;
@@ -165,14 +167,14 @@ export const useSystemEventsStore = create<SystemEventsState>((set, get) => {
         }
         if (activeController === controller) {
           activeController = null;
-          set({ running: false });
+          set({ running: false, activeLoad: null, lastSeq: 0 });
         }
       })();
 
       return () => {
         if (activeController === controller) {
           activeController = null;
-          set({ running: false });
+          set({ running: false, activeLoad: null, lastSeq: 0 });
         }
         controller.abort();
         if (clearTimer) { clearTimeout(clearTimer); clearTimer = null; }

@@ -68,8 +68,11 @@ flowchart LR
 - **hooks/useChatSend.ts & core/engine.ts:** saved (non-private) chats pass
   `history_mode: 'adaptive'` on `/v1/chat/completions` so the Engine retains recent
   turns in the prompt, recalls older turns from its index, and offers memory tools
-  (`recall`, `open_memory`, `remember`). Live `model_loading` steps (`cluaiz.progress`)
-  and final `engine.load` placement reports update `msg.modelLoad` rendered by `ModelLoadCard.tsx`.
+  (`recall`, `open_memory`, `remember`). The connected App shell long-polls `system.events`.
+  While a local turn waits for its model, the existing processing label shows that model's
+  load message and reported percentage. When loading ends or no matching event exists,
+  the normal Chat label applies. Final `engine.load` placement reports still use `ModelLoadCard.tsx`.
+  Run `node --test test/cep_model_load_ui.test.cjs` to check the label against Engine event sequences.
 - **approvals.ts, components/ApprovalTabs.tsx, components/PermissionApprovalCard.tsx:**
   a waiting call is a card above the input (Approve, Allow in chat, Reject); the chat notes
   each call of an answer and its outcome in order (`messageApprovals`), and a call still

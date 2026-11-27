@@ -27,7 +27,7 @@ interface SendState {
 /** Owns one chat request's progress, error recovery and conversation updates. */
 export function useChatSend({ inputValue, setInputValue, replyingTo, setReplyingTo, isIncognito, messages, telemetry }: SendState) {
     const { startStreaming, endStreaming, recordToken, recordToolExecution, setBreakdown, syncSessionTokens } = telemetry;
-    const [processing, setProcessing] = useState<{ sessionId: string; label: string } | null>(null);
+    const [processing, setProcessing] = useState<{ sessionId: string; label: string; loadingModel?: string } | null>(null);
     const handleSendMessage = async (customText?: string, options?: import('../../../core/engine').SendChatOptions) => {
         const textToSend = typeof customText === 'string' ? customText : inputValue;
         const hasAttachments = Boolean((options?.attachments && options.attachments.length > 0) || (options?.parts && options.parts.length > 0));
@@ -75,7 +75,7 @@ export function useChatSend({ inputValue, setInputValue, replyingTo, setReplying
         const userId = useChatStore.getState().sessions[sessionId]?.messages.slice(-1)[0]?.id;
 
         // The model this request runs on, the same one the composer sends: a provider's model or the Engine's chat model.
-        const currentModelName = chatRequestModel(useEngineStore.getState().permissions?.chat_models?.text);
+        const currentModelName = options?.model || chatRequestModel(useEngineStore.getState().permissions?.chat_models?.text);
         const modelProvider = isProviderModel(currentModelName, useProvidersStore.getState().providers) ? 'cloud' : 'local';
 
         // Create the assistant row before waiting for the engine.
@@ -135,7 +135,8 @@ export function useChatSend({ inputValue, setInputValue, replyingTo, setReplying
         try {
             startStreaming();
             useChatStore.getState().setStreamingSession(sessionId);
-            setProcessing({ sessionId, label: 'Waiting for engine' });
+            const loadingModel = modelProvider === 'local' ? currentModelName : undefined;
+            setProcessing({ sessionId, label: 'Waiting for engine', loadingModel });
             if (useEngineStore.getState().permissions?.lazy_load_model) {
                 const { cluaizEngine } = await import('../../../core/engine');
                 await cluaizEngine.boot();
@@ -168,6 +169,7 @@ export function useChatSend({ inputValue, setInputValue, replyingTo, setReplying
             const isPrivateSession = Boolean(currentSession?.isIncognito);
             const chatOptions = {
                 ...options,
+                model: currentModelName,
                 session_id: sessionId,
                 ...chatHistoryOptions(options, isPrivateSession),
                 messages: conversationMessages
@@ -240,16 +242,23 @@ export function useChatSend({ inputValue, setInputValue, replyingTo, setReplying
                         }));
                         if (p.load && p.load.kind !== 'unloaded') {
                             setProcessing(p.state === 'completed' || p.load.kind === 'loaded' ? null : {
-                                sessionId, label: processingLabel(p, contextMessages)
+                                sessionId, label: processingLabel(p, contextMessages), loadingModel
                             });
                         } else if (p.state === 'completed' || p.state === 'failed' || p.state === 'reused') {
                             setProcessing(prev => prev?.label === 'Loading model' ? null : prev);
+                        } else {
+                            setProcessing({ sessionId, label: processingLabel(p, contextMessages), loadingModel });
                         }
                         return;
                     }
-                    setProcessing(p.stage === 'request' ? null : {
-                        sessionId, label: processingLabel(p, contextMessages)
-                    });
+                    if (p.stage === 'request') {
+                        setProcessing(previous => previous?.loadingModel ? previous : null);
+                    } else {
+                        setProcessing({
+                            sessionId, label: processingLabel(p, contextMessages),
+                            loadingModel: p.stage === 'queued' ? loadingModel : undefined,
+                        });
+                    }
                     return;
                 }
                 if (typeof chunk === 'object' && (chunk.engine || chunk.finishReason)) {

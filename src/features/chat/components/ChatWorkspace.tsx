@@ -38,6 +38,8 @@ import { AiMemoryPanel } from './AiMemoryPanel';
 import { ConversationMemoryPanel } from './ConversationMemoryPanel';
 import { ContextDetailsPanel } from './ContextDetailsPanel';
 import { useProjectStore } from '../../../store/workspace/useProjectStore';
+import { useSystemEventsStore } from '../../../store/engine/useSystemEventsStore';
+import { chatLoadLabel } from '../utils/chatLoadLabel';
 import { useChatProjectsStore } from '../../../store/chat/useChatProjectsStore';
 import { ProjectWorkspacePane } from '../../projects/ProjectWorkspacePane';
 import { ProjectIcon } from '../../projects/ProjectIcons';
@@ -425,6 +427,9 @@ main().catch(console.error);`);
     const { handleSendMessage: sendMainMessage, handleRetryMessage, processing } = useChatSend({
         inputValue, setInputValue, replyingTo, setReplyingTo, isIncognito, messages, telemetry
     });
+    const activeProcessingLabel = useSystemEventsStore(state => processing?.sessionId === activeSessionId && processing
+        ? chatLoadLabel(processing.label, processing.loadingModel, state.activeLoad)
+        : undefined);
     const sendEdited: typeof sendMainMessage = (...args) => {
         if (editing && activeSessionId) {
             const count = useChatStore.getState().sessions[activeSessionId]?.messages.length ?? 0;
@@ -682,7 +687,7 @@ main().catch(console.error);`);
                                                                     onToggleSelect={() => handleToggleSelect(currentIndex)}
                                                                     onSkipThinking={isBoundChat ? undefined : handleSkipThinking}
                                                                     isStreaming={streamingHere && msg.id === messages[messages.length - 1]?.id}
-                                                                    processingLabel={processing?.sessionId === activeSessionId ? processing.label : undefined}
+                                                                    processingLabel={activeProcessingLabel}
                                                                     onRetry={isBoundChat || !isLatestMessage ? undefined : handleRetryMessage}
                                                                 />}
                                                             </motion.div>

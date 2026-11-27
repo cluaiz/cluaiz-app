@@ -148,9 +148,49 @@ test('the events watcher first reads the newest events and starts again after an
   });
   const unwatch = storeMod.useSystemEventsStore.getState().startWatching();
   await done;
-  unwatch();
   assert.deepEqual(calls.slice(0, 3), [{ limit: 1 }, { after: 250, limit: 50 }, { after: 300, limit: 50, wait_ms: 15000 }]);
   assert.equal(storeMod.useSystemEventsStore.getState().activeLoad.percent, 40);
   // After the restart it looks again from the newest events
   assert.deepEqual(calls[3], { limit: 1 });
+  unwatch();
+  assert.equal(storeMod.useSystemEventsStore.getState().activeLoad, null);
+});
+
+const { reduceLoadEvent } = load('src/store/engine/useSystemEventsStore.ts', {
+    zustand: { create: () => undefined },
+    '../../api/client/cep': {},
+    '../../api/engine/system/events': {},
+});
+const { chatLoadLabel } = load('src/features/chat/utils/chatLoadLabel.ts', {});
+
+test('local Chat shows only its own live load steps, then restores its normal label', () => {
+    const fallback = 'Waiting for engine';
+    let current = null;
+    const label = (model = 'local-model') => chatLoadLabel(fallback, model, current);
+    function publish(name, data, model = 'local-model') {
+        current = reduceLoadEvent(current, { name, data: { model, ...data } });
+    }
+
+    assert.equal(label(), fallback);
+    publish('model.load_started', { message: 'loading weights' });
+    assert.equal(label(), 'loading weights');
+    publish('model.load_step', { step: 'weights', message: 'reading weights', percent: 37 });
+    assert.equal(label(), 'reading weights · 37%');
+    assert.equal(label('other-model'), fallback);
+    assert.equal(chatLoadLabel(fallback, undefined, current), fallback);
+    publish('model.load_step', { step: 'weights', message: 'reading weights 38%', percent: 38 });
+    assert.equal(label(), 'reading weights 38%');
+    publish('model.load_step', { step: 'context', message: 'making KV cache' });
+    assert.equal(label(), 'making KV cache');
+    publish('model.load_step', { step: 'warmup', message: 'warming up' });
+    assert.equal(label(), 'warming up');
+    publish('model.load_retry', { attempt: 2, message: 'retry 2' });
+    assert.equal(label(), 'retry 2');
+    publish('model.loaded', { message: 'loaded' });
+    assert.equal(label(), fallback);
+    for (const terminal of ['model.load_failed', 'model.load_refused', 'model.unloaded']) {
+        publish('model.load_started', { message: 'loading again' });
+        publish(terminal, { message: 'finished' });
+        assert.equal(label(), fallback);
+    }
 });
