@@ -23,6 +23,8 @@ jobs:
     runs-on: ${{ matrix.runner }}
     env:
       CLUAIZ_ENGINE_SOURCE: ${{ github.workspace }}/engine-reference
+      # The macOS runner ran out of the default Node heap during the UI build (2026-11-27).
+      NODE_OPTIONS: --max-old-space-size=6144
     steps:
       - uses: actions/checkout@v4
       - uses: actions/checkout@v4
