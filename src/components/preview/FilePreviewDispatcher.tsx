@@ -23,6 +23,8 @@ interface FilePreviewDispatcherProps {
     content: string;
     rootPath?: string;
     onChangeContent?: (newContent: string) => void;
+    /** The caller already shows the file's name and actions (preview window) */
+    hideHeader?: boolean;
 }
 
 export const FilePreviewDispatcher: React.FC<FilePreviewDispatcherProps> = ({
@@ -31,6 +33,7 @@ export const FilePreviewDispatcher: React.FC<FilePreviewDispatcherProps> = ({
     content,
     rootPath,
     onChangeContent,
+    hideHeader,
 }) => {
     if (isImageFile(fileName)) {
         return (
@@ -73,6 +76,7 @@ export const FilePreviewDispatcher: React.FC<FilePreviewDispatcherProps> = ({
                 fileName={fileName}
                 content={content}
                 rootPath={rootPath}
+                hideHeader={hideHeader}
             />
         );
     }

@@ -1,4 +1,4 @@
-import { useProjectStore, detectLanguageFromPath } from '../../../store/workspace/useProjectStore';
+import { useProjectStore, detectLanguageFromPath, CODE_WORKSPACE_ENABLED } from '../../../store/workspace/useProjectStore';
 import { useLayoutStore } from '../../../store/ui/useLayoutStore';
 import type { Project, ProjectFile } from '../../workspace/types';
 import { fileToDataUri } from './attachmentSerializer';
@@ -20,7 +20,8 @@ export interface AttachmentOpenTarget {
  * - Closing the tab removes it cleanly with zero disk corruption or permanent history pollution.
  */
 export async function openAttachmentInWorkspace(item: AttachmentOpenTarget): Promise<void> {
-    if (!item || !item.name) return;
+    // The code workspace is hidden for now (CODE_WORKSPACE_ENABLED): nothing opens it
+    if (!CODE_WORKSPACE_ENABLED || !item || !item.name) return;
 
     const { splitPaneWidth, setSplitPaneWidth, setWorkspaceSidebarOpen } = useLayoutStore.getState();
 

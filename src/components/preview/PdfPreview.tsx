@@ -7,6 +7,8 @@ interface PdfPreviewProps {
     fileName: string;
     content: string; // base64, data URI, or binary string
     rootPath?: string;
+    /** Inside a window that already shows the file's name and actions: no second header */
+    hideHeader?: boolean;
 }
 
 export const PdfPreview: React.FC<PdfPreviewProps> = ({
@@ -14,6 +16,7 @@ export const PdfPreview: React.FC<PdfPreviewProps> = ({
     fileName,
     content,
     rootPath,
+    hideHeader = false,
 }) => {
     const initialSyncUri = useMemo(() => {
         return resolveMediaUrlSync(rootPath, filePath, content);
@@ -61,7 +64,7 @@ export const PdfPreview: React.FC<PdfPreviewProps> = ({
             isFullscreen ? 'fixed inset-0 z-50' : 'relative'
         }`}>
             {/* Top Toolbar */}
-            <div className="h-10 border-b border-[var(--border-color)] bg-[var(--bg-secondary)] px-4 flex items-center justify-between flex-shrink-0">
+            {!hideHeader && <div className="h-10 border-b border-[var(--border-color)] bg-[var(--bg-secondary)] px-4 flex items-center justify-between flex-shrink-0">
                 <div className="flex items-center gap-2">
                     <FileText className="w-4 h-4 text-rose-400" />
                     <span className="text-xs font-semibold text-[var(--text-primary)] truncate max-w-[250px]">{fileName}</span>
@@ -90,7 +93,7 @@ export const PdfPreview: React.FC<PdfPreviewProps> = ({
                         {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
                     </button>
                 </div>
-            </div>
+            </div>}
 
             {/* Embedded Native PDF Viewer */}
             <div className="flex-1 w-full h-full bg-[var(--bg-primary)] overflow-hidden relative">
@@ -102,7 +105,7 @@ export const PdfPreview: React.FC<PdfPreviewProps> = ({
                     />
                 ) : (
                     <div className="h-full w-full flex items-center justify-center text-[var(--text-muted)] text-xs font-mono">
-                        Loading PDF content...
+                        {isLoading ? 'Loading PDF content...' : 'This PDF could not be opened here.'}
                     </div>
                 )}
             </div>

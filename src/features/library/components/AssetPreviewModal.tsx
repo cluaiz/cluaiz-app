@@ -15,6 +15,7 @@ import { FilePreviewDispatcher, isPreviewableFile } from '../../../components/pr
 import { detectLanguageFromPath } from '../../../store/workspace/useProjectStore';
 import { Tooltip } from '../../../components/ui/tooltip';
 import { toast } from '../../../components/ui/toast';
+import { CODE_WORKSPACE_ENABLED } from '../../../store/workspace/useProjectStore';
 
 interface AssetPreviewModalProps {
     asset: LibraryAsset | null;
@@ -169,6 +170,7 @@ export const AssetPreviewModal: React.FC<AssetPreviewModalProps> = ({
                             </Tooltip>
                         )}
 
+                        {CODE_WORKSPACE_ENABLED && (
                         <Tooltip title="Open in Workspace Editor" position="bottom">
                             <button
                                 type="button"
@@ -185,16 +187,9 @@ export const AssetPreviewModal: React.FC<AssetPreviewModalProps> = ({
                                 <span className="hidden sm:inline">Workspace</span>
                             </button>
                         </Tooltip>
+                        )}
 
-                        <Tooltip title="Download File" position="bottom">
-                            <button
-                                type="button"
-                                onClick={handleDownload}
-                                className="p-1.5 rounded-lg border border-[var(--border-color)] text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-colors cursor-pointer"
-                            >
-                                <Download className="w-4 h-4" />
-                            </button>
-                        </Tooltip>
+                        {/* No download button: the file is already on this computer (owner, 2026-11-27) */}
 
                         <button
                             type="button"
@@ -213,6 +208,7 @@ export const AssetPreviewModal: React.FC<AssetPreviewModalProps> = ({
                             filePath={asset.previewUrl || asset.name}
                             fileName={asset.name}
                             content={asset.previewUrl || resolvedContent || ''}
+                            hideHeader
                         />
                     ) : (
                         <CodeEditor

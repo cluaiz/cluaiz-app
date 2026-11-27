@@ -7,7 +7,7 @@ import { pushChatRoute, pushViewRoute } from '../../../core/router';
 import { useLibraryAssets } from '../hooks/useLibraryAssets';
 import { LibraryAsset, LibraryCategory, LibrarySortOption } from '../types';
 import { openAttachmentInWorkspace } from '../../chat/utils/workspaceAttachmentOpener';
-import { WorkspaceEditorPane } from '../../workspace';
+import { WorkspaceEditorPane, CODE_WORKSPACE_ENABLED } from '../../workspace';
 import { ResizableDivider } from '../../../components/ui/ResizableDivider';
 import { ActionDropdown, ActionDropdownItem } from '../../../components/ui/dropdown/ActionDropdown';
 import { ConfirmationModal } from '../../../components/ui/modal/ConfirmationModal';
@@ -154,12 +154,14 @@ const AssetActionMenu: React.FC<AssetActionMenuProps> = ({
                     Preview
                 </ActionDropdownItem>
 
+                {CODE_WORKSPACE_ENABLED && (
                 <ActionDropdownItem
                     icon={<Icons.ExternalLink className="w-3.5 h-3.5" />}
                     onClick={onOpenWorkspace}
                 >
                     Open in Workspace
                 </ActionDropdownItem>
+                )}
 
                 {asset.previewUrl && (
                     <ActionDropdownItem

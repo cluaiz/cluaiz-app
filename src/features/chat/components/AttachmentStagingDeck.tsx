@@ -243,6 +243,13 @@ export const AttachmentCard: React.FC<{
                         }
                     } catch { }
                 }
+                // A staged PDF or other file has no preview URL yet (only images and videos get one
+                // when attached): give the preview the file itself so it does not wait forever
+                let previewUrl = item.previewUrl;
+                if (!content && !previewUrl && (item.file instanceof Blob) && typeof URL !== 'undefined' && URL.createObjectURL) {
+                    previewUrl = URL.createObjectURL(item.file);
+                    content = previewUrl;
+                }
 
                 // Decode base64 if it's text data URI
                 const isTextLike = item.type?.startsWith('text/') || /\.(tsx?|jsx?|rs|py|json|md|txt|html|css|yaml|yml|toml|sh|bat|cmd|env|lock|sql|c|cpp|h|java|go|xml)$/i.test(item.name);
@@ -267,7 +274,7 @@ export const AttachmentCard: React.FC<{
                     type: item.type || '',
                     category: isMedia ? 'media' : 'files',
                     extension: item.name.split('.').pop()?.toLowerCase() || '',
-                    previewUrl: item.previewUrl,
+                    previewUrl,
                     content: content || item.pastedContent,
                     usages: [],
                     latestTimestamp: Date.now()
