@@ -48,7 +48,13 @@ ${UnStrRep}
   IfSilent cluaiz_engine_done
   IfFileExists "$PROFILE\.cluaiz\bin\cluaiz.exe" cluaiz_engine_done
   MessageBox MB_YESNO|MB_ICONQUESTION "Cluaiz App needs the Cluaiz Engine.$\r$\n$\r$\nInstall the latest Engine release for this computer now?$\r$\n$\r$\nYou can also install it later from the App." IDNO cluaiz_engine_done
-  ExecWait 'powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "irm https://cluaiz.com/install.ps1 | iex"' $5
+  ; Setup is a 32-bit program, so plain powershell.exe starts the 32-bit PowerShell, which
+  ; reports x86 and the Engine installer stops with exit code 1 (seen 2026-11-28). Sysnative is
+  ; the 64-bit System32 as seen from a 32-bit program.
+  StrCpy $6 "$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe"
+  IfFileExists $6 +2
+  StrCpy $6 "powershell.exe"
+  ExecWait '"$6" -NoProfile -ExecutionPolicy Bypass -Command "irm https://cluaiz.com/install.ps1 | iex"' $5
   ${If} $5 != 0
     MessageBox MB_OK|MB_ICONEXCLAMATION "The Engine installer did not finish (exit code $5). You can install it later from the App."
   ${EndIf}
