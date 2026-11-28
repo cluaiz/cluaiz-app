@@ -1,20 +1,16 @@
-import { isTauri } from '../../core/tauri-api';
 import { IChatStorageDriver, SessionsIndex, SessionMetadata, withoutSession } from './types';
-import { TauriFsChatStorageDriver } from './TauriFsChatStorageDriver';
 import { EngineFsChatStorageDriver } from './EngineFsChatStorageDriver';
-import { IndexedDbChatStorageDriver } from './IndexedDbChatStorageDriver';
 import { ChatMessage } from '../../store/chat/useChatStore';
 import { useConnectionStore } from '../../store/engine/useConnectionStore';
 
 /**
- * ChatStorageManager delegates storage operations dynamically based on runtime environment:
- * - On Desktop (Tauri): delegates to TauriFsChatStorageDriver (native filesystem).
- * - On Browser/Web: delegates to EngineFsChatStorageDriver (workspace-relative data/chats via shared CEP filesystem adapter).
- * - Offline Fallback: delegates to IndexedDbChatStorageDriver if Engine is unreachable.
+ * Chat history lives only in the Engine workspace (`data/chats`, read and written over CEP), on
+ * desktop and in the browser. There is no second copy in browser storage or the App's own data
+ * folder: a silent local fallback hid failed Engine reads and writes, so the sidebar showed a
+ * different, almost empty list (2026-11-28). An Engine failure is now returned to the caller.
  */
 export class ChatStorageManager implements IChatStorageDriver {
-    private primaryDriver: IChatStorageDriver;
-    private fallbackDriver: IChatStorageDriver;
+    private driver: IChatStorageDriver;
     private writes: Promise<unknown> = Promise.resolve();
     private generation = 0;
     private deleted = new Set<string>();
@@ -33,14 +29,6 @@ export class ChatStorageManager implements IChatStorageDriver {
         return task;
     }
 
-    private mirror(operation: (driver: IChatStorageDriver) => Promise<void>): Promise<void> {
-        return this.ordered(async () => {
-            const results = await Promise.allSettled([operation(this.primaryDriver), operation(this.fallbackDriver)]);
-            for (const result of results) if (result.status === 'rejected') console.warn('[ChatStorageManager] Save failed:', result.reason);
-            if (results.every(result => result.status === 'rejected')) throw new Error('Both chat storage saves failed');
-        });
-    }
-
     constructor() {
         useConnectionStore.subscribe((next, previous) => {
             if (next.protocol !== previous.protocol || next.host !== previous.host || next.port !== previous.port) {
@@ -48,113 +36,67 @@ export class ChatStorageManager implements IChatStorageDriver {
                 this.deleted.clear();
             }
         });
-        this.fallbackDriver = new IndexedDbChatStorageDriver();
-        if (isTauri()) {
-            this.primaryDriver = new TauriFsChatStorageDriver();
-        } else {
-            this.primaryDriver = new EngineFsChatStorageDriver();
-        }
+        this.driver = new EngineFsChatStorageDriver();
     }
 
     public getDriver(): IChatStorageDriver {
-        return this.primaryDriver;
+        return this.driver;
     }
 
     async loadSessionsIndex(): Promise<SessionsIndex | null> {
         await this.writes;
-        const [primaryRes, fallbackRes] = await Promise.allSettled([
-            this.primaryDriver.loadSessionsIndex(),
-            this.fallbackDriver.loadSessionsIndex(),
-        ]);
-        const primary = primaryRes.status === 'fulfilled' ? primaryRes.value : null;
-        const fallback = fallbackRes.status === 'fulfilled' ? fallbackRes.value : null;
-        if (primaryRes.status === 'rejected') {
-            console.warn('[ChatStorageManager] Primary loadSessionsIndex failed, using fallback:', primaryRes.reason);
-        }
-        if (!primary) return fallback;
-        if (!fallback || !Array.isArray(fallback.sessions) || fallback.sessions.length === 0) return primary;
-
-        const byId = new Map<string, SessionsIndex['sessions'][number]>();
-        for (const s of fallback.sessions) {
-            if (s?.id && !this.deleted.has(s.id)) byId.set(s.id, s);
-        }
-        for (const s of primary.sessions || []) {
-            if (!s?.id || this.deleted.has(s.id)) continue;
-            const prev = byId.get(s.id);
-            if (!prev || (s.updatedAt || 0) >= (prev.updatedAt || 0)) {
-                byId.set(s.id, { ...prev, ...s });
-            }
-        }
-        return {
-            version: primary.version ?? fallback.version ?? 1,
-            lastActiveSessionId: primary.lastActiveSessionId ?? fallback.lastActiveSessionId ?? null,
-            sessions: Array.from(byId.values()),
-        };
+        const index = await this.driver.loadSessionsIndex();
+        if (!index) return null;
+        let current = index;
+        for (const id of this.deleted) current = withoutSession(current, id);
+        return current;
     }
 
     async saveSessionsIndex(index: SessionsIndex): Promise<void> {
-        return this.mirror(driver => {
+        return this.ordered(() => {
             let current = index;
             for (const id of this.deleted) current = withoutSession(current, id);
-            return driver.saveSessionsIndex(current);
+            return this.driver.saveSessionsIndex(current);
         });
     }
 
     async loadSessionMetadata(sessionId: string): Promise<SessionMetadata | null> {
         await this.writes;
-        try {
-            const meta = await this.primaryDriver.loadSessionMetadata(sessionId);
-            if (meta) return meta;
-        } catch {}
-        return this.fallbackDriver.loadSessionMetadata(sessionId);
+        return this.driver.loadSessionMetadata(sessionId);
     }
 
     async saveSessionMetadata(sessionId: string, meta: SessionMetadata): Promise<void> {
-        return this.mirror(driver => { this.writable(sessionId); return driver.saveSessionMetadata(sessionId, meta); });
+        return this.ordered(() => { this.writable(sessionId); return this.driver.saveSessionMetadata(sessionId, meta); });
     }
 
     async loadSessionMessages(sessionId: string, limit?: number, offset?: number): Promise<ChatMessage[]> {
         await this.writes;
-        try {
-            const msgs = await this.primaryDriver.loadSessionMessages(sessionId, limit, offset);
-            if (msgs && msgs.length > 0) return msgs;
-        } catch {}
-        return this.fallbackDriver.loadSessionMessages(sessionId, limit, offset);
+        return this.driver.loadSessionMessages(sessionId, limit, offset);
     }
 
     async appendMessage(sessionId: string, message: ChatMessage): Promise<void> {
-        return this.mirror(driver => { this.writable(sessionId); return driver.appendMessage(sessionId, message); });
+        return this.ordered(() => { this.writable(sessionId); return this.driver.appendMessage(sessionId, message); });
     }
 
     async saveAllMessages(sessionId: string, messages: ChatMessage[]): Promise<void> {
-        return this.mirror(driver => { this.writable(sessionId); return driver.saveAllMessages(sessionId, messages); });
+        return this.ordered(() => { this.writable(sessionId); return this.driver.saveAllMessages(sessionId, messages); });
     }
 
     async deleteSession(sessionId: string, assertCurrent = () => {}): Promise<void> {
         return this.ordered(async () => {
             assertCurrent();
-            await this.primaryDriver.deleteSession(sessionId, assertCurrent);
-            assertCurrent();
-            await this.fallbackDriver.deleteSession(sessionId, assertCurrent);
+            await this.driver.deleteSession(sessionId, assertCurrent);
             assertCurrent();
             this.deleted.add(sessionId);
         });
     }
 
     async saveAsset(sessionId: string, fileName: string, data: Uint8Array | Blob): Promise<string> {
-        return this.ordered(async () => {
-            this.writable(sessionId);
-            try { return await this.primaryDriver.saveAsset(sessionId, fileName, data); }
-            catch { return this.fallbackDriver.saveAsset(sessionId, fileName, data); }
-        });
+        return this.ordered(() => { this.writable(sessionId); return this.driver.saveAsset(sessionId, fileName, data); });
     }
 
     async resolveAssetUrl(sessionId: string, relativePath: string): Promise<string> {
-        try {
-            return await this.primaryDriver.resolveAssetUrl(sessionId, relativePath);
-        } catch {
-            return this.fallbackDriver.resolveAssetUrl(sessionId, relativePath);
-        }
+        return this.driver.resolveAssetUrl(sessionId, relativePath);
     }
 }
 

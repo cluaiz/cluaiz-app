@@ -21,9 +21,31 @@ test('failed primary chat deletion rejects instead of reporting a fallback-only 
  const m=manager({deleteSession:async()=>{throw Error('disk denied');}});
  await assert.rejects(m.deleteSession('chat-a'),/disk denied/);
 });
-test('chat deletion waits for fallback acknowledgment',async()=>{
+test('separate App clients read the same Engine-backed chat catalog and messages', async () => {
+ let index = null;
+ const messages = new Map();
+ const engine = {
+  loadSessionsIndex: async () => index,
+  saveSessionsIndex: async next => { index = next; },
+  saveAllMessages: async (id, rows) => { messages.set(id, rows); },
+  loadSessionMessages: async id => messages.get(id) || [],
+ };
+ const browser = manager(engine);
+ const desktop = manager(engine, {saveAllMessages: async () => {}}, require('zustand').create(() => ({ protocol: 'ffi', host: 'a', port: 8000 })));
+ const saved = { version: 1, lastActiveSessionId: 'old', sessions: [{ id: 'old' }] };
+ const rows = [{ id: 'message-1', text: 'saved history' }];
+ await browser.saveSessionsIndex(saved);
+ await desktop.saveAllMessages('old', rows);
+ assert.deepEqual(await desktop.loadSessionsIndex(), saved);
+ assert.deepEqual(await browser.loadSessionMessages('old'), rows);
+});
+test('an Engine read failure is returned, never replaced by a local copy',async()=>{
+ const m=manager({loadSessionsIndex:async()=>{throw Error('engine unreachable');}},{loadSessionsIndex:async()=>({version:1,sessions:[{id:'local'}]})});
+ await assert.rejects(m.loadSessionsIndex(),/engine unreachable/);
+});
+test('chat deletion waits for the Engine acknowledgment',async()=>{
  const pending=deferred();let finished=false;
- const m=manager({}, {deleteSession:()=>pending.promise});
+ const m=manager({deleteSession:()=>pending.promise});
  const operation=m.deleteSession('chat-a').then(()=>{finished=true;});
  await new Promise(r=>setTimeout(r,5));assert.equal(finished,false);
  pending.resolve();await operation;assert.equal(finished,true);
@@ -34,16 +56,15 @@ test('IndexedDB delete propagates failed transactions',async()=>{
  await assert.rejects(driver.deleteSession('chat-a'),/database unavailable/);
 });
 
-test('pending mirror writes finish before deletion and a failed operation does not poison the queue',async()=>{
+test('pending writes finish before deletion and a failed operation does not poison the queue',async()=>{
  const pending=deferred(),events=[];
  const m=manager({saveAllMessages:async()=>{events.push('write');await pending.promise;events.push('saved');},
-  deleteSession:async()=>events.push('primary-delete')},
-  {saveAllMessages:async()=>{events.push('mirror');},deleteSession:async()=>events.push('fallback-delete')});
+  deleteSession:async()=>events.push('delete')});
  const saving=m.saveAllMessages('chat-a',[]);const removing=m.deleteSession('chat-a');
- await new Promise(r=>setTimeout(r,5));assert.deepEqual(events,['write','mirror']);
- pending.resolve();await saving;await removing;assert.deepEqual(events,['write','mirror','saved','primary-delete','fallback-delete']);
+ await new Promise(r=>setTimeout(r,5));assert.deepEqual(events,['write']);
+ pending.resolve();await saving;await removing;assert.deepEqual(events,['write','saved','delete']);
  await assert.rejects(m.deleteSession('chat-a',()=>{throw Error('scope changed');}),/scope changed/);
- await m.deleteSession('chat-b');assert.equal(events.at(-1),'fallback-delete');
+ await m.deleteSession('chat-b');assert.equal(events.at(-1),'delete');
 });
 test('queued writes cannot begin on a newly selected Engine including A-B-A',async()=>{
  const scope=connection(),pending=deferred();let writes=0;

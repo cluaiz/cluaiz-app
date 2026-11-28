@@ -210,6 +210,7 @@ export function SidebarContent({ onOpenLauncher, automationSidebarRef, automatio
     // 💬 Dynamic interactive chats state matching screenshot visual layouts
     const { sessions, activeSessionId, switchSession, updateSession, deleteSession } = useChatStore();
     const streamingSessionId = useChatStore(s => s.streamingSessionId);
+    const historyError = useChatStore(s => s.historyError);
     const {
         projects: chatProjectsMap,
         openProject,
@@ -727,6 +728,13 @@ export function SidebarContent({ onOpenLauncher, automationSidebarRef, automatio
                     )}
                 </div>
             </div>
+
+            {historyError && (
+                <div role="alert" className={`${inFlyout ? 'mx-3' : 'mx-4'} mb-2 rounded-lg border border-[var(--border-color)] p-2 text-xs text-[var(--status-error)]`}>
+                    <p>Chat history could not be read from the Engine: {historyError}</p>
+                    <button type="button" className="mt-1 underline" onClick={() => void useChatStore.getState().hydrateFromStorage()}>Try again</button>
+                </div>
+            )}
 
             {/* Horizontal Filter Tabs: All, Project, Pinned, Old, Archive + User custom labels */}
             <div className={`mb-1 ${inFlyout ? 'px-3' : 'px-4'}`}>

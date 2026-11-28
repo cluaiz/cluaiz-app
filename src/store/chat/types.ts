@@ -14,7 +14,7 @@ export interface ChatPermissionRequest {
 }
 
 export interface ChatModelLoadState {
-    status: 'loading' | 'loaded' | 'failed';
+    status: 'loading' | 'loaded' | 'failed' | 'interrupted';
     model?: string;
     loadMs?: number;
     percent?: number;
@@ -111,6 +111,8 @@ export interface ChatStore {
     sessions: Record<string, ChatSession>;
     activeSessionId: string | null;
     isHydrated: boolean;
+    /** Why the Engine chat history could not be read; null when it loaded. */
+    historyError: string | null;
     isLoadingMessages: boolean;
     /** Chat whose answer is being generated now (it keeps streaming while another chat is open) */
     streamingSessionId: string | null;

@@ -93,6 +93,7 @@ export const useChatStore = create<ChatStore>()(
         sessions: {},
         activeSessionId: typeof window !== 'undefined' ? (parseCurrentRoute().activeChatId ?? null) : null,
         isHydrated: false,
+        historyError: null,
         isLoadingMessages: false,
         streamingSessionId: null,
         setStreamingSession: (sessionId) => set({ streamingSessionId: sessionId }),
@@ -174,7 +175,8 @@ export const useChatStore = create<ChatStore>()(
                 set({
                     sessions: sessionsMap,
                     activeSessionId: targetActiveId,
-                    isHydrated: true
+                    isHydrated: true,
+                    historyError: null
                 });
 
                 // Sync active chat to URL and load messages ONLY if user is currently on the chat view and settings is closed!
@@ -189,7 +191,7 @@ export const useChatStore = create<ChatStore>()(
                 }
             } catch (err) {
                 console.error("[ChatStore] Storage hydration error:", err);
-                set({ isHydrated: true });
+                set({ isHydrated: true, historyError: err instanceof Error ? err.message : String(err) });
             }
         },
 
